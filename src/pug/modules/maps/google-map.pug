@@ -1,0 +1,121 @@
+extends ../../layouts/LayoutComponent
+include ../../mixins/common/ComingSoon
+
+block append variables
+
+  
+  
+  - 
+    var pageHeader = {
+      title: 'Google Map',
+      description: `${name} uses Google map with Snazzy Maps, with different color schemes aimed towards web designers and developers.`,
+    }
+prepend scripts
+
+  script.
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+      key: 'AIzaSyDbaQGvhe7Af-uOMJz68NWHnO34UjjE7Lo',
+      v: "weekly",
+      libraries: "marker,streetView"
+    });
+
+block append content
+  +PageHeader(pageHeader)
+
+  
+  +ComponentCard({
+    title: 'Example',
+    anchor: true,
+  }).mb-3
+    .googlemap.min-vh-50(data-mapid='a2a07f618947e1cca5b1a9b0' data-latlng='48.8583701,2.2922873,17' data-scrollwheel='false', data-icon=`${CWD}assets/img/icons/map-marker.png`, data-zoom='17')
+      .marker-content
+        h5 Eiffel Tower
+        p.mb-0
+          | Gustave Eiffel's iconic, wrought-iron 1889 tower,
+          br
+          |  with steps and elevators to observation decks.
+ 
+  +ComponentCard({
+    title: 'Example of street view',
+    anchor: true,
+  }).mb-3
+    .googlemap.min-vh-50(data-latlng='43.0795932,-79.0776385' data-pov!={
+      heading: 180,
+      pitch: -30
+    } data-scrollwheel='false' data-icon=`${CWD}assets/img/icons/map-marker.png`  data-zoom='1' data-theme='streetview')
+  
+  .card
+    .card-header 
+      h5.mb-1  How to use Google Maps 
+      p.mb-0 
+        a(href='https://developers.google.com/maps/documentation/javascript/load-maps-js-api' target='_blank').font-sans-serif See the migration guide in google maps
+        span.d-inline-block.ms-1 &xrarr;
+    .card-body 
+      ul.ps-0.bullet-inside 
+        li.mb-3 
+          a(
+            href='https://developers.google.com/maps/documentation/javascript/get-api-key',
+            target='_blank'
+          ).font-sans-serif Get your API key
+          span.d-inline-block.ms-1 &xrarr;
+
+        li.mb-3 Add the script to your page
+          +ComponentCardLib
+            script.
+              (g => {
+                var h, a, k, p = "The Google Maps JavaScript API",
+                    c = "google", l = "importLibrary", q = "__ib__",
+                    m = document, b = window;
+                b = b[c] || (b[c] = {});
+                var d = b.maps || (b.maps = {}), r = new Set(), e = new URLSearchParams,
+                    u = () => h || (h = new Promise(async (f, n) => {
+                      await (a = m.createElement("script"));
+                      e.set("libraries", [...r] + "");
+                      for (k in g)
+                        e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]);
+                      e.set("callback", c + ".maps." + q);
+                      a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
+                      d[q] = f;
+                      a.onerror = () => h = n(Error(p + " could not load."));
+                      a.nonce = m.querySelector("script[nonce]")?.nonce || "";
+                      m.head.append(a);
+                    }));
+                d[l]
+                  ? console.warn(p + " only loads once. Ignoring:", g)
+                  : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n))
+              })({
+                key: 'YOUR_API_KEY',
+                v: "weekly",
+                libraries: "marker,streetView" // Libraries to load
+              });
+
+        li.mb-3
+          | Generate your custom map styles in the 
+          a(href='https://console.cloud.google.com/google/maps-apis' target='_blank') Google Maps Platform
+          | , and create a Map ID from the Map Management section.  
+          | Then, include that Map ID in your HTML using 
+          code data-mapid
+          |  to render the Google Maps API v3 with the 
+          code AdvancedMarkerElement
+          | .
+
+          +ComponentCardLib 
+            .googlemap.min-vh-50(
+              data-mapid='YOUR_MAP_ID',
+              data-latlng='48.8583701,2.2922873,17',
+              data-scrollwheel='false',
+              data-icon=`${CWD}assets/img/icons/map-marker.png`,
+              data-zoom='17'
+            )
+
+        li
+          | To enable Street View Panorama mode, simply add 
+          code data-theme="streetview"
+          |  to your HTML element.
+          +ComponentCardLib 
+            .googlemap.min-vh-50(data-latlng='43.0795932,-79.0776385' data-pov!={
+              heading: 180,
+              pitch: -30
+            } data-scrollwheel='false' data-icon=`${CWD}assets/img/icons/map-marker.png`  data-zoom='1' data-theme='streetview')
+  
+

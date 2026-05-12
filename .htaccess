@@ -1,0 +1,104 @@
+# =========================================================
+# TMS - Secure Routing with .htaccess
+# =========================================================
+# Features:
+# - Block access to sensitive directories
+# - Clean URLs for auth routes
+# - Clean URLs for admin routes
+# - Redirect root to login
+# - Handle missing files gracefully
+# =========================================================
+
+RewriteEngine On
+
+# ---------------------------------------------------------
+# 1. SECURITY: Block access to sensitive directories
+# ---------------------------------------------------------
+RewriteRule ^(config|app|database|gulp|src|vendors)/ - [F,L]
+RewriteRule ^\.env - [F,L]
+RewriteRule ^composer\.json - [F,L]
+RewriteRule ^composer\.lock - [F,L]
+RewriteRule ^package\.json - [F,L]
+RewriteRule ^package-lock\.json - [F,L]
+RewriteRule ^gulpfile\.js - [F,L]
+RewriteRule ^\.babelrc - [F,L]
+RewriteRule ^\.eslintrc - [F,L]
+RewriteRule ^\.prettierignore - [F,L]
+RewriteRule ^\.npmrc - [F,L]
+
+# ---------------------------------------------------------
+# 2. ADMIN ROUTES - Use router for auto-discovery
+# ---------------------------------------------------------
+# /admin -> admin/router.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^admin/(.*)$ admin/router.php [L]
+
+# ---------------------------------------------------------
+# 3. API ROUTES - Use router for auto-discovery
+# ---------------------------------------------------------
+# Route all /api/* requests to router (with or without trailing slash)
+RewriteRule ^api/(.*)/?$ api/router.php [L]
+
+# ---------------------------------------------------------
+# 4. AUTH ROUTES - Clean URLs
+# ---------------------------------------------------------
+RewriteRule ^login$ auth/login.php [L]
+RewriteRule ^register$ auth/register.php [L]
+RewriteRule ^forgot-password$ auth/forgot-password.php [L]
+RewriteRule ^reset-password$ auth/reset-password.php [L]
+RewriteRule ^confirm-mail$ auth/confirm-mail.php [L]
+RewriteRule ^lock-screen$ auth/lock-screen.php [L]
+RewriteRule ^logout$ auth/logout.php [L]
+
+# ---------------------------------------------------------
+# 5. ROOT REDIRECT - Send to login
+# ---------------------------------------------------------
+# If the request is just "/" or a single segment without a file
+RewriteCond %{REQUEST_URI} ^/[^/]+/?$
+RewriteRule ^.*$ auth/login.php [L]
+
+# If the request is exactly "/"
+RewriteCond %{REQUEST_URI} ^/?$
+RewriteRule ^.*$ auth/login.php [L]
+
+# ---------------------------------------------------------
+# 5. HANDLE MISSING FILES
+# ---------------------------------------------------------
+# TEMPORARILY DISABLED TO FIX DASHBOARD ACCESS
+# <IfModule mod_rewrite.c>
+#     RewriteCond %{REQUEST_FILENAME} !-f
+#     RewriteCond %{REQUEST_FILENAME} !-d
+#     RewriteRule ^.*$ auth/login.php [L]
+# </IfModule>
+
+# ---------------------------------------------------------
+# 6. SECURITY HEADERS
+# ---------------------------------------------------------
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ---------------------------------------------------------
+# 7. DISABLE DIRECTORY BROWSING
+# ---------------------------------------------------------
+Options -Indexes
+
+# ---------------------------------------------------------
+# 8. PREVENT ACCESS TO HIDDEN FILES
+# ---------------------------------------------------------
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ---------------------------------------------------------
+# 9. PREVENT ACCESS TO BACKUP FILES
+# ---------------------------------------------------------
+<FilesMatch "\.(bak|backup|old|orig|save|swp)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

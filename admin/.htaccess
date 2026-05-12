@@ -1,0 +1,6 @@
+RewriteEngine On
+
+# Rewrite all requests to router.php (except for actual files and directories)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ router.php [QSA,L]

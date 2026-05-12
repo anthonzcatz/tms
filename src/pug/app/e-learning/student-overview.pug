@@ -1,0 +1,45 @@
+extends ../../layouts/LayoutTheme
+include ../../mixins/e-learning/Mixins
+include ../../mixins/e-learning/StudentOverview
+
+prepend scripts
+  script(src=`${CWD}vendors/echarts/echarts.min.js`)
+  script(src=`${CWD}vendors/dayjs/dayjs.min.js`)
+
+  script.
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+      key: 'AIzaSyDbaQGvhe7Af-uOMJz68NWHnO34UjjE7Lo',
+      v: "weekly",
+      libraries: "marker"
+    });
+
+append content 
+  +StudentOverviewHeader.mb-3
+      
+  .row.g-3.mb-3
+    .col-xxl-6
+      .row.g-3
+        .col-12
+          +StudentInfo
+        .col-md-6
+          +Spendings
+        .col-md-6
+          +TimeOnSite
+    .col-xxl-6
+      +AssignmentScores
+
+  .row.g-3.mb-3
+    .col-lg-5.col-xxl-3
+      +PaymentMethods
+    .col-xxl-8.col-xxl-9.order-xxl-1.order-lg-2.order-1
+      +PaymentHistory
+    .col-md-6.col-lg-6.col-xxl-4.order-xxl-2.order-lg-3.order-2
+      +BillingAddress
+    .col-md-6.col-lg-7.col-xxl-4.order-xxl-3.order-lg-1.order-3
+      +RecentActivities
+    .col-lg-6.col-xxl-4.order-4
+      +CourseStatus 
+
+  +BrowsedCourses.mb-3 
+
+  +EnrolledCourses

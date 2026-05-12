@@ -1,0 +1,41 @@
+/* Role Dashboard Settings Styles */
+
+.card.bg-card {
+  border: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.bg-holder {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.z-1 {
+  position: relative;
+  z-index: 1;
+}
+
+.ms-x1 {
+  margin-left: 1rem;
+}
+
+.form-select-sm {
+  min-width: 250px;
+}
+
+.table thead th {
+  border-top: none;
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 0.85em;
+  padding: 0.5em 0.75em;
+}
