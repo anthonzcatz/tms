@@ -1,6 +1,10 @@
 ﻿<?php
 require_once dirname(__DIR__) . '/helpers/SidebarHelper.php';
+
+$navbarPosition = defined('NAVBAR_POSITION') ? NAVBAR_POSITION : 'vertical';
+$showSidebar = in_array($navbarPosition, ['vertical', 'combo'], true);
 ?>
+<?php if ($showSidebar): ?>
         <nav class="navbar navbar-light navbar-vertical navbar-expand-xl">
           <script>
             var navbarStyle = localStorage.getItem("navbarStyle");
@@ -43,4 +47,4 @@ require_once dirname(__DIR__) . '/helpers/SidebarHelper.php';
             </div>
           </div>
         </nav>
-        <div class="content">
+<?php endif; ?>

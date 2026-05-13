@@ -37,7 +37,11 @@ RewriteRule ^admin/(.*)$ admin/router.php [L]
 # ---------------------------------------------------------
 # 3. API ROUTES - Use router for auto-discovery
 # ---------------------------------------------------------
-# Route all /api/* requests to router (with or without trailing slash)
+# Serve static image files in api/images/ directly (bypass router)
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^api/images/ - [L]
+
+# Route all other /api/* requests to router (with or without trailing slash)
 RewriteRule ^api/(.*)/?$ api/router.php [L]
 
 # ---------------------------------------------------------

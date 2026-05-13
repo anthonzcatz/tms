@@ -35,7 +35,7 @@
           <div class="d-flex align-items-start"><img class="me-2" src="<?php echo BASE_URL; ?>/resources/assets/img/icons/left-arrow-from-left.svg" width="20" alt="" />
             <div class="flex-1">
               <h5 class="fs-9">RTL Mode</h5>
-              <p class="fs-10 mb-0">Switch your language direction </p><a class="fs-10" href="../documentation/customization/configuration.html">RTL Documentation</a>
+              <p class="fs-10 mb-0">Switch your language direction </p><a class="fs-10" href="#!">RTL Documentation</a>
             </div>
           </div>
           <div class="form-check form-switch">
@@ -47,7 +47,7 @@
           <div class="d-flex align-items-start"><img class="me-2" src="<?php echo BASE_URL; ?>/resources/assets/img/icons/arrows-h.svg" width="20" alt="" />
             <div class="flex-1">
               <h5 class="fs-9">Fluid Layout</h5>
-              <p class="fs-10 mb-0">Toggle container layout system </p><a class="fs-10" href="../documentation/customization/configuration.html">Fluid Documentation</a>
+              <p class="fs-10 mb-0">Toggle container layout system </p><a class="fs-10" href="#!">Fluid Documentation</a>
             </div>
           </div>
           <div class="form-check form-switch">
@@ -61,10 +61,10 @@
             <p class="fs-10 mb-2">Select a suitable navigation system for your web application </p>
             <div>
               <select class="form-select form-select-sm" aria-label="Navbar position" data-theme-control="navbarPosition">
-                <option value="vertical" data-page-url="../modules/components/navs-and-tabs/vertical-navbar.html">Vertical</option>
-                <option value="top" data-page-url="../modules/components/navs-and-tabs/top-navbar.html">Top</option>
-                <option value="combo" data-page-url="../modules/components/navs-and-tabs/combo-navbar.html">Combo</option>
-                <option value="double-top" data-page-url="../modules/components/navs-and-tabs/double-top-navbar.html">Double Top</option>
+                <option value="vertical">Vertical</option>
+                <option value="top">Top</option>
+                <option value="combo">Combo</option>
+                <option value="double-top">Double Top</option>
               </select>
             </div>
           </div>
@@ -72,7 +72,7 @@
         <hr />
         <h5 class="fs-9 d-flex align-items-center">Vertical Navbar Style</h5>
         <p class="fs-10 mb-0">Switch between styles for your vertical navbar </p>
-        <p> <a class="fs-10" href="../modules/components/navs-and-tabs/vertical-navbar.html#navbar-styles">See Documentation</a></p>
+        <p> <a class="fs-10" href="#!">See Documentation</a></p>
         <div class="btn-group d-block w-100 btn-group-navbar-style">
           <div class="row gx-2">
             <div class="col-6">

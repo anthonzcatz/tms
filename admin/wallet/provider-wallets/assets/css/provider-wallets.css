@@ -1,0 +1,32 @@
+/* Provider Wallets Module Styles */
+
+.balance-positive {
+    color: #198754;
+}
+
+.balance-negative {
+    color: #dc3545;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    color: #adb5bd;
+    margin-bottom: 15px;
+}
+
+.empty-state-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.empty-state-subtext {
+    font-size: 14px;
+    color: #6c757d;
+}

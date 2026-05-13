@@ -1,0 +1,173 @@
+/**
+ * Wallet Transactions Custom Styles
+ */
+
+/* Search box styling */
+.search-box {
+    position: relative;
+}
+
+.search-input {
+    padding-left: 2.5rem;
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--falcon-500);
+}
+
+/* Transaction type badges */
+.txn-type-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.txn-type-TOPUP {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.txn-type-SALE {
+    background-color: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+}
+
+.txn-type-REFUND {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+}
+
+.txn-type-ADJUSTMENT {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+}
+
+/* Direction badges */
+.direction-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.direction-IN {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.direction-IN::before {
+    content: '↓ ';
+}
+
+.direction-OUT {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.direction-OUT::before {
+    content: '↑ ';
+}
+
+/* Amount styling */
+.amount-in {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.amount-out {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* Balance styling */
+.balance-positive {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.balance-negative {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* Transaction details styling */
+.transaction-detail-row {
+    display: flex;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--falcon-200);
+}
+
+.transaction-detail-row:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.transaction-detail-label {
+    width: 140px;
+    font-weight: 600;
+    color: var(--falcon-700);
+}
+
+.transaction-detail-value {
+    flex: 1;
+    color: var(--falcon-900);
+}
+
+/* Stats card animations */
+.stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Table row hover effect */
+#transactionsTableBody tr {
+    transition: background-color 0.15s ease;
+}
+
+#transactionsTableBody tr:hover {
+    background-color: var(--falcon-100);
+}
+
+/* Loading spinner */
+.loading-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Empty state styling */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--falcon-500);
+}
+
+.empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state-text {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-subtext {
+    font-size: 0.9rem;
+    color: var(--falcon-400);
+}

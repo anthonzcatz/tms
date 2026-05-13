@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-require_once dirname(dirname(__DIR__)) . '/config/config.php';
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 ?>
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">

@@ -1,6 +1,3 @@
-<!DOCTYPE html>
-<html data-bs-theme="light" lang="en-US" dir="ltr">
-
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -48,13 +45,45 @@
     <link href="<?php echo BASE_URL; ?>/resources/vendors/leaflet.markercluster/MarkerCluster.css" rel="stylesheet">
     <link href="<?php echo BASE_URL; ?>/resources/vendors/leaflet.markercluster/MarkerCluster.Default.css" rel="stylesheet">
     <link href="<?php echo BASE_URL; ?>/resources/vendors/flatpickr/flatpickr.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,500,600,700%7cPoppins:300,400,500,600,700,800,900&amp;display=swap" rel="stylesheet">
     <link href="<?php echo BASE_URL; ?>/resources/vendors/simplebar/simplebar.min.css" rel="stylesheet">
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/theme-rtl.css" rel="stylesheet" id="style-rtl">
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/theme.css" rel="stylesheet" id="style-default">
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/user-rtl.css" rel="stylesheet" id="user-style-rtl">
-    <link href="<?php echo BASE_URL; ?>/resources/assets/css/user.css" rel="stylesheet" id="user-style-default">
+    <link href="<?php echo BASE_URL; ?>/resources/assets/css/user.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/resources/assets/css/user.css'); ?>" rel="stylesheet" id="user-style-default">
+    
+    <!-- Fix navbar positioning variables -->
+    <style>
+      :root {
+        --falcon-top-nav-height: 4.3125rem;
+      }
+      @media (min-width: 992px) {
+        :root.double-top-nav-layout {
+          --falcon-top-nav-height: 8.688rem;
+        }
+      }
+      
+      /* Ensure navbar-top is positioned correctly */
+      .navbar-top {
+        position: sticky;
+        top: 0;
+        z-index: 1020;
+        min-height: var(--falcon-top-nav-height);
+      }
+      
+      /* Fix content positioning */
+      .navbar-top + .content {
+        min-height: calc(100vh - var(--falcon-top-nav-height));
+      }
+    </style>
+    
+    <?php if (defined('NAVBAR_POSITION')): ?>
+    <script>
+      // Only set navbarPosition from PHP if not already set by user in localStorage
+      if (!localStorage.getItem('navbarPosition')) {
+        localStorage.setItem('navbarPosition', '<?php echo NAVBAR_POSITION; ?>');
+      }
+    </script>
+    <?php endif; ?>
     <script>
       var isRTL = JSON.parse(localStorage.getItem('isRTL'));
       if (isRTL) {
@@ -69,5 +98,15 @@
         linkRTL.setAttribute('disabled', true);
         userLinkRTL.setAttribute('disabled', true);
       }
+      
+      // Add double-top-nav-layout class if needed
+      <?php if (defined('NAVBAR_POSITION') && NAVBAR_POSITION === 'double-top'): ?>
+      document.documentElement.classList.add('double-top-nav-layout');
+      <?php else: ?>
+      var navbarPosition = localStorage.getItem('navbarPosition');
+      if (navbarPosition === 'double-top') {
+        document.documentElement.classList.add('double-top-nav-layout');
+      }
+      <?php endif; ?>
     </script>
   </head>

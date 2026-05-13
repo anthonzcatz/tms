@@ -228,11 +228,11 @@ CREATE TABLE `user_accounts` (
   `user_code` varchar(50) DEFAULT NULL,
   `branch_id` bigint(20) DEFAULT NULL,
   `role_id` bigint(20) NOT NULL,
-  `fullname` varchar(150) NOT NULL,
   `username` varchar(50) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
   `password_hash` text DEFAULT NULL,
   `profile_image` varchar(255) DEFAULT NULL,
+  `emp_id` int(11) DEFAULT NULL,
   `status` enum('active','inactive','suspended') DEFAULT 'active',
   `failed_login_attempts` int(11) DEFAULT 0,
   `locked_until` timestamp NULL DEFAULT NULL,
@@ -262,7 +262,8 @@ ALTER TABLE `user_accounts`
   ADD UNIQUE KEY `email` (`email`),
   ADD KEY `idx_username` (`username`),
   ADD KEY `idx_role_id` (`role_id`),
-  ADD KEY `idx_branch_id` (`branch_id`);
+  ADD KEY `idx_branch_id` (`branch_id`),
+  ADD KEY `idx_emp_id` (`emp_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -283,7 +284,8 @@ ALTER TABLE `user_accounts`
 --
 ALTER TABLE `user_accounts`
   ADD CONSTRAINT `user_accounts_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `business_branches` (`branch_id`),
-  ADD CONSTRAINT `user_accounts_ibfk_2` FOREIGN KEY (`role_id`) REFERENCES `user_roles` (`role_id`);
+  ADD CONSTRAINT `user_accounts_ibfk_2` FOREIGN KEY (`role_id`) REFERENCES `user_roles` (`role_id`),
+  ADD CONSTRAINT `user_accounts_ibfk_3` FOREIGN KEY (`emp_id`) REFERENCES `employees` (`emp_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
@@ -876,4 +878,455 @@ CREATE TABLE system_maintenance_logs (
 
     FOREIGN KEY (started_by)
         REFERENCES user_accounts(user_id)
+);
+
+
+
+-- =========================================================
+-- PAYMENT METHODS (FLEXIBLE LOOKUP)
+-- Easy to add: Cash, Bank Transfer, GCash, PayMaya, Charge, etc.
+-- =========================================================
+CREATE TABLE payment_methods (
+    method_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    method_code VARCHAR(50) UNIQUE NOT NULL,
+    method_name VARCHAR(100) NOT NULL,
+
+    method_type ENUM(
+        'CASH',
+        'BANK_TRANSFER',
+        'E_WALLET',
+        'CHARGE',
+        'CARD',
+        'OTHER'
+    ) NOT NULL,
+
+    description TEXT NULL,
+    icon VARCHAR(100) NULL,
+
+    requires_confirmation BOOLEAN DEFAULT FALSE,
+    requires_customer BOOLEAN DEFAULT FALSE,
+    requires_reference BOOLEAN DEFAULT FALSE,
+
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INT DEFAULT 0,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+
+    INDEX idx_method_type (method_type),
+    INDEX idx_is_active (is_active)
+);
+
+
+
+-- =========================================================
+-- BANK ACCOUNTS (COMPANY)
+-- For receiving bank transfers / e-wallet payments
+-- =========================================================
+CREATE TABLE bank_accounts (
+    bank_account_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    branch_id BIGINT NULL,
+
+    bank_name VARCHAR(150) NOT NULL,
+    account_name VARCHAR(150) NOT NULL,
+    account_number VARCHAR(100) NOT NULL,
+    account_type VARCHAR(50) NULL,
+
+    payment_method_id BIGINT NULL,
+
+    is_active BOOLEAN DEFAULT TRUE,
+    notes TEXT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+
+    FOREIGN KEY (branch_id)
+        REFERENCES business_branches(branch_id),
+
+    FOREIGN KEY (payment_method_id)
+        REFERENCES payment_methods(method_id),
+
+    INDEX idx_branch_id (branch_id),
+    INDEX idx_is_active (is_active)
+);
+
+
+
+-- =========================================================
+-- SERVICE TYPES (NON-TICKET SERVICES)
+-- Print fees, photocopy, scan, ticket reprint, etc.
+-- =========================================================
+CREATE TABLE service_types (
+    service_type_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NULL,
+
+    default_amount DECIMAL(12,2) DEFAULT 0,
+    allow_custom_amount BOOLEAN DEFAULT TRUE,
+    requires_wallet BOOLEAN DEFAULT FALSE,
+
+    is_active BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+
+    INDEX idx_is_active (is_active)
+);
+
+
+
+-- =========================================================
+-- CASHIER SESSIONS (SHIFT TRACKING)
+-- Daily shift reconciliation per cashier per branch
+-- =========================================================
+CREATE TABLE cashier_sessions (
+    session_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    session_code VARCHAR(50) UNIQUE,
+
+    cashier_user_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
+
+    starting_cash DECIMAL(12,2) DEFAULT 0,
+
+    expected_cash DECIMAL(12,2) NULL,
+    actual_cash DECIMAL(12,2) NULL,
+    cash_variance DECIMAL(12,2) NULL,
+
+    total_cash DECIMAL(12,2) DEFAULT 0,
+    total_bank_transfer DECIMAL(12,2) DEFAULT 0,
+    total_e_wallet DECIMAL(12,2) DEFAULT 0,
+    total_charge DECIMAL(12,2) DEFAULT 0,
+    total_other DECIMAL(12,2) DEFAULT 0,
+    total_sales DECIMAL(12,2) DEFAULT 0,
+
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP NULL,
+
+    status ENUM(
+        'OPEN',
+        'CLOSED',
+        'RECONCILED'
+    ) DEFAULT 'OPEN',
+
+    reviewed_by BIGINT NULL,
+    reviewed_at TIMESTAMP NULL,
+
+    notes TEXT NULL,
+
+    FOREIGN KEY (cashier_user_id)
+        REFERENCES user_accounts(user_id),
+
+    FOREIGN KEY (branch_id)
+        REFERENCES business_branches(branch_id),
+
+    FOREIGN KEY (reviewed_by)
+        REFERENCES user_accounts(user_id),
+
+    INDEX idx_cashier_user_id (cashier_user_id),
+    INDEX idx_branch_id (branch_id),
+    INDEX idx_status (status),
+    INDEX idx_started_at (started_at)
+);
+
+
+
+-- =========================================================
+-- CASHIER SESSION DETAILS (PER PAYMENT METHOD)
+-- =========================================================
+CREATE TABLE cashier_session_details (
+    detail_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    session_id BIGINT NOT NULL,
+    payment_method_id BIGINT NOT NULL,
+
+    transaction_count INT DEFAULT 0,
+
+    expected_amount DECIMAL(12,2) DEFAULT 0,
+    actual_amount DECIMAL(12,2) DEFAULT 0,
+    variance DECIMAL(12,2) DEFAULT 0,
+
+    notes TEXT NULL,
+
+    FOREIGN KEY (session_id)
+        REFERENCES cashier_sessions(session_id) ON DELETE CASCADE,
+
+    FOREIGN KEY (payment_method_id)
+        REFERENCES payment_methods(method_id),
+
+    UNIQUE KEY uq_session_method (session_id, payment_method_id),
+
+    INDEX idx_session_id (session_id)
+);
+
+
+
+-- =========================================================
+-- SERVICE TRANSACTIONS (NON-TICKET)
+-- Print fees, photocopy, etc.
+-- =========================================================
+CREATE TABLE service_transactions (
+    service_txn_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    transaction_code VARCHAR(50) UNIQUE,
+
+    branch_id BIGINT NOT NULL,
+    service_type_id BIGINT NOT NULL,
+
+    passenger_id BIGINT NULL,
+
+    description TEXT NULL,
+
+    quantity INT DEFAULT 1,
+    unit_price DECIMAL(12,2) DEFAULT 0,
+    total_amount DECIMAL(12,2) NOT NULL,
+
+    status ENUM(
+        'completed',
+        'cancelled',
+        'refunded'
+    ) DEFAULT 'completed',
+
+    remarks TEXT NULL,
+
+    cashier_session_id BIGINT NULL,
+
+    created_by BIGINT NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+    deleted_at TIMESTAMP NULL,
+
+    FOREIGN KEY (branch_id)
+        REFERENCES business_branches(branch_id),
+
+    FOREIGN KEY (service_type_id)
+        REFERENCES service_types(service_type_id),
+
+    FOREIGN KEY (passenger_id)
+        REFERENCES passenger_accounts(passenger_id),
+
+    FOREIGN KEY (cashier_session_id)
+        REFERENCES cashier_sessions(session_id),
+
+    FOREIGN KEY (created_by)
+        REFERENCES user_accounts(user_id),
+
+    INDEX idx_branch_id (branch_id),
+    INDEX idx_service_type_id (service_type_id),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+);
+
+
+
+-- =========================================================
+-- TRANSACTION PAYMENTS (MIXED PAYMENTS)
+-- Polymorphic: ticket_transactions OR service_transactions
+-- 1 transaction = 1 OR many payments
+-- Example: 1500 = 1000 cash + 500 bank transfer
+-- =========================================================
+CREATE TABLE transaction_payments (
+    payment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    source_type ENUM(
+        'TICKET_TRANSACTION',
+        'SERVICE_TRANSACTION'
+    ) NOT NULL,
+
+    source_id BIGINT NOT NULL,
+
+    payment_method_id BIGINT NOT NULL,
+    bank_account_id BIGINT NULL,
+
+    amount DECIMAL(12,2) NOT NULL,
+
+    reference_number VARCHAR(100) NULL,
+    payment_date DATE NULL,
+
+    confirmation_status ENUM(
+        'NOT_REQUIRED',
+        'PENDING',
+        'CONFIRMED',
+        'REJECTED'
+    ) DEFAULT 'NOT_REQUIRED',
+
+    confirmed_by BIGINT NULL,
+    confirmed_at TIMESTAMP NULL,
+    confirmation_notes TEXT NULL,
+
+    -- For CHARGE payments (utang)
+    charged_to_passenger_id BIGINT NULL,
+    charge_settled BOOLEAN DEFAULT FALSE,
+    charge_settled_at TIMESTAMP NULL,
+
+    notes TEXT NULL,
+
+    created_by BIGINT NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+
+    FOREIGN KEY (payment_method_id)
+        REFERENCES payment_methods(method_id),
+
+    FOREIGN KEY (bank_account_id)
+        REFERENCES bank_accounts(bank_account_id),
+
+    FOREIGN KEY (confirmed_by)
+        REFERENCES user_accounts(user_id),
+
+    FOREIGN KEY (charged_to_passenger_id)
+        REFERENCES passenger_accounts(passenger_id),
+
+    FOREIGN KEY (created_by)
+        REFERENCES user_accounts(user_id),
+
+    INDEX idx_source (source_type, source_id),
+    INDEX idx_payment_method_id (payment_method_id),
+    INDEX idx_confirmation_status (confirmation_status),
+    INDEX idx_charge_settled (charge_settled),
+    INDEX idx_charged_to_passenger_id (charged_to_passenger_id),
+    INDEX idx_created_at (created_at)
+);
+
+
+
+-- =========================================================
+-- CUSTOMER CHARGES (UTANG SUMMARY)
+-- Outstanding balances per customer
+-- =========================================================
+CREATE TABLE customer_charges (
+    charge_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    passenger_id BIGINT NOT NULL,
+
+    total_charged DECIMAL(12,2) DEFAULT 0,
+    total_paid DECIMAL(12,2) DEFAULT 0,
+    balance DECIMAL(12,2) DEFAULT 0,
+
+    last_charge_date TIMESTAMP NULL,
+    last_payment_date TIMESTAMP NULL,
+
+    status ENUM(
+        'CLEAR',
+        'OUTSTANDING',
+        'OVERDUE',
+        'WRITTEN_OFF'
+    ) DEFAULT 'CLEAR',
+
+    notes TEXT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+
+    UNIQUE KEY uq_passenger_charge (passenger_id),
+
+    FOREIGN KEY (passenger_id)
+        REFERENCES passenger_accounts(passenger_id),
+
+    INDEX idx_status (status),
+    INDEX idx_balance (balance)
+);
+
+
+
+-- =========================================================
+-- CHARGE PAYMENTS
+-- When customer pays off their utang
+-- Allows partial payments
+-- =========================================================
+CREATE TABLE charge_payments (
+    charge_payment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    payment_code VARCHAR(50) UNIQUE,
+
+    passenger_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
+
+    payment_method_id BIGINT NOT NULL,
+
+    amount_paid DECIMAL(12,2) NOT NULL,
+
+    balance_before DECIMAL(12,2),
+    balance_after DECIMAL(12,2),
+
+    reference_number VARCHAR(100) NULL,
+    bank_account_id BIGINT NULL,
+
+    confirmation_status ENUM(
+        'NOT_REQUIRED',
+        'PENDING',
+        'CONFIRMED',
+        'REJECTED'
+    ) DEFAULT 'NOT_REQUIRED',
+
+    confirmed_by BIGINT NULL,
+    confirmed_at TIMESTAMP NULL,
+
+    cashier_session_id BIGINT NULL,
+
+    notes TEXT NULL,
+
+    created_by BIGINT NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+
+    FOREIGN KEY (passenger_id)
+        REFERENCES passenger_accounts(passenger_id),
+
+    FOREIGN KEY (branch_id)
+        REFERENCES business_branches(branch_id),
+
+    FOREIGN KEY (payment_method_id)
+        REFERENCES payment_methods(method_id),
+
+    FOREIGN KEY (bank_account_id)
+        REFERENCES bank_accounts(bank_account_id),
+
+    FOREIGN KEY (confirmed_by)
+        REFERENCES user_accounts(user_id),
+
+    FOREIGN KEY (cashier_session_id)
+        REFERENCES cashier_sessions(session_id),
+
+    FOREIGN KEY (created_by)
+        REFERENCES user_accounts(user_id),
+
+    INDEX idx_passenger_id (passenger_id),
+    INDEX idx_branch_id (branch_id),
+    INDEX idx_confirmation_status (confirmation_status),
+    INDEX idx_created_at (created_at)
+);
+
+
+
+-- =========================================================
+-- CHARGE PAYMENT ALLOCATIONS
+-- Tracks which transaction(s) the charge payment was applied to
+-- (FIFO - oldest charges paid first)
+-- =========================================================
+CREATE TABLE charge_payment_allocations (
+    allocation_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    charge_payment_id BIGINT NOT NULL,
+    transaction_payment_id BIGINT NOT NULL,
+
+    amount_applied DECIMAL(12,2) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (charge_payment_id)
+        REFERENCES charge_payments(charge_payment_id) ON DELETE CASCADE,
+
+    FOREIGN KEY (transaction_payment_id)
+        REFERENCES transaction_payments(payment_id),
+
+    INDEX idx_charge_payment_id (charge_payment_id),
+    INDEX idx_transaction_payment_id (transaction_payment_id)
 );

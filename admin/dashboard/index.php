@@ -18,8 +18,9 @@
                     container.classList.add('container-fluid');
                 }
             </script>
-            <?php include 'includes/sidebar.php'; ?>
-            <div class="content"><?php include 'includes/navbar.php'; ?>
+            <?php include __DIR__ . '/../includes/sidebar.php'; ?>
+            <div class="content">
+          <?php include __DIR__ . '/../includes/navbar.php'; ?>
                 <div class="row g-3 mb-3">
                     <div class="col-xxl-8">
                         <div class="card overflow-hidden mb-3">
@@ -310,7 +311,7 @@
                     <div class="col-md-6 col-xxl-4">
                         <div class="card">
                             <div class="card-header d-flex align-items-center bg-body-tertiary py-2">
-                                <h6 class="mb-0 flex-1">Users By Country</h6>
+                                <h6 class="mb-0">Users By Country</h6>
                                 <div class="btn-reveal-trigger">
                                     <button class="btn btn-link btn-reveal btn-sm session-by-country-map-reset"
                                         type="button"><span class="fas fa-sync-alt fs-10"></span></button>
@@ -892,70 +893,7 @@
                     </div>
                 </footer>
             </div>
-            <div class="modal fade" id="authentication-modal" tabindex="-1" role="dialog"
-                aria-labelledby="authentication-modal-label" aria-hidden="true">
-                <div class="modal-dialog mt-6" role="document">
-                    <div class="modal-content border-0">
-                        <div class="modal-header px-5 position-relative modal-shape-header bg-shape">
-                            <div class="position-relative z-1">
-                                <h4 class="mb-0 text-white" id="authentication-modal-label">Register</h4>
-                                <p class="fs-10 mb-0 text-white">Please create your free Falcon account</p>
-                            </div>
-                            <div data-bs-theme="dark">
-                                <button class="btn-close position-absolute top-0 end-0 mt-2 me-2"
-                                    data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                        </div>
-                        <div class="modal-body py-4 px-5">
-                            <form>
-                                <div class="mb-3">
-                                    <label class="form-label" for="modal-auth-name">Name</label>
-                                    <input class="form-control" type="text" autocomplete="on" id="modal-auth-name" />
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label" for="modal-auth-email">Email address</label>
-                                    <input class="form-control" type="email" autocomplete="on" id="modal-auth-email" />
-                                </div>
-                                <div class="row gx-2">
-                                    <div class="mb-3 col-sm-6">
-                                        <label class="form-label" for="modal-auth-password">Password</label>
-                                        <input class="form-control" type="password" autocomplete="on"
-                                            id="modal-auth-password" />
-                                    </div>
-                                    <div class="mb-3 col-sm-6">
-                                        <label class="form-label" for="modal-auth-confirm-password">Confirm
-                                            Password</label>
-                                        <input class="form-control" type="password" autocomplete="on"
-                                            id="modal-auth-confirm-password" />
-                                    </div>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="modal-auth-register-checkbox" />
-                                    <label class="form-label" for="modal-auth-register-checkbox">I accept the <a
-                                            href="#!">terms </a>and <a class="white-space-nowrap" href="#!">privacy
-                                            policy</a></label>
-                                </div>
-                                <div class="mb-3">
-                                    <button class="btn btn-primary d-block w-100 mt-3" type="submit"
-                                        name="submit">Register</button>
-                                </div>
-                            </form>
-                            <div class="position-relative mt-5">
-                                <hr />
-                                <div class="divider-content-center">or register with</div>
-                            </div>
-                            <div class="row g-2 mt-2">
-                                <div class="col-sm-6"><a class="btn btn-outline-google-plus btn-sm d-block w-100"
-                                        href="#"><span class="fab fa-google-plus-g me-2"
-                                            data-fa-transform="grow-8"></span> google</a></div>
-                                <div class="col-sm-6"><a class="btn btn-outline-facebook btn-sm d-block w-100"
-                                        href="#"><span class="fab fa-facebook-square me-2"
-                                            data-fa-transform="grow-8"></span> facebook</a></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <?php include 'includes/layout_end.php'; ?>
         </div>
     </main>
     <!-- ===============================================-->

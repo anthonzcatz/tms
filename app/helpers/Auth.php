@@ -144,6 +144,8 @@ final class Auth
     private static function createUserSession(int $userId, string $sessionToken): ?int
     {
         $expiresAt = date('Y-m-d H:i:s', time() + (int) env('SESSION_LIFETIME', 7200));
+        self::closeExpiredUserSessions();
+        self::closeActiveSessionsForUser($userId);
         
         // Auto-create or find device based on IP and user agent
         $deviceName = self::detectDeviceName();
@@ -232,12 +234,38 @@ final class Auth
 
     private static function touchUserSession(int $sessionId): void
     {
+        $expiresAt = date('Y-m-d H:i:s', time() + (int) env('SESSION_LIFETIME', 7200));
         Database::execute(
             "UPDATE user_sessions
-                SET last_seen = NOW()
+                SET last_seen = NOW(),
+                    expires_at = :expires_at
               WHERE session_id = :session_id
                 AND is_active = TRUE",
-            ['session_id' => $sessionId]
+            ['session_id' => $sessionId, 'expires_at' => $expiresAt]
+        );
+    }
+
+    private static function closeExpiredUserSessions(): void
+    {
+        Database::execute(
+            "UPDATE user_sessions
+                SET is_active = FALSE,
+                    logout_time = COALESCE(logout_time, expires_at)
+              WHERE is_active = TRUE
+                AND expires_at <= NOW()"
+        );
+    }
+
+    private static function closeActiveSessionsForUser(int $userId): void
+    {
+        Database::execute(
+            "UPDATE user_sessions
+                SET is_active = FALSE,
+                    logout_time = NOW(),
+                    last_seen = NOW()
+              WHERE user_id = :user_id
+                AND is_active = TRUE",
+            ['user_id' => $userId]
         );
     }
 

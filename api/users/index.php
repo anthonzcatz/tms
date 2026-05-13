@@ -79,7 +79,25 @@ function handleGet() {
     $userId = $_GET['id'] ?? null;
     $roleId = $_GET['role_id'] ?? null;
     $status = $_GET['status'] ?? null;
+    $branchId = $_GET['branch_id'] ?? null;
     $search = $_GET['search'] ?? '';
+    $checkUsername = $_GET['check_username'] ?? null;
+    $excludeUserId = $_GET['exclude_user_id'] ?? null;
+
+    // Check if username exists
+    if ($checkUsername) {
+        $sql = "SELECT user_id FROM user_accounts WHERE username = :username";
+        $params = ['username' => $checkUsername];
+
+        if ($excludeUserId) {
+            $sql .= " AND user_id != :exclude_user_id";
+            $params['exclude_user_id'] = (int)$excludeUserId;
+        }
+
+        $existing = Database::fetch($sql, $params);
+        echo json_encode(['success' => true, 'exists' => !!$existing]);
+        return;
+    }
     
     if ($userId) {
         // Get single user
@@ -89,7 +107,8 @@ function handleGet() {
                 ua.user_code,
                 ua.username,
                 ua.email,
-                ua.fullname,
+                ua.emp_id,
+                CONCAT_WS(' ', e.first_name, IF(e.middle_name IS NOT NULL AND e.middle_name != '', CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), ''), e.last_name) AS fullname,
                 ua.profile_image,
                 ua.branch_id,
                 ua.status,
@@ -100,11 +119,23 @@ function handleGet() {
                 ua.created_at,
                 ua.updated_at,
                 ua.last_login_at,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM user_sessions us
+                        WHERE us.user_id = ua.user_id
+                          AND us.is_active = TRUE
+                          AND us.last_seen >= (NOW() - INTERVAL 30 MINUTE)
+                          AND us.expires_at > NOW()
+                    ) THEN 1
+                    ELSE 0
+                END AS is_online,
                 ur.role_id,
                 ur.role_name,
                 ur.role_code
             FROM user_accounts ua
             LEFT JOIN user_roles ur ON ua.role_id = ur.role_id
+            LEFT JOIN employees e ON ua.emp_id = e.emp_id
             WHERE ua.user_id = :user_id
         ";
         
@@ -122,14 +153,16 @@ function handleGet() {
     
     // List users with filters
     $sql = "
-        SELECT 
+        SELECT
             ua.user_id,
             ua.user_code,
             ua.username,
             ua.email,
-            ua.fullname,
+            ua.emp_id,
+            CONCAT_WS(' ', e.first_name, IF(e.middle_name IS NOT NULL AND e.middle_name != '', CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), ''), e.last_name) AS fullname,
             ua.profile_image,
             ua.branch_id,
+            bb.branch_name,
             ua.status,
             ua.is_time_restricted,
             ua.allowed_login_start,
@@ -138,31 +171,50 @@ function handleGet() {
             ua.created_at,
             ua.updated_at,
             ua.last_login_at,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM user_sessions us
+                    WHERE us.user_id = ua.user_id
+                      AND us.is_active = TRUE
+                      AND us.last_seen >= (NOW() - INTERVAL 30 MINUTE)
+                      AND us.expires_at > NOW()
+                ) THEN 1
+                ELSE 0
+            END AS is_online,
             ur.role_id,
             ur.role_name,
             ur.role_code
         FROM user_accounts ua
         LEFT JOIN user_roles ur ON ua.role_id = ur.role_id
+        LEFT JOIN employees e ON ua.emp_id = e.emp_id
+        LEFT JOIN business_branches bb ON ua.branch_id = bb.branch_id
         WHERE 1=1
     ";
-    
+
     $params = [];
-    
+
     if ($roleId) {
         $sql .= " AND ua.role_id = :role_id";
         $params['role_id'] = (int)$roleId;
     }
-    
+
     if ($status !== null && $status !== '') {
         $sql .= " AND ua.status = :status";
         $params['status'] = $status === '1' ? 'active' : 'inactive';
     }
-    
+
+    if ($branchId) {
+        $sql .= " AND ua.branch_id = :branch_id";
+        $params['branch_id'] = (int)$branchId;
+    }
+
     if ($search) {
         $sql .= " AND (
             ua.username LIKE :search OR
             ua.email LIKE :search OR
-            ua.fullname LIKE :search
+            e.first_name LIKE :search OR
+            e.last_name LIKE :search
         )";
         $params['search'] = '%' . $search . '%';
     }
@@ -170,6 +222,13 @@ function handleGet() {
     $sql .= " ORDER BY ua.created_at DESC";
     
     $users = Database::fetchAll($sql, $params);
+    $currentUserId = Auth::id();
+    foreach ($users as &$listedUser) {
+        if ($currentUserId && (int)$listedUser['user_id'] === $currentUserId) {
+            $listedUser['is_online'] = 1;
+        }
+    }
+    unset($listedUser);
     
     echo json_encode(['success' => true, 'data' => $users]);
 }
@@ -180,10 +239,16 @@ function handleGet() {
 function handlePost() {
     $data = json_decode(file_get_contents('php://input'), true);
     
-    // Validate required fields (email is now optional)
-    if (empty($data['username']) || empty($data['fullname'])) {
+    // Validate required fields
+    if (empty($data['username'])) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Username and full name are required']);
+        echo json_encode(['success' => false, 'error' => 'Username is required']);
+        return;
+    }
+
+    if (empty($data['emp_id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Employee is required']);
         return;
     }
     
@@ -198,36 +263,38 @@ function handlePost() {
         echo json_encode(['success' => false, 'error' => 'Password is required for new users']);
         return;
     }
-    
-    // Validate email format
-    if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+
+    // Validate email format only if email is provided
+    if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Invalid email format']);
         return;
     }
-    
+
     // Check for duplicate username
     $existing = Database::fetch(
         "SELECT user_id FROM user_accounts WHERE username = :username",
         ['username' => $data['username']]
     );
-    
+
     if ($existing) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Username already exists']);
         return;
     }
-    
-    // Check for duplicate email
-    $existing = Database::fetch(
-        "SELECT user_id FROM user_accounts WHERE email = :email",
-        ['email' => $data['email']]
-    );
-    
-    if ($existing) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Email already exists']);
-        return;
+
+    // Check for duplicate email only if email is provided
+    if (!empty($data['email'])) {
+        $existing = Database::fetch(
+            "SELECT user_id FROM user_accounts WHERE email = :email",
+            ['email' => $data['email']]
+        );
+
+        if ($existing) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Email already exists']);
+            return;
+        }
     }
     
     // Generate user code (USR-XXXX format)
@@ -250,18 +317,18 @@ function handlePost() {
     if (!empty($data['profile_image'])) {
         $profileImagePath = saveProfileImage($data['profile_image'], $userCode);
     }
-    
+
     // Insert user
     Database::execute(
-        "INSERT INTO user_accounts 
-         (user_code, username, password_hash, email, fullname, role_id, branch_id, profile_image, status, is_time_restricted, allowed_login_start, allowed_login_end, allowed_days, created_at, updated_at) 
-         VALUES (:user_code, :username, :password_hash, :email, :fullname, :role_id, :branch_id, :profile_image, :status, :is_time_restricted, :allowed_login_start, :allowed_login_end, :allowed_days, NOW(), NOW())",
+        "INSERT INTO user_accounts
+         (user_code, username, password_hash, email, emp_id, role_id, branch_id, profile_image, status, is_time_restricted, allowed_login_start, allowed_login_end, allowed_days, created_at, updated_at)
+         VALUES (:user_code, :username, :password_hash, :email, :emp_id, :role_id, :branch_id, :profile_image, :status, :is_time_restricted, :allowed_login_start, :allowed_login_end, :allowed_days, NOW(), NOW())",
         [
             'user_code' => $userCode,
             'username' => $data['username'],
             'password_hash' => $passwordHash,
             'email' => $data['email'],
-            'fullname' => $data['fullname'],
+            'emp_id' => isset($data['emp_id']) ? ($data['emp_id'] ? (int)$data['emp_id'] : null) : null,
             'role_id' => (int)$data['role_id'],
             'branch_id' => isset($data['branch_id']) ? ($data['branch_id'] ? (int)$data['branch_id'] : null) : null,
             'profile_image' => $profileImagePath,
@@ -339,18 +406,18 @@ function handlePut() {
     }
     
     // Check for duplicate email (excluding current user)
-    if (isset($data['email']) && $data['email'] !== $existing['email']) {
+    if (isset($data['email']) && !empty($data['email']) && $data['email'] !== $existing['email']) {
         if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Invalid email format']);
             return;
         }
-        
+
         $duplicate = Database::fetch(
             "SELECT user_id FROM user_accounts WHERE email = :email AND user_id != :user_id",
             ['email' => $data['email'], 'user_id' => (int)$userId]
         );
-        
+
         if ($duplicate) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Email already exists']);
@@ -376,12 +443,12 @@ function handlePut() {
         $updateFields[] = "email = :email";
         $params['email'] = $data['email'];
     }
-    
-    if (isset($data['fullname'])) {
-        $updateFields[] = "fullname = :fullname";
-        $params['fullname'] = $data['fullname'];
+
+    if (isset($data['emp_id'])) {
+        $updateFields[] = "emp_id = :emp_id";
+        $params['emp_id'] = $data['emp_id'] ? (int)$data['emp_id'] : null;
     }
-    
+
     if (isset($data['role_id'])) {
         // Prevent changing role of super admin
         if ($existing['role_code'] === 'SUPER_ADMIN' && $data['role_id'] != $existing['role_id']) {
@@ -450,7 +517,7 @@ function handlePut() {
             }
         }
     }
-    
+
     // Handle profile image removal
     if (isset($data['remove_profile_image']) && $data['remove_profile_image'] === true) {
         // Delete old image file if exists
@@ -584,22 +651,22 @@ function saveProfileImage($base64Image, $userCode) {
             $imageType = $matches[1];
             $base64Data = substr($base64Image, strpos($base64Image, ',') + 1);
             $imageData = base64_decode($base64Data);
-            
+
             if ($imageData === false) {
                 error_log("Failed to decode base64 image");
                 return null;
             }
-            
-            // Create upload directory if it doesn't exist (api/images/users folder)
-            $uploadDir = dirname(dirname(__DIR__)) . '/images/users/';
+
+            // Create upload directory if it doesn't exist
+            $uploadDir = dirname(__DIR__) . '/images/users/';
             if (!file_exists($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }
-            
+
             // Generate unique filename
             $filename = $userCode . '_' . time() . '.' . $imageType;
             $filepath = $uploadDir . $filename;
-            
+
             // Save image
             if (file_put_contents($filepath, $imageData)) {
                 // Return relative path for database (from project root)
@@ -609,7 +676,7 @@ function saveProfileImage($base64Image, $userCode) {
                 return null;
             }
         }
-        
+
         return null;
     } catch (Exception $e) {
         error_log("Error saving profile image: " . $e->getMessage());

@@ -39,7 +39,7 @@ $apiName = $segments[0];
 
 // Check if it's a nested endpoint (e.g., permissions/assign) - check this FIRST
 if (count($segments) > 1) {
-    $endpoint = $segments[1];
+    $endpoint = preg_replace('/\.php$/i', '', $segments[1]);
     $apiFile = __DIR__ . "/{$apiName}/{$endpoint}.php";
     
     if (file_exists($apiFile)) {

@@ -49,3 +49,39 @@ Hit **Ctrl+C** or just close the command line window to stop the server.
 
 Happy editing!
 
+
+
+Core: user_accounts, user_roles, user_sessions, permissions, role_permissions
+
+PSGC: psgc_regions, psgc_provinces, psgc_cities_municipalities, psgc_barangays
+
+Business: business_branches, employees, department, position, employment_status, sub_department
+
+Ticketing: ticket_providers, ticket_transactions, ticket_adjustments, accommodation_types, discount_types
+
+Wallets: provider_wallets, wallet_transactions, provider_service_fees
+
+Payments: payment_methods, bank_accounts, transaction_payments, charge_payments, charge_payment_allocations, customer_charges
+
+Services: service_types, service_transactions
+
+Cashier: cashier_sessions, cashier_session_details
+
+System: system_devices, system_settings, system_maintenance_logs, activity_logs
+
+Passenger: passenger_accounts
+
+
+## Module Roadmap
+
+### Phase 1: Settings / Lookup Modules
+- [x] Payment Methods (admin/settings/payment-methods/) — Manage CASH, GCash, Bank Transfer, etc. Add/edit/disable methods
+- [x] Bank Accounts (admin/settings/bank-accounts/) — Manage company bank accounts per branch
+- [x] Service Types (admin/settings/service-types/) — Manage Print Fee, Photocopy, etc.
+
+### Phase 2: Operational Modules
+- [x] Cashier POS (admin/pos/) — Main checkout screen: sell tickets, print fees, accept mixed payments, track cashier session
+- [x] Bank Transfer Confirmations (admin/bank-confirmations/) — Manager confirms bank transfers from cashiers
+- [x] Customer Charges (Utang) (admin/charges/) — View customer balances, accept payments, track collections
+- [x] Cashier Shift Reports (admin/shifts/) — Daily reconciliation, variance reports per cashier
+

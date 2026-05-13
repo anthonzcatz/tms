@@ -8,6 +8,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/_guard.php';
 
 // Prevent caching of admin pages
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

@@ -1,5 +1,8 @@
 <?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
+if (!defined('NAVBAR_POSITION')) {
+    define('NAVBAR_POSITION', 'vertical');
+}
 ?>
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/resources/vendors/simplebar/simplebar.min.css">
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/resources/vendors/select2/select2.min.css">
@@ -21,8 +24,26 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           }
         </script>
         <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+        <?php if (NAVBAR_POSITION === 'top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
+        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
+        <?php endif; ?>
         <div class="content">
-         <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; ?>
+         <?php
+         switch (NAVBAR_POSITION) {
+             case 'combo':
+                 include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php';
+                 break;
+             case 'vertical':
+                 include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php';
+                 break;
+             case 'top':
+             case 'double-top':
+             default:
+                 break;
+         }
+         ?>
           
           <div class="row g-4 mb-4">
             <!-- Page Header Card -->

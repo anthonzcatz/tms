@@ -142,7 +142,8 @@ class SidebarHelper {
                 $html .= '</li>';
             } else {
                 $html .= '<li class="nav-item">';
-                $html .= '<a class="nav-link ' . ($isActive ? 'active' : '') . '" href="' . BASE_URL . '/' . ltrim($item['menu_url'], '/') . '">';
+                $menuUrl = !empty($item['menu_url']) ? ltrim($item['menu_url'], '/') : '#';
+                $html .= '<a class="nav-link ' . ($isActive ? 'active' : '') . '" href="' . BASE_URL . '/' . $menuUrl . '">';
                 $html .= '<div class="d-flex align-items-center"><span class="nav-link-text ps-1">' . htmlspecialchars($item['permission_name']) . '</span></div>';
                 $html .= '</a>';
                 $html .= '</li>';
@@ -196,6 +197,54 @@ class SidebarHelper {
           </div>';
     }
     
+    /**
+     * Render top nav dropdown/menu entries
+     */
+    private static function renderTopNavItem($item) {
+        $hasChildren = !empty($item['children']);
+        $isActive = self::isActive($item);
+        $hasActiveChild = $hasChildren && self::isActiveOrHasActiveChild($item);
+        $html = '';
+
+        if ($hasChildren) {
+            $html .= '<li class="nav-item dropdown">';
+            $html .= '<a class="nav-link dropdown-toggle ' . ($hasActiveChild ? 'active' : '') . '" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' . htmlspecialchars($item['permission_name']) . '</a>';
+            $html .= '<div class="dropdown-menu dropdown-caret dropdown-menu-card border-0 mt-0">';
+            $html .= '<div class="bg-white dark__bg-1000 rounded-3 py-2">';
+            foreach ($item['children'] as $child) {
+                if (!empty($child['menu_url'])) {
+                    $active = self::isActive($child) ? 'active' : '';
+                    $html .= '<a class="dropdown-item link-600 fw-medium ' . $active . '" href="' . BASE_URL . '/' . ltrim($child['menu_url'], '/') . '">' . htmlspecialchars($child['permission_name']) . '</a>';
+                } elseif (!empty($child['children'])) {
+                    $html .= '<p class="dropdown-header fw-bold mb-0 pt-2">' . htmlspecialchars($child['permission_name']) . '</p>';
+                    foreach ($child['children'] as $grandchild) {
+                        if (!empty($grandchild['menu_url'])) {
+                            $active = self::isActive($grandchild) ? 'active' : '';
+                            $html .= '<a class="dropdown-item link-600 fw-medium ' . $active . '" href="' . BASE_URL . '/' . ltrim($grandchild['menu_url'], '/') . '">' . htmlspecialchars($grandchild['permission_name']) . '</a>';
+                        }
+                    }
+                }
+            }
+            $html .= '</div></div></li>';
+        } else {
+            $html .= '<li class="nav-item">';
+            $html .= '<a class="nav-link ' . ($isActive ? 'active' : '') . '" href="' . BASE_URL . '/' . ltrim($item['menu_url'], '/') . '">' . htmlspecialchars($item['permission_name']) . '</a>';
+            $html .= '</li>';
+        }
+
+        return $html;
+    }
+
+    public static function renderTopNav() {
+        $permissions = self::getUserPermissions($_SESSION['user']['user_id'] ?? null);
+        $tree = self::buildPermissionTree($permissions);
+        $html = '';
+        foreach ($tree as $item) {
+            $html .= self::renderTopNavItem($item);
+        }
+        return $html;
+    }
+
     /**
      * Render complete sidebar
      */

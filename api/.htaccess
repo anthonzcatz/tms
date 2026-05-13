@@ -3,3 +3,8 @@ DirectoryIndex disabled
 
 # Disable directory trailing slash redirect
 DirectorySlash Off
+
+# Allow static image files to be served directly (Apache 2.4)
+<FilesMatch "\.(png|jpg|jpeg|gif|webp)$">
+    Require all granted
+</FilesMatch>

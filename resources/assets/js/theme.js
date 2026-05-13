@@ -4082,7 +4082,14 @@ var themeControl = function themeControl() {
     if (target.data('theme-control') === 'navbarPosition') {
       Object.prototype.hasOwnProperty.call(CONFIG, 'navbarPosition') && setItemToStore('navbarPosition', e.target.value);
       var pageUrl = getData(target.node.selectedOptions[0], 'page-url');
-      pageUrl ? window.location.replace(pageUrl) : window.location.replace(window.location.href.split('#')[0]);
+      if (pageUrl) {
+        window.location.replace(pageUrl);
+      } else {
+        // Add ?layout= parameter to sync with PHP session
+        var currentUrl = window.location.href.split('#')[0].split('?')[0];
+        var newUrl = currentUrl + '?layout=' + e.target.value;
+        window.location.replace(newUrl);
+      }
     }
   });
   themeController.on('clickControl', function (_ref14) {

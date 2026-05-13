@@ -25,11 +25,50 @@
     position: absolute;
     bottom: 2px;
     right: 2px;
+    width: 14px;
+    height: 14px;
+    background-color: #28a745;
+    border: 3px solid white;
+    border-radius: 50%;
+    z-index: 2;
+    animation: onlinePulse 2s ease-out infinite;
+}
+
+@keyframes onlinePulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+/* Online badge indicator */
+.badge .online-indicator {
+    display: inline-block;
     width: 10px;
     height: 10px;
-    background-color: var(--falcon-success);
-    border: 2px solid white;
+    background-color: #28a745;
     border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.badge .online-indicator.online-indicator-pulse {
+    animation: badgeIndicatorPulse 2s ease-in-out infinite;
+}
+
+@keyframes badgeIndicatorPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(40, 167, 69, 0);
+        transform: scale(1.1);
+    }
 }
 
 /* Quick actions bar animation */

@@ -1,14 +1,17 @@
+<?php
+require_once __DIR__ . '/navbar-context.php';
+?>
  <nav class="navbar navbar-light navbar-glass navbar-top navbar-expand">
 
             <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVerticalCollapse" aria-controls="navbarVerticalCollapse" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
-            <a class="navbar-brand me-1 me-sm-3" href="../index.html">
+            <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">
               <div class="d-flex align-items-center"><img class="me-2" src="<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/falcon.png" alt="" width="40" /><span class="font-sans-serif text-primary">falcon</span>
               </div>
             </a>
-            <ul class="navbar-nav align-items-center d-none d-lg-block">
-              <li class="nav-item">
+            <ul class="navbar-nav align-items-center d-none d-lg-flex">
+              <li class="nav-item d-flex align-items-center">
                 <div class="search-box" data-list='{"valueNames":["title"]}'>
-                  <form class="position-relative" data-bs-toggle="search" data-bs-display="static">
+                  <form class="position-relative d-flex align-items-center" data-bs-toggle="search" data-bs-display="static">
                     <input class="form-control search-input fuzzy-search" type="search" placeholder="Search..." aria-label="Search" />
                     <span class="fas fa-search search-box-icon"></span>
 
@@ -117,7 +120,7 @@
               </li>
             </ul>
             <ul class="navbar-nav navbar-nav-icons ms-auto flex-row align-items-center">
-              <li class="nav-item ps-2 pe-0">
+              <li class="nav-item ps-2 pe-0 d-flex align-items-center">
                 <div class="dropdown theme-control-dropdown"><a class="nav-link d-flex align-items-center dropdown-toggle fa-icon-wait fs-9 pe-1 py-0" href="#" role="button" id="themeSwitchDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span class="fas fa-sun fs-7" data-fa-transform="shrink-2" data-theme-dropdown-toggle-icon="light"></span><span class="fas fa-moon fs-7" data-fa-transform="shrink-3" data-theme-dropdown-toggle-icon="dark"></span><span class="fas fa-adjust fs-7" data-fa-transform="shrink-2" data-theme-dropdown-toggle-icon="auto"></span></a>
                   <div class="dropdown-menu dropdown-menu-end dropdown-caret border py-0 mt-3" aria-labelledby="themeSwitchDropdown">
                     <div class="bg-white dark__bg-1000 rounded-2 py-2">
@@ -128,11 +131,11 @@
                   </div>
                 </div>
               </li>
-              <li class="nav-item d-none d-sm-block">
+              <li class="nav-item d-none d-sm-flex align-items-center">
                 <a class="nav-link px-0 notification-indicator notification-indicator-warning notification-indicator-fill fa-icon-wait" href="../app/e-commerce/shopping-cart.html"><span class="fas fa-shopping-cart" data-fa-transform="shrink-7" style="font-size: 33px;"></span><span class="notification-indicator-number">1</span></a>
 
               </li>
-              <li class="nav-item dropdown">
+              <li class="nav-item dropdown d-flex align-items-center">
                 <a class="nav-link notification-indicator notification-indicator-primary px-0 fa-icon-wait" id="navbarDropdownNotification" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-hide-on-body-scroll="data-hide-on-body-scroll"><span class="fas fa-bell" data-fa-transform="shrink-6" style="font-size: 33px;"></span></a>
                 <div class="dropdown-menu dropdown-caret dropdown-caret dropdown-menu-end dropdown-menu-card dropdown-menu-notification dropdown-caret-bg" aria-labelledby="navbarDropdownNotification">
                   <div class="card card-notification shadow-none">
@@ -234,7 +237,7 @@
                 </div>
 
               </li>
-              <li class="nav-item dropdown px-1">
+              <li class="nav-item dropdown px-1 d-flex align-items-center">
                 <a class="nav-link fa-icon-wait nine-dots p-1" id="navbarDropdownMenu" role="button" data-hide-on-body-scroll="data-hide-on-body-scroll" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="43" viewBox="0 0 16 16" fill="none">
                     <circle cx="2" cy="2" r="2" fill="#6C6E71"></circle>
@@ -324,10 +327,13 @@
                 </div>
 
               </li>
-              <li class="nav-item dropdown"><a class="nav-link pe-0 ps-2" id="navbarDropdownUser" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <li class="nav-item dropdown d-flex align-items-center"><a class="nav-link pe-0 ps-2" id="navbarDropdownUser" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <div class="avatar avatar-xl">
-                    <img class="rounded-circle" src="<?php echo BASE_URL; ?>/resources/assets/img/team/3-thumb.png" alt="" />
-
+                    <?php if ($profileImage): ?>
+                      <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" />
+                    <?php else: ?>
+                      <div class="avatar-name rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold"><?php echo $initials; ?></div>
+                    <?php endif; ?>
                   </div>
                 </a>
                 <div class="dropdown-menu dropdown-caret dropdown-caret dropdown-menu-end py-0" aria-labelledby="navbarDropdownUser">

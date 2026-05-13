@@ -1,0 +1,34 @@
+/* Customer Charges (Utang) Module Styles */
+
+.search-box { position: relative; }
+.search-input { padding-left: 2.5rem; }
+.search-icon {
+    position: absolute; left: .75rem; top: 50%;
+    transform: translateY(-50%); color: var(--falcon-500); pointer-events: none;
+}
+
+.charge-row { cursor: pointer; transition: background .1s ease; }
+.charge-row:hover td { background: #f8f9fa; }
+
+.status-outstanding { color: #856404; background: #fff3cd; }
+.status-overdue     { color: #58151c; background: #f8d7da; }
+.status-clear       { color: #0a3622; background: #d1e7dd; }
+
+.balance-critical { color: #dc3545; font-weight: 700; }
+.balance-warning  { color: #fd7e14; font-weight: 600; }
+.balance-clear    { color: #198754; font-weight: 600; }
+
+.history-entry {
+    border-left: 3px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0 6px 6px 0;
+}
+.history-entry.charge { border-left-color: #dc3545; }
+.history-entry.payment { border-left-color: #198754; }
+
+.empty-state { text-align: center; padding: 50px 20px; }
+.empty-state-icon { font-size: 3.5rem; color: #adb5bd; margin-bottom: 1rem; }
+.empty-state-text { font-size: 1.2rem; font-weight: 600; color: #495057; }
+.empty-state-subtext { font-size: .875rem; color: #6c757d; margin-top: .25rem; }

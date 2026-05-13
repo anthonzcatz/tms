@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php include dirname(dirname(dirname(__DIR__))) . '/includes/head.php'; ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/settings/users/assets/css/users.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/settings/users/assets/css/users.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/users.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
@@ -14,8 +14,26 @@
         }
       </script>
       <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+      <?php if (NAVBAR_POSITION === 'top'): ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
+      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
+      <?php endif; ?>
       <div class="content">
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; ?>
+        <?php
+        switch (NAVBAR_POSITION) {
+            case 'combo':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php';
+                break;
+            case 'vertical':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php';
+                break;
+            case 'top':
+            case 'double-top':
+            default:
+                break;
+        }
+        ?>
 
         <!-- Page Header -->
         <div class="row g-3 mb-3">
@@ -67,20 +85,44 @@
                       <option value="0">Inactive</option>
                     </select>
                   </div>
-                  <div class="col-md-5 text-md-end">
-                    <div class="d-inline-flex gap-2">
-                      <div class="badge bg-primary-subtle text-primary fs-10 px-3 py-2">
-                        <span class="fas fa-users me-1"></span>
-                        Total: <span id="totalUsers">0</span>
-                      </div>
-                      <div class="badge bg-success-subtle text-success fs-10 px-3 py-2">
-                        <span class="fas fa-user-check me-1"></span>
-                        Active: <span id="activeUsers">0</span>
-                      </div>
-                      <div class="badge bg-warning-subtle text-warning fs-10 px-3 py-2">
-                        <span class="fas fa-user-clock me-1"></span>
-                        Inactive: <span id="inactiveUsers">0</span>
-                      </div>
+                  <div class="col-md-2">
+                    <select class="form-select" id="branchFilter">
+                      <option value="">All Branches</option>
+                      <?php
+                      $branches = @Database::fetchAll("SELECT branch_id, branch_name FROM business_branches ORDER BY branch_name");
+                      if ($branches): foreach ($branches as $branch): ?>
+                        <option value="<?php echo $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
+                      <?php endforeach; endif; ?>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Badges -->
+        <div class="row g-3 mb-3">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body py-3">
+                <div class="row g-3 align-items-center justify-content-center">
+                  <div class="d-inline-flex gap-2 flex-wrap justify-content-center">
+                    <div class="badge bg-primary-subtle text-primary fs-10 px-3 py-2">
+                      <span class="fas fa-users me-1"></span>
+                      Total: <span id="totalUsers">0</span>
+                    </div>
+                    <div class="badge bg-success-subtle text-success fs-10 px-3 py-2">
+                      <span class="fas fa-user-check me-1"></span>
+                      Active: <span id="activeUsers">0</span>
+                    </div>
+                    <div class="badge bg-warning-subtle text-warning fs-10 px-3 py-2">
+                      <span class="fas fa-user-clock me-1"></span>
+                      Inactive: <span id="inactiveUsers">0</span>
+                    </div>
+                    <div class="badge bg-info-subtle text-info fs-10 px-3 py-2">
+                      <span class="online-indicator me-1"></span>
+                      Online: <span id="onlineUsers">0</span>
                     </div>
                   </div>
                 </div>
@@ -97,7 +139,7 @@
                 <div class="d-lg-flex justify-content-between">
                   <div class="row flex-between-center gy-2 px-x1">
                     <div class="col-auto pe-0">
-                      <h6 class="mb-0">User Accounts</h6>
+                      <h6 class="mb-0">User Accounts  </h6>
                     </div>
                     <div class="col-auto">
                       <div class="dropdown">
@@ -195,9 +237,17 @@
     window.CURRENT_USER = <?php echo json_encode($currentUser); ?>;
     window.IS_SUPER_ADMIN = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
     window.BASE_URL = '<?php echo BASE_URL; ?>';
+    window.ASSET_URL = '<?php
+        $protocol = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") ? "https://" : "http://";
+        $host = $_SERVER["HTTP_HOST"] ?? "localhost";
+        $docRoot = str_replace("\\", "/", rtrim($_SERVER["DOCUMENT_ROOT"] ?? "", "/"));
+        $projectRoot = str_replace("\\", "/", dirname(dirname(dirname(dirname(dirname(__FILE__))))));
+        $basePath = str_starts_with($projectRoot, $docRoot) ? substr($projectRoot, strlen($docRoot)) : "";
+        echo rtrim($protocol . $host . $basePath, "/");
+    ?>';
     window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
   </script>
-  <script src="<?php echo BASE_URL; ?>/admin/settings/users/assets/js/users.js"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/settings/users/assets/js/users.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/users.js'); ?>"></script>
 
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
 </body>

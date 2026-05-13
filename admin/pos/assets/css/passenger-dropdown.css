@@ -1,0 +1,35 @@
+/* Passenger Dropdown Styling */
+.passenger-dropdown-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+.passenger-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.passenger-dropdown-item:hover {
+    background-color: #f8f9fa;
+    background-image: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.passenger-dropdown-item.active {
+    background-color: #0d6efd;
+    background-image: linear-gradient(90deg, #0d6efd 0%, #0b5ed7 100%);
+    color: white;
+}
+
+.passenger-dropdown-item.active .text-muted {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.passenger-dropdown-item.active .text-primary {
+    color: white !important;
+}
+
+.passenger-dropdown-item .small {
+    font-size: 0.85rem;
+    line-height: 1.2;
+}

@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-require_once dirname(dirname(__DIR__)) . '/config/config.php';
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once __DIR__ . '/../_guard.php';
 ?>
 <!DOCTYPE html>
@@ -25,9 +25,27 @@ require_once __DIR__ . '/../_guard.php';
             container.classList.add('container-fluid');
           }
         </script>
-        <?php include __DIR__ . '/../includes/sidebar.php'; ?>
+        <?php
+        require_once __DIR__ . '/../includes/sidebar.php';
+        ?>
         <div class="content">
-           <?php include __DIR__ . '/../includes/navbar.php'; ?>
+          <?php
+          switch (NAVBAR_POSITION) {
+              case 'top':
+                  require_once __DIR__ . '/../includes/navbar-top.php';
+                  break;
+              case 'combo':
+                  require_once __DIR__ . '/../includes/navbar-top.php';
+                  break;
+              case 'double-top':
+                  require_once __DIR__ . '/../includes/navbar-double-top.php';
+                  break;
+              case 'vertical':
+              default:
+                  require_once __DIR__ . '/../includes/navbar.php';
+                  break;
+          }
+          ?>
           <div class="row mb-3">
             <div class="col">
               <div class="card bg-100 shadow-none border">
@@ -925,6 +943,7 @@ require_once __DIR__ . '/../_guard.php';
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </main>

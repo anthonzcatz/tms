@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-require_once dirname(dirname(__DIR__)) . '/config/config.php';
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 ?>
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
@@ -79,6 +79,9 @@ require_once dirname(dirname(__DIR__)) . '/config/config.php';
             container.classList.add('container-fluid');
           }
         </script>
+        <?php include __DIR__ . '/../includes/sidebar.php'; ?>
+        <div class="content">
+          <?php include __DIR__ . '/../includes/navbar.php'; ?>
         <nav class="navbar navbar-light navbar-vertical navbar-expand-xl">
           <script>
             var navbarStyle = localStorage.getItem("navbarStyle");

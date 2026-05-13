@@ -16,7 +16,7 @@ let cropperModal = null;
 
 // Wizard state
 let currentStep = 1;
-const totalSteps = 3;
+const totalSteps = 5;
 
 // Image cropper variables
 let originalImage = null;
@@ -114,6 +114,71 @@ function setupEventListeners() {
             this.value = '';
         }
     });
+
+    // Username validation
+    const usernameInput = document.getElementById('username');
+    usernameInput.addEventListener('input', debounce(async function() {
+        const username = this.value;
+        const userId = document.getElementById('userId').value;
+        const invalidFeedback = document.getElementById('usernameInvalidFeedback');
+
+        // Reset validation
+        this.classList.remove('is-invalid', 'is-valid');
+        if (invalidFeedback) {
+            invalidFeedback.style.display = 'none';
+        }
+
+        if (username.length < 3) {
+            updateNextButtonState();
+            return;
+        }
+
+        const exists = await checkUsernameExists(username, userId || null);
+        
+        if (exists) {
+            this.classList.add('is-invalid');
+            if (invalidFeedback) {
+                invalidFeedback.textContent = 'Username already exists';
+                invalidFeedback.style.display = 'block';
+            }
+        } else {
+            this.classList.add('is-valid');
+        }
+        updateNextButtonState();
+    }, 500));
+
+    // Branch filter
+    const branchFilter = document.getElementById('branchFilter');
+    if (branchFilter) {
+        branchFilter.addEventListener('change', loadUsers);
+    }
+
+    // Password validation
+    const passwordInput = document.getElementById('password');
+    passwordInput.addEventListener('input', function() {
+        if (this.value.length === 0) {
+            this.classList.remove('is-invalid', 'is-valid');
+        } else if (this.value.length < 8) {
+            this.classList.add('is-invalid');
+            this.classList.remove('is-valid');
+        } else {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        }
+        updateNextButtonState();
+    });
+
+    // Employee selection validation
+    const employeeIdSelect = document.getElementById('employeeId');
+    employeeIdSelect.addEventListener('change', function() {
+        updateNextButtonState();
+    });
+
+    // Role selection validation
+    const roleIdSelect = document.getElementById('roleId');
+    roleIdSelect.addEventListener('change', function() {
+        updateNextButtonState();
+    });
     
     // Time restrictions toggle handler
     document.getElementById('isTimeRestricted').addEventListener('change', function() {
@@ -155,9 +220,11 @@ async function loadUsers() {
         const params = new URLSearchParams();
         const roleFilter = document.getElementById('roleFilter').value;
         const statusFilter = document.getElementById('statusFilter').value;
+        const branchFilter = document.getElementById('branchFilter').value;
         
         if (roleFilter) params.append('role_id', roleFilter);
         if (statusFilter !== '') params.append('status', statusFilter);
+        if (branchFilter) params.append('branch_id', branchFilter);
         
         const searchQuery = document.getElementById('userSearch').value;
         if (searchQuery) params.append('search', searchQuery);
@@ -243,12 +310,9 @@ function renderUsersTable() {
             </div>
         `;
     } else {
-        // Helper to build image URL (supports api/images/users via API proxy)
+        // Helper to build image URL
         const buildImageUrl = (path) => {
             if (!path) return '';
-            if (path.startsWith('/api/images/users/')) {
-                return `${window.BASE_URL}/api/users/profile_image.php?path=${encodeURIComponent(path)}`;
-            }
             if (path.startsWith('http')) return path;
             return `${window.BASE_URL}${path}`;
         };
@@ -257,6 +321,7 @@ function renderUsersTable() {
             const fullName = user.fullname || 'N/A';
             const initials = getInitials(fullName);
             const isSuperAdmin = user.role_code === 'SUPER_ADMIN';
+            const isOnline = Number(user.is_online) === 1;
             const isSelected = selectedUsers.has(user.user_id.toString());
             const isActive = user.status === 'active';
             const statusBadgeClass = isActive ? 'badge-subtle-success' : (user.status === 'inactive' ? 'badge-subtle-warning' : 'badge-subtle-danger');
@@ -266,10 +331,9 @@ function renderUsersTable() {
             let avatarContent;
             if (hasProfileImage) {
                 const imgUrl = buildImageUrl(user.profile_image);
-                console.log('User:', fullName, 'Profile Image Path:', user.profile_image, 'Built URL:', imgUrl);
-                avatarContent = `<img class="rounded-circle" src="${imgUrl}" alt="${fullName}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="avatar-name rounded-circle ${isSuperAdmin ? 'bg-primary text-white' : 'bg-soft-primary text-primary'} d-flex align-items-center justify-content-center" style="display:none">${initials}</div>`;
+                avatarContent = `<img class="rounded-circle" src="${imgUrl}" alt="${fullName}" style="width: 56px; height: 56px; object-fit: cover;">`;
             } else {
-                avatarContent = `<div class="avatar-name rounded-circle ${isSuperAdmin ? 'bg-primary text-white' : 'bg-soft-primary text-primary'} d-flex align-items-center justify-content-center">${initials}</div>`;
+                avatarContent = `<div class="avatar-name rounded-circle ${isSuperAdmin ? 'bg-primary text-white' : 'bg-soft-primary text-primary'} d-flex align-items-center justify-content-center fw-bold" style="width:56px; height:56px;">${initials}</div>`;
             }
             
             return `
@@ -279,7 +343,7 @@ function renderUsersTable() {
                             <input class="form-check-input user-checkbox" type="checkbox" 
                                    data-user-id="${user.user_id}" ${isSelected ? 'checked' : ''}>
                         </div>
-                        <div class="avatar avatar-xl avatar-3xl ${isSuperAdmin ? 'status-online' : ''}">
+                        <div class="avatar avatar-xl avatar-3xl ${isOnline ? 'status-online' : ''}" style="width:56px; height:56px; flex-shrink:0;">
                             ${avatarContent}
                         </div>
                         <div class="ms-1 ms-sm-3">
@@ -310,6 +374,9 @@ function renderUsersTable() {
                             <span class="badge bg-soft-${getRoleBadgeColor(user.role_code)} text-${getRoleBadgeColor(user.role_code)}">
                                 ${user.role_name || 'N/A'}
                             </span>
+                            ${user.branch_name ? `<span class="badge bg-200 text-600 fs-10">
+                                <span class="fas fa-building me-1"></span>${user.branch_name}
+                            </span>` : ''}
                             <span class="text-500 fs-10">
                                 <span class="fas fa-envelope me-1"></span>${user.email}
                             </span>
@@ -410,9 +477,24 @@ function updateStats() {
     const active = usersData.filter(u => u.status === 'active').length;
     const inactive = total - active;
     
+    const online = usersData.filter(u => Number(u.is_online) === 1).length;
+    
     document.getElementById('totalUsers').textContent = total;
     document.getElementById('activeUsers').textContent = active;
     document.getElementById('inactiveUsers').textContent = inactive;
+    document.getElementById('onlineUsers').textContent = online;
+    
+    const onlineBadge = document.getElementById('onlineUsers').closest('.badge');
+    const indicator = onlineBadge?.querySelector('.online-indicator');
+    if (indicator) {
+        if (online > 0) {
+            indicator.style.backgroundColor = '#28a745';
+            indicator.classList.add('online-indicator-pulse');
+        } else {
+            indicator.style.backgroundColor = '#6c757d';
+            indicator.classList.remove('online-indicator-pulse');
+        }
+    }
 }
 
 /**
@@ -461,10 +543,52 @@ function openAddUserModal() {
     currentStep = 1;
     updateWizardUI();
     
-    // Clear validation states
-    document.querySelectorAll('#userForm .is-invalid').forEach(el => {
-        el.classList.remove('is-invalid');
+    // Clear all validation states
+    document.querySelectorAll('#userForm .is-invalid, #userForm .is-valid').forEach(el => {
+        el.classList.remove('is-invalid', 'is-valid');
     });
+
+    // Reset username feedback
+    const usernameFeedback = document.getElementById('usernameInvalidFeedback');
+    if (usernameFeedback) {
+        usernameFeedback.style.display = 'none';
+        usernameFeedback.textContent = 'Username must be 3-20 alphanumeric characters';
+    }
+
+    // Password is required for add
+    const pwdField = document.getElementById('password');
+    if (pwdField) pwdField.required = true;
+    const pwdRequired = document.getElementById('passwordRequired');
+    if (pwdRequired) pwdRequired.style.display = 'inline';
+    const pwdHint = document.getElementById('passwordHint');
+    if (pwdHint) {
+        pwdHint.textContent = 'Must be at least 8 characters';
+        pwdHint.style.display = 'block';
+    }
+
+    // Reset employee search/details
+    const empSearch = document.getElementById('employeeSearch');
+    if (empSearch) empSearch.value = '';
+    const empId = document.getElementById('employeeId');
+    if (empId) empId.value = '';
+    const empDetails = document.getElementById('employeeDetailsSection');
+    if (empDetails) empDetails.style.display = 'none';
+
+    // Reset profile image
+    const preview = document.getElementById('profileImagePreview');
+    const placeholder = document.getElementById('profileImagePlaceholder');
+    if (preview) preview.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'block';
+    const previewImg = document.querySelector('#profileImagePreview img');
+    if (previewImg) previewImg.src = '';
+
+    // Reset modal title
+    document.getElementById('modalTitleText').textContent = 'Add New User';
+    document.getElementById('saveBtnText').textContent = 'Save User';
+
+    // Disable Next button initially since no employee selected yet
+    const nextBtn = document.getElementById('nextStepBtn');
+    if (nextBtn) nextBtn.disabled = true;
     
     userModal.show();
 }
@@ -473,11 +597,6 @@ function openAddUserModal() {
  * Navigate to next step
  */
 function nextStep() {
-    // Validate current step before proceeding
-    if (!validateStep(currentStep)) {
-        return;
-    }
-    
     if (currentStep < totalSteps) {
         currentStep++;
         updateWizardUI();
@@ -511,12 +630,70 @@ function validateStep(step) {
             field.classList.remove('is-invalid');
         }
     });
-    
-    if (!isValid) {
-        showToast('warning', 'Warning', 'Please fill in all required fields');
+
+    // Additional validation for specific fields
+    if (step === 2) {
+        // Account Information step
+        const username = document.getElementById('username');
+        if (username && username.classList.contains('is-invalid')) {
+            isValid = false;
+        }
     }
-    
+
+    if (step === 1) {
+        // Personal Information step
+        const employeeId = document.getElementById('employeeId');
+        if (employeeId && !employeeId.value) {
+            isValid = false;
+            employeeId.classList.add('is-invalid');
+        }
+    }
+
     return isValid;
+}
+
+/**
+ * Update the Next button enabled/disabled state based on current step validity
+ */
+function updateNextButtonState() {
+    const nextBtn = document.getElementById('nextStepBtn');
+    if (!nextBtn) return;
+
+    const stepElement = document.querySelector(`.wizard-step[data-step="${currentStep}"]`);
+    if (!stepElement) return;
+
+    let isValid = true;
+
+    // Step 1: employee must be selected
+    if (currentStep === 1) {
+        const empId = document.getElementById('employeeId');
+        if (!empId || !empId.value) isValid = false;
+    } else {
+        // For other steps, check visible required fields only
+        stepElement.querySelectorAll('input[required]:not(.d-none), select[required]:not(.d-none)').forEach(field => {
+            if (!field.value || field.classList.contains('is-invalid')) {
+                isValid = false;
+            }
+            // Check minlength
+            if (field.minLength > 0 && field.value.length < field.minLength) {
+                isValid = false;
+            }
+        });
+
+        // Step 2: username must not be marked invalid
+        if (currentStep === 2) {
+            const username = document.getElementById('username');
+            if (username && username.classList.contains('is-invalid')) isValid = false;
+        }
+
+        // Step 4: role must be selected
+        if (currentStep === 4) {
+            const role = document.getElementById('roleId');
+            if (!role || !role.value) isValid = false;
+        }
+    }
+
+    nextBtn.disabled = !isValid;
 }
 
 /**
@@ -558,6 +735,8 @@ function updateWizardUI() {
     } else {
         nextBtn.style.display = 'inline-block';
         saveBtn.style.display = 'none';
+        // Update Next button state based on validation
+        updateNextButtonState();
     }
 }
 
@@ -580,12 +759,23 @@ async function openEditUserModal(userId) {
         
         if (result.success && result.data) {
             const user = result.data;
+
+            // Clear all validation states first
+            document.querySelectorAll('#userForm .is-invalid, #userForm .is-valid').forEach(el => {
+                el.classList.remove('is-invalid', 'is-valid');
+            });
+            const usernameFeedback = document.getElementById('usernameInvalidFeedback');
+            if (usernameFeedback) {
+                usernameFeedback.style.display = 'none';
+                usernameFeedback.textContent = 'Username must be 3-20 alphanumeric characters';
+            }
             
             // Populate form
             document.getElementById('userId').value = user.user_id;
             document.getElementById('username').value = user.username;
-            document.getElementById('email').value = user.email;
-            document.getElementById('firstName').value = user.fullname || '';
+            document.getElementById('email').value = user.email || '';
+            document.getElementById('employeeId').value = user.emp_id || '';
+            document.getElementById('employeeSearch').value = user.fullname || '';
             document.getElementById('roleId').value = user.role_id;
             document.getElementById('branchId').value = user.branch_id || '';
             document.getElementById('isActive').checked = user.status === 'active';
@@ -610,42 +800,64 @@ async function openEditUserModal(userId) {
             document.getElementById('saveBtnText').textContent = 'Update User';
             
             // Password is optional for edit
-            document.getElementById('password').required = false;
-            document.getElementById('passwordRequired').style.display = 'none';
-            document.getElementById('passwordHint').style.display = 'block';
+            const pwdField = document.getElementById('password');
+            if (pwdField) {
+                pwdField.required = false;
+                pwdField.value = '';
+            }
+            const pwdRequired = document.getElementById('passwordRequired');
+            if (pwdRequired) pwdRequired.style.display = 'none';
+            const pwdHint = document.getElementById('passwordHint');
+            if (pwdHint) {
+                pwdHint.textContent = 'Leave blank to keep current password';
+                pwdHint.style.display = 'block';
+            }
+
+            // Show employee details if employee is linked
+            const empDetails = document.getElementById('employeeDetailsSection');
+            if (user.emp_id) {
+                updateEmployeeDetails();
+            } else {
+                if (empDetails) empDetails.style.display = 'none';
+            }
             
             // Handle profile image
             const preview = document.getElementById('profileImagePreview');
             const placeholder = document.getElementById('profileImagePlaceholder');
             const previewImg = preview.querySelector('img');
             
-            // Helper to build image URL (supports api/images/users via API proxy)
+            // Helper to build image URL
             const buildImageUrl = (path) => {
                 if (!path) return '';
-                if (path.startsWith('/api/images/users/')) {
-                    return `${window.BASE_URL}/api/users/profile_image.php?path=${encodeURIComponent(path)}`;
-                }
                 if (path.startsWith('http')) return path;
                 return `${window.BASE_URL}${path}`;
             };
             
             if (user.profile_image) {
                 // Use the profile image from database
-                const imgUrl = buildImageUrl(user.profile_image);
-                console.log('Edit Modal - Profile Image Path:', user.profile_image, 'Built URL:', imgUrl);
-                previewImg.src = imgUrl;
-                previewImg.onerror = function() {
-                    console.error('Failed to load image:', imgUrl);
-                    this.style.display = 'none';
-                    placeholder.style.display = 'block';
+                const imgUrl = buildImageUrl(user.profile_image) + '?t=' + Date.now();
+                // Reset onerror and display before setting src
+                previewImg.onerror = null;
+                previewImg.style.display = '';
+                previewImg.onload = function() {
+                    preview.style.display = 'block';
+                    placeholder.style.display = 'none';
                 };
+                previewImg.onerror = function() {
+                    this.onerror = null;
+                    preview.style.display = 'none';
+                    placeholder.style.display = 'block';
+                    previewImg.src = '';
+                };
+                previewImg.src = imgUrl;
                 preview.style.display = 'block';
                 placeholder.style.display = 'none';
             } else {
                 // No profile image
+                previewImg.onerror = null;
+                previewImg.src = '';
                 preview.style.display = 'none';
                 placeholder.style.display = 'block';
-                previewImg.src = '';
             }
             
             // Reset wizard to step 1
@@ -691,7 +903,7 @@ async function saveUser() {
         const data = {
             username: document.getElementById('username').value,
             email: document.getElementById('email').value,
-            fullname: document.getElementById('firstName').value,
+            emp_id: document.getElementById('employeeId').value || null,
             role_id: document.getElementById('roleId').value,
             branch_id: document.getElementById('branchId').value || null,
             status: document.getElementById('isActive').checked ? 'active' : 'inactive',
@@ -711,9 +923,6 @@ async function saveUser() {
         const previewImg = document.querySelector('#profileImagePreview img');
         if (previewImg && previewImg.src && previewImg.src.startsWith('data:image')) {
             data.profile_image = previewImg.src;
-            console.log('Sending profile image, length:', previewImg.src.length);
-        } else {
-            console.log('No profile image to send, previewImg.src:', previewImg ? previewImg.src.substring(0, 50) + '...' : 'null');
         }
         
         if (!isEdit) {
@@ -731,19 +940,39 @@ async function saveUser() {
         if (isEdit) {
             data.user_id = userId;
         }
-        
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': window.CSRF_TOKEN
-            },
-            body: JSON.stringify(data),
-            credentials: 'same-origin'
-        });
-        
-        const result = await response.json();
-        
+
+        const doRequest = async () => {
+            return await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': window.CSRF_TOKEN
+                },
+                body: JSON.stringify(data),
+                credentials: 'same-origin'
+            });
+        };
+
+        let response = await doRequest();
+        let result = await response.json();
+
+        // If CSRF token expired, refresh it and retry once
+        if (response.status === 403 && result.error && result.error.toLowerCase().includes('csrf')) {
+            try {
+                const tokenRes = await fetch(`${window.BASE_URL}/api/csrf/token.php`, {
+                    credentials: 'same-origin'
+                });
+                const tokenData = await tokenRes.json();
+                if (tokenData.success) {
+                    window.CSRF_TOKEN = tokenData.csrf_token;
+                    response = await doRequest();
+                    result = await response.json();
+                }
+            } catch (e) {
+                console.error('Failed to refresh CSRF token:', e);
+            }
+        }
+
         if (result.success) {
             showToast('success', 'Success', result.message || (isEdit ? 'User updated successfully' : 'User created successfully'));
             userModal.hide();
@@ -1274,4 +1503,96 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+function updateEmployeeDetails() {
+    const employeeSelect = document.getElementById('employeeId');
+    const detailsSection = document.getElementById('employeeDetailsSection');
+
+    if (employeeSelect && detailsSection) {
+        const selectedOption = employeeSelect.options[employeeSelect.selectedIndex];
+
+        if (selectedOption && selectedOption.value !== '') {
+            // Show employee details section
+            detailsSection.style.display = 'block';
+
+            // Populate employee details
+            const contactNumber = selectedOption.getAttribute('data-contact-number');
+            const email = selectedOption.getAttribute('data-email');
+            const streetAddress = selectedOption.getAttribute('data-street-address');
+            const permanentAddress = selectedOption.getAttribute('data-permanent-address');
+
+            document.getElementById('displayContactNumber').textContent = contactNumber || '-';
+            document.getElementById('displayEmail').textContent = email || '-';
+            document.getElementById('displayStreetAddress').textContent = streetAddress || '-';
+            document.getElementById('displayPermanentAddress').textContent = permanentAddress || '-';
+
+            // Auto-fill email field in account info if empty
+            const emailInput = document.getElementById('email');
+            if (emailInput && !emailInput.value && email) {
+                emailInput.value = email;
+            }
+        } else {
+            // Hide employee details section when no employee selected
+            detailsSection.style.display = 'none';
+        }
+    }
+    updateNextButtonState();
+}
+
+function filterEmployees() {
+    const searchInput = document.getElementById('employeeSearch');
+    const employeeList = document.getElementById('employeeList');
+    const searchTerm = searchInput.value.toLowerCase();
+
+    const options = employeeList.querySelectorAll('.employee-option');
+    options.forEach(option => {
+        const text = option.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            option.style.display = 'block';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+}
+
+function selectEmployee(empId, empName) {
+    const employeeSelect = document.getElementById('employeeId');
+    const searchInput = document.getElementById('employeeSearch');
+
+    // Set the value in the hidden select
+    employeeSelect.value = empId;
+
+    // Update the search input to show selected employee
+    searchInput.value = empName;
+
+    // Trigger the update function
+    updateEmployeeDetails();
+    updateNextButtonState();
+}
+
+/**
+ * Check if username exists
+ */
+async function checkUsernameExists(username, excludeUserId = null) {
+    if (!username || username.length < 3) return false;
+
+    try {
+        let url = `${window.BASE_URL}/api/users/index.php?check_username=${encodeURIComponent(username)}`;
+        if (excludeUserId) {
+            url += `&exclude_user_id=${excludeUserId}`;
+        }
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+
+        const result = await response.json();
+        return result.exists === true;
+    } catch (error) {
+        console.error('Error checking username:', error);
+        return false;
+    }
 }
