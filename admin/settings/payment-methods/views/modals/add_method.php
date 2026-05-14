@@ -80,6 +80,15 @@
                   </label>
                 </div>
               </div>
+              <div class="col-md-4">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="addIncludeInExpectedCash">
+                  <label class="form-check-label" for="addIncludeInExpectedCash">
+                    Include in Expected Cash
+                    <span class="d-block text-muted" style="font-size:0.75rem">Add to closing cash calculation</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>

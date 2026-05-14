@@ -1,6 +1,6 @@
 <!-- Close Cashier Session Modal -->
 <div class="modal fade" id="closeSessionModal" tabindex="-1" aria-labelledby="closeSessionModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-md" role="document">
+  <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header px-5 position-relative modal-shape-header bg-shape">
         <div class="position-relative z-1">
@@ -14,27 +14,79 @@
         </div>
       </div>
       <div class="modal-body">
-        <div class="row g-3">
+        <div class="row g-3 mb-4">
           <div class="col-12">
-            <div class="alert alert-info mb-0">
-              <strong>Session Summary</strong>
-              <div id="closeSummary" class="mt-2 small">Loading...</div>
+            <div class="card mb-4">
+              <div class="card-body py-3">
+                <div id="closeSummary" class="small">Loading...</div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div class="row g-2 mb-4">
+          <div class="col-6">
+            <div class="card h-100">
+              <div class="card-body py-2">
+                <div class="d-flex flex-row align-items-center">
+                  <div class="icon-circle icon-circle-primary me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-wallet text-primary"></span></div>
+                  <div>
+                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Opening Cash</div>
+                    <div class="fw-bold" style="font-size: 1rem;" id="openingCash">₱0.00</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card h-100">
+              <div class="card-body py-2">
+                <div class="d-flex flex-row align-items-center">
+                  <div class="icon-circle icon-circle-success me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-chart-line text-success"></span></div>
+                  <div>
+                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Total Sales</div>
+                    <div class="fw-bold text-success" style="font-size: 1rem;" id="totalSales">₱0.00</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card h-100">
+              <div class="card-body py-2">
+                <div class="d-flex flex-row align-items-center">
+                  <div class="icon-circle icon-circle-info me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-coins text-info"></span></div>
+                  <div>
+                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Expected Cash</div>
+                    <div class="fw-bold" style="font-size: 1rem;" id="expectedCash">₱0.00</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card h-100">
+              <div class="card-body py-2">
+                <div class="d-flex flex-row align-items-center">
+                  <div class="icon-circle icon-circle-warning me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-balance-scale text-warning"></span></div>
+                  <div>
+                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Variance</div>
+                    <div class="fw-bold text-muted" style="font-size: 1rem;" id="varianceDisplay">₱0.00</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Type Breakdown -->
+        <div id="paymentBreakdownSection"></div>
+
+        <div class="row g-3 mt-4">
           <div class="col-12">
             <label class="form-label fw-semibold" for="closingCash">Actual Closing Cash (₱) <span class="text-danger">*</span></label>
-            <input type="number" class="form-control" id="closingCash" name="closingCash" value="0.00" min="0" step="0.01" oninput="computeVariance()">
+            <input type="text" class="form-control text-end fw-bold" id="closingCash" name="closingCash" placeholder="0.00" oninput="computeVariance()" autofocus>
             <div class="form-text">Physical cash count at end of shift.</div>
-          </div>
-          <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
-              <span class="fw-semibold">Expected Cash:</span>
-              <span id="expectedCash" class="fw-bold">₱0.00</span>
-            </div>
-            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded mt-2">
-              <span class="fw-semibold">Variance:</span>
-              <span id="varianceDisplay" class="fw-bold text-muted">₱0.00</span>
-            </div>
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold" for="closingNotes">Closing Notes</label>

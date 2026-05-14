@@ -46,24 +46,39 @@ $provinceCode = trim($input['province_code'] ?? '');
 $cityCode = trim($input['city_municipality_code'] ?? '');
 $barangayCode = trim($input['barangay_code'] ?? '');
 $streetAddress = trim($input['street_address'] ?? '');
-$landmark = trim($input['landmark'] ?? '');
-$zipCode = trim($input['zip_code'] ?? '');
 $notes = trim($input['notes'] ?? '');
+
+// Debug logging
+error_log('Passenger save data: ' . json_encode([
+    'fullname' => $fullname,
+    'mobile' => $mobileNumber,
+    'region_code' => $regionCode,
+    'province_code' => $provinceCode,
+    'city_code' => $cityCode,
+    'barangay_code' => $barangayCode,
+    'street_address' => $streetAddress,
+    'notes' => $notes
+]));
 
 // Validate
 if (!$fullname) { echo json_encode(['success' => false, 'error' => 'Fullname is required.']); exit; }
-if (!$mobileNumber) { echo json_encode(['success' => false, 'error' => 'Mobile number is required.']); exit; }
+// Mobile number is now optional, only validate if provided
+if ($mobileNumber && !preg_match('/^09[0-9]{9}$/', $mobileNumber)) {
+    echo json_encode(['success' => false, 'error' => 'Mobile number must be 11 digits starting with 09.']); exit;
+}
 
 try {
-    // Check if passenger already exists by mobile number
-    $existing = Database::fetch(
-        "SELECT passenger_id FROM passenger_accounts WHERE mobile_number = :mobile",
-        ['mobile' => $mobileNumber]
-    );
+    // Check if passenger already exists by mobile number (only if mobile is provided)
+    if ($mobileNumber) {
+        $existing = Database::fetch(
+            "SELECT passenger_id FROM passenger_accounts WHERE mobile_number = :mobile",
+            ['mobile' => $mobileNumber]
+        );
 
-    if ($existing) {
-        echo json_encode(['success' => false, 'error' => 'Passenger with this mobile number already exists.']);
-        exit;
+        if ($existing) {
+            echo json_encode(['success' => false, 'error' => 'Passenger with this mobile number already exists.']);
+            exit;
+        }
     }
 
     // Generate passenger code
@@ -74,14 +89,14 @@ try {
         "INSERT INTO passenger_accounts
             (fullname, mobile_number, email, gender, birth_date,
              region_code, province_code, city_municipality_code, barangay_code,
-             street_address, landmark, zip_code, notes, created_at, created_by)
+             street_address, notes, created_at, created_by)
          VALUES
             (:fullname, :mobile, :email, :gender, :birth_date,
              :region_code, :province_code, :city_code, :barangay_code,
-             :street_address, :landmark, :zip_code, :notes, NOW(), :created_by)",
+             :street_address, :notes, NOW(), :created_by)",
         [
             'fullname'      => $fullname,
-            'mobile'        => $mobileNumber,
+            'mobile'        => $mobileNumber ?: null,
             'email'         => $email ?: null,
             'gender'        => $gender ?: null,
             'birth_date'    => $birthDate ?: null,
@@ -90,8 +105,6 @@ try {
             'city_code'     => $cityCode ?: null,
             'barangay_code' => $barangayCode ?: null,
             'street_address'=> $streetAddress ?: null,
-            'landmark'      => $landmark ?: null,
-            'zip_code'      => $zipCode ?: null,
             'notes'         => $notes ?: null,
             'created_by'    => $user['user_id'],
         ]
@@ -156,9 +169,10 @@ function handleGet($user) {
                            pr.province_name,
                            c.city_municipality_name,
                            b.barangay_name,
-                           u.username as created_by_username
+                           CONCAT(e.first_name, ' ', e.last_name) as created_by_name
                     FROM passenger_accounts p
                     LEFT JOIN user_accounts u ON p.created_by = u.user_id
+                    LEFT JOIN employees e ON u.emp_id = e.emp_id
                     LEFT JOIN psgc_regions r ON p.region_code = r.region_code
                     LEFT JOIN psgc_provinces pr ON p.province_code = pr.province_code
                     LEFT JOIN psgc_cities_municipalities c ON p.city_municipality_code = c.city_municipality_code
@@ -183,8 +197,11 @@ function handleGet($user) {
                        r.region_name,
                        pr.province_name,
                        c.city_municipality_name,
-                       b.barangay_name
+                       b.barangay_name,
+                       CONCAT(e.first_name, ' ', e.last_name) as created_by_name
                 FROM passenger_accounts p
+                LEFT JOIN user_accounts u ON p.created_by = u.user_id
+                LEFT JOIN employees e ON u.emp_id = e.emp_id
                 LEFT JOIN psgc_regions r ON p.region_code = r.region_code
                 LEFT JOIN psgc_provinces pr ON p.province_code = pr.province_code
                 LEFT JOIN psgc_cities_municipalities c ON p.city_municipality_code = c.city_municipality_code
@@ -193,11 +210,18 @@ function handleGet($user) {
         
         $params = [];
         
-        // Add search filter
+        // Add search filter with word shuffling support
         if ($search) {
-            $sql .= " AND (p.fullname LIKE :search_name OR p.mobile_number LIKE :search_mobile)";
-            $params['search_name'] = '%' . $search . '%';
-            $params['search_mobile'] = '%' . $search . '%';
+            // Simple LIKE search for better compatibility - use unique parameter names
+            $sql .= " AND (p.fullname LIKE :search_fullname OR p.mobile_number LIKE :search_mobile OR p.email LIKE :search_email OR p.street_address LIKE :search_street OR pr.province_name LIKE :search_province OR c.city_municipality_name LIKE :search_city OR b.barangay_name LIKE :search_barangay)";
+            $searchParam = '%' . $search . '%';
+            $params['search_fullname'] = $searchParam;
+            $params['search_mobile'] = $searchParam;
+            $params['search_email'] = $searchParam;
+            $params['search_street'] = $searchParam;
+            $params['search_province'] = $searchParam;
+            $params['search_city'] = $searchParam;
+            $params['search_barangay'] = $searchParam;
         }
         
         $sql .= " ORDER BY p.created_at DESC";
@@ -230,14 +254,15 @@ function handlePut($user) {
     $cityCode = trim($input['city_municipality_code'] ?? '');
     $barangayCode = trim($input['barangay_code'] ?? '');
     $streetAddress = trim($input['street_address'] ?? '');
-    $landmark = trim($input['landmark'] ?? '');
-    $zipCode = trim($input['zip_code'] ?? '');
     $notes = trim($input['notes'] ?? '');
     
     // Validate
     if (!$passengerId) { echo json_encode(['success' => false, 'error' => 'Passenger ID is required.']); exit; }
     if (!$fullname) { echo json_encode(['success' => false, 'error' => 'Fullname is required.']); exit; }
-    if (!$mobileNumber) { echo json_encode(['success' => false, 'error' => 'Mobile number is required.']); exit; }
+    // Mobile number is optional, only validate if provided
+    if ($mobileNumber && !preg_match('/^09[0-9]{9}$/', $mobileNumber)) {
+        echo json_encode(['success' => false, 'error' => 'Mobile number must be 11 digits starting with 09.']); exit;
+    }
     
     try {
         // Check if passenger exists
@@ -281,8 +306,6 @@ function handlePut($user) {
                  city_municipality_code = :city_code,
                  barangay_code = :barangay_code,
                  street_address = :street_address,
-                 landmark = :landmark,
-                 zip_code = :zip_code,
                  notes = :notes,
                  updated_at = NOW()
              WHERE passenger_id = :passenger_id",
@@ -297,8 +320,6 @@ function handlePut($user) {
                 'city_code'     => $cityCode ?: null,
                 'barangay_code' => $barangayCode ?: null,
                 'street_address'=> $streetAddress ?: null,
-                'landmark'      => $landmark ?: null,
-                'zip_code'      => $zipCode ?: null,
                 'notes'         => $notes ?: null,
                 'passenger_id'  => $passengerId,
             ]

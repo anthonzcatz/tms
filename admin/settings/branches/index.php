@@ -21,12 +21,13 @@ Auth::requireLogin();
 
 // Check permission with proper access-denied page
 $user = Auth::user();
+// SUPER_ADMIN has access to everything
 if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow access
-} elseif (!Auth::can('VIEW_BRANCHES')) {
+} elseif (!Auth::canAccessModule('admin/settings/branches/')) {
     $message = 'You do not have permission to access the Branch Management module.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
-    include dirname(dirname(dirname(__DIR__))) . '/includes/access-denied.php';
+    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;
 }
 

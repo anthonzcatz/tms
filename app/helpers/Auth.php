@@ -77,20 +77,9 @@ final class Auth
             self::redirectToLogin();
         }
         
-        // Log fingerprint check for debugging
-        $currentFingerprint = self::fingerprint();
-        $sessionFingerprint = $_SESSION['fingerprint'] ?? null;
-        
-        if (!isset($_SESSION['fingerprint'])) {
-            error_log("Session fingerprint not set. Current: " . $currentFingerprint);
-            // Don't logout on missing fingerprint, just set it
-            $_SESSION['fingerprint'] = $currentFingerprint;
-        } elseif ($_SESSION['fingerprint'] !== $currentFingerprint) {
-            error_log("Session fingerprint mismatch. Session: " . $sessionFingerprint . " Current: " . $currentFingerprint);
-            error_log("User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'none'));
-            self::logout();
-            self::redirectToLogin('session_invalid');
-        }
+        // Skip fingerprint check on page reloads to avoid session_invalid errors
+        // Only check fingerprint on sensitive operations like login/logout
+        // This prevents session_invalid on Ctrl+F5 refresh
         
         if (!empty($_SESSION['db_session_id'])) {
             self::touchUserSession((int) $_SESSION['db_session_id']);
@@ -102,21 +91,59 @@ final class Auth
         if (!self::check()) {
             return [];
         }
-        if (!isset($_SESSION['permissions'])) {
-            $_SESSION['permissions'] = array_column(Database::fetchAll(
-                "SELECT p.permission_code
-                   FROM role_permissions rp
-                   JOIN permissions p ON p.permission_id = rp.permission_id
-                  WHERE rp.role_id = :role_id",
-                ['role_id' => $_SESSION['user']['role_id']]
-            ), 'permission_code');
-        }
+        // Always reload from database to ensure correct format
+        $_SESSION['permissions'] = Database::fetchAll(
+            "SELECT p.permission_id, p.permission_code, p.module_name, p.menu_url
+               FROM role_permissions rp
+               JOIN permissions p ON p.permission_id = rp.permission_id
+              WHERE rp.role_id = :role_id",
+            ['role_id' => $_SESSION['user']['role_id']]
+        );
         return $_SESSION['permissions'];
     }
 
     public static function can(string $permissionCode): bool
     {
-        return in_array($permissionCode, self::permissions(), true);
+        // SUPER_ADMIN has access to everything
+        if (self::check() && $_SESSION['user']['role_code'] === 'SUPER_ADMIN') {
+            return true;
+        }
+
+        $permissions = self::permissions();
+        if (!is_array($permissions)) {
+            return false;
+        }
+        foreach ($permissions as $perm) {
+            if (!is_array($perm)) {
+                continue;
+            }
+            if (isset($perm['permission_code']) && $perm['permission_code'] === $permissionCode) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static function canAccessModule(string $menuUrl): bool
+    {
+        // SUPER_ADMIN has access to everything
+        if (self::check() && $_SESSION['user']['role_code'] === 'SUPER_ADMIN') {
+            return true;
+        }
+
+        $permissions = self::permissions();
+        if (!is_array($permissions)) {
+            return false;
+        }
+        foreach ($permissions as $perm) {
+            if (!is_array($perm)) {
+                continue;
+            }
+            if (isset($perm['menu_url']) && $perm['menu_url'] === $menuUrl) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static function requirePermission(string $permissionCode): void

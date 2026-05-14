@@ -85,3 +85,40 @@ Passenger: passenger_accounts
 - [x] Customer Charges (Utang) (admin/charges/) — View customer balances, accept payments, track collections
 - [x] Cashier Shift Reports (admin/shifts/) — Daily reconciliation, variance reports per cashier
 
+## Module Creation Guidelines
+
+When creating new admin modules, follow these guidelines for permission handling and access control:
+
+### 1. Use the Global Access Denied Page
+Always use the global access denied page located at `admin/includes/access-denied.php`. Do not create custom access denied pages for individual modules.
+
+**Correct path for access-denied.php:**
+- From `admin/module-name/index.php`: `include dirname(__DIR__) . '/includes/access-denied.php';`
+- From `admin/module-name/submodule/index.php`: `include dirname(dirname(__DIR__)) . '/includes/access-denied.php';`
+- From `admin/settings/module-name/index.php`: `include dirname(dirname(__DIR__)) . '/includes/access-denied.php';`
+
+### 2. Use Flexible Permission System
+Use the `Auth::canAccessModule()` method to check permissions based on the `menu_url` field from the `permissions` table. Do not use hardcoded permission codes.
+
+**Example:**
+```php
+$user = Auth::user();
+// SUPER_ADMIN has access to everything
+if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+    // Allow
+} elseif (!Auth::canAccessModule('admin/your-module/')) {
+    http_response_code(403);
+    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    exit;
+}
+```
+
+### 3. Permission Database Setup
+When adding a new module:
+1. Add a permission record to the `permissions` table with the `menu_url` field set to the module's URL (e.g., `admin/your-module/`)
+2. Assign the permission to roles using the `role_permissions` table
+3. The `Auth::canAccessModule()` method will automatically check if the user's role has the permission for that `menu_url`
+
+### 4. SUPER_ADMIN Bypass
+The `SUPER_ADMIN` role automatically has access to all modules regardless of permissions. The `canAccessModule()` method handles this automatically.
+

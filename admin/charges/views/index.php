@@ -29,23 +29,6 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         }
         ?>
 
-        <!-- Page Header -->
-        <div class="row g-3 mb-3">
-          <div class="col-12">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <div>
-                <h2 class="mb-1">Customer Charges <span class="badge bg-soft-warning text-warning ms-2 fs-6">Utang</span></h2>
-                <nav aria-label="breadcrumb">
-                  <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
-                    <li class="breadcrumb-item active">Customer Charges</li>
-                  </ol>
-                </nav>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Header Card -->
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -56,8 +39,21 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               <div class="col-lg-auto d-flex align-items-center">
                 <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                 <div class="ms-x1">
-                  <h6 class="mb-1 text-primary">Operations</h6>
-                  <h4 class="mb-0 text-primary fw-bold">Customer <span class="text-info fw-medium">Charges</span></h4>
+                      <h4 class="mb-0 text-primary fw-bold">Customer <span class="text-info fw-medium">Charges</span></h4>
+                  <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
+                  <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a >Home</a></li>
+                    <li class="breadcrumb-item active">Customer Charges</li>
+                  </ol>
+                 </nav>
+                 </h6>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
                 </div>
               </div>
             </div>

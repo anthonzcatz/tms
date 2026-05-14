@@ -37,6 +37,7 @@ function openAddMethodModal() {
     document.getElementById('addRequiresConfirmation').checked = false;
     document.getElementById('addRequiresCustomer').checked = false;
     document.getElementById('addRequiresReference').checked = false;
+    document.getElementById('addIncludeInExpectedCash').checked = false;
     addMethodModal.show();
 }
 
@@ -61,6 +62,7 @@ async function submitAddMethod() {
         requires_confirmation: document.getElementById('addRequiresConfirmation').checked ? 1 : 0,
         requires_customer: document.getElementById('addRequiresCustomer').checked ? 1 : 0,
         requires_reference: document.getElementById('addRequiresReference').checked ? 1 : 0,
+        include_in_expected_cash: document.getElementById('addIncludeInExpectedCash').checked ? 1 : 0,
         is_active: 1
     };
 
@@ -104,6 +106,7 @@ async function editMethod(methodId) {
         document.getElementById('editRequiresConfirmation').checked = !!parseInt(m.requires_confirmation);
         document.getElementById('editRequiresCustomer').checked = !!parseInt(m.requires_customer);
         document.getElementById('editRequiresReference').checked = !!parseInt(m.requires_reference);
+        document.getElementById('editIncludeInExpectedCash').checked = !!parseInt(m.include_in_expected_cash);
         document.getElementById('editIsActive').checked = !!parseInt(m.is_active);
         editMethodModal.show();
     } catch (err) {
@@ -135,6 +138,7 @@ async function submitEditMethod() {
         requires_confirmation: document.getElementById('editRequiresConfirmation').checked ? 1 : 0,
         requires_customer: document.getElementById('editRequiresCustomer').checked ? 1 : 0,
         requires_reference: document.getElementById('editRequiresReference').checked ? 1 : 0,
+        include_in_expected_cash: document.getElementById('editIncludeInExpectedCash').checked ? 1 : 0,
         is_active: document.getElementById('editIsActive').checked ? 1 : 0
     };
 

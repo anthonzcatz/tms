@@ -34,18 +34,68 @@ function handleGet() {
     if ($id) {
         $session = Database::fetch(
             "SELECT cs.*,
-                    COALESCE(SUM(CASE WHEN pm.method_type = 'CASH' THEN tp.amount ELSE 0 END), 0) AS total_cash_paid,
-                    COUNT(DISTINCT tp.source_id) AS txn_count,
-                    (cs.starting_cash + COALESCE(SUM(CASE WHEN pm.method_type = 'CASH' THEN tp.amount ELSE 0 END), 0)) AS expected_cash
+                    cs.total_sales AS total_cash_paid,
+                    COALESCE(cs.total_cash, 0) AS total_cash,
+                    COALESCE(cs.total_bank_transfer, 0) AS total_bank_transfer,
+                    COALESCE(cs.total_e_wallet, 0) AS total_e_wallet,
+                    COALESCE(cs.total_charge, 0) AS total_charge,
+                    COALESCE(cs.total_other, 0) AS total_other,
+                    (SELECT COUNT(*) FROM service_transactions WHERE session_id = cs.session_id) AS txn_count,
+                    (cs.starting_cash + COALESCE(cs.total_cash, 0)) AS expected_cash
              FROM cashier_sessions cs
-             LEFT JOIN transaction_payments tp ON tp.cashier_session_id = cs.session_id
-             LEFT JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE cs.session_id = :id
-             GROUP BY cs.session_id",
+             WHERE cs.session_id = :id",
             ['id' => $id]
         );
         if (!$session) { echo json_encode(['success' => false, 'error' => 'Session not found']); return; }
-        echo json_encode(['success' => true, 'data' => $session]);
+
+        // Get payment breakdown from transaction_payments (same logic as shifts API)
+        $paymentWhere = "AND tp.created_at >= :start";
+        $paymentParams = [
+            'uid'   => $session['cashier_user_id'],
+            'start' => $session['started_at']
+        ];
+        if ($session['ended_at']) {
+            $paymentWhere .= " AND tp.created_at <= :end";
+            $paymentParams['end'] = $session['ended_at'];
+        }
+
+        $payments = Database::fetchAll(
+            "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
+             FROM transaction_payments tp
+             JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+             WHERE tp.created_by = :uid
+               $paymentWhere
+             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash
+             ORDER BY total_amount DESC",
+            $paymentParams
+        );
+
+        // Map payment breakdown to session fields
+        $paymentMap = [
+            'CASH' => 'total_cash',
+            'BANK_TRANSFER' => 'total_bank_transfer',
+            'E_WALLET' => 'total_e_wallet',
+            'CHARGE' => 'total_charge',
+            'OTHER' => 'total_other'
+        ];
+
+        // Calculate expected cash based on payment methods with include_in_expected_cash flag
+        $expectedCashPayments = 0;
+        foreach ($payments as $payment) {
+            $methodType = $payment['method_type'];
+            if (isset($paymentMap[$methodType])) {
+                $session[$paymentMap[$methodType]] = $payment['total_amount'];
+            }
+            // Add to expected cash if payment method is configured to be included
+            if ($payment['include_in_expected_cash']) {
+                $expectedCashPayments += $payment['total_amount'];
+            }
+        }
+
+        // Recalculate expected cash based on payment method settings
+        $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments;
+
+        echo json_encode(['success' => true, 'data' => ['session' => $session, 'payments' => $payments]]);
         return;
     }
 
@@ -107,15 +157,33 @@ function handlePut() {
         $closingCash = $input['closing_cash_balance'] ?? 0;
         $notes = $input['notes'] ?? null;
 
-        // Compute expected cash
-        $cashTotal = Database::fetch(
-            "SELECT COALESCE(SUM(tp.amount), 0) AS total
+        // Get payment breakdown for this session to calculate expected cash based on payment method settings
+        $paymentWhere = "AND tp.created_at >= :start";
+        $paymentParams = [
+            'uid'   => $session['cashier_user_id'],
+            'start' => $session['started_at']
+        ];
+
+        $payments = Database::fetchAll(
+            "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
              FROM transaction_payments tp
              JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE tp.cashier_session_id = :id AND pm.method_type = 'CASH'",
-            ['id' => $sessionId]
+             WHERE tp.created_by = :uid
+               $paymentWhere
+             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash",
+            $paymentParams
         );
-        $expectedCash = $session['starting_cash'] + ($cashTotal['total'] ?? 0);
+
+        // Calculate expected cash based on payment methods with include_in_expected_cash flag
+        $expectedCashPayments = 0;
+        foreach ($payments as $payment) {
+            if ($payment['include_in_expected_cash']) {
+                $expectedCashPayments += $payment['total_amount'];
+            }
+        }
+
+        // Compute expected cash using payment method settings
+        $expectedCash = $session['starting_cash'] + $expectedCashPayments;
         $variance = $closingCash - $expectedCash;
 
         Database::execute(

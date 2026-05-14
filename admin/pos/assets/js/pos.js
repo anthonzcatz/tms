@@ -11,15 +11,41 @@ let cart = [];            // Array of cart items
 let paymentLines = [];    // Array of payment method entries
 let activeServiceType = null;
 let activePaymentMethod = null;
-let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, switchTypeModal;
+let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal;
 let selectedCustomerId = null;
 let transactionType = localStorage.getItem('posTransactionType') || 'ticket'; // 'ticket' or 'service'
 let ticketInCart = null; // Store the ticket object if in cart
 let currentPassengerStep = 1;
-let totalPassengerSteps = 3;
+let totalPassengerSteps = 2;
 let viewPassengerStep = 1;
-let totalViewPassengerSteps = 3;
+let totalViewPassengerSteps = 2;
 let pendingTransactionType = null; // Store pending transaction type for confirmation
+
+// Load cart from localStorage on page load
+function loadCartFromStorage() {
+    try {
+        const savedCart = localStorage.getItem('posCart');
+        const savedTicketInCart = localStorage.getItem('posTicketInCart');
+        if (savedCart) {
+            cart = JSON.parse(savedCart);
+        }
+        if (savedTicketInCart) {
+            ticketInCart = JSON.parse(savedTicketInCart);
+        }
+    } catch (e) {
+        console.error('Error loading cart from storage:', e);
+    }
+}
+
+// Save cart to localStorage
+function saveCartToStorage() {
+    try {
+        localStorage.setItem('posCart', JSON.stringify(cart));
+        localStorage.setItem('posTicketInCart', JSON.stringify(ticketInCart));
+    } catch (e) {
+        console.error('Error saving cart to storage:', e);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     openSessionModal  = new bootstrap.Modal(document.getElementById('openSessionModal'));
@@ -28,7 +54,30 @@ document.addEventListener('DOMContentLoaded', function() {
     addPassengerModal = new bootstrap.Modal(document.getElementById('addPassengerModal'));
     viewPassengerModal = new bootstrap.Modal(document.getElementById('viewPassengerModal'));
     switchTypeModal = new bootstrap.Modal(document.getElementById('switchTypeModal'));
-    
+    paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    itemEntryModal = new bootstrap.Modal(document.getElementById('itemEntryModal'));
+    clearCartModal = new bootstrap.Modal(document.getElementById('clearCartModal'));
+
+    // Toggle order summary collapse icon
+    const orderSummaryCollapse = document.getElementById('paymentCartItemsCollapse');
+    const orderSummaryToggleIcon = document.getElementById('orderSummaryToggleIcon');
+    if (orderSummaryCollapse && orderSummaryToggleIcon) {
+        orderSummaryCollapse.addEventListener('show.bs.collapse', () => {
+            orderSummaryToggleIcon.classList.remove('fa-chevron-down');
+            orderSummaryToggleIcon.classList.add('fa-chevron-up');
+        });
+        orderSummaryCollapse.addEventListener('hide.bs.collapse', () => {
+            orderSummaryToggleIcon.classList.remove('fa-chevron-up');
+            orderSummaryToggleIcon.classList.add('fa-chevron-down');
+        });
+    }
+
+    // Load cart from localStorage
+    loadCartFromStorage();
+    if (cart.length > 0) {
+        renderCart();
+    }
+
     // Don't render passengers on initial load - wait for search
     renderCustomers();
     
@@ -49,8 +98,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const city = document.getElementById('newPassengerCity');
     const barangay = document.getElementById('newPassengerBarangay');
 
+    // Auto-convert fullname to title case on input
     if (fullname) {
         fullname.addEventListener('input', function() {
+            const toTitleCase = (str) => {
+                if (!str) return '';
+                return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+            };
+            // Get current cursor position
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            // Convert to title case
+            this.value = toTitleCase(this.value);
+            // Restore cursor position
+            this.setSelectionRange(start, end);
+            
             if (this.value.trim()) {
                 this.classList.remove('is-invalid');
                 this.classList.add('is-valid');
@@ -186,9 +248,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // ESC - Cancel current entry
         if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-            const itemEntry = document.getElementById('itemEntryCard');
             const paymentEntry = document.getElementById('paymentEntryRow');
-            if (itemEntry && itemEntry.style.display !== 'none') {
+            if (itemEntryModal._isShown) {
                 cancelItemEntry();
             } else if (paymentEntry && paymentEntry.style.display !== 'none') {
                 cancelPaymentEntry();
@@ -197,9 +258,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Enter - Add item or payment
         if (e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-            const itemEntry = document.getElementById('itemEntryCard');
             const paymentEntry = document.getElementById('paymentEntryRow');
-            if (itemEntry && itemEntry.style.display !== 'none') {
+            if (itemEntryModal._isShown) {
                 addItemToCart();
             } else if (paymentEntry && paymentEntry.style.display !== 'none') {
                 addPaymentLine();
@@ -298,52 +358,69 @@ function renderTicketPassengers(searchTerm = '') {
         url += `?search=${encodeURIComponent(searchTerm)}`;
     }
     
+    console.log('API URL:', url);
+    
     // Hide dropdown initially
     dropdown.style.display = 'none';
     dropdown.innerHTML = '';
     
     // Fetch passengers via AJAX
     fetch(url)
-        .then(response => response.json())
+        .then(response => {
+            console.log('API response status:', response.status);
+            return response.json();
+        })
         .then(data => {
             console.log('Passenger search results:', data);
             
             if (!data.success || !data.data || data.data.length === 0) {
                 // Hide dropdown if no results
                 dropdown.style.display = 'none';
+                console.log('No results found');
                 return;
             }
 
             // Build dropdown items with more details
             data.data.forEach((p, index) => {
                 const item = document.createElement('div');
-                item.className = 'dropdown-item passenger-dropdown-item';
+                item.className = 'dropdown-item passenger-dropdown-item py-2';
                 item.dataset.passengerId = p.passenger_id;
                 item.dataset.index = index;
                 
+                // Helper function to capitalize first letter of each word
+                const toTitleCase = (str) => {
+                    if (!str) return '';
+                    return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                };
+                
                 // Build address string from available fields (use names instead of codes)
                 const addressParts = [];
-                if (p.street_address) addressParts.push(p.street_address);
-                if (p.barangay_name) addressParts.push(p.barangay_name);
-                if (p.city_municipality_name) addressParts.push(p.city_municipality_name);
-                if (p.province_name) addressParts.push(p.province_name);
+                if (p.street_address) addressParts.push(toTitleCase(p.street_address));
+                if (p.barangay_name) addressParts.push(toTitleCase(p.barangay_name));
+                if (p.city_municipality_name) addressParts.push(toTitleCase(p.city_municipality_name));
+                if (p.province_name) addressParts.push(toTitleCase(p.province_name));
                 const address = addressParts.length > 0 ? addressParts.join(', ') : 'No address on file';
                 
-                // Gender badge class
+                // Gender badge class with better visibility
                 const genderBadgeClass = p.gender === 'male' ? 'bg-primary' : 
                                        p.gender === 'female' ? 'bg-danger' : 'bg-secondary';
-                const genderBadge = p.gender ? `<span class="badge ${genderBadgeClass}">${p.gender.toUpperCase()}</span>` : '';
+                const genderIcon = p.gender === 'male' ? 'fa-mars' : p.gender === 'female' ? 'fa-venus' : 'fa-genderless';
+                const genderBadge = p.gender ? `<span class="badge ${genderBadgeClass} ms-2"><span class="fas ${genderIcon} me-1"></span>${p.gender.charAt(0).toUpperCase() + p.gender.slice(1).toLowerCase()}</span>` : '';
                 
                 item.innerHTML = `
                     <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="fw-bold text-primary">${p.fullname}</div>
-                            <div class="text-muted small">${p.mobile_number || 'No mobile number'}</div>
-                            <div class="text-muted small">${address}</div>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold text-primary mb-1">${toTitleCase(p.fullname)}</div>
+                            <div class="text-muted small mb-1">
+                                <span class="fas fa-phone-alt me-1"></span>${p.mobile_number || 'No mobile number'}
+                            </div>
+                            <div class="text-muted small">
+                                <span class="fas fa-map-marker-alt me-1"></span>${address}
+                            </div>
                         </div>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex flex-column align-items-end gap-1">
                             ${genderBadge}
-                            <button class="btn btn-sm btn-outline-primary" onclick="viewPassenger('${p.passenger_id}', event)" title="View/Edit">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewPassenger('${p.passenger_id}', event)" title="View/Edit Passenger" style="min-width: 32px; height: 32px; padding: 4px;">
                                 <span class="fas fa-edit"></span>
                             </button>
                         </div>
@@ -360,11 +437,11 @@ function renderTicketPassengers(searchTerm = '') {
             
             // Show dropdown if there are results
             dropdown.style.display = 'block';
+            console.log('Dropdown shown with', data.data.length, 'results');
             
             // Set first item as active for keyboard navigation
-            if (dropdown.firstChild) {
-                dropdown.firstChild.classList.add('active');
-            }
+            currentActiveIndex = 0;
+            updateActiveItem();
         })
         .catch(error => {
             console.error('Error fetching passengers:', error);
@@ -377,24 +454,57 @@ function selectTicketPassenger(passenger) {
     const hiddenInput = document.getElementById('ticketPassenger');
     const dropdown = document.getElementById('ticketPassengerDropdown');
     
-    // Build address string for display (use names instead of codes)
-    const addressParts = [];
-    if (passenger.street_address) addressParts.push(passenger.street_address);
-    if (passenger.barangay_name) addressParts.push(passenger.barangay_name);
-    if (passenger.city_municipality_name) addressParts.push(passenger.city_municipality_name);
-    if (passenger.province_name) addressParts.push(passenger.province_name);
-    const address = addressParts.length > 0 ? addressParts.join(', ') : '';
+    // Helper function to capitalize first letter of each word
+    const toTitleCase = (str) => {
+        if (!str) return '';
+        return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+    };
     
-    // Set values - show fullname, mobile, and address if available
-    let displayValue = passenger.fullname;
-    if (passenger.mobile_number) displayValue += ` - ${passenger.mobile_number}`;
-    if (address) displayValue += ` (${address.substring(0, 30)}${address.length > 30 ? '...' : ''})`;
-    
-    searchInput.value = displayValue;
+    // Set values - show only fullname in search input
+    searchInput.value = toTitleCase(passenger.fullname);
     hiddenInput.value = passenger.passenger_id;
     
     // Hide dropdown
     dropdown.style.display = 'none';
+    
+    // Display selected passenger details in a separate area
+    const passengerDetailsDiv = document.getElementById('selectedPassengerDetails');
+    if (!passengerDetailsDiv) {
+        // Create passenger details display area if it doesn't exist
+        const detailsContainer = document.createElement('div');
+        detailsContainer.id = 'selectedPassengerDetails';
+        detailsContainer.className = 'card mb-3 border-0 shadow-sm';
+        detailsContainer.innerHTML = `
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold text-primary mb-1" id="selectedPassengerName"></div>
+                        <div class="text-muted small mb-1" id="selectedPassengerMobile"></div>
+                        <div class="text-muted small" id="selectedPassengerAddress"></div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-info" onclick="viewPassenger('${passenger.passenger_id}', event)">
+                        <span class="fas fa-info-circle me-1"></span>View More Details
+                    </button>
+                </div>
+            </div>
+        `;
+        // Insert after the passenger search input container
+        const searchContainer = searchInput.closest('.col-md-6').parentElement;
+        searchContainer.insertAdjacentElement('afterend', detailsContainer);
+    }
+    
+    // Update passenger details display
+    document.getElementById('selectedPassengerName').textContent = toTitleCase(passenger.fullname);
+    document.getElementById('selectedPassengerMobile').innerHTML = `<span class="fas fa-phone-alt me-1"></span>${passenger.mobile_number || 'No mobile number'}`;
+    
+    // Build address string
+    const addressParts = [];
+    if (passenger.street_address) addressParts.push(toTitleCase(passenger.street_address));
+    if (passenger.barangay_name) addressParts.push(toTitleCase(passenger.barangay_name));
+    if (passenger.city_municipality_name) addressParts.push(toTitleCase(passenger.city_municipality_name));
+    if (passenger.province_name) addressParts.push(toTitleCase(passenger.province_name));
+    const address = addressParts.length > 0 ? addressParts.join(', ') : 'No address on file';
+    document.getElementById('selectedPassengerAddress').innerHTML = `<span class="fas fa-map-marker-alt me-1"></span>${address}`;
     
     // Trigger change event
     hiddenInput.dispatchEvent(new Event('change'));
@@ -420,25 +530,47 @@ function viewPassenger(passengerId, event) {
 }
 
 function populateViewPassengerForm(passenger) {
+    console.log('Populating passenger form with data:', passenger);
+    
     document.getElementById('viewPassengerId').value = passenger.passenger_id;
     document.getElementById('viewPassengerFullname').value = passenger.fullname || '';
     document.getElementById('viewPassengerMobile').value = passenger.mobile_number || '';
     document.getElementById('viewPassengerEmail').value = passenger.email || '';
     document.getElementById('viewPassengerGender').value = passenger.gender || '';
     document.getElementById('viewPassengerBirthDate').value = passenger.birth_date || '';
+    document.getElementById('viewPassengerStreetAddress').value = passenger.street_address || '';
+    document.getElementById('viewPassengerNotes').value = passenger.notes || '';
+    
+    // Set address field values directly
     document.getElementById('viewPassengerRegion').value = passenger.region_code || '';
     document.getElementById('viewPassengerProvince').value = passenger.province_code || '';
     document.getElementById('viewPassengerCity').value = passenger.city_municipality_code || '';
     document.getElementById('viewPassengerBarangay').value = passenger.barangay_code || '';
-    document.getElementById('viewPassengerStreetAddress').value = passenger.street_address || '';
-    document.getElementById('viewPassengerLandmark').value = passenger.landmark || '';
-    document.getElementById('viewPassengerZipCode').value = passenger.zip_code || '';
-    document.getElementById('viewPassengerNotes').value = passenger.notes || '';
+    
+    console.log('Address values set:', {
+        region: passenger.region_code,
+        province: passenger.province_code,
+        city: passenger.city_municipality_code,
+        barangay: passenger.barangay_code
+    });
+    
+    // Load dropdowns in background after setting values
+    if (passenger.region_code) {
+        loadViewProvinces();
+    }
+    if (passenger.province_code) {
+        loadViewCities();
+    }
+    if (passenger.city_municipality_code) {
+        loadViewBarangays();
+    }
+    
+    console.log('Address fields populated');
     
     // Display timestamps
     document.getElementById('viewPassengerCreatedAt').textContent = passenger.created_at ? formatDate(passenger.created_at) : '-';
     document.getElementById('viewPassengerUpdatedAt').textContent = passenger.updated_at ? formatDate(passenger.updated_at) : '-';
-    document.getElementById('viewPassengerCreatedBy').textContent = passenger.created_by_username || '-';
+    document.getElementById('viewPassengerCreatedBy').textContent = passenger.created_by_name || '-';
     
     // Calculate and display customer duration
     if (passenger.created_at) {
@@ -554,26 +686,31 @@ function loadViewProvinces() {
     if (!regionCode) {
         provinceSelect.innerHTML = '<option value="">Select Province</option>';
         provinceSelect.disabled = true;
-        return;
+        return Promise.resolve();
     }
     
-    fetch(`${window.BASE_URL}/api/psgc?action=provinces&region_code=${regionCode}`)
+    return fetch(`${window.BASE_URL}/api/psgc?action=provinces&region_code=${regionCode}`)
         .then(response => response.json())
         .then(data => {
             provinceSelect.innerHTML = '<option value="">Select Province</option>';
-            data.forEach(p => {
-                const option = document.createElement('option');
-                option.value = p.province_code;
-                option.textContent = p.province_name;
-                provinceSelect.appendChild(option);
-            });
-            provinceSelect.disabled = false;
+            if (data.success && data.data.provinces) {
+                data.data.provinces.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.province_code;
+                    option.textContent = p.province_name;
+                    provinceSelect.appendChild(option);
+                });
+                provinceSelect.disabled = false;
+            }
             
             // Restore selected value
             const current = document.getElementById('viewPassengerProvince').dataset.current;
             if (current) provinceSelect.value = current;
         })
-        .catch(error => console.error('Error loading provinces:', error));
+        .catch(error => {
+            console.error('Error loading provinces:', error);
+            throw error;
+        });
 }
 
 function loadViewCities() {
@@ -583,26 +720,31 @@ function loadViewCities() {
     if (!provinceCode) {
         citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
         citySelect.disabled = true;
-        return;
+        return Promise.resolve();
     }
     
-    fetch(`${window.BASE_URL}/api/psgc?action=cities&province_code=${provinceCode}`)
+    return fetch(`${window.BASE_URL}/api/psgc?action=cities&province_code=${provinceCode}`)
         .then(response => response.json())
         .then(data => {
             citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
-            data.forEach(c => {
-                const option = document.createElement('option');
-                option.value = c.city_municipality_code;
-                option.textContent = c.city_municipality_name;
-                citySelect.appendChild(option);
-            });
-            citySelect.disabled = false;
+            if (data.success && data.data.cities) {
+                data.data.cities.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.city_municipality_code;
+                    option.textContent = c.city_municipality_name;
+                    citySelect.appendChild(option);
+                });
+                citySelect.disabled = false;
+            }
             
             // Restore selected value
             const current = document.getElementById('viewPassengerCity').dataset.current;
             if (current) citySelect.value = current;
         })
-        .catch(error => console.error('Error loading cities:', error));
+        .catch(error => {
+            console.error('Error loading cities:', error);
+            throw error;
+        });
 }
 
 function loadViewBarangays() {
@@ -612,26 +754,31 @@ function loadViewBarangays() {
     if (!cityCode) {
         barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
         barangaySelect.disabled = true;
-        return;
+        return Promise.resolve();
     }
     
-    fetch(`${window.BASE_URL}/api/psgc?action=barangays&city_code=${cityCode}`)
+    return fetch(`${window.BASE_URL}/api/psgc?action=barangays&city_code=${cityCode}`)
         .then(response => response.json())
         .then(data => {
             barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
-            data.forEach(b => {
-                const option = document.createElement('option');
-                option.value = b.barangay_code;
-                option.textContent = b.barangay_name;
-                barangaySelect.appendChild(option);
-            });
-            barangaySelect.disabled = false;
+            if (data.success && data.data.barangays) {
+                data.data.barangays.forEach(b => {
+                    const option = document.createElement('option');
+                    option.value = b.barangay_code;
+                    option.textContent = b.barangay_name;
+                    barangaySelect.appendChild(option);
+                });
+                barangaySelect.disabled = false;
+            }
             
             // Restore selected value
             const current = document.getElementById('viewPassengerBarangay').dataset.current;
             if (current) barangaySelect.value = current;
         })
-        .catch(error => console.error('Error loading barangays:', error));
+        .catch(error => {
+            console.error('Error loading barangays:', error);
+            throw error;
+        });
 }
 
 function updatePassenger() {
@@ -653,8 +800,6 @@ function updatePassenger() {
         city_municipality_code: document.getElementById('viewPassengerCity').value,
         barangay_code: document.getElementById('viewPassengerBarangay').value,
         street_address: document.getElementById('viewPassengerStreetAddress').value,
-        landmark: document.getElementById('viewPassengerLandmark').value,
-        zip_code: document.getElementById('viewPassengerZipCode').value,
         notes: document.getElementById('viewPassengerNotes').value,
     };
     
@@ -894,7 +1039,7 @@ function loadServiceFeeForWallet() {
                 
                 // Update base amount display
                 const currentBaseAmount = parseFloat(baseAmountInput.value) || 0;
-                baseAmountDisplay.textContent = `₱${currentBaseAmount.toFixed(2)}`;
+                baseAmountDisplay.textContent = currentBaseAmount > 0 ? '₱' + currentBaseAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '₱0.00';
                 
                 // Recalculate ticket total
                 computeTicketTotal();
@@ -914,14 +1059,37 @@ function loadServiceFeeForWallet() {
 }
 
 function searchTicketPassenger(searchTerm) {
-    console.log('Searching for passenger:', searchTerm);
+    console.log('Searching for passenger:', searchTerm, 'Length:', searchTerm.length);
+    
+    // Clear passenger details if search is empty
+    if (!searchTerm || searchTerm.trim() === '') {
+        const passengerDetailsDiv = document.getElementById('selectedPassengerDetails');
+        if (passengerDetailsDiv) {
+            passengerDetailsDiv.remove();
+        }
+        const hiddenInput = document.getElementById('ticketPassenger');
+        hiddenInput.value = '';
+        console.log('Search empty, clearing details');
+        return;
+    }
+    
+    // Only search if at least 2 characters are typed
+    if (searchTerm.length < 2) {
+        const dropdown = document.getElementById('ticketPassengerDropdown');
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = '';
+        console.log('Search term too short:', searchTerm.length);
+        return;
+    }
+    
     // Reset active index when searching
     currentActiveIndex = -1;
-    // Debounce the search to avoid too many API calls
+    // Real-time search with minimal delay (100ms for better UX)
     clearTimeout(window.ticketPassengerSearchTimeout);
     window.ticketPassengerSearchTimeout = setTimeout(() => {
+        console.log('Executing search for:', searchTerm);
         renderTicketPassengers(searchTerm);
-    }, 300);
+    }, 100);
 }
 
 // Close dropdown when clicking outside
@@ -932,6 +1100,75 @@ document.addEventListener('click', function(e) {
         dropdown.style.display = 'none';
     }
 });
+
+// Add keyboard navigation for passenger dropdown
+// Auto-convert fullname to title case on input for view passenger
+document.addEventListener('DOMContentLoaded', function() {
+    const viewFullnameInput = document.getElementById('viewPassengerFullname');
+    if (viewFullnameInput) {
+        viewFullnameInput.addEventListener('input', function(e) {
+            const toTitleCase = (str) => {
+                if (!str) return '';
+                return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+            };
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            this.value = toTitleCase(this.value);
+            this.setSelectionRange(start, end);
+        });
+    }
+
+    const searchInput = document.getElementById('ticketPassengerSearch');
+    if (searchInput) {
+        searchInput.addEventListener('keydown', function(e) {
+            const dropdown = document.getElementById('ticketPassengerDropdown');
+            const items = dropdown.querySelectorAll('.passenger-dropdown-item');
+            
+            if (dropdown.style.display === 'none' || items.length === 0) return;
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentActiveIndex = Math.min(currentActiveIndex + 1, items.length - 1);
+                updateActiveItem();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentActiveIndex = Math.max(currentActiveIndex - 1, 0);
+                updateActiveItem();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentActiveIndex >= 0 && currentActiveIndex < items.length) {
+                    const activeItem = items[currentActiveIndex];
+                    const passengerId = activeItem.dataset.passengerId;
+                    // Get passenger data from the items
+                    fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${passengerId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.data) {
+                                selectTicketPassenger(data.data);
+                            }
+                        });
+                }
+            }
+        });
+    }
+});
+
+function updateActiveItem() {
+    const dropdown = document.getElementById('ticketPassengerDropdown');
+    const items = dropdown.querySelectorAll('.passenger-dropdown-item');
+    
+    items.forEach((item, index) => {
+        if (index === currentActiveIndex) {
+            item.classList.add('active');
+            item.style.backgroundColor = 'var(--bs-primary-bg-subtle)';
+            // Scroll into view if needed
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('active');
+            item.style.backgroundColor = '';
+        }
+    });
+}
 
 function filterCustomers() {
     const search = document.getElementById('customerSearch').value.toLowerCase();
@@ -1006,31 +1243,122 @@ async function submitOpenSession() {
 }
 
 async function openCloseSession() {
-    document.getElementById('closingCash').value = '0.00';
+    document.getElementById('closingCash').value = '';
     document.getElementById('closingNotes').value = '';
     document.getElementById('varianceDisplay').textContent = '₱0.00';
     document.getElementById('varianceDisplay').className = 'fw-bold text-muted';
 
     // Fetch session summary
     try {
-        const res = await fetch(`${window.BASE_URL}/api/pos/sessions?id=${window.POS_SESSION_ID}`);
-        const result = await res.json();
+        const response = await fetch(`${window.BASE_URL}/api/pos/sessions?id=${window.POS_SESSION_ID}`);
+        const result = await response.json();
         if (result.success) {
-            const s = result.data;
+            const s = result.data.session;
+            const payments = result.data.payments || [];
             const expected = parseFloat(s.expected_cash || 0);
+            document.getElementById('openingCash').textContent = '₱' + fmt(s.starting_cash);
             document.getElementById('expectedCash').textContent = '₱' + fmt(expected);
-            document.getElementById('closeSummary').innerHTML =
-                `Opening Cash: <strong>₱${fmt(s.starting_cash)}</strong> &nbsp;|&nbsp; ` +
-                `Cash Received: <strong>₱${fmt(s.total_cash_paid)}</strong> &nbsp;|&nbsp; ` +
-                `Transactions: <strong>${s.txn_count || 0}</strong>`;
+            document.getElementById('totalSales').textContent = '₱' + fmt(s.total_sales || 0);
+
+            const startedDate = new Date(s.started_at);
+            const startedFmt = startedDate.toLocaleString('en-PH', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            document.getElementById('closeSummary').innerHTML = `
+                <div class="row g-3 align-items-center">
+                  <div class="col-md-4">
+                    <div class="text-muted small mb-1">Started</div>
+                    <div class="fw-bold">${startedFmt}</div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="text-muted small mb-1">Opening Cash</div>
+                    <div class="fw-bold">₱${fmt(s.starting_cash)}</div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="text-muted small mb-1">Transactions</div>
+                    <div class="fw-bold">${s.txn_count || 0}</div>
+                  </div>
+                </div>`;
+
+            // Payment type breakdown (Order Summary UI pattern)
+            const paymentTypes = [
+                { label: 'Cash', value: s.total_cash, color: 'text-success' },
+                { label: 'Bank Transfer', value: s.total_bank_transfer, color: 'text-info' },
+                { label: 'E-Wallet', value: s.total_e_wallet, color: 'text-primary' },
+                { label: 'Charge', value: s.total_charge, color: 'text-warning' },
+                { label: 'Other', value: s.total_other, color: 'text-secondary' }
+            ];
+            const activePayments = paymentTypes.filter(p => parseFloat(p.value) > 0);
+
+            if (activePayments.length > 0) {
+                let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
+                html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0">';
+                
+                activePayments.forEach((p, index) => {
+                    const isLast = index === activePayments.length - 1;
+                    const borderClass = !isLast ? 'border-bottom' : '';
+                    const ptClass = index === 0 ? 'pt-0' : '';
+                    const pbClass = isLast ? 'pb-0' : '';
+                    
+                    html += `
+                      <tr class="${borderClass}">
+                        <th class="ps-0 ${ptClass} ${pbClass}">${p.label}
+                          <div class="text-400 fw-normal fs-11">${p.color.replace('text-', '').toUpperCase()}</div>
+                        </th>
+                        <th class="pe-0 text-end ${ptClass} ${pbClass}">₱${fmt(p.value)}</th>
+                      </tr>`;
+                });
+                
+                html += `
+                      <tr>
+                        <th class="ps-0 pb-0">Total</th>
+                        <th class="pe-0 text-end pb-0 text-success">₱${fmt(s.total_sales)}</th>
+                      </tr>
+                    </table>
+                  </div>
+                </div>`;
+                document.getElementById('paymentBreakdownSection').innerHTML = html;
+            } else {
+                document.getElementById('paymentBreakdownSection').innerHTML = '';
+            }
         }
     } catch (e) {}
 
     closeSessionModal.show();
+
+    // Focus on closing cash field after modal is fully shown using Bootstrap event
+    const modalElement = document.getElementById('closeSessionModal');
+    modalElement.addEventListener('shown.bs.modal', function focusClosingCash() {
+        const closingCashField = document.getElementById('closingCash');
+        closingCashField.focus();
+        closingCashField.select();
+        modalElement.removeEventListener('shown.bs.modal', focusClosingCash);
+    });
 }
 
 function computeVariance() {
-    const actual = parseFloat(document.getElementById('closingCash').value) || 0;
+    const input = document.getElementById('closingCash');
+    let value = input.value;
+
+    // Remove all non-numeric characters except commas and decimal point
+    value = value.replace(/[^0-9.,]/g, '');
+
+    // Remove commas for calculation
+    const numericValue = value.replace(/,/g, '');
+    if (numericValue === '') numericValue = '0';
+
+    // Format with commas for display
+    const formatted = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    input.value = formatted;
+
+    const actual = parseFloat(numericValue) || 0;
     const expectedText = document.getElementById('expectedCash').textContent.replace(/[₱,]/g, '');
     const expected = parseFloat(expectedText) || 0;
     const variance = actual - expected;
@@ -1040,7 +1368,7 @@ function computeVariance() {
 }
 
 async function submitCloseSession() {
-    const closingCash = parseFloat(document.getElementById('closingCash').value) || 0;
+    const closingCash = parseFloat(document.getElementById('closingCash').value.replace(/,/g, '')) || 0;
     const notes = document.getElementById('closingNotes').value.trim();
 
     const btn = document.querySelector('#closeSessionModal .btn-danger');
@@ -1188,12 +1516,8 @@ function validatePassengerStep(step) {
             fullname.classList.add('is-valid');
         }
 
-        // Validate mobile
-        if (!mobile.value.trim()) {
-            mobile.classList.add('is-invalid');
-            mobile.classList.remove('is-valid');
-            isValid = false;
-        } else {
+        // Validate mobile (optional but must be valid format if provided)
+        if (mobile.value.trim()) {
             // Check PH mobile format
             const isValidFormat = /^09[0-9]{9}$/.test(mobile.value);
             if (isValidFormat) {
@@ -1204,6 +1528,9 @@ function validatePassengerStep(step) {
                 mobile.classList.remove('is-valid');
                 isValid = false;
             }
+        } else {
+            mobile.classList.remove('is-invalid');
+            mobile.classList.remove('is-valid');
         }
 
         // Validate gender
@@ -1461,8 +1788,6 @@ async function saveNewPassenger() {
     const email = document.getElementById('newPassengerEmail').value.trim();
     const birthDate = document.getElementById('newPassengerBirthDate').value;
     const streetAddress = document.getElementById('newPassengerStreetAddress').value.trim();
-    const landmark = document.getElementById('newPassengerLandmark').value.trim();
-    const zipCode = document.getElementById('newPassengerZipCode').value.trim();
     const notes = document.getElementById('newPassengerNotes').value.trim();
 
     let isValid = true;
@@ -1477,13 +1802,8 @@ async function saveNewPassenger() {
         fullname.classList.add('is-valid');
     }
 
-    // Validate mobile
-    if (!mobile.value.trim()) {
-        mobile.classList.add('is-invalid');
-        mobile.classList.remove('is-valid');
-        isValid = false;
-    } else {
-        // Check PH mobile format
+    // Validate mobile (optional but must be valid format if provided)
+    if (mobile.value.trim()) {
         const isValidFormat = /^09[0-9]{9}$/.test(mobile.value);
         if (isValidFormat) {
             mobile.classList.remove('is-invalid');
@@ -1493,6 +1813,9 @@ async function saveNewPassenger() {
             mobile.classList.remove('is-valid');
             isValid = false;
         }
+    } else {
+        mobile.classList.remove('is-invalid');
+        mobile.classList.remove('is-valid');
     }
 
     // Validate gender
@@ -1554,27 +1877,30 @@ async function saveNewPassenger() {
     btn.disabled = true;
     btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Saving...';
 
+    const formData = {
+        fullname: fullname.value.trim(),
+        mobile_number: mobile.value.trim(),
+        email,
+        gender: gender.value,
+        birth_date: birthDate,
+        region_code: region.value || null,
+        province_code: province.value || null,
+        city_municipality_code: city.value || null,
+        barangay_code: barangay.value || null,
+        street_address: streetAddress,
+        notes
+    };
+    
+    console.log('Saving passenger with data:', formData);
+
     try {
         const res = await fetch(`${window.BASE_URL}/api/pos/passengers`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fullname: fullname.value.trim(),
-                mobile_number: mobile.value.trim(),
-                email,
-                gender: gender.value,
-                birth_date: birthDate,
-                region_code: region.value || null,
-                province_code: province.value || null,
-                city_municipality_code: city.value || null,
-                barangay_code: barangay.value || null,
-                street_address: streetAddress,
-                landmark,
-                zip_code: zipCode,
-                notes
-            })
+            body: JSON.stringify(formData)
         });
         const result = await res.json();
+        console.log('Save passenger result:', result);
         if (result.success) {
             showToast('success', 'Passenger Added', `${result.fullname} has been added to the database.`);
             addPassengerModal.hide();
@@ -1640,38 +1966,49 @@ function addTicketToCart() {
 
     const passengerId = document.getElementById('ticketPassenger').value;
     const travelDate = document.getElementById('ticketTravelDate').value;
-    const origin = document.getElementById('ticketOrigin').value.trim();
-    const destination = document.getElementById('ticketDestination').value.trim();
+    // const origin = document.getElementById('ticketOrigin').value.trim();
+    // const destination = document.getElementById('ticketDestination').value.trim();
     const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
     const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
     const discount = parseFloat(document.getElementById('ticketDiscount').value) || 0;
     const total = baseAmount + serviceFee - discount;
+    
+    // Get wallet and branch info
+    const walletSelect = document.getElementById('ticketWallet');
+    const walletId = walletSelect.value;
+    const walletOption = walletSelect.selectedOptions[0];
+    const walletBranchId = walletOption ? walletOption.dataset.branchId : null;
+    const walletProviderId = walletOption ? walletOption.dataset.providerId : null;
 
     if (!passengerId) { showToast('danger', 'Error', 'Please select a passenger.'); return; }
     if (!travelDate) { showToast('danger', 'Error', 'Please enter travel date.'); return; }
-    if (!origin) { showToast('danger', 'Error', 'Please enter origin.'); return; }
-    if (!destination) { showToast('danger', 'Error', 'Please enter destination.'); return; }
+    if (!walletId) { showToast('danger', 'Error', 'Please select a wallet.'); return; }
+    // if (!origin) { showToast('danger', 'Error', 'Please enter origin.'); return; }
+    // if (!destination) { showToast('danger', 'Error', 'Please enter destination.'); return; }
     if (total <= 0) { showToast('danger', 'Error', 'Ticket total must be greater than 0.'); return; }
 
-    // Get passenger name from select
-    const passengerSelect = document.getElementById('ticketPassenger');
-    const passengerName = passengerSelect.options[passengerSelect.selectedIndex].text.split(' (')[0];
+    // Get passenger name from search input
+    const passengerName = document.getElementById('ticketPassengerSearch').value.trim();
 
     ticketInCart = {
         type: 'ticket',
         passengerId,
         passengerName,
         travelDate,
-        origin,
-        destination,
+        origin: null,
+        destination: null,
         baseAmount,
         serviceFee,
         discount,
-        total
+        total,
+        walletId,
+        branchId: walletBranchId,
+        providerId: walletProviderId
     };
 
     cart = [ticketInCart]; // Replace cart with ticket
     document.getElementById('serviceAddonsSection').style.display = '';
+    saveCartToStorage();
     renderCart();
     showToast('success', 'Ticket Added', 'Ticket added to cart. You can now add service add-ons.');
 }
@@ -1718,13 +2055,50 @@ function selectServiceType(id, name, defaultAmount, allowCustom, requiresWallet)
     document.getElementById('itemQty').value = 1;
     computeItemTotal();
 
-    document.getElementById('itemEntryCard').style.display = '';
-    document.getElementById('itemEntryCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    itemEntryModal.show();
+
+    // Focus on qty field after modal is fully shown using Bootstrap event
+    const modalElement = document.getElementById('itemEntryModal');
+    modalElement.addEventListener('shown.bs.modal', function focusQty() {
+        const qtyField = document.getElementById('itemQty');
+        qtyField.focus();
+        qtyField.select();
+        modalElement.removeEventListener('shown.bs.modal', focusQty);
+    });
+}
+
+function quickAddServiceToCart(id, name, defaultAmount, allowCustom, requiresWallet) {
+    if (!window.POS_HAS_SESSION) {
+        showToast('warning', 'No Session', 'Please open a cashier session first.');
+        openSessionModal.show();
+        return;
+    }
+
+    const qty = 1;
+    const unitPrice = parseFloat(defaultAmount || 0);
+    const total = qty * unitPrice;
+
+    const serviceItem = {
+        type: 'service',
+        serviceTypeId: id,
+        serviceName: name,
+        requiresWallet: requiresWallet,
+        qty,
+        unitPrice,
+        total,
+        description: ''
+    };
+
+    cart.push(serviceItem);
+    saveCartToStorage();
+    renderCart();
+    showToast('success', 'Added', `"${name}" added to cart.`);
 }
 
 function cancelItemEntry() {
-    document.getElementById('itemEntryCard').style.display = 'none';
+    itemEntryModal.hide();
     activeServiceType = null;
+    document.getElementById('itemDescription').value = '';
 }
 
 function computeItemTotal() {
@@ -1760,9 +2134,10 @@ function addItemToCart() {
         cart.push(serviceItem);
     }
 
-    document.getElementById('itemEntryCard').style.display = 'none';
+    itemEntryModal.hide();
     document.getElementById('itemDescription').value = '';
     activeServiceType = null;
+    saveCartToStorage();
     renderCart();
     showToast('success', 'Added', `"${serviceItem.serviceName}" added to cart.`);
 }
@@ -1777,7 +2152,6 @@ function renderCart() {
     const totals = document.getElementById('cartTotals');
     const clearBtn = document.getElementById('clearCartBtn');
     const cartActions = document.getElementById('cartActions');
-    const paySection = document.getElementById('paymentSection');
 
     if (cart.length === 0) {
         emptyMsg.style.display = '';
@@ -1785,7 +2159,6 @@ function renderCart() {
         totals.style.display = 'none';
         clearBtn.style.display = 'none';
         cartActions.style.display = 'none';
-        paySection.style.display = 'none';
         ticketInCart = null;
         document.getElementById('serviceAddonsSection').style.display = 'none';
         return;
@@ -1849,24 +2222,29 @@ function removeCartItem(idx) {
         cart.splice(idx, 1);
     }
     paymentLines = [];
+    saveCartToStorage();
     renderCart();
     renderPaymentLines();
-    document.getElementById('paymentSection').style.display = cart.length > 0 ? '' : 'none';
-    document.getElementById('confirmOrderSection').style.display = 'none';
+    paymentModal.hide();
 }
 
 function clearCart() {
-    if (!confirm('Clear all items from cart?')) return;
+    if (cart.length === 0) return;
+    clearCartModal.show();
+}
+
+function confirmClearCart() {
     cart = [];
     paymentLines = [];
     ticketInCart = null;
     activeServiceType = null;
+    saveCartToStorage();
     renderCart();
     renderPaymentLines();
-    document.getElementById('itemEntryCard').style.display = 'none';
-    document.getElementById('paymentSection').style.display = 'none';
-    document.getElementById('confirmOrderSection').style.display = 'none';
+    paymentModal.hide();
     document.getElementById('serviceAddonsSection').style.display = 'none';
+    clearCartModal.hide();
+    showToast('success', 'Cart Cleared', 'All items have been removed from the cart.');
 }
 
 // =============================================
@@ -1881,9 +2259,52 @@ function proceedToPayment() {
     if (cart.length === 0) { showToast('warning', 'Cart Empty', 'Add items first.'); return; }
     paymentLines = [];
     renderPaymentLines();
-    document.getElementById('paymentSection').style.display = '';
-    document.getElementById('confirmOrderSection').style.display = 'none';
-    document.getElementById('paymentSection').scrollIntoView({ behavior: 'smooth' });
+    populatePaymentModalCart();
+    paymentModal.show();
+}
+
+function populatePaymentModalCart() {
+    const cartItemsContainer = document.getElementById('paymentCartItems');
+    const totalDueElement = document.getElementById('paymentTotalDue');
+    
+    let html = '';
+    let total = 0;
+    
+    cart.forEach((item, idx) => {
+        total += item.total;
+        if (item.type === 'ticket') {
+            html += `
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <div>
+                        <div class="fw-semibold text-primary">
+                            <span class="fas fa-ticket-alt me-2"></span>${item.passengerName}
+                        </div>
+                        <div class="text-muted small">
+                            ${item.travelDate} • Base: ₱${fmt(item.baseAmount)}${item.serviceFee > 0 ? ' + Fee: ₱' + fmt(item.serviceFee) : ''}${item.discount > 0 ? ' - Discount: ₱' + fmt(item.discount) : ''}
+                        </div>
+                    </div>
+                    <div class="fw-bold">₱${fmt(item.total)}</div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <div>
+                        <div class="fw-semibold">
+                            <span class="fas fa-concierge-bell me-2 text-success"></span>${item.serviceName || item.name || 'Service'}
+                        </div>
+                        <div class="text-muted small">
+                            Qty: ${item.qty} @ ₱${fmt(item.unitPrice)}${item.description ? ' • ' + item.description : ''}
+                        </div>
+                    </div>
+                    <div class="fw-bold">₱${fmt(item.total)}</div>
+                </div>
+            `;
+        }
+    });
+    
+    cartItemsContainer.innerHTML = html;
+    totalDueElement.textContent = '₱' + fmt(total);
 }
 
 function selectPaymentMethod(el) {
@@ -1908,6 +2329,20 @@ function selectPaymentMethod(el) {
     document.getElementById('bankAccountRow').style.display = (activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET') ? '' : 'none';
     document.getElementById('referenceNumber').value = '';
 
+    // Adjust column widths for Bank Transfer to fit in one row
+    const hasExtraField = activePaymentMethod.requiresReference || (activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET');
+    const paymentEntryRow = document.querySelector('#paymentEntryRow .row');
+    const cols = paymentEntryRow.querySelectorAll('.col-md-4');
+    cols.forEach(col => {
+        if (hasExtraField) {
+            col.classList.remove('col-md-4');
+            col.classList.add('col-md-3');
+        } else {
+            col.classList.remove('col-md-3');
+            col.classList.add('col-md-4');
+        }
+    });
+
     // Filter bank accounts by payment method type
     const bankSelect = document.getElementById('bankAccountSelect');
     const options = bankSelect.querySelectorAll('option:not([value=""])');
@@ -1923,8 +2358,8 @@ function selectPaymentMethod(el) {
     });
     bankSelect.value = '';
 
-    // If CHARGE payment, open customer selection modal
-    if (activePaymentMethod.type === 'CHARGE') {
+    // If payment method requires customer, open customer selection modal
+    if (activePaymentMethod.requiresCustomer) {
         openCustomerModal();
     } else {
         document.getElementById('paymentEntryRow').style.display = '';
@@ -1977,7 +2412,6 @@ function removePaymentLine(idx) {
 function renderPaymentLines() {
     const list = document.getElementById('paymentLinesList');
     const totals = document.getElementById('paymentTotals');
-    const confirmSection = document.getElementById('confirmOrderSection');
     const total = getCartTotal();
     const paid = paymentLines.reduce((s, p) => s + p.amount, 0);
     const change = paid - total;
@@ -1985,22 +2419,23 @@ function renderPaymentLines() {
     if (paymentLines.length === 0) {
         list.innerHTML = '<p class="text-muted small mb-0">No payment lines yet. Select a method above.</p>';
         totals.style.display = 'none';
-        confirmSection.style.display = 'none';
         return;
     }
 
-    let html = '<div class="mb-2">';
+    let html = '<div class="list-group">';
     paymentLines.forEach((p, idx) => {
-        html += `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
-            <div>
-                <span class="fas fa-check-circle text-success me-1"></span>
-                <strong>${p.methodName}</strong>
-                ${p.referenceNumber ? `<span class="text-muted small ms-2">Ref: ${p.referenceNumber}</span>` : ''}
-                ${p.requiresConfirmation ? '<span class="badge bg-soft-warning text-warning ms-1 small">Needs Confirm</span>' : ''}
-            </div>
+        html += `<div class="list-group-item payment-line-item d-flex justify-content-between align-items-center py-2">
             <div class="d-flex align-items-center gap-2">
-                <strong class="text-success">₱${fmt(p.amount)}</strong>
-                <button class="btn btn-sm btn-outline-danger p-1" style="line-height:1;" onclick="removePaymentLine(${idx})">
+                <span class="fas fa-check-circle text-success"></span>
+                <div>
+                    <span class="fw-bold">${p.methodName}</span>
+                    ${p.referenceNumber ? `<span class="text-muted small ms-2">Ref: ${p.referenceNumber}</span>` : ''}
+                    ${p.requiresConfirmation ? '<span class="badge bg-soft-warning text-warning ms-2 small">Needs Confirm</span>' : ''}
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="fw-bold text-success">₱${fmt(p.amount)}</span>
+                <button class="btn btn-sm btn-outline-danger" onclick="removePaymentLine(${idx})">
                     <span class="fas fa-times"></span>
                 </button>
             </div>
@@ -2015,8 +2450,6 @@ function renderPaymentLines() {
     const changeEl = document.getElementById('ptChange');
     changeEl.textContent = (change < 0 ? '-₱' : '₱') + fmt(Math.abs(change));
     changeEl.className = change >= 0 ? 'fw-bold text-success' : 'fw-bold text-danger';
-
-    confirmSection.style.display = paid >= total ? '' : 'none';
 }
 
 function computeChange() {
@@ -2036,8 +2469,7 @@ function computeChange() {
 }
 
 function backToCart() {
-    document.getElementById('confirmOrderSection').style.display = 'none';
-    document.getElementById('paymentSection').style.display = '';
+    paymentModal.hide();
 }
 
 // =============================================
@@ -2080,7 +2512,8 @@ async function confirmOrder() {
                 base_amount: ticket.baseAmount,
                 service_fee: ticket.serviceFee,
                 discount_amount: ticket.discount,
-                total_amount: ticket.total
+                total_amount: ticket.total,
+                wallet_id: ticket.walletId
             },
             services: services.map(s => ({
                 service_type_id: s.serviceTypeId,
@@ -2133,11 +2566,11 @@ async function confirmOrder() {
             cart = [];
             paymentLines = [];
             ticketInCart = null;
+            saveCartToStorage();
             renderCart();
             renderPaymentLines();
-            document.getElementById('paymentSection').style.display = 'none';
-            document.getElementById('confirmOrderSection').style.display = 'none';
-            document.getElementById('itemEntryCard').style.display = 'none';
+            paymentModal.hide();
+            itemEntryModal.hide();
             document.getElementById('serviceAddonsSection').style.display = 'none';
         } else {
             showToast('danger', 'Transaction Failed', result.error || 'Unknown error.');

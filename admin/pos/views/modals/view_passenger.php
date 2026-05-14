@@ -28,15 +28,9 @@
             </div>
             <div class="step-label">Address</div>
           </div>
-          <div class="step-item" data-step="3">
-            <div class="step-icon">
-              <span class="fas fa-info-circle"></span>
-            </div>
-            <div class="step-label">Additional</div>
-          </div>
         </div>
 
-        <form id="viewPassengerForm">
+        <form id="viewPassengerForm" autocomplete="off">
           <input type="hidden" id="viewPassengerId" name="passenger_id">
           
           <!-- Step 1: Personal Information -->
@@ -51,14 +45,14 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="viewPassengerFullname">Full Name <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="viewPassengerFullname" name="fullname" required>
+                    <input type="text" class="form-control" id="viewPassengerFullname" name="fullname" required autocomplete="off">
                     <div class="invalid-feedback">Full name is required</div>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label fw-bold" for="viewPassengerMobile">Mobile Number <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="viewPassengerMobile" name="mobile_number" required pattern="09[0-9]{9}" maxlength="11" inputmode="numeric">
+                    <label class="form-label fw-bold" for="viewPassengerMobile">Mobile Number</label>
+                    <input type="text" class="form-control" id="viewPassengerMobile" name="mobile_number" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" autocomplete="off">
                     <div class="invalid-feedback">Mobile number must be 11 digits starting with 09</div>
-                    <small class="text-muted">Format: 09XXXXXXXXX (11 digits)</small>
+                    <small class="text-muted">Format: 09XXXXXXXXX (11 digits, optional)</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="viewPassengerEmail">Email</label>
@@ -134,35 +128,26 @@
                     </select>
                   </div>
                   <div class="col-12">
-                    <label class="form-label fw-bold" for="viewPassengerStreetAddress">Street Address</label>
-                    <input type="text" class="form-control" id="viewPassengerStreetAddress" name="street_address">
+                    <label class="form-label fw-bold" for="viewPassengerStreetAddress">Street Address & Landmark</label>
+                    <input type="text" class="form-control" id="viewPassengerStreetAddress" name="street_address" autocomplete="off">
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold" for="viewPassengerLandmark">Landmark</label>
-                    <input type="text" class="form-control" id="viewPassengerLandmark" name="landmark">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold" for="viewPassengerZipCode">Zip Code</label>
-                    <input type="text" class="form-control" id="viewPassengerZipCode" name="zip_code">
+                  <div class="col-12">
+                    <label class="form-label fw-bold" for="viewPassengerNotes">Notes</label>
+                    <textarea class="form-control" id="viewPassengerNotes" name="notes" rows="2"></textarea>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Additional Information -->
-          <div class="wizard-step" data-step="3">
+          <!-- Step 3: Additional Information (Hidden - All fields moved to previous steps) -->
+          <div class="wizard-step" data-step="3" style="display: none;">
             <div class="card border-0 shadow-sm m-3">
-              <div class="card-header bg-light border-0 py-2">
-                <h6 class="mb-0 fw-bold text-primary">
-                  <span class="fas fa-info-circle me-2"></span>Additional Information
-                </h6>
-              </div>
               <div class="card-body">
                 <div class="row g-3">
-                  <div class="col-12">
-                    <label class="form-label fw-bold" for="viewPassengerNotes">Notes</label>
-                    <textarea class="form-control" id="viewPassengerNotes" name="notes" rows="4"></textarea>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Created At</label>
+                    <div class="form-control bg-light" id="viewPassengerCreatedAt">-</div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold">Last Updated</label>

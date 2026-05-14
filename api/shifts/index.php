@@ -20,11 +20,14 @@ if (!$sessionId) { echo json_encode(['success' => false, 'error' => 'session_id 
 $session = Database::fetch(
     "SELECT cs.*,
             COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username) AS cashier_name,
-            bb.branch_name
+            bb.branch_name,
+            COALESCE(CONCAT_WS(' ', e_rev.first_name, e_rev.last_name), ua_rev.username) AS reviewed_by_name
      FROM cashier_sessions cs
      JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
      LEFT JOIN employees e ON ua.emp_id = e.emp_id
      LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
+     LEFT JOIN user_accounts ua_rev ON cs.reviewed_by = ua_rev.user_id
+     LEFT JOIN employees e_rev ON ua_rev.emp_id = e_rev.emp_id
      WHERE cs.session_id = :id",
     ['id' => $sessionId]
 );
@@ -42,20 +45,36 @@ $transactions = Database::fetchAll(
 );
 
 // Payment breakdown by method
+$paymentWhere = "AND tp.created_at >= :start";
+$paymentParams = [
+    'uid'   => $session['cashier_user_id'],
+    'start' => $session['started_at']
+];
+if ($session['ended_at']) {
+    $paymentWhere .= " AND tp.created_at <= :end";
+    $paymentParams['end'] = $session['ended_at'];
+}
+
 $payments = Database::fetchAll(
-    "SELECT pm.method_name, pm.method_type, SUM(tp.amount) AS total_amount
+    "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
      FROM transaction_payments tp
      JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
      WHERE tp.created_by = :uid
-       AND tp.created_at >= :start
-       AND (:end IS NULL OR tp.created_at <= :end)
-     GROUP BY pm.method_id, pm.method_name, pm.method_type
+       $paymentWhere
+     GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash
      ORDER BY total_amount DESC",
-    [
-        'uid'   => $session['cashier_user_id'],
-        'start' => $session['started_at'],
-        'end'   => $session['ended_at']
-    ]
+    $paymentParams
 );
+
+// Calculate expected cash based on payment methods with include_in_expected_cash flag
+$expectedCashPayments = 0;
+foreach ($payments as $payment) {
+    if ($payment['include_in_expected_cash']) {
+        $expectedCashPayments += $payment['total_amount'];
+    }
+}
+
+// Add expected cash to session data
+$session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments;
 
 echo json_encode(['success' => true, 'data' => ['session' => $session, 'transactions' => $transactions, 'payments' => $payments]]);

@@ -17,9 +17,10 @@ header('Expires: 0');
 Auth::requireLogin();
 $user = Auth::user();
 
+// SUPER_ADMIN has access to everything
 if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow
-} elseif (!Auth::can('VIEW_CUSTOMER_CHARGES')) {
+} elseif (!Auth::canAccessModule('admin/charges/')) {
     $message = 'You do not have permission to access Customer Charges.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';

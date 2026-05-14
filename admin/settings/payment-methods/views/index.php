@@ -36,30 +36,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         }
         ?>
 
-        <!-- Page Header -->
-        <div class="row g-3 mb-3">
-          <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h2 class="mb-1">Payment Methods</h2>
-                <nav aria-label="breadcrumb">
-                  <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
-                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/settings">Settings</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Payment Methods</li>
-                  </ol>
-                </nav>
-              </div>
-              <div>
-                <button class="btn btn-primary" onclick="openAddMethodModal()">
-                  <span class="fas fa-plus me-2"></span>Add Payment Method
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Page Header Card -->
+        <!-- Header Card -->
         <div class="row g-4 mb-4">
           <div class="col-12">
             <div class="card border-0 shadow-sm mb-4">
@@ -70,8 +47,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <div class="col-lg-auto d-flex align-items-center">
                     <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
-                      <h6 class="mb-1 text-primary">Manage</h6>
                       <h4 class="mb-0 text-primary fw-bold">Payment <span class="text-info fw-medium">Methods</span></h4>
+                      <h6 class="mb-1 text-primary">
+                        <nav aria-label="breadcrumb">
+                          <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a>Home</a></li>
+                            <li class="breadcrumb-item"><a>Settings</a></li>
+                            <li class="breadcrumb-item active">Payment Methods</li>
+                          </ol>
+                        </nav>
+                      </h6>
                     </div>
                   </div>
                 </div>
@@ -318,7 +303,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                               <span class="fas fa-hashtag me-1"></span>Ref#
                             </span>
                           <?php endif; ?>
-                          <?php if (!$method['requires_confirmation'] && !$method['requires_customer'] && !$method['requires_reference']): ?>
+                          <?php if ($method['include_in_expected_cash']): ?>
+                            <span class="badge bg-soft-success text-success" title="Included in expected cash calculation">
+                              <span class="fas fa-cash-register me-1"></span>Cash
+                            </span>
+                          <?php endif; ?>
+                          <?php if (!$method['requires_confirmation'] && !$method['requires_customer'] && !$method['requires_reference'] && !$method['include_in_expected_cash']): ?>
                             <span class="text-muted small">—</span>
                           <?php endif; ?>
                         </div>

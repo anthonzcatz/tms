@@ -18,7 +18,15 @@ header('Expires: 0');
 
 // Require login and permission
 Auth::requireLogin();
-Auth::requirePermission('VIEW_WALLET_TRANSACTIONS');
+// SUPER_ADMIN has access to everything
+$user = Auth::user();
+if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+    // Allow
+} elseif (!Auth::canAccessModule('admin/wallet/wallet-transactions/')) {
+    http_response_code(403);
+    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    exit;
+}
 
 // Get current user
 $user = Auth::user();

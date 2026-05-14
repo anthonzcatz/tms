@@ -28,15 +28,9 @@
             </div>
             <div class="step-label">Address</div>
           </div>
-          <div class="step-item" data-step="3">
-            <div class="step-icon">
-              <span class="fas fa-info-circle"></span>
-            </div>
-            <div class="step-label">Additional</div>
-          </div>
         </div>
 
-        <form id="addPassengerForm">
+        <form id="addPassengerForm" autocomplete="off">
           <!-- Step 1: Personal Information -->
           <div class="wizard-step active" data-step="1">
             <div class="card border-0 shadow-sm m-3">
@@ -49,14 +43,14 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="newPassengerFullname">Full Name <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="newPassengerFullname" name="fullname" required placeholder="e.g. Juan Dela Cruz">
+                    <input type="text" class="form-control" id="newPassengerFullname" name="fullname" required placeholder="e.g. Juan Dela Cruz" autocomplete="off">
                     <div class="invalid-feedback">Full name is required</div>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label fw-bold" for="newPassengerMobile">Mobile Number <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="newPassengerMobile" name="mobile_number" required placeholder="e.g. 09123456789" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric">
+                    <label class="form-label fw-bold" for="newPassengerMobile">Mobile Number</label>
+                    <input type="text" class="form-control" id="newPassengerMobile" name="mobile_number" placeholder="e.g. 09123456789" pattern="09[0-9]{9}" maxlength="11" inputmode="numeric" autocomplete="off">
                     <div class="invalid-feedback">Mobile number must be 11 digits starting with 09</div>
-                    <small class="text-muted">Format: 09XXXXXXXXX (11 digits)</small>
+                    <small class="text-muted">Format: 09XXXXXXXXX (11 digits, optional)</small>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="newPassengerEmail">Email <span class="text-danger small ms-2">(Optional)</span></label>
@@ -120,37 +114,23 @@
                     <div class="invalid-feedback">Barangay is required</div>
                   </div>
                   <div class="col-12">
-                    <label class="form-label fw-bold" for="newPassengerStreetAddress">Street Address <span class="text-danger small ms-2">(Optional)</span></label>
-                    <input type="text" class="form-control" id="newPassengerStreetAddress" name="street_address" placeholder="e.g. 123 Main St">
+                    <label class="form-label fw-bold" for="newPassengerStreetAddress">Street Address & Landmark <span class="text-danger small ms-2">(Optional)</span></label>
+                    <input type="text" class="form-control" id="newPassengerStreetAddress" name="street_address" placeholder="e.g. 123 Main St, Near Mall" autocomplete="off">
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold" for="newPassengerLandmark">Landmark <span class="text-danger small ms-2">(Optional)</span></label>
-                    <input type="text" class="form-control" id="newPassengerLandmark" name="landmark" placeholder="e.g. Near Mall">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold" for="newPassengerZipCode">Zip Code <span class="text-danger small ms-2">(Optional)</span></label>
-                    <input type="text" class="form-control" id="newPassengerZipCode" name="zip_code" placeholder="e.g. 1000">
+                  <div class="col-12">
+                    <label class="form-label fw-bold" for="newPassengerNotes">Notes <span class="text-danger small ms-2">(Optional)</span></label>
+                    <textarea class="form-control" id="newPassengerNotes" name="notes" rows="2" placeholder="Additional notes about the passenger..."></textarea>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Additional Information -->
-          <div class="wizard-step" data-step="3">
+          <!-- Step 3: Additional Information (Hidden - All fields moved to previous steps) -->
+          <div class="wizard-step" data-step="3" style="display: none;">
             <div class="card border-0 shadow-sm m-3">
-              <div class="card-header bg-light border-0 py-2">
-                <h6 class="mb-0 fw-bold text-primary">
-                  <span class="fas fa-info-circle me-2"></span>Additional Information
-                </h6>
-              </div>
-              <div class="card-body">
-                <div class="row g-3">
-                  <div class="col-12">
-                    <label class="form-label fw-bold" for="newPassengerNotes">Notes <span class="text-danger small ms-2">(Optional)</span></label>
-                    <textarea class="form-control" id="newPassengerNotes" name="notes" rows="4" placeholder="Additional notes about the passenger..."></textarea>
-                  </div>
-                </div>
+              <div class="card-body text-center py-5">
+                <p class="text-muted">All required information has been collected in previous steps.</p>
               </div>
             </div>
           </div>

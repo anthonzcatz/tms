@@ -17,9 +17,10 @@ header('Expires: 0');
 Auth::requireLogin();
 $user = Auth::user();
 
+// SUPER_ADMIN has access to everything
 if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow
-} elseif (!Auth::can('VIEW_CASHIER_SHIFTS')) {
+} elseif (!Auth::canAccessModule('admin/shifts/')) {
     $message = 'You do not have permission to access Cashier Shift Reports.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
@@ -69,8 +70,8 @@ $summary = Database::fetch(
         SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END) AS closed_sessions,
         SUM(total_sales) AS total_sales,
         SUM(total_cash) AS total_cash
-     FROM cashier_sessions
-     WHERE started_at BETWEEN :date_start AND :date_end
+     FROM cashier_sessions cs
+     WHERE cs.started_at BETWEEN :date_start AND :date_end
        {$branchWhere}",
     $params
 );

@@ -111,21 +111,22 @@ function handlePost() {
     Database::execute(
         "INSERT INTO payment_methods
             (method_code, method_name, method_type, description, icon, requires_confirmation,
-             requires_customer, requires_reference, is_active, sort_order, created_at)
+             requires_customer, requires_reference, include_in_expected_cash, is_active, sort_order, created_at)
          VALUES
             (:method_code, :method_name, :method_type, :description, :icon, :requires_confirmation,
-             :requires_customer, :requires_reference, :is_active, :sort_order, NOW())",
+             :requires_customer, :requires_reference, :include_in_expected_cash, :is_active, :sort_order, NOW())",
         [
-            'method_code'            => $methodCode,
-            'method_name'            => $methodName,
-            'method_type'            => $methodType,
-            'description'            => $input['description'] ?? null,
-            'icon'                   => $input['icon'] ?? null,
-            'requires_confirmation'  => $input['requires_confirmation'] ?? 0,
-            'requires_customer'      => $input['requires_customer'] ?? 0,
-            'requires_reference'     => $input['requires_reference'] ?? 0,
-            'is_active'              => $input['is_active'] ?? 1,
-            'sort_order'             => $input['sort_order'] ?? 0,
+            'method_code'               => $methodCode,
+            'method_name'               => $methodName,
+            'method_type'               => $methodType,
+            'description'               => $input['description'] ?? null,
+            'icon'                      => $input['icon'] ?? null,
+            'requires_confirmation'     => $input['requires_confirmation'] ?? 0,
+            'requires_customer'         => $input['requires_customer'] ?? 0,
+            'requires_reference'        => $input['requires_reference'] ?? 0,
+            'include_in_expected_cash'  => $input['include_in_expected_cash'] ?? ($methodType === 'CASH' ? 1 : 0),
+            'is_active'                 => $input['is_active'] ?? 1,
+            'sort_order'                => $input['sort_order'] ?? 0,
         ]
     );
 
@@ -213,22 +214,24 @@ function handlePut() {
             requires_confirmation = :requires_confirmation,
             requires_customer = :requires_customer,
             requires_reference = :requires_reference,
+            include_in_expected_cash = :include_in_expected_cash,
             is_active = :is_active,
             sort_order = :sort_order,
             updated_at = NOW()
          WHERE method_id = :id",
         [
-            'method_code'           => $methodCode,
-            'method_name'           => $methodName,
-            'method_type'           => $methodType,
-            'description'           => $input['description'] ?? null,
-            'icon'                  => $input['icon'] ?? null,
-            'requires_confirmation' => $input['requires_confirmation'] ?? 0,
-            'requires_customer'     => $input['requires_customer'] ?? 0,
-            'requires_reference'    => $input['requires_reference'] ?? 0,
-            'is_active'             => $input['is_active'] ?? 1,
-            'sort_order'            => $input['sort_order'] ?? 0,
-            'id'                    => $methodId
+            'method_code'              => $methodCode,
+            'method_name'              => $methodName,
+            'method_type'              => $methodType,
+            'description'              => $input['description'] ?? null,
+            'icon'                     => $input['icon'] ?? null,
+            'requires_confirmation'    => $input['requires_confirmation'] ?? 0,
+            'requires_customer'        => $input['requires_customer'] ?? 0,
+            'requires_reference'       => $input['requires_reference'] ?? 0,
+            'include_in_expected_cash' => $input['include_in_expected_cash'] ?? 0,
+            'is_active'                => $input['is_active'] ?? 1,
+            'sort_order'               => $input['sort_order'] ?? 0,
+            'id'                       => $methodId
         ]
     );
 

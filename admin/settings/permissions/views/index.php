@@ -46,20 +46,28 @@ if (!defined('NAVBAR_POSITION')) {
          ?>
           
           <div class="row g-4 mb-4">
-            <!-- Page Header Card -->
+            <!-- Header Card -->
             <div class="col-12">
               <div class="card border-0 shadow-sm mb-4">
                 <div class="bg-holder bg-card d-none d-md-block" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-bg.png);">
                 </div>
                 <!--/.bg-holder-->
-                
+
                 <div class="card-header z-1">
                   <div class="row flex-between-center gx-0">
                     <div class="col-lg-auto d-flex align-items-center">
                       <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                       <div class="ms-x1">
-                        <h6 class="mb-1 text-primary">Welcome to</h6>
-                        <h4 class="mb-0 text-primary fw-bold">Permission <span class="text-info fw-medium"> Management</span></h4>
+                        <h4 class="mb-0 text-primary fw-bold">Permission <span class="text-info fw-medium">Management</span></h4>
+                        <h6 class="mb-1 text-primary">
+                          <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb mb-0">
+                              <li class="breadcrumb-item"><a>Home</a></li>
+                              <li class="breadcrumb-item"><a>Settings</a></li>
+                              <li class="breadcrumb-item active">Permissions</li>
+                            </ol>
+                          </nav>
+                        </h6>
                       </div>
                     </div>
                   </div>

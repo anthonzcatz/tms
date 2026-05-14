@@ -46,10 +46,4 @@ header('Expires: 0');
 // Require login
 Auth::requireLogin();
 
-// Role-based access control (comment out if you want all logged-in users to access)
-$user = Auth::user();
-$allowedRoles = ['SUPER_ADMIN', 'CEO', 'MANAGER', 'CASHIER', 'AUDITOR', 'ADMIN', 'STAFF']; // Add your admin role codes here
-if (!in_array($user['role_code'] ?? '', $allowedRoles)) {
-    http_response_code(403);
-    die('Access denied. You do not have permission to access this area.');
-}
+// SUPER_ADMIN has access to everything, other roles are checked by module-specific guards

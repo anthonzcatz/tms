@@ -56,6 +56,10 @@
     </a>
     <div class="dropdown-menu dropdown-caret dropdown-menu-end py-0" aria-labelledby="navbarDropdownUserTopIcons">
       <div class="bg-white dark__bg-1000 rounded-2 py-2">
+        <div class="dropdown-item-text">
+          <div class="fw-bold"><?php echo htmlspecialchars($_SESSION['user']['fullname'] ?? ''); ?></div>
+          <div class="text-muted small"><?php echo htmlspecialchars($_SESSION['user']['role_name'] ?? ''); ?></div>
+        </div>
         <div class="dropdown-divider"></div>
         <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/user/profile">Profile &amp; account</a>
         <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/permissions">Permission Management</a>

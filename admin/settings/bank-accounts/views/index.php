@@ -36,30 +36,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         }
         ?>
 
-        <!-- Page Header -->
-        <div class="row g-3 mb-3">
-          <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h2 class="mb-1">Bank Accounts</h2>
-                <nav aria-label="breadcrumb">
-                  <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
-                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/settings">Settings</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Bank Accounts</li>
-                  </ol>
-                </nav>
-              </div>
-              <div>
-                <button class="btn btn-primary" onclick="openAddAccountModal()">
-                  <span class="fas fa-plus me-2"></span>Add Bank Account
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Page Header Card -->
+        <!-- Header Card -->
         <div class="row g-4 mb-4">
           <div class="col-12">
             <div class="card border-0 shadow-sm mb-4">
@@ -70,8 +47,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <div class="col-lg-auto d-flex align-items-center">
                     <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
-                      <h6 class="mb-1 text-primary">Manage</h6>
                       <h4 class="mb-0 text-primary fw-bold">Bank <span class="text-info fw-medium">Accounts</span></h4>
+                      <h6 class="mb-1 text-primary">
+                        <nav aria-label="breadcrumb">
+                          <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a>Home</a></li>
+                            <li class="breadcrumb-item"><a>Settings</a></li>
+                            <li class="breadcrumb-item active">Bank Accounts</li>
+                          </ol>
+                        </nav>
+                      </h6>
                     </div>
                   </div>
                 </div>
