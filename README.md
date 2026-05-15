@@ -78,12 +78,14 @@ Passenger: passenger_accounts
 - [x] Payment Methods (admin/settings/payment-methods/) — Manage CASH, GCash, Bank Transfer, etc. Add/edit/disable methods
 - [x] Bank Accounts (admin/settings/bank-accounts/) — Manage company bank accounts per branch
 - [x] Service Types (admin/settings/service-types/) — Manage Print Fee, Photocopy, etc.
+- [ ] System Settings (admin/system-settings/) — Configure company info, cancellation settings, maintenance mode, etc.
 
 ### Phase 2: Operational Modules
 - [x] Cashier POS (admin/pos/) — Main checkout screen: sell tickets, print fees, accept mixed payments, track cashier session
 - [x] Bank Transfer Confirmations (admin/bank-confirmations/) — Manager confirms bank transfers from cashiers
 - [x] Customer Charges (Utang) (admin/charges/) — View customer balances, accept payments, track collections
 - [x] Cashier Shift Reports (admin/shifts/) — Daily reconciliation, variance reports per cashier
+- [ ] Refund Confirmations (admin/refund-confirmations/) — Manager approves/rejects pending ticket cancellation and refund requests
 
 ## Module Creation Guidelines
 
@@ -122,3 +124,5 @@ When adding a new module:
 ### 4. SUPER_ADMIN Bypass
 The `SUPER_ADMIN` role automatically has access to all modules regardless of permissions. The `canAccessModule()` method handles this automatically.
 
+user account view ui
+public/app/e-learning/student-overview.html

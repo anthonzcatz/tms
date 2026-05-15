@@ -96,21 +96,57 @@ $csrf_token = SecurityHelper::generateCSRFToken();
                         </div>
                       </div>
                       
-                      <?php if (isset($_SESSION['error'])): ?>
-                        <div class="alert alert-danger" role="alert">
+                      <?php if (isset($_GET['success'])): ?>
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                          <span class="fas fa-check-circle me-2"></span>
                           <?php 
-                          echo $_SESSION['error']; 
+                          $success = htmlspecialchars($_GET['success']);
+                          if ($success === 'logout_success') {
+                              echo 'You have been logged out successfully.';
+                          } else {
+                              echo 'Operation completed successfully.';
+                          }
+                          ?>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                      <?php endif; ?>
+                      
+                      <?php if (isset($_GET['error'])): ?>
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                          <span class="fas fa-exclamation-triangle me-2"></span>
+                          <?php 
+                          $error = htmlspecialchars($_GET['error']);
+                          if ($error === 'session_expired') {
+                              echo 'Your session has expired. Please log in again.';
+                          } elseif ($error === 'session_invalid') {
+                              echo 'Your session is invalid. Please log in again.';
+                          } else {
+                              echo 'Authentication required. Please log in to access this page.';
+                          }
+                          ?>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                      <?php endif; ?>
+                      
+                      <?php if (isset($_SESSION['error'])): ?>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                          <span class="fas fa-exclamation-circle me-2"></span>
+                          <?php 
+                          echo htmlspecialchars($_SESSION['error']); 
                           unset($_SESSION['error']);
                           ?>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                       <?php endif; ?>
                       
                       <?php if (isset($_SESSION['success'])): ?>
-                        <div class="alert alert-success" role="alert">
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                          <span class="fas fa-check-circle me-2"></span>
                           <?php 
-                          echo $_SESSION['success']; 
+                          echo htmlspecialchars($_SESSION['success']); 
                           unset($_SESSION['success']);
                           ?>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                       <?php endif; ?>
                       
@@ -172,6 +208,42 @@ $csrf_token = SecurityHelper::generateCSRFToken();
     <script src="resources/vendors/lodash/lodash.min.js"></script>
     <script src="resources/vendors/list.js/list.min.js"></script>
     <script src="resources/assets/js/theme.js"></script>
+
+    <!-- Session Expiration Alert -->
+    <?php if (isset($_SESSION['session_expired']) && $_SESSION['session_expired']): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show session expiration alert using Bootstrap modal
+            const alertHtml = `
+                <div class="modal fade" id="sessionExpiredModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning bg-opacity-10">
+                                <h5 class="modal-title text-warning">
+                                    <span class="fas fa-exclamation-triangle me-2"></span>Session Expired
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <p>Your session has expired due to inactivity. Please log in again to continue.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" onclick="window.location.href = window.location.pathname">
+                                    <span class="fas fa-check me-2"></span>OK
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            const modal = new bootstrap.Modal(document.getElementById('sessionExpiredModal'));
+            modal.show();
+            
+            // Clear the session flag
+            <?php unset($_SESSION['session_expired']); ?>
+        });
+    </script>
+    <?php endif; ?>
 
   </body>
 

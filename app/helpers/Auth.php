@@ -74,7 +74,7 @@ final class Auth
     public static function requireLogin(): void
     {
         if (!self::check()) {
-            self::redirectToLogin();
+            self::redirectToLogin('authentication_required');
         }
         
         // Skip fingerprint check on page reloads to avoid session_invalid errors
@@ -82,7 +82,27 @@ final class Auth
         // This prevents session_invalid on Ctrl+F5 refresh
         
         if (!empty($_SESSION['db_session_id'])) {
-            self::touchUserSession((int) $_SESSION['db_session_id']);
+            // Check if session still exists and is active in database
+            $session = Database::fetch(
+                "SELECT * FROM user_sessions 
+                 WHERE session_id = :session_id AND is_active = TRUE AND expires_at > NOW()",
+                ['session_id' => $_SESSION['db_session_id']]
+            );
+            
+            if (!$session) {
+                // Session doesn't exist or is expired, logout user
+                self::logout();
+                self::redirectToLogin('session_expired');
+                return;
+            }
+            
+            try {
+                self::touchUserSession((int) $_SESSION['db_session_id']);
+            } catch (Exception $e) {
+                // If session touch fails, the session might be invalid
+                self::logout();
+                self::redirectToLogin('session_invalid');
+            }
         }
     }
 
@@ -158,7 +178,13 @@ final class Auth
     private static function redirectToLogin(?string $reason = null): void
     {
         $url = defined('LOGIN_URL') ? LOGIN_URL : '/login';
-        if ($reason) $url .= '?error=' . urlencode($reason);
+        if ($reason) {
+            if ($reason === 'session_expired') {
+                // Set session flag to show alert on login page
+                $_SESSION['session_expired'] = true;
+            }
+            $url .= '?error=' . urlencode($reason);
+        }
         header('Location: ' . $url);
         exit;
     }

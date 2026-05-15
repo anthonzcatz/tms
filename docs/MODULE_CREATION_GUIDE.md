@@ -222,7 +222,63 @@ View includes navbar-top.php instead of sidebar.php
 
 ---
 
-## 6. Checklist for New Modules
+## 8. Maintenance Mode
+
+The system has a global maintenance mode feature that can be configured in `admin/system-settings/`. When maintenance mode is active, non-admin users see a maintenance page instead of accessing admin pages.
+
+### How Maintenance Mode Works
+
+1. **Configuration:** Admins can enable maintenance mode in System Settings with:
+   - Enable/Disable toggle
+   - Custom maintenance message
+   - Start and end time window
+   - Option to allow admin access during maintenance
+
+2. **Global Guard Check:** The `admin/_guard.php` checks maintenance mode on every admin page load:
+   - Fetches maintenance settings from database (cached for 5 minutes for performance)
+   - Checks if current time is within maintenance window
+   - Auto-disables maintenance mode when end time passes
+   - Shows maintenance page for non-admin users or if admin access is disabled
+
+3. **Admin Bypass:** SUPER_ADMIN and ADMIN roles can access the system during maintenance if "Allow Admin Access During Maintenance" is enabled.
+
+### Maintenance Page Features
+
+The global maintenance page (`admin/includes/maintenance.php`) includes:
+- Clean UI with tools icon
+- Custom maintenance message
+- Start and end time display
+- Realtime countdown timer (updates every second)
+- Refresh page button
+- Contact support button (if admin access is allowed)
+
+### System Settings Notification
+
+When maintenance mode is active, the System Settings page displays a notification banner:
+- Shows "Maintenance Mode is Active" warning
+- Includes realtime countdown timer
+- Cannot be dismissed (always visible during maintenance)
+- Helps admins stay aware of active maintenance
+
+### Database Storage
+
+Maintenance settings are stored in the `system_settings` table:
+- `maintenance_mode` - Enable/Disable (0 or 1)
+- `maintenance_message` - Custom message
+- `maintenance_start` - Start datetime
+- `maintenance_end` - End datetime
+- `allow_admin_during_maintenance` - Allow admin access (0 or 1)
+
+### Performance Optimization
+
+Maintenance settings are cached in session for 5 minutes to avoid database queries on every page load. The cache is automatically:
+- Cleared when settings are updated
+- Cleared when maintenance end time passes
+- Cleared when accessing System Settings page
+
+---
+
+## 9. Checklist for New Modules
 
 Before finishing a new module, verify:
 
@@ -237,7 +293,7 @@ Before finishing a new module, verify:
 
 ---
 
-## 7. Existing Module Patterns
+## 10. Existing Module Patterns
 
 | Module | Guard Chain | NAVBAR_STATUS |
 |--------|-------------|---------------|
@@ -248,7 +304,7 @@ Before finishing a new module, verify:
 
 ---
 
-## 8. Quick Template
+## 11. Quick Template
 
 Copy this folder structure when creating a new module:
 
@@ -269,5 +325,5 @@ touch admin/<category>/<module-name>/assets/js/<module-name>.js
 
 ---
 
-**Last updated:** May 13, 2026
+**Last updated:** May 15, 2026
 **Maintained by:** Development Team

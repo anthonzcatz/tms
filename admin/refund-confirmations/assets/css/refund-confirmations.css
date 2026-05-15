@@ -1,0 +1,77 @@
+/* Refund Confirmations Module Styles */
+
+.empty-state {
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    color: #d0d5dd;
+    margin-bottom: 16px;
+}
+
+.empty-state-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+.empty-state-subtext {
+    font-size: 14px;
+    color: #adb5bd;
+}
+
+.search-box {
+    position: relative;
+}
+
+.search-input {
+    padding-left: 40px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #adb5bd;
+}
+
+.ref-badge {
+    background-color: #f0f4f7;
+    color: #495057;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.status-badge-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-badge-approved {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.status-badge-rejected {
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+.status-badge-completed {
+    background-color: #cfe2ff;
+    color: #084298;
+}
+
+.cancellation-row {
+    transition: background-color 0.2s ease;
+}
+
+.cancellation-row:hover {
+    background-color: #f8f9fa;
+}

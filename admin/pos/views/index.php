@@ -39,14 +39,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         ?>
 
         <!-- Page Header -->
-        <div class="row g-4 mb-4">
+        <div class="row g-3 mb-3">
           <div class="col-12">
-            <div class="card border-0 shadow-sm mb-4">
+            <div class="card border-0 shadow-sm">
               <div class="bg-holder bg-card d-none d-md-block" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-bg.png);">
               </div>
               <div class="card-header z-1">
-                <div class="row flex-between-center gx-0">
-                  <div class="col-lg-auto d-flex align-items-center">
+                <div class="row align-items-center">
+                  <div class="col d-flex align-items-center">
                     <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Cashier <span class="text-info fw-medium">POS</span></h4>
@@ -60,11 +60,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
-                  <div class="col-lg-auto d-flex gap-2">
+                  <div class="col-auto d-flex gap-2">
                     <?php if ($activeSession): ?>
-                      <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-2 bg-success bg-opacity-10 border border-success">
-                        <span class="fas fa-circle text-success" style="font-size: 8px;"></span>
+                      <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-2 bg-success bg-opacity-10 border border-success" style="cursor: pointer;" onclick="toggleSessionBanner()">
+                        <span class="fas fa-circle text-success session-active-pulse" style="font-size: 8px;"></span>
                         <span class="text-success fw-semibold">Session Active</span>
+                        <span class="fas fa-chevron-down text-success ms-1" id="sessionBannerToggleIcon"></span>
                       </div>
                       <button class="btn btn-outline-danger btn-sm rounded-2" onclick="openCloseSession()">
                         <span class="fas fa-stop-circle me-1"></span>Close
@@ -97,22 +98,24 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         </div>
         <?php else: ?>
         <!-- Session Banner -->
-        <div class="card session-banner mb-3 border-0 shadow-sm">
-          <div class="card-body py-2">
-            <div class="row align-items-center">
-              <div class="col-auto">
-                <span class="fas fa-user-clock text-success fs-4"></span>
-              </div>
-              <div class="col">
-                <strong>Active Session</strong>
-                <span class="text-muted ms-2">
-                  <?php echo htmlspecialchars($activeSession['branch_name'] ?? '—'); ?> •
-                  Started <?php echo date('M j, Y h:i A', strtotime($activeSession['started_at'])); ?> •
-                  Opening Cash: <strong>₱<?php echo number_format($activeSession['starting_cash'], 2); ?></strong>
-                </span>
-              </div>
-              <div class="col-auto">
-                <span class="badge bg-soft-success text-success">Session #<?php echo $activeSession['session_id']; ?></span>
+        <div class="collapse" id="sessionBannerCollapse">
+          <div class="card session-banner mb-3 border-0 shadow-sm">
+            <div class="card-body py-2">
+              <div class="row align-items-center">
+                <div class="col-auto">
+                  <span class="fas fa-user-clock text-success fs-4"></span>
+                </div>
+                <div class="col">
+                  <strong>Active Session</strong>
+                  <span class="text-muted ms-2">
+                    <?php echo htmlspecialchars($activeSession['branch_name'] ?? '—'); ?> •
+                    Started <?php echo date('M j, Y h:i A', strtotime($activeSession['started_at'])); ?> •
+                    Opening Cash: <strong>₱<?php echo number_format($activeSession['starting_cash'], 2); ?></strong>
+                  </span>
+                </div>
+                <div class="col-auto">
+                  <span class="badge bg-soft-success text-success">Session #<?php echo $activeSession['session_id']; ?></span>
+                </div>
               </div>
             </div>
           </div>
@@ -127,16 +130,27 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
             <!-- Transaction Type Toggle -->
             <div class="card mb-3">
-              <div class="card-body p-4">
-                <div class="row g-2">
-                  <div class="col-6">
-                    <button type="button" class="btn btn-outline-primary d-block w-100 py-3 active" id="btnTicketType" onclick="switchTransactionType('ticket')">
+              <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-4.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
+              </div>
+              <!--/.bg-holder-->
+              <div class="card-header bg-body-tertiary d-flex flex-between-center py-2 position-relative z-1">
+                <h6 class="mb-0">Transaction Type</h6>
+              </div>
+              <div class="card-body p-4 position-relative rounded-4 z-1">
+                <div class="row g-3">
+                  <div class="col-4">
+                    <button type="button" class="btn btn-outline-primary d-block w-100 py-3 rounded-4 active position-relative" id="btnTicketType" onclick="switchTransactionType('ticket')">
                       <span class="fas fa-ticket-alt me-2"></span>Ticket Booking
                     </button>
                   </div>
-                  <div class="col-6">
-                    <button type="button" class="btn btn-outline-success d-block w-100 py-3" id="btnServiceType" onclick="switchTransactionType('service')">
+                  <div class="col-4">
+                    <button type="button" class="btn btn-outline-success d-block w-100 py-3 rounded-4 position-relative" id="btnServiceType" onclick="switchTransactionType('service')">
                       <span class="fas fa-concierge-bell me-2"></span>Service Only
+                    </button>
+                  </div>
+                  <div class="col-4">
+                    <button type="button" class="btn btn-outline-info d-block w-100 py-3 rounded-4 position-relative" id="btnTransactionType" onclick="switchTransactionType('transaction')">
+                      <span class="fas fa-history me-2"></span>Transactions
                     </button>
                   </div>
                 </div>
@@ -145,10 +159,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
             <!-- Ticket Selection (shown by default) -->
             <div class="card mb-3" id="ticketSection">
-              <div class="card-header py-2 bg-light">
-                <h6 class="mb-0 fw-bold"><span class="fas fa-ticket-alt me-2 text-primary"></span>Ticket Details</h6>
+              <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-6.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
               </div>
-              <div class="card-body">
+              <!--/.bg-holder-->
+              <div class="card-header py-2 bg-light position-relative z-1">
+                <h6 class="mb-0 fw-bold"><span class="fas fa-ticket-alt me-2 text-primary"></span>Ticket Details  </h6>
+              </div>
+              <div class="card-body position-relative z-1">
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label fw-semibold" for="ticketPassenger">Passenger</label>
@@ -230,10 +247,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
             <!-- Service Type Selection (hidden by default) -->
             <div class="card mb-3" id="serviceSection" style="display:none;">
-              <div class="card-header py-2 bg-light">
+              <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-2.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
+              </div>
+              <!--/.bg-holder-->
+              <div class="card-header py-2 bg-light position-relative z-1">
                 <h6 class="mb-0 fw-bold"><span class="fas fa-concierge-bell me-2 text-primary"></span>Select Service</h6>
               </div>
-              <div class="card-body">
+              <div class="card-body position-relative z-1">
                 <div class="row g-3">
                   <?php
                   $iconColors = ['icon-circle-primary', 'icon-circle-success', 'icon-circle-info', 'icon-circle-warning'];
@@ -304,6 +324,105 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               </div>
             </div>
 
+            <!-- Transactions Section -->
+            <div class="card mb-3" id="transactionSection" style="display:none;">
+              <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-7.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
+              </div>
+              <!--/.bg-holder-->
+              <div class="card-header py-2 bg-light position-relative z-1">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="mb-0 fw-bold"><span class="fas fa-history me-2 text-primary"></span>Transaction History</h6>
+                  <button class="btn btn-sm btn-outline-primary" onclick="loadRecentTransactions()">
+                    <span class="fas fa-sync-alt me-1"></span>Refresh
+                  </button>
+                </div>
+                <!-- Filters -->
+                <div class="row g-2">
+                  <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm" id="filterSearch" placeholder="Search transaction code..." onkeyup="filterTransactions()">
+                  </div>
+                  <div class="col-md-2">
+                    <select class="form-select form-select-sm" id="filterType" onchange="filterTransactions()">
+                      <option value="">All Types</option>
+                      <option value="TICKET">Ticket Booking</option>
+                      <option value="SERVICE">Service Only</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <select class="form-select form-select-sm" id="filterStatus" onchange="filterTransactions()">
+                      <option value="">All Status</option>
+                      <option value="booked">Booked</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="refunded">Refunded</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm pos-date-picker" id="filterDate" placeholder="Select date range" onchange="filterTransactions()">
+                  </div>
+                  <div class="col-md-3">
+                    <button class="btn btn-sm btn-outline-secondary w-100" onclick="clearFilters()">
+                      <span class="fas fa-times me-1"></span>Clear Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body p-0 position-relative z-1">
+                <div class="table-responsive">
+                  <table class="table table-hover table-striped mb-0 fs-10">
+                    <thead class="bg-light">
+                      <tr>
+                        <th>Transaction Code & Type</th>
+                        <th>Passenger/Description</th>
+                        <th>Branch</th>
+                        <th>Provider</th>
+                        <th>Travel Date</th>
+                        <th>Origin/Dest</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recentTransactionsList">
+                      <tr>
+                        <td colspan="10" class="text-center text-muted py-4">
+                          <span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <!-- Pagination -->
+                <div class="card-footer bg-light">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="small text-muted">
+                      Showing <span id="paginationStart">0</span> to <span id="paginationEnd">0</span> of <span id="paginationTotal">0</span> transactions
+                    </div>
+                    <nav aria-label="Page navigation">
+                      <ul class="pagination pagination-sm mb-0" id="paginationNav">
+                        <li class="page-item disabled">
+                          <a class="page-link" href="#" onclick="changePage(0); return false;">First</a>
+                        </li>
+                        <li class="page-item disabled">
+                          <a class="page-link" href="#" onclick="changePage('prev'); return false;">Previous</a>
+                        </li>
+                        <li class="page-item active">
+                          <span class="page-link" id="currentPage">1</span>
+                        </li>
+                        <li class="page-item disabled">
+                          <a class="page-link" href="#" onclick="changePage('next'); return false;">Next</a>
+                        </li>
+                        <li class="page-item disabled">
+                          <a class="page-link" href="#" onclick="changePage('last'); return false;">Last</a>
+                        </li>
+                      </ul>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             </div>
 
           <!-- RIGHT: Cart Panel -->
@@ -311,7 +430,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
             <div class="card">
               <div class="card-header py-2 bg-light">
                 <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0 fw-bold"><span class="fas fa-shopping-cart me-2 text-primary"></span>Cart</h6>
+                  <h6 class="mb-0 fw-bold"><span class="fas fa-shopping-cart me-2 text-primary"></span>Cart  </h6>
                   <button class="btn btn-sm btn-outline-danger" onclick="clearCart()" id="clearCartBtn" style="display:none;">
                     <span class="fas fa-trash me-1"></span>Clear
                   </button>
@@ -321,20 +440,20 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                 <!-- Empty state -->
                 <div class="empty-cart" id="emptyCartMsg">
                   <div class="empty-cart-icon"><span class="fas fa-shopping-cart"></span></div>
-                  <div class="text-muted">Cart is empty.<br>Select a service to begin.</div>
+                  <div class="text-muted">Cart is empty.<br>Select a ticket or service to begin.</div>
                 </div>
                 <!-- Cart Items -->
                 <div id="cartItemsList" class="p-3"></div>
               </div>
               <div class="card-footer">
                 <!-- Cart Totals -->
-                <div class="cart-totals" id="cartTotals" style="display:none;">
+                <div class="cart-totals" id="cartTotals">
                   <div class="total-row"><span>Subtotal:</span><span id="cartSubtotal">₱0.00</span></div>
                   <div class="total-row grand-total"><span>Total:</span><span id="cartTotal">₱0.00</span></div>
                 </div>
                 <!-- Actions -->
-                <div class="d-grid gap-2 mt-3" id="cartActions" style="display:none !important;">
-                  <button class="btn btn-success btn-lg" onclick="proceedToPayment()" id="payBtn">
+                <div class="d-grid gap-2 mt-3" id="cartActions">
+                  <button class="btn btn-success btn-lg" onclick="proceedToPayment()" id="payBtn" disabled>
                     <span class="fas fa-money-bill-wave me-2"></span>Proceed to Payment
                   </button>
                 </div>
@@ -356,101 +475,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
     <?php include __DIR__ . '/modals/add_passenger.php'; ?>
     <?php include __DIR__ . '/modals/view_passenger.php'; ?>
     <?php include __DIR__ . '/modals/payment.php'; ?>
-
-    <!-- Switch Transaction Type Confirmation Modal -->
-    <div class="modal fade" id="switchTypeModal" tabindex="-1" aria-labelledby="switchTypeModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="switchTypeModalLabel">
-              <span class="fas fa-exclamation-triangle text-warning me-2"></span>Switch Transaction Type
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <p class="mb-0">Switching transaction type will clear the current cart. Are you sure you want to continue?</p>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cancelSwitchType()">Cancel</button>
-            <button type="button" class="btn btn-primary" onclick="confirmSwitchType()">
-              <span class="fas fa-check me-1"></span>Yes, Continue
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Item Entry Modal -->
-    <div class="modal fade" id="itemEntryModal" tabindex="-1" aria-labelledby="itemEntryModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-md" role="document">
-        <div class="modal-content">
-          <div class="modal-header px-5 position-relative modal-shape-header bg-shape">
-            <div class="position-relative z-1">
-              <h4 class="mb-0 text-white" id="itemEntryModalLabel">
-                <span class="fas fa-plus-circle me-2"></span>Add Item
-              </h4>
-              <p class="fs-10 mb-0 text-white">Customize service details before adding to cart</p>
-            </div>
-            <div data-bs-theme="dark">
-              <button class="btn-close position-absolute top-0 end-0 mt-2 me-2" type="button" data-bs-dismiss="modal" aria-label="Close" onclick="cancelItemEntry()"></button>
-            </div>
-          </div>
-          <div class="modal-body">
-            <div class="row g-3">
-              <div class="col-md-12">
-                <label class="form-label fw-semibold" for="itemServiceName">Service</label>
-                <input type="text" class="form-control" id="itemServiceName" name="itemServiceName" readonly>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold" for="itemQty">Qty</label>
-                <input type="number" class="form-control" id="itemQty" name="itemQty" value="1" min="1" oninput="computeItemTotal()">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold" for="itemUnitPrice">Unit Price (₱)</label>
-                <input type="number" class="form-control" id="itemUnitPrice" name="itemUnitPrice" value="0.00" min="0" step="0.01" oninput="computeItemTotal()">
-              </div>
-              <div class="col-md-12">
-                <label class="form-label fw-semibold" for="itemDescription">Description / Remarks</label>
-                <input type="text" class="form-control" id="itemDescription" name="itemDescription" placeholder="Optional">
-              </div>
-              <div class="col-md-12">
-                <label class="form-label fw-semibold">Item Total</label>
-                <div class="form-control bg-light fw-bold text-success fs-5" id="itemTotalDisplay">₱0.00</div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cancelItemEntry()">Cancel</button>
-            <button type="button" class="btn btn-success" onclick="addItemToCart()">
-              <span class="fas fa-plus me-1"></span>Add to Cart
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Clear Cart Confirmation Modal -->
-    <div class="modal fade" id="clearCartModal" tabindex="-1" aria-labelledby="clearCartModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="clearCartModalLabel">
-              <span class="fas fa-exclamation-triangle text-warning me-2"></span>Clear Cart
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <p class="mb-0">Are you sure you want to clear all items from the cart? This action cannot be undone.</p>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-danger" onclick="confirmClearCart()">
-              <span class="fas fa-trash me-1"></span>Clear All Items
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <?php include __DIR__ . '/modals/switch_type.php'; ?>
+    <?php include __DIR__ . '/modals/item_entry.php'; ?>
+    <?php include __DIR__ . '/modals/clear_cart.php'; ?>
+    <?php include __DIR__ . '/modals/cancel_ticket.php'; ?>
 
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>

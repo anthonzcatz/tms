@@ -1,0 +1,93 @@
+/* System Settings Module Styles */
+
+.scrollbar-overlay {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.tab-system-settings .nav-link {
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #6c757d;
+    transition: all 0.2s ease;
+}
+
+.tab-system-settings .nav-link:hover {
+    color: #495057;
+    background-color: #f8f9fa;
+}
+
+.tab-system-settings .nav-link.active {
+    color: #0d6efd;
+    border-bottom-color: #0d6efd;
+    background-color: transparent;
+}
+
+.tab-system-settings .icon {
+    font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .tab-system-settings {
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    
+    .tab-system-settings::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.form-switch {
+    padding-left: 2.5em;
+    margin-bottom: 0.75rem;
+}
+
+.form-switch .form-check-input {
+    width: 2.5em;
+    height: 1.25em;
+    cursor: pointer;
+}
+
+.form-switch .form-check-label {
+    cursor: pointer;
+    margin-left: 0.5rem;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+.card-header h5 {
+    font-size: 1rem;
+}
+
+.alert {
+    border-radius: 8px;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    border-color: #badbcc;
+    color: #0f5132;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c2c7;
+    color: #842029;
+}
+
+.btn {
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.form-control, .form-select {
+    border-radius: 6px;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #84c5f4;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}

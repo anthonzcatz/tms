@@ -110,3 +110,6 @@
       <?php endif; ?>
     </script>
   </head>
+
+<!-- Session Alerts (Success/Error/Warning/Info) -->
+<?php include __DIR__ . '/alerts.php'; ?>

@@ -1,7 +1,13 @@
+<?php
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
+require_once dirname(__DIR__) . '/_guard.php';
+
+// Your controller logic here...
+?>
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 
-  <head>
+  <?php include dirname(__DIR__) . '/includes/head.php'; ?>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">

@@ -5,6 +5,64 @@ require_once dirname(dirname(dirname(__DIR__))) . '/config/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/_guard.php';
 
+// Maintenance mode check (cached in session for performance)
+$maintenanceCacheKey = 'maintenance_settings_cache';
+$maintenanceCacheTime = 300; // 5 minutes cache
+
+// Check if we have cached maintenance settings
+if (isset($_SESSION[$maintenanceCacheKey]) && isset($_SESSION[$maintenanceCacheKey . '_time'])) {
+    $cacheAge = time() - $_SESSION[$maintenanceCacheKey . '_time'];
+    if ($cacheAge < $maintenanceCacheTime) {
+        $maintenanceSettings = $_SESSION[$maintenanceCacheKey];
+    }
+}
+
+// If no cache or cache expired, fetch from database
+if (!isset($maintenanceSettings)) {
+    $maintenanceSettings = Database::fetch(
+        "SELECT maintenance_mode, maintenance_message, maintenance_start, maintenance_end, allow_admin_during_maintenance 
+         FROM system_settings WHERE setting_id = 1"
+    );
+    
+    // Cache the settings
+    $_SESSION[$maintenanceCacheKey] = $maintenanceSettings;
+    $_SESSION[$maintenanceCacheKey . '_time'] = time();
+}
+
+$maintenanceMode = $maintenanceSettings['maintenance_mode'] ?? 0;
+$maintenanceStart = $maintenanceSettings['maintenance_start'] ?? null;
+$maintenanceEnd = $maintenanceSettings['maintenance_end'] ?? null;
+$allowAdmin = $maintenanceSettings['allow_admin_during_maintenance'] ?? 1;
+
+if ($maintenanceMode) {
+    $now = date('Y-m-d H:i:s');
+    $inMaintenanceWindow = true;
+    
+    if ($maintenanceStart && $maintenanceStart > $now) {
+        $inMaintenanceWindow = false;
+    }
+    if ($maintenanceEnd && $maintenanceEnd < $now) {
+        $inMaintenanceWindow = false;
+        // Auto-disable maintenance mode if end time has passed
+        Database::execute(
+            "UPDATE system_settings SET maintenance_mode = 0 WHERE setting_id = 1"
+        );
+        // Clear cache to reflect the change
+        unset($_SESSION[$maintenanceCacheKey]);
+        unset($_SESSION[$maintenanceCacheKey . '_time']);
+    }
+    
+    if ($inMaintenanceWindow) {
+        $user = Auth::user();
+        $isAdmin = $user && ($user['role_code'] === 'SUPER_ADMIN' || $user['role_code'] === 'ADMIN');
+        
+        if (!($isAdmin && $allowAdmin)) {
+            include dirname(dirname(__DIR__)) . '/includes/maintenance.php';
+            exit;
+        }
+    }
+}
+
 // Permission gatekeeper - only SUPER_ADMIN can manage permissions
 $user = Auth::user();
 if ($user && $user['role_code'] === 'SUPER_ADMIN') {

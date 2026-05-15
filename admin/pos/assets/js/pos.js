@@ -72,6 +72,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Toggle session banner collapse icon
+    const sessionBannerCollapse = document.getElementById('sessionBannerCollapse');
+    const sessionBannerToggleIcon = document.getElementById('sessionBannerToggleIcon');
+    if (sessionBannerCollapse && sessionBannerToggleIcon) {
+        sessionBannerCollapse.addEventListener('show.bs.collapse', () => {
+            sessionBannerToggleIcon.classList.remove('fa-chevron-down');
+            sessionBannerToggleIcon.classList.add('fa-chevron-up');
+        });
+        sessionBannerCollapse.addEventListener('hide.bs.collapse', () => {
+            sessionBannerToggleIcon.classList.remove('fa-chevron-up');
+            sessionBannerToggleIcon.classList.add('fa-chevron-down');
+        });
+    }
+
     // Load cart from localStorage
     loadCartFromStorage();
     if (cart.length > 0) {
@@ -233,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (cart.length > 0) {
                 proceedToPayment();
             } else {
-                showToast('warning', 'Cart Empty', 'Add items first.');
+                // Cart empty check - no toast to avoid distraction
             }
         }
 
@@ -285,8 +299,9 @@ function checkSessionDuration() {
     // Warn if session is open for 12+ hours
     if (hoursOpen >= 12) {
         const hours = Math.floor(hoursOpen);
-        showToast('warning', 'Long Session Warning',
-            `Your cashier session has been open for ${hours} hour(s). Consider closing it to reconcile cash.`);
+        // Long session warning - commented out to avoid distraction
+            // showToast('warning', 'Long Session Warning',
+            //     `Your cashier session has been open for ${hours} hour(s). Consider closing it to reconcile cash.`);
     }
 }
 
@@ -1405,6 +1420,23 @@ async function submitCloseSession() {
 function switchTransactionType(type) {
     if (type === transactionType) return;
     
+    // For transactions tab, switch directly without checking cart
+    if (type === 'transaction') {
+        transactionType = type;
+        localStorage.setItem('posTransactionType', type);
+        updateTransactionTypeUI();
+        // Clear filters and load transactions on page 1
+        document.getElementById('filterSearch').value = '';
+        document.getElementById('filterType').value = '';
+        document.getElementById('filterStatus').value = '';
+        const dateInput = document.getElementById('filterDate');
+        if (dateInput._flatpickr) {
+            dateInput._flatpickr.setDate('today');
+        }
+        loadRecentTransactions(1);
+        return;
+    }
+    
     // Check if cart has items
     if (cart.length > 0) {
         // Store pending type and show confirmation modal
@@ -1438,8 +1470,10 @@ function cancelSwitchType() {
 function updateTransactionTypeUI() {
     document.getElementById('btnTicketType').classList.toggle('active', transactionType === 'ticket');
     document.getElementById('btnServiceType').classList.toggle('active', transactionType === 'service');
+    document.getElementById('btnTransactionType').classList.toggle('active', transactionType === 'transaction');
     document.getElementById('ticketSection').style.display = transactionType === 'ticket' ? '' : 'none';
     document.getElementById('serviceSection').style.display = transactionType === 'service' ? '' : 'none';
+    document.getElementById('transactionSection').style.display = transactionType === 'transaction' ? '' : 'none';
 }
 
 // =============================================
@@ -2010,7 +2044,7 @@ function addTicketToCart() {
     document.getElementById('serviceAddonsSection').style.display = '';
     saveCartToStorage();
     renderCart();
-    showToast('success', 'Ticket Added', 'Ticket added to cart. You can now add service add-ons.');
+    // Ticket added - no toast to avoid distraction
 }
 
 function toggleServiceAddons() {
@@ -2092,7 +2126,7 @@ function quickAddServiceToCart(id, name, defaultAmount, allowCustom, requiresWal
     cart.push(serviceItem);
     saveCartToStorage();
     renderCart();
-    showToast('success', 'Added', `"${name}" added to cart.`);
+    // Service added - no toast to avoid distraction
 }
 
 function cancelItemEntry() {
@@ -2139,7 +2173,7 @@ function addItemToCart() {
     activeServiceType = null;
     saveCartToStorage();
     renderCart();
-    showToast('success', 'Added', `"${serviceItem.serviceName}" added to cart.`);
+    // Service item added - no toast to avoid distraction
 }
 
 // =============================================
@@ -2152,22 +2186,23 @@ function renderCart() {
     const totals = document.getElementById('cartTotals');
     const clearBtn = document.getElementById('clearCartBtn');
     const cartActions = document.getElementById('cartActions');
+    const payBtn = document.getElementById('payBtn');
 
     if (cart.length === 0) {
         emptyMsg.style.display = '';
         list.innerHTML = '';
-        totals.style.display = 'none';
         clearBtn.style.display = 'none';
-        cartActions.style.display = 'none';
+        payBtn.disabled = true;
         ticketInCart = null;
         document.getElementById('serviceAddonsSection').style.display = 'none';
+        document.getElementById('cartSubtotal').textContent = '₱0.00';
+        document.getElementById('cartTotal').textContent = '₱0.00';
         return;
     }
 
     emptyMsg.style.display = 'none';
     clearBtn.style.display = '';
-    cartActions.style.display = '';
-    totals.style.display = '';
+    payBtn.disabled = false;
 
     let html = '';
     let subtotal = 0;
@@ -2244,7 +2279,7 @@ function confirmClearCart() {
     paymentModal.hide();
     document.getElementById('serviceAddonsSection').style.display = 'none';
     clearCartModal.hide();
-    showToast('success', 'Cart Cleared', 'All items have been removed from the cart.');
+    // Cart cleared - no toast to avoid distraction
 }
 
 // =============================================
@@ -2256,7 +2291,7 @@ function getCartTotal() {
 }
 
 function proceedToPayment() {
-    if (cart.length === 0) { showToast('warning', 'Cart Empty', 'Add items first.'); return; }
+    if (cart.length === 0) { return; }
     paymentLines = [];
     renderPaymentLines();
     populatePaymentModalCart();
@@ -2591,17 +2626,369 @@ function showToast(type, title, message) {
     document.querySelectorAll('.custom-toast').forEach(t => t.remove());
     const toast = document.createElement('div');
     toast.className = `custom-toast alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'danger'} alert-dismissible fade show position-fixed`;
-    toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 350px; max-width: 450px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px;';
+    toast.style.cssText = 'bottom: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 450px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px;';
     const icon = type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
     toast.innerHTML = `
         <div class="d-flex align-items-center">
-            <span class="fas ${icon} me-3 fs-4"></span>
-            <div class="flex-grow-1">
-                <strong class="d-block">${title}</strong>
-                <span class="d-block text-sm">${message}</span>
+            <span class="fas ${icon} me-2 fs-5"></span>
+            <div>
+                <strong class="alert-heading">${title}</strong>
+                <div class="small">${message}</div>
             </div>
-            <button type="button" class="btn-close ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>`;
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
     document.body.appendChild(toast);
-    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 150); }, 5000);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 150);
+    }, 3000);
+}
+
+function toggleSessionBanner() {
+    const collapseElement = document.getElementById('sessionBannerCollapse');
+    const collapseInstance = bootstrap.Collapse.getInstance(collapseElement) || new bootstrap.Collapse(collapseElement);
+    collapseInstance.toggle();
+    
+    const toggleIcon = document.getElementById('sessionBannerToggleIcon');
+    if (toggleIcon) {
+        toggleIcon.classList.toggle('fa-chevron-down');
+        toggleIcon.classList.toggle('fa-chevron-up');
+    }
+}
+
+// =============================================
+// RECENT TRANSACTIONS
+// =============================================
+
+let allTransactions = [];
+let currentPage = 1;
+let itemsPerPage = 10;
+let totalPages = 1;
+let totalItems = 0;
+
+function loadRecentTransactions(page = 1) {
+    currentPage = page;
+    const list = document.getElementById('recentTransactionsList');
+    list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...</td></tr>';
+    
+    // Get filter values
+    const search = document.getElementById('filterSearch').value.trim();
+    const type = document.getElementById('filterType').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateValue = document.getElementById('filterDate').value;
+    
+    // Save filter values to localStorage
+    localStorage.setItem('pos_filter_search', search);
+    localStorage.setItem('pos_filter_type', type);
+    localStorage.setItem('pos_filter_status', status);
+    localStorage.setItem('pos_filter_date', dateValue);
+    
+    // Calculate offset
+    const offset = (currentPage - 1) * itemsPerPage;
+    
+    // Build query parameters
+    const params = new URLSearchParams({ limit: itemsPerPage, offset: offset });
+    if (search) params.append('search', search);
+    if (type) params.append('type', type);
+    if (status) params.append('status', status);
+    
+    // Handle date range (flatpickr returns "YYYY-MM-DD to YYYY-MM-DD" format)
+    if (dateValue && dateValue.includes(' to ')) {
+        const [startDate, endDate] = dateValue.split(' to ');
+        params.append('start_date', startDate);
+        params.append('end_date', endDate);
+    } else if (dateValue) {
+        params.append('date', dateValue);
+    }
+    
+    fetch(`${window.BASE_URL}/api/pos/recent-transactions.php?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data) {
+                allTransactions = data.data.transactions || [];
+                const pagination = data.data.pagination || {};
+                totalItems = pagination.total || 0;
+                totalPages = pagination.total_pages || 1;
+                currentPage = pagination.current_page || 1;
+                
+                renderTransactionsTable(allTransactions);
+                updatePaginationUI();
+            } else {
+                list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No transactions found.</td></tr>';
+                updatePaginationUI();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading transactions:', error);
+            list.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">Error loading transactions.</td></tr>';
+        });
+}
+
+function renderTransactionsTable(transactions) {
+    const list = document.getElementById('recentTransactionsList');
+    
+    if (transactions.length === 0) {
+        list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No transactions found.</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    transactions.forEach(txn => {
+        const statusBadge = txn.status === 'booked' || txn.status === 'completed' 
+            ? '<span class="badge bg-soft-success text-success">Active</span>'
+            : txn.status === 'cancelled' 
+                ? '<span class="badge bg-soft-danger text-danger">Cancelled</span>'
+                : `<span class="badge bg-soft-secondary text-secondary">${txn.status}</span>`;
+        
+        const typeIcon = txn.transaction_type === 'TICKET' ? 'fa-ticket-alt text-primary' : 'fa-concierge-bell text-success';
+        const passengerName = txn.passenger_name ? txn.passenger_name.charAt(0).toUpperCase() + txn.passenger_name.slice(1).toLowerCase() : '-';
+        const branchName = txn.branch_name ? `<span class="badge bg-soft-primary text-primary">${txn.branch_name}</span>` : '-';
+        const providerName = txn.provider_name ? (txn.provider_type ? 
+            `<div>${txn.provider_name}</div><div><span class="badge bg-soft-info text-info" style="font-size: 0.75em;">${txn.provider_type}</span></div>` : 
+            txn.provider_name) : '-';
+        const travelDate = txn.travel_date ? new Date(txn.travel_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+        const originDest = (txn.origin && txn.destination) ? `${txn.origin} → ${txn.destination}` : '-';
+        const typeBadge = txn.transaction_type === 'TICKET' 
+            ? '<span class="badge bg-soft-primary text-primary">TICKET</span>' 
+            : '<span class="badge bg-soft-success text-success">SERVICE</span>';
+        
+        html += `
+            <tr>
+                <td>
+                    <div><strong>${txn.transaction_code}</strong></div>
+                    <div>${typeBadge}</div>
+                </td>
+                <td class="small">${passengerName}</td>
+                <td class="small">${branchName}</td>
+                <td class="small">${providerName}</td>
+                <td class="small">${travelDate}</td>
+                <td class="small">${originDest}</td>
+                <td>₱${fmt(txn.total_amount)}</td>
+                <td>${statusBadge}</td>
+                <td class="small">
+                    <div>${new Date(txn.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                    <div class="text-muted" style="font-size: 0.85em;">${new Date(txn.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
+                </td>
+                <td class="text-end">
+                    ${txn.transaction_type === 'TICKET' && (txn.status === 'booked' || txn.status === 'completed') ? 
+                        `<button class="btn btn-sm btn-outline-danger" onclick="openCancelTicketModal('${txn.transaction_code}', ${txn.base_amount}, ${txn.service_fee}, ${JSON.stringify(txn)})">
+                            <span class="fas fa-times me-1"></span>Cancel
+                        </button>` : 
+                        '<span class="text-muted small">N/A</span>'}
+                </td>
+            </tr>
+        `;
+    });
+    list.innerHTML = html;
+}
+
+function updatePaginationUI() {
+    const start = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const end = Math.min(currentPage * itemsPerPage, totalItems);
+    
+    document.getElementById('paginationStart').textContent = start;
+    document.getElementById('paginationEnd').textContent = end;
+    document.getElementById('paginationTotal').textContent = totalItems;
+    document.getElementById('currentPage').textContent = currentPage;
+    
+    // Update pagination navigation
+    const nav = document.getElementById('paginationNav');
+    const firstBtn = nav.querySelector('li:nth-child(1)');
+    const prevBtn = nav.querySelector('li:nth-child(2)');
+    const nextBtn = nav.querySelector('li:nth-child(4)');
+    const lastBtn = nav.querySelector('li:nth-child(5)');
+    
+    firstBtn.classList.toggle('disabled', currentPage === 1);
+    prevBtn.classList.toggle('disabled', currentPage === 1);
+    nextBtn.classList.toggle('disabled', currentPage === totalPages);
+    lastBtn.classList.toggle('disabled', currentPage === totalPages);
+}
+
+function changePage(page) {
+    if (page === 'prev' && currentPage > 1) {
+        loadRecentTransactions(currentPage - 1);
+    } else if (page === 'next' && currentPage < totalPages) {
+        loadRecentTransactions(currentPage + 1);
+    } else if (page === 'last') {
+        loadRecentTransactions(totalPages);
+    } else if (typeof page === 'number' && page >= 1 && page <= totalPages) {
+        loadRecentTransactions(page);
+    }
+}
+
+function filterTransactions() {
+    loadRecentTransactions(1);
+}
+
+function clearFilters() {
+    document.getElementById('filterSearch').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterStatus').value = '';
+    const dateInput = document.getElementById('filterDate');
+    if (dateInput._flatpickr) {
+        dateInput._flatpickr.clear();
+    }
+    // Clear localStorage filters
+    localStorage.removeItem('pos_filter_search');
+    localStorage.removeItem('pos_filter_type');
+    localStorage.removeItem('pos_filter_status');
+    localStorage.removeItem('pos_filter_date');
+    loadRecentTransactions(1);
+}
+
+// Load recent transactions on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.POS_HAS_SESSION) {
+        // Initialize date picker with custom configuration to fix single date display
+        const dateInput = document.getElementById('filterDate');
+        if (dateInput && window.flatpickr) {
+            window.flatpickr(dateInput, {
+                mode: 'range',
+                dateFormat: 'Y-m-d',
+                disableMobile: true,
+                position: 'below',
+                onChange: function(selectedDates, dateStr, instance) {
+                    // Trigger filter transactions when date changes
+                    filterTransactions();
+                }
+            });
+        }
+        
+        // Restore filter values from localStorage
+        const savedSearch = localStorage.getItem('pos_filter_search');
+        const savedType = localStorage.getItem('pos_filter_type');
+        const savedStatus = localStorage.getItem('pos_filter_status');
+        const savedDate = localStorage.getItem('pos_filter_date');
+        
+        if (savedSearch !== null) document.getElementById('filterSearch').value = savedSearch;
+        if (savedType !== null) document.getElementById('filterType').value = savedType;
+        if (savedStatus !== null) document.getElementById('filterStatus').value = savedStatus;
+        
+        // Restore date picker value
+        if (savedDate) {
+            const dateInput = document.getElementById('filterDate');
+            if (dateInput._flatpickr) {
+                if (savedDate.includes(' to ')) {
+                    // It's a range
+                    const [startDate, endDate] = savedDate.split(' to ');
+                    dateInput._flatpickr.setDate([startDate, endDate]);
+                } else {
+                    // It's a single date
+                    dateInput._flatpickr.setDate(savedDate);
+                }
+            }
+        }
+        
+        if (transactionType === 'transaction') {
+            loadRecentTransactions(1);
+        }
+    }
+});
+
+// =============================================
+// TICKET CANCELLATION
+// =============================================
+
+let cancelTicketModal;
+
+function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 0, txnData = null) {
+    cancelTicketModal = new bootstrap.Modal(document.getElementById('cancelTicketModal'));
+    cancelTicketModal.show();
+    
+    // Set values if provided
+    document.getElementById('cancelTicketCode').value = txnCode;
+    document.getElementById('cancelRefundAmount').value = baseAmount > 0 ? baseAmount : '';
+    document.getElementById('cancelReason').value = '';
+    
+    // Display service fee if provided
+    const serviceFeeDisplay = document.getElementById('cancelServiceFeeDisplay');
+    if (serviceFeeDisplay && serviceFee > 0) {
+        serviceFeeDisplay.textContent = `₱${serviceFee.toFixed(2)}`;
+        serviceFeeDisplay.style.display = 'inline';
+    } else if (serviceFeeDisplay) {
+        serviceFeeDisplay.style.display = 'none';
+    }
+    
+    // Display ticket details if provided
+    const detailsDiv = document.getElementById('cancelTicketDetails');
+    if (detailsDiv && txnData) {
+        document.getElementById('cancelPassengerName').textContent = txnData.passenger_name || '-';
+        document.getElementById('cancelTravelDate').textContent = txnData.travel_date || '-';
+        document.getElementById('cancelRoute').textContent = (txnData.origin && txnData.destination) ? `${txnData.origin} → ${txnData.destination}` : '-';
+        document.getElementById('cancelProvider').textContent = txnData.provider_name || '-';
+        document.getElementById('cancelBaseAmount').textContent = `₱${(parseFloat(txnData.base_amount) || 0).toFixed(2)}`;
+        document.getElementById('cancelServiceFee').textContent = `₱${(parseFloat(txnData.service_fee) || 0).toFixed(2)}`;
+        document.getElementById('cancelTotalAmount').textContent = `₱${(parseFloat(txnData.total_amount) || 0).toFixed(2)}`;
+        document.getElementById('cancelStatus').textContent = txnData.status || '-';
+        
+        if (txnData.created_at) {
+            const txnDate = new Date(txnData.created_at);
+            document.getElementById('cancelTxnDate').textContent = txnDate.toLocaleDateString('en-PH', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } else {
+            document.getElementById('cancelTxnDate').textContent = '-';
+        }
+        
+        detailsDiv.style.display = 'block';
+    } else if (detailsDiv) {
+        detailsDiv.style.display = 'none';
+    }
+    
+    // Disable transaction code if pre-filled
+    document.getElementById('cancelTicketCode').readOnly = txnCode !== '';
+}
+
+function confirmCancelTicket() {
+    const txnCode = document.getElementById('cancelTicketCode').value.trim();
+    const refundAmount = parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
+    const reason = document.getElementById('cancelReason').value.trim();
+    
+    if (!txnCode) {
+        showToast('danger', 'Error', 'Please enter a transaction code.');
+        return;
+    }
+    
+    if (refundAmount <= 0) {
+        showToast('danger', 'Error', 'Please enter a valid refund amount.');
+        return;
+    }
+    
+    const btn = document.querySelector('#cancelTicketModal .btn-danger');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
+    
+    fetch(`${window.BASE_URL}/api/pos/ticket-cancel.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            transaction_code: txnCode,
+            refund_amount: refundAmount,
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="fas fa-check me-1"></span>Confirm Cancellation';
+        
+        if (data.success) {
+            showToast('success', 'Success', data.message);
+            cancelTicketModal.hide();
+            loadRecentTransactions(); // Refresh transactions list
+        } else {
+            showToast('danger', 'Error', data.error || 'Cancellation failed.');
+        }
+    })
+    .catch(error => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="fas fa-check me-1"></span>Confirm Cancellation';
+        showToast('danger', 'Error', 'An error occurred during cancellation.');
+        console.error('Cancel error:', error);
+    });
 }

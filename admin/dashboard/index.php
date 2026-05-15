@@ -1,6 +1,12 @@
+<?php
+require_once dirname(__DIR__) . '/config/bootstrap.php';
+require_once dirname(__DIR__) . '/admin/_guard.php';
+
+// Your controller logic here...
+?>
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
-<?php include 'includes/head.php'; ?>
+<?php include dirname(__DIR__) . '/admin/includes/head.php'; ?>
 
 
 <body>

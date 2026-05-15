@@ -134,6 +134,58 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             echo json_encode(['success' => false, 'error' => "Payment (₱{$totalPaid}) is less than total (₱{$orderTotal})."]); exit;
         }
 
+        // --- Handle wallet balance deduction (Base Amount only, NOT Service Fee) ---
+        $walletId = $ticket['wallet_id'] ?? null;
+        $baseAmount = floatval($ticket['base_amount'] ?? 0);
+        
+        // Always deduct from wallet if wallet_id is set (wallet is like load/balance, not a payment method)
+        if ($walletId && $baseAmount > 0) {
+            // Check if wallet exists and is active
+            $wallet = Database::fetch(
+                "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active'",
+                ['wid' => $walletId]
+            );
+            
+            if (!$wallet) {
+                echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive.']); exit;
+            }
+            
+            // Check if wallet has sufficient balance
+            if ($wallet['current_balance'] < $baseAmount) {
+                echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Required: ₱' . number_format($baseAmount, 2) . ', Available: ₱' . number_format($wallet['current_balance'], 2)]); exit;
+            }
+            
+            // Deduct from wallet balance
+            $balanceBefore = $wallet['current_balance'];
+            $balanceAfter = $balanceBefore - $baseAmount;
+            
+            Database::execute(
+                "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wid",
+                ['new_balance' => $balanceAfter, 'wid' => $walletId]
+            );
+            
+            // Create wallet transaction record
+            $walletTxnCode = 'SALE-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
+            Database::execute(
+                "INSERT INTO wallet_transactions
+                    (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
+                 VALUES (:wid, :code, 'SALE', 'OUT', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
+                [
+                    'wid' => $walletId,
+                    'code' => $walletTxnCode,
+                    'amount' => $baseAmount,
+                    'before' => $balanceBefore,
+                    'after' => $balanceAfter,
+                    'ref_id' => $ticketTxnId,
+                    'remarks' => "Ticket sale - Base Amount only (excluding Service Fee). Transaction: {$txnCode}",
+                    'uid' => $user['user_id']
+                ]
+            );
+            
+            logActivity($user['user_id'], 'WALLET_DEDUCTION', 'POS', $txnCode, null,
+                ['wallet_txn_code' => $walletTxnCode, 'wallet_id' => $walletId, 'amount' => $baseAmount, 'balance_before' => $balanceBefore, 'balance_after' => $balanceAfter]);
+        }
+
         // --- Record payments against ticket transaction ---
         foreach ($payments as $pay) {
             $methodId     = $pay['payment_method_id'] ?? null;

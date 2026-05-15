@@ -1,19 +1,9 @@
 <?php
-session_start();
-require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/config/bootstrap.php';
+require_once dirname(__DIR__) . '/app/helpers/Auth.php';
 
-// Unset all session variables
-$_SESSION = array();
+Auth::logout();
 
-// Destroy the session cookie
-if (isset($_COOKIE[session_name()])) {
-    setcookie(session_name(), '', time()-42000, '/');
-}
-
-// Destroy the session
-session_destroy();
-
-// Redirect to login
-header('Location: ' . LOGIN_URL);
-exit();
+header('Location: ' . LOGIN_URL . '?success=logout_success');
+exit;
 ?>
