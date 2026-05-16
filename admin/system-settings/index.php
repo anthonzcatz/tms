@@ -18,11 +18,9 @@ header('Expires: 0');
 Auth::requireLogin();
 
 $user = Auth::user();
-// SUPER_ADMIN has access to everything
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
-    // Allow
-} elseif (!Auth::canAccessModule('admin/system-settings/')) {
-    $message = 'You do not have permission to access System Settings.';
+// Only SUPER_ADMIN can access System Settings
+if ($user['role_code'] !== 'SUPER_ADMIN') {
+    $message = 'Only SUPER_ADMIN can access System Settings.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;
@@ -33,19 +31,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Database::connection()->beginTransaction();
     
     try {
+        // Validate and sanitize branding fields
+        $systemName = trim($_POST['system_name'] ?? 'Falcon');
+        
+        $systemLogo = trim($_POST['system_logo'] ?? '');
+        if ($systemLogo && !preg_match('/^\/|https?:\/\//i', $systemLogo)) {
+            $systemLogo = ''; // Invalid URL, clear it
+        }
+        
+        $developerName = trim($_POST['developer_name'] ?? '');
+        $developerDetails = trim($_POST['developer_details'] ?? '');
+        $footerCopyright = trim($_POST['footer_copyright'] ?? '');
+        
         $data = [
-            'company_name' => $_POST['company_name'] ?? null,
-            'company_abbreviation' => $_POST['company_abbreviation'] ?? null,
-            'company_address' => $_POST['company_address'] ?? null,
-            'company_contact_number' => $_POST['company_contact_number'] ?? null,
-            'company_email' => $_POST['company_email'] ?? null,
-            'company_tagline' => $_POST['company_tagline'] ?? null,
-            'receipt_footer' => $_POST['receipt_footer'] ?? null,
-            'report_footer' => $_POST['report_footer'] ?? null,
-            'system_timezone' => $_POST['system_timezone'] ?? 'Asia/Manila',
-            'system_currency' => $_POST['system_currency'] ?? 'PHP',
+            'company_name' => trim($_POST['company_name'] ?? ''),
+            'company_abbreviation' => trim($_POST['company_abbreviation'] ?? ''),
+            'company_address' => trim($_POST['company_address'] ?? ''),
+            'company_contact_number' => trim($_POST['company_contact_number'] ?? ''),
+            'company_email' => filter_var(trim($_POST['company_email'] ?? ''), FILTER_SANITIZE_EMAIL),
+            'company_tagline' => trim($_POST['company_tagline'] ?? ''),
+            'system_name' => $systemName,
+            'system_logo' => $systemLogo,
+            'developer_name' => $developerName,
+            'developer_details' => $developerDetails,
+            'footer_copyright' => $footerCopyright,
+            'receipt_footer' => trim($_POST['receipt_footer'] ?? ''),
+            'report_footer' => trim($_POST['report_footer'] ?? ''),
+            'system_timezone' => trim($_POST['system_timezone'] ?? 'Asia/Manila'),
+            'system_currency' => trim($_POST['system_currency'] ?? 'PHP'),
             'maintenance_mode' => isset($_POST['maintenance_mode']) ? 1 : 0,
-            'maintenance_message' => $_POST['maintenance_message'] ?? null,
+            'maintenance_message' => trim($_POST['maintenance_message'] ?? ''),
             'maintenance_start' => !empty($_POST['maintenance_start']) ? $_POST['maintenance_start'] : null,
             'maintenance_end' => !empty($_POST['maintenance_end']) ? $_POST['maintenance_end'] : null,
             'allow_admin_during_maintenance' => isset($_POST['allow_admin_during_maintenance']) ? 1 : 0,
@@ -65,6 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 company_contact_number = :company_contact_number,
                 company_email = :company_email,
                 company_tagline = :company_tagline,
+                system_name = :system_name,
+                system_logo = :system_logo,
+                developer_name = :developer_name,
+                developer_details = :developer_details,
+                footer_copyright = :footer_copyright,
                 receipt_footer = :receipt_footer,
                 report_footer = :report_footer,
                 system_timezone = :system_timezone,

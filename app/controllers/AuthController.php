@@ -14,6 +14,7 @@
 
 require_once __DIR__ . '/../../config/bootstrap.php';
 require_once __DIR__ . '/../helpers/SecurityHelper.php';
+require_once __DIR__ . '/../helpers/EmailService.php';
 
 class AuthController
 {
@@ -162,7 +163,7 @@ class AuthController
     }
 
     /* =========================================================
-       FORGOT PASSWORD (placeholder — DB-aware, email TBD)
+       FORGOT PASSWORD (DB-aware with EmailService)
        ========================================================= */
     public function forgotPassword(): void
     {
@@ -172,13 +173,71 @@ class AuthController
         if (!SecurityHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
             $this->fail(FORGOT_PASSWORD_URL, 'Invalid request.', 'csrf');
         }
+        
         $email = trim((string) ($_POST['email'] ?? ''));
         if (!SecurityHelper::validateEmail($email)) {
             $this->fail(FORGOT_PASSWORD_URL, 'Invalid email address.', 'invalid_email');
         }
-        // Always show success — never disclose whether the email exists.
-        $_SESSION['success'] = 'If that email exists, a reset link has been sent.';
-        header('Location: ' . CONFIRM_MAIL_URL);
+        
+        // Find user by email
+        $user = Database::fetch(
+            "SELECT user_id, username, email FROM user_accounts 
+             WHERE email = :email 
+             AND status = 'active' AND deleted_at IS NULL 
+             LIMIT 1",
+            ['email' => $email]
+        );
+        
+        if (!$user) {
+            $_SESSION['error'] = 'The email address you entered is not registered in our system.';
+            header('Location: ' . BASE_URL . '/forgot-password');
+            exit;
+        }
+        
+        // Generate secure token
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+        
+        // Delete any existing tokens for this user
+        Database::execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = :user_id",
+            ['user_id' => $user['user_id']]
+        );
+        
+        // Store new token
+        Database::execute(
+            "INSERT INTO password_reset_tokens 
+             (user_id, token, email, expires_at, ip_address, user_agent, created_at)
+             VALUES 
+             (:user_id, :token, :email, :expires_at, :ip, :ua, NOW())",
+            [
+                'user_id' => $user['user_id'],
+                'token' => $token,
+                'email' => $email,
+                'expires_at' => $expiresAt,
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                'ua' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
+            ]
+        );
+        
+        // Send email using EmailService
+        try {
+            $emailService = new EmailService();
+            $emailService->sendPasswordResetEmail($email, $token, $user['username']);
+        } catch (Exception $e) {
+            error_log("Failed to send password reset email: " . $e->getMessage());
+            // Continue anyway - don't reveal error to user
+        }
+        
+        // Ensure session is started
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        // Show success
+        $_SESSION['success'] = 'A password reset link has been sent to your email.';
+        $_SESSION['reset_email'] = $email;
+        header('Location: ' . BASE_URL . '/confirm-mail');
         exit;
     }
 

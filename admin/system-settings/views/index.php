@@ -166,6 +166,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                 </a>
               </li>
               <li class="nav-item text-nowrap" role="presentation">
+                <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="branding-tab" data-bs-toggle="tab" href="#branding" role="tab" aria-controls="branding" aria-selected="false">
+                  <span class="fas fa-paint-brush icon text-600"></span>
+                  <h6 class="mb-0 text-600">Branding</h6>
+                </a>
+              </li>
+              <li class="nav-item text-nowrap" role="presentation">
                 <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="receipt-tab" data-bs-toggle="tab" href="#receipt" role="tab" aria-controls="receipt" aria-selected="false">
                   <span class="fas fa-receipt icon text-600"></span>
                   <h6 class="mb-0 text-600">Receipt & Report</h6>
@@ -222,6 +228,39 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                       <div class="col-md-12">
                         <label class="form-label fw-semibold">Company Tagline</label>
                         <input type="text" class="form-control" name="company_tagline" value="<?php echo htmlspecialchars($settings['company_tagline'] ?? ''); ?>" placeholder="Enter company tagline">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Branding Tab -->
+              <div class="tab-pane" id="branding" role="tabpanel" aria-labelledby="branding-tab">
+                <div class="card border-0">
+                  <div class="card-body">
+                    <h5 class="card-title mb-4"><span class="fas fa-paint-brush me-2"></span>System Branding</h5>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label class="form-label fw-semibold">System Name</label>
+                        <input type="text" class="form-control" name="system_name" value="<?php echo htmlspecialchars($settings['system_name'] ?? 'Falcon'); ?>" placeholder="e.g., Falcon">
+                        <small class="text-muted">This will replace "Falcon" in the navbar and other places</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-semibold">System Logo URL</label>
+                        <input type="text" class="form-control" name="system_logo" value="<?php echo htmlspecialchars($settings['system_logo'] ?? ''); ?>" placeholder="e.g., /resources/assets/img/logo.png">
+                        <small class="text-muted">Leave empty to use default Falcon logo</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-semibold">Developer Name</label>
+                        <input type="text" class="form-control" name="developer_name" value="<?php echo htmlspecialchars($settings['developer_name'] ?? ''); ?>" placeholder="e.g., Your Company">
+                      </div>
+                      <div class="col-md-12">
+                        <label class="form-label fw-semibold">Developer Details</label>
+                        <textarea class="form-control" name="developer_details" rows="2" placeholder="e.g., Designed and developed by Your Development Team"><?php echo htmlspecialchars($settings['developer_details'] ?? ''); ?></textarea>
+                      </div>
+                      <div class="col-md-12">
+                        <label class="form-label fw-semibold">Footer Copyright</label>
+                        <textarea class="form-control" name="footer_copyright" rows="2" placeholder="e.g., © 2024 Your Company. All rights reserved."><?php echo htmlspecialchars($settings['footer_copyright'] ?? ''); ?></textarea>
                       </div>
                     </div>
                   </div>

@@ -7,6 +7,31 @@ const API_BASE = window.BASE_URL + '/api/permissions';
 const ROLES_API_BASE = window.BASE_URL + '/api/roles';
 
 /**
+ * Filter permissions table based on search input
+ */
+function filterPermissions() {
+  const searchInput = document.getElementById('permissionsSearch');
+  const permissionsTable = document.getElementById('permissionsTable');
+  
+  if (!searchInput || !permissionsTable) {
+    console.error('Search input or permissions table not found');
+    return;
+  }
+  
+  const searchTerm = searchInput.value.toLowerCase();
+  const tableRows = permissionsTable.querySelectorAll('tbody.list tr');
+  
+  tableRows.forEach(function(row) {
+    const rowText = row.textContent.toLowerCase();
+    if (rowText.includes(searchTerm)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+/**
  * Filter parent permission options based on selected menu level
  */
 function filterParentOptions() {
@@ -133,13 +158,7 @@ function autoSetMenuLevel() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize List.js for permissions table
-  const permissionsTable = document.getElementById('permissionsTable');
-  if (permissionsTable) {
-    new List('permissionsTable', {
-      valueNames: ['code', 'name', 'level', 'module', 'url', 'order']
-    });
-  }
+  // Search is handled by inline oninput handler calling filterPermissions()
 
   // Restore active tab from localStorage
   const activeTab = localStorage.getItem('permissionsActiveTab');

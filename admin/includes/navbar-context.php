@@ -4,6 +4,23 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(__DIR__) . '/helpers/SidebarHelper.php';
 
+// Fetch system settings for branding
+$systemSettings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
+$systemName = htmlspecialchars($systemSettings['system_name'] ?? 'Falcon', ENT_QUOTES, 'UTF-8');
+$systemLogo = $systemSettings['system_logo'] ?? null;
+$developerName = htmlspecialchars($systemSettings['developer_name'] ?? '', ENT_QUOTES, 'UTF-8');
+$developerDetails = htmlspecialchars($systemSettings['developer_details'] ?? '', ENT_QUOTES, 'UTF-8');
+$footerCopyright = htmlspecialchars($systemSettings['footer_copyright'] ?? '', ENT_QUOTES, 'UTF-8');
+
+// Validate logo URL to prevent XSS attacks
+if ($systemLogo) {
+    // Only allow relative URLs starting with / or absolute URLs with http/https
+    $systemLogo = trim($systemLogo);
+    if (!preg_match('/^\/|https?:\/\//i', $systemLogo)) {
+        $systemLogo = null; // Invalid URL, use default
+    }
+}
+
 $currentUser = Auth::user();
 $profileImage = null;
 $initials = '?';

@@ -206,7 +206,7 @@
                              placeholder="user@example.com" autocomplete="off">
                     </div>
                     <div class="invalid-feedback">Please enter a valid email address</div>
-                    <small class="text-muted">Optional: Used for password recovery</small>
+                    <small class="text-muted">Used for password reset and notifications</small>
                   </div>
 
                   <div class="col-md-6 mb-4">

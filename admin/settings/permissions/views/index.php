@@ -256,8 +256,8 @@ if (!defined('NAVBAR_POSITION')) {
                         </div>
                         <div class="card-body p-0">
                           <div class="d-flex mb-3 px-3 pt-3">
-                            <div class="search-box position-relative flex-grow-1">
-                              <input class="form-control search-input form-control-sm" type="search" placeholder="Search permissions..." aria-label="Search" />
+                            <div class="search-box position-relative" style="width: 300px; max-width: 100%;">
+                              <input class="form-control search-input form-control-sm" type="search" id="permissionsSearch" placeholder="Search permissions..." aria-label="Search" oninput="filterPermissions()" />
                               <span class="fas fa-search search-box-icon"></span>
                             </div>
                           </div>

@@ -5,7 +5,9 @@ require_once __DIR__ . '/navbar-context.php';
 
             <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVerticalCollapse" aria-controls="navbarVerticalCollapse" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
             <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">
-              <div class="d-flex align-items-center"><img class="me-2" src="<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/falcon.png" alt="" width="40" /><span class="font-sans-serif text-primary">falcon</span>
+              <div class="d-flex align-items-center">
+                <img class="me-2" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" />
+                <span class="font-sans-serif text-primary"><?php echo $systemName; ?></span>
               </div>
             </a>
             <ul class="navbar-nav align-items-center d-none d-lg-flex">
@@ -239,7 +241,7 @@ require_once __DIR__ . '/navbar-context.php';
               </li>
               <li class="nav-item dropdown px-1 d-flex align-items-center">
                 <a class="nav-link fa-icon-wait nine-dots p-1" id="navbarDropdownMenu" role="button" data-hide-on-body-scroll="data-hide-on-body-scroll" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="43" viewBox="0 0 16 16" fill="none">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <circle cx="2" cy="2" r="2" fill="#6C6E71"></circle>
                     <circle cx="2" cy="8" r="2" fill="#6C6E71"></circle>
                     <circle cx="2" cy="14" r="2" fill="#6C6E71"></circle>

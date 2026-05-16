@@ -18,7 +18,7 @@ class SidebarHelper {
         
         // SUPER_ADMIN gets all permissions
         if ($_SESSION['user']['role_code'] === 'SUPER_ADMIN') {
-            $sql = "SELECT * FROM permissions WHERE is_menu_item = 1 ORDER BY menu_order, permission_code";
+            $sql = "SELECT * FROM permissions WHERE is_menu_item = 1 ORDER BY module_name, menu_order, permission_code";
             return Database::fetchAll($sql);
         }
         
@@ -27,7 +27,7 @@ class SidebarHelper {
                 INNER JOIN role_permissions rp ON p.permission_id = rp.permission_id
                 WHERE rp.role_id = :role_id 
                 AND p.is_menu_item = 1
-                ORDER BY p.menu_order, p.permission_code";
+                ORDER BY p.module_name, p.menu_order, p.permission_code";
         
         return Database::fetchAll($sql, ['role_id' => $roleId]);
     }
@@ -56,7 +56,22 @@ class SidebarHelper {
         }
         
         // Third pass: resolve ID references to actual node arrays (recursive)
-        return self::resolveTree($rootIds, $map);
+        $tree = self::resolveTree($rootIds, $map);
+        
+        // Fourth pass: sort tree by module_name for proper grouping
+        usort($tree, function($a, $b) {
+            // First sort by module_name
+            $moduleCompare = strcmp($a['module_name'] ?? '', $b['module_name'] ?? '');
+            if ($moduleCompare !== 0) {
+                return $moduleCompare;
+            }
+            // Then sort by menu_order if modules are the same
+            $orderA = intval($a['menu_order'] ?? 0);
+            $orderB = intval($b['menu_order'] ?? 0);
+            return $orderA - $orderB;
+        });
+        
+        return $tree;
     }
 
     /**
@@ -238,10 +253,81 @@ class SidebarHelper {
     public static function renderTopNav() {
         $permissions = self::getUserPermissions($_SESSION['user']['user_id'] ?? null);
         $tree = self::buildPermissionTree($permissions);
-        $html = '';
+        
+        // Group items by module_name
+        $grouped = [];
         foreach ($tree as $item) {
-            $html .= self::renderTopNavItem($item);
+            $module = $item['module_name'] ?? 'OTHER';
+            if (!isset($grouped[$module])) {
+                $grouped[$module] = [];
+            }
+            $grouped[$module][] = $item;
         }
+        
+        $html = '';
+        
+        // Render DASHBOARD module items first (as single links)
+        if (isset($grouped['DASHBOARD'])) {
+            foreach ($grouped['DASHBOARD'] as $item) {
+                $html .= self::renderTopNavItem($item);
+            }
+            unset($grouped['DASHBOARD']);
+        }
+        
+        // Render other modules as dropdown menus
+        foreach ($grouped as $moduleName => $items) {
+            $html .= self::renderTopNavModuleDropdown($moduleName, $items);
+        }
+        
+        return $html;
+    }
+    
+    /**
+     * Render a module dropdown for top navigation
+     */
+    private static function renderTopNavModuleDropdown($moduleName, $items) {
+        $hasActiveChild = false;
+        foreach ($items as $item) {
+            if (self::isActiveOrHasActiveChild($item)) {
+                $hasActiveChild = true;
+                break;
+            }
+        }
+        
+        $html = '<li class="nav-item dropdown">';
+        $html .= '<a class="nav-link dropdown-toggle ' . ($hasActiveChild ? 'active' : '') . '" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' . htmlspecialchars($moduleName) . '</a>';
+        $html .= '<div class="dropdown-menu dropdown-caret dropdown-menu-card border-0 mt-0">';
+        $html .= '<div class="bg-white dark__bg-1000 rounded-3 py-2">';
+        
+        foreach ($items as $item) {
+            $html .= self::renderTopNavDropdownItem($item);
+        }
+        
+        $html .= '</div></div></li>';
+        
+        return $html;
+    }
+    
+    /**
+     * Render individual item inside a module dropdown
+     */
+    private static function renderTopNavDropdownItem($item) {
+        $hasChildren = !empty($item['children']);
+        $isActive = self::isActive($item);
+        $html = '';
+        
+        if ($hasChildren) {
+            // Parent item with children - render as header with sub-items
+            $html .= '<p class="dropdown-header fw-bold mb-0 pt-2">' . htmlspecialchars($item['permission_name']) . '</p>';
+            foreach ($item['children'] as $child) {
+                $html .= self::renderTopNavDropdownItem($child);
+            }
+        } else {
+            // Single item
+            $menuUrl = !empty($item['menu_url']) ? ltrim($item['menu_url'], '/') : '#';
+            $html .= '<a class="dropdown-item link-600 fw-medium ' . ($isActive ? 'active' : '') . '" href="' . BASE_URL . '/' . $menuUrl . '">' . htmlspecialchars($item['permission_name']) . '</a>';
+        }
+        
         return $html;
     }
 

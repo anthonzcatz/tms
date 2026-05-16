@@ -50,10 +50,13 @@ RewriteRule ^api/(.*)/?$ api/router.php [L]
 RewriteRule ^login$ auth/login.php [L]
 RewriteRule ^register$ auth/register.php [L]
 RewriteRule ^forgot-password$ auth/forgot-password.php [L]
+RewriteRule ^auth/forgot-password-handler$ auth/forgot-password-handler.php [L]
+RewriteRule ^forgot-password-handler$ auth/forgot-password-handler.php [L]
 RewriteRule ^reset-password$ auth/reset-password.php [L]
 RewriteRule ^confirm-mail$ auth/confirm-mail.php [L]
 RewriteRule ^lock-screen$ auth/lock-screen.php [L]
 RewriteRule ^logout$ auth/logout.php [L]
+RewriteRule ^gmail-callback$ auth/gmail-callback.php [L]
 
 # ---------------------------------------------------------
 # 5. ROOT REDIRECT - Send to login

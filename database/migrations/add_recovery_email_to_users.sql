@@ -1,0 +1,3 @@
+-- Migration: REMOVED - recovery_email field not needed
+-- Description: Single email field will be used for password reset and notifications
+-- This migration is no longer needed as we'll use the existing email field
