@@ -78,6 +78,7 @@ try {
 function handleGet() {
     $userId = $_GET['id'] ?? null;
     $roleId = $_GET['role_id'] ?? null;
+    $roleCode = $_GET['role'] ?? null; // Filter by role code (e.g., CASHIER, MANAGER)
     $status = $_GET['status'] ?? null;
     $branchId = $_GET['branch_id'] ?? null;
     $search = $_GET['search'] ?? '';
@@ -199,9 +200,14 @@ function handleGet() {
         $params['role_id'] = (int)$roleId;
     }
 
+    if ($roleCode) {
+        $sql .= " AND ur.role_code = :role_code";
+        $params['role_code'] = strtoupper($roleCode);
+    }
+
     if ($status !== null && $status !== '') {
         $sql .= " AND ua.status = :status";
-        $params['status'] = $status === '1' ? 'active' : 'inactive';
+        $params['status'] = $status === '1' || $status === 'active' ? 'active' : 'inactive';
     }
 
     if ($branchId) {

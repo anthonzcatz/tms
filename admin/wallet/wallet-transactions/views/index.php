@@ -206,7 +206,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </select>
                   </div>
                   <div class="col-md-2">
-                    <input type="date" class="form-control" id="dateFilter">
+                    <input type="text" class="form-control" id="dateFilter" placeholder="Date range...">
                   </div>
                   <div class="col-md-1">
                     <button type="button" class="btn btn-outline-secondary w-100" onclick="resetFilters()">

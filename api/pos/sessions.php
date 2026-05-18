@@ -30,7 +30,14 @@ switch ($method) {
 }
 
 function handleGet() {
+    global $user;
     $id = $_GET['id'] ?? null;
+    $status = $_GET['status'] ?? null;
+    $cashierId = $_GET['cashier_id'] ?? null;
+    
+    // Allow managers and super admins to view other cashiers' sessions
+    $isManager = ($user['role_code'] === 'SUPER_ADMIN' || $user['role_code'] === 'MANAGER');
+    
     if ($id) {
         $session = Database::fetch(
             "SELECT cs.*,
@@ -40,6 +47,7 @@ function handleGet() {
                     COALESCE(cs.total_e_wallet, 0) AS total_e_wallet,
                     COALESCE(cs.total_charge, 0) AS total_charge,
                     COALESCE(cs.total_other, 0) AS total_other,
+                    COALESCE(cs.total_refunds_wallet, 0) AS total_refunds,
                     (SELECT COUNT(*) FROM service_transactions WHERE session_id = cs.session_id) AS txn_count,
                     (cs.starting_cash + COALESCE(cs.total_cash, 0)) AS expected_cash
              FROM cashier_sessions cs
@@ -47,6 +55,12 @@ function handleGet() {
             ['id' => $id]
         );
         if (!$session) { echo json_encode(['success' => false, 'error' => 'Session not found']); return; }
+        
+        // Check permission - only owner, manager, or super admin can view
+        if ($session['cashier_user_id'] != $user['user_id'] && !$isManager) {
+            echo json_encode(['success' => false, 'error' => 'Not authorized to view this session']);
+            return;
+        }
 
         // Get payment breakdown from transaction_payments (same logic as shifts API)
         $paymentWhere = "AND tp.created_at >= :start";
@@ -93,22 +107,51 @@ function handleGet() {
         }
 
         // Recalculate expected cash based on payment method settings
-        $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments;
+        // Expected cash = starting cash + cash payments - refunds
+        $totalRefunds = floatval($session['total_refunds'] ?? 0);
+        $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments - $totalRefunds;
 
         echo json_encode(['success' => true, 'data' => ['session' => $session, 'payments' => $payments]]);
         return;
     }
-
-    // List sessions for current user (today)
-    global $user;
-    $sessions = Database::fetchAll(
-        "SELECT cs.*, bb.branch_name
-         FROM cashier_sessions cs
-         LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
-         WHERE cs.cashier_user_id = :uid AND DATE(cs.started_at) = CURDATE()
-         ORDER BY cs.started_at DESC",
-        ['uid' => $user['user_id']]
-    );
+    
+    // Build query for listing sessions
+    $sql = "SELECT cs.*, 
+                   bb.branch_name,
+                   COALESCE(cs.total_refunds_wallet, 0) AS total_refunds,
+                   CONCAT_WS(' ', e.first_name, e.last_name) AS cashier_name
+            FROM cashier_sessions cs
+            LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
+            LEFT JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
+            LEFT JOIN employees e ON ua.emp_id = e.emp_id
+            WHERE 1=1";
+    $params = [];
+    
+    // Filter by status if provided
+    if ($status) {
+        $sql .= " AND cs.status = :status";
+        $params['status'] = strtoupper($status);
+    }
+    
+    // Filter by cashier if provided (managers only)
+    if ($cashierId) {
+        if (!$isManager && $cashierId != $user['user_id']) {
+            echo json_encode(['success' => false, 'error' => 'Not authorized to view other cashier sessions']);
+            return;
+        }
+        $sql .= " AND cs.cashier_user_id = :cashier_id";
+        $params['cashier_id'] = (int)$cashierId;
+    } else {
+        // For non-managers, only show own sessions
+        if (!$isManager) {
+            $sql .= " AND cs.cashier_user_id = :uid";
+            $params['uid'] = $user['user_id'];
+        }
+    }
+    
+    $sql .= " ORDER BY cs.started_at DESC";
+    
+    $sessions = Database::fetchAll($sql, $params);
     echo json_encode(['success' => true, 'data' => $sessions]);
 }
 

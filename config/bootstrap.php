@@ -23,7 +23,17 @@ require_once TMS_ROOT . '/config/env.php';
 require_once TMS_ROOT . '/config/database.php';
 require_once TMS_ROOT . '/config/config.php';
 
-date_default_timezone_set(env('APP_TIMEZONE', 'Asia/Manila'));
+// Set timezone from system_settings database or fallback to env variable
+$timezone = env('APP_TIMEZONE', 'Asia/Manila');
+try {
+    $systemTimezone = Database::fetch("SELECT system_timezone FROM system_settings LIMIT 1");
+    if ($systemTimezone && !empty($systemTimezone['system_timezone'])) {
+        $timezone = $systemTimezone['system_timezone'];
+    }
+} catch (Exception $e) {
+    // Fallback to env variable if database query fails
+}
+date_default_timezone_set($timezone);
 
 /* ------- Error handling ------- */
 if (env('APP_DEBUG', false) === true) {

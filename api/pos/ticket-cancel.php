@@ -43,13 +43,11 @@ $refundAmount = floatval($refundAmount);
 
 // Get system settings for cancellation
 $settings = Database::fetch(
-    "SELECT cancellation_requires_confirmation, cancellation_auto_approve, cancellation_refund_to_wallet, cancellation_refund_processing_days 
+    "SELECT cancellation_requires_confirmation, cancellation_refund_processing_days
      FROM system_settings WHERE setting_id = 1"
 );
 
 $requiresConfirmation = $settings['cancellation_requires_confirmation'] ?? 1;
-$autoApprove = $settings['cancellation_auto_approve'] ?? 0;
-$refundToWallet = $settings['cancellation_refund_to_wallet'] ?? 1;
 
 // Get ticket transaction by transaction code
 $ticketTxn = Database::fetch(
@@ -114,14 +112,14 @@ Database::connection()->beginTransaction();
 
 try {
     // If confirmation is required, create pending cancellation record
-    if ($requiresConfirmation && !$autoApprove) {
+    if ($requiresConfirmation) {
         // Create cancellation record with pending status
         $cancellationType = ($refundAmount < $totalAmount) ? 'partial' : 'full';
         
         Database::execute(
-            "INSERT INTO ticket_cancellations 
-                (transaction_id, transaction_code, passenger_id, reason, cancellation_type, refund_amount, status, requested_by, cashier_session_id, requested_at, wallet_impact_applied)
-             VALUES (:tid, :code, :pid, :reason, :ctype, :ramount, 'pending', :uid, :csid, NOW(), 0)",
+            "INSERT INTO ticket_cancellations
+                (transaction_id, transaction_code, passenger_id, reason, cancellation_type, refund_amount, status, requested_by, cashier_session_id, requested_at)
+             VALUES (:tid, :code, :pid, :reason, :ctype, :ramount, 'pending', :uid, :csid, NOW())",
             [
                 'tid' => $ticketTxnId,
                 'code' => $ticketTxn['transaction_code'],
@@ -133,13 +131,13 @@ try {
                 'csid' => $cashierSessionId
             ]
         );
-        
+
         $cancellationId = Database::lastInsertId();
-        
-        // Track refund in cashier session (deduct from cashier's cash)
+
+        // Track refund in cashier session (cash out from drawer - always to total_refunds_wallet)
         if ($cashierSessionId) {
             Database::execute(
-                "UPDATE cashier_sessions SET total_refunds = total_refunds + :ramount WHERE session_id = :csid",
+                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
                 ['ramount' => $refundAmount, 'csid' => $cashierSessionId]
             );
         }
@@ -172,9 +170,9 @@ try {
         $cancellationType = ($refundAmount < $totalAmount) ? 'partial' : 'full';
         
         Database::execute(
-            "INSERT INTO ticket_cancellations 
-                (transaction_id, transaction_code, passenger_id, reason, cancellation_type, refund_amount, status, requested_by, cashier_session_id, requested_at, approved_by, approved_at, wallet_impact_applied)
-             VALUES (:tid, :code, :pid, :reason, :ctype, :ramount, 'approved', :uid, :csid, NOW(), :uid, NOW(), 0)",
+            "INSERT INTO ticket_cancellations
+                (transaction_id, transaction_code, passenger_id, reason, cancellation_type, refund_amount, status, requested_by, cashier_session_id, requested_at, approved_by, approved_at)
+             VALUES (:tid, :code, :pid, :reason, :ctype, :ramount, 'approved', :uid, :csid, NOW(), :uid2, NOW())",
             [
                 'tid' => $ticketTxnId,
                 'code' => $ticketTxn['transaction_code'],
@@ -183,136 +181,56 @@ try {
                 'ctype' => $cancellationType,
                 'ramount' => $refundAmount,
                 'uid' => $user['user_id'],
+                'uid2' => $user['user_id'],
                 'csid' => $cashierSessionId
             ]
         );
-        
+
         $cancellationId = Database::lastInsertId();
-        
-        // Track refund in cashier session (deduct from cashier's cash)
+
+        // Track refund in cashier session (cash out from drawer)
         if ($cashierSessionId) {
             Database::execute(
-                "UPDATE cashier_sessions SET total_refunds = total_refunds + :ramount WHERE session_id = :csid",
+                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
                 ['ramount' => $refundAmount, 'csid' => $cashierSessionId]
             );
         }
-        
-        // Only refund to wallet balance if setting is enabled
-        if ($refundToWallet) {
-            $balanceBefore = $wallet['current_balance'];
-            $balanceAfter = $balanceBefore + $refundAmount;
-            
-            Database::execute(
-                "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wid",
-                ['new_balance' => $balanceAfter, 'wid' => $walletId]
-            );
-            
-            // Create refund wallet transaction record
-            $walletTxnCode = 'REF-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
-            Database::execute(
-                "INSERT INTO wallet_transactions
-                    (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
-                 VALUES (:wid, :code, 'REFUND', 'IN', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
-                [
-                    'wid' => $walletId,
-                    'code' => $walletTxnCode,
-                    'amount' => $refundAmount,
-                    'before' => $balanceBefore,
-                    'after' => $balanceAfter,
-                    'ref_id' => $ticketTxnId,
-                    'remarks' => "Ticket cancellation/return refund. Transaction: {$ticketTxn['transaction_code']}. Reason: " . ($reason ?: 'Not specified'),
-                    'uid' => $user['user_id']
-                ]
-            );
-            
-            // Track wallet refund in cashier session
-            if ($cashierSessionId) {
-                Database::execute(
-                    "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-                    ['ramount' => $refundAmount, 'csid' => $cashierSessionId]
-                );
-            }
-            
-            // Create refund record
-            Database::execute(
-                "INSERT INTO ticket_refunds 
-                    (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount, refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at, wallet_impact_applied)
-                 VALUES (:tid, :code, :cid, :pid, :ramount, 'wallet', 'completed', :uid, :csid, NOW(), :uid, NOW(), 1)",
-                [
-                    'tid' => $ticketTxnId,
-                    'code' => $ticketTxn['transaction_code'],
-                    'cid' => $cancellationId,
-                    'pid' => $ticketTxn['passenger_id'],
-                    'ramount' => $refundAmount,
-                    'uid' => $user['user_id'],
-                    'csid' => $cashierSessionId
-                ]
-            );
-            
-            // Update cancellation record to mark wallet impact as applied
-            Database::execute(
-                "UPDATE ticket_cancellations SET wallet_impact_applied = 1, processed_at = NOW() WHERE cancellation_id = :cid",
-                ['cid' => $cancellationId]
-            );
-            
-            logActivity($user['user_id'], 'TICKET_CANCEL', 'POS', $ticketTxn['transaction_code'], null,
-                ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId, 'refund_amount' => $refundAmount, 'wallet_txn_code' => $walletTxnCode, 'balance_before' => $balanceBefore, 'balance_after' => $balanceAfter]);
-            
-            Database::connection()->commit();
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Ticket cancelled successfully. Refund given from cashier cash and added to wallet.',
-                'transaction_id' => $ticketTxn['transaction_id'],
-                'transaction_code' => $ticketTxn['transaction_code'],
-                'refund_amount' => $refundAmount,
-                'wallet_txn_code' => $walletTxnCode,
-                'new_wallet_balance' => $balanceAfter,
-                'cancellation_id' => $cancellationId,
-                'status' => 'completed',
-                'requires_confirmation' => false,
-                'refund_source' => 'cashier_cash_and_wallet'
-            ]);
-        } else {
-            // Refund to wallet is disabled - only give cash refund
-            Database::execute(
-                "UPDATE ticket_cancellations SET wallet_impact_applied = 1, processed_at = NOW() WHERE cancellation_id = :cid",
-                ['cid' => $cancellationId]
-            );
-            
-            // Create refund record (cash only)
-            Database::execute(
-                "INSERT INTO ticket_refunds 
-                    (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount, refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at, wallet_impact_applied)
-                 VALUES (:tid, :code, :cid, :pid, :ramount, 'cash', 'completed', :uid, :csid, NOW(), :uid, NOW(), 0)",
-                [
-                    'tid' => $ticketTxnId,
-                    'code' => $ticketTxn['transaction_code'],
-                    'cid' => $cancellationId,
-                    'pid' => $ticketTxn['passenger_id'],
-                    'ramount' => $refundAmount,
-                    'uid' => $user['user_id'],
-                    'csid' => $cashierSessionId
-                ]
-            );
-            
-            logActivity($user['user_id'], 'TICKET_CANCEL', 'POS', $ticketTxn['transaction_code'], null,
-                ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId, 'refund_amount' => $refundAmount, 'wallet_impact' => 'skipped']);
-            
-            Database::connection()->commit();
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Ticket cancelled successfully. Refund given from cashier cash only.',
-                'transaction_id' => $ticketTxn['transaction_id'],
-                'transaction_code' => $ticketTxn['transaction_code'],
-                'refund_amount' => $refundAmount,
-                'cancellation_id' => $cancellationId,
-                'status' => 'completed',
-                'requires_confirmation' => false,
-                'refund_source' => 'cashier_cash_only'
-            ]);
-        }
+
+        // Create refund record - status based on refund_processing_days setting
+        $processingDays = $settings['cancellation_refund_processing_days'] ?? 0;
+        $refundStatus = ($processingDays > 0) ? 'processing' : 'completed';
+        Database::execute(
+            "INSERT INTO ticket_refunds
+                (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount, refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at)
+             VALUES (:tid, :code, :cid, :pid, :ramount, 'cash', :status, :uid, :csid, NOW(), :uid2, NOW())",
+            [
+                'tid' => $ticketTxnId,
+                'code' => $ticketTxn['transaction_code'],
+                'cid' => $cancellationId,
+                'pid' => $ticketTxn['passenger_id'],
+                'ramount' => $refundAmount,
+                'status' => $refundStatus,
+                'uid' => $user['user_id'],
+                'uid2' => $user['user_id'],
+                'csid' => $cashierSessionId
+            ]
+        );
+
+        logActivity($user['user_id'], 'TICKET_CANCEL', 'POS', $ticketTxn['transaction_code'], null,
+            ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId, 'refund_amount' => $refundAmount, 'refund_method' => 'cash']);
+
+        Database::connection()->commit();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Ticket cancelled successfully. Refund to be given from cashier cash.',
+            'transaction_id' => $ticketTxn['transaction_id'],
+            'transaction_code' => $ticketTxn['transaction_code'],
+            'refund_amount' => $refundAmount,
+            'cancellation_id' => $cancellationId,
+            'refund_status' => $refundStatus,
+            'requires_confirmation' => false
+        ]);
     }
 
 } catch (Exception $e) {

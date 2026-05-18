@@ -182,6 +182,9 @@ final class Auth
             if ($reason === 'session_expired') {
                 // Set session flag to show alert on login page
                 $_SESSION['session_expired'] = true;
+            } elseif ($reason === 'authentication_required') {
+                // Set session flag to show alert on login page
+                $_SESSION['authentication_required'] = true;
             }
             $url .= '?error=' . urlencode($reason);
         }

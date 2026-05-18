@@ -4,7 +4,6 @@
  * Handles the OAuth callback from Google and stores the refresh token
  */
 
-session_start();
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/database.php';
 

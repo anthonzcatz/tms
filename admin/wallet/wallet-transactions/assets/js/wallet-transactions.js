@@ -43,10 +43,29 @@ function setupEventListeners() {
     document.getElementById('transactionSearch').addEventListener('input', debounce(filterTransactions, 300));
     
     // Filters
-    document.getElementById('walletFilter').addEventListener('change', filterTransactions);
+    document.getElementById('walletFilter').addEventListener('change', function() {
+        filterTransactions();
+        updateCurrentBalance();
+    });
     document.getElementById('txnTypeFilter').addEventListener('change', filterTransactions);
     document.getElementById('directionFilter').addEventListener('change', filterTransactions);
-    document.getElementById('dateFilter').addEventListener('change', filterTransactions);
+
+    // Flatpickr date range filter — default to today
+    if (typeof flatpickr !== 'undefined') {
+        const today = new Date();
+        flatpickr('#dateFilter', {
+            mode: 'range',
+            dateFormat: 'Y-m-d',
+            defaultDate: [today, today],
+            onChange: function(selectedDates) {
+                filterTransactions();
+            }
+        });
+    } else {
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('dateFilter').value = todayStr;
+        document.getElementById('dateFilter').addEventListener('change', filterTransactions);
+    }
     
     // Amount input auto-formatting
     const amountInput = document.getElementById('addAmount');
@@ -116,7 +135,27 @@ function updateStats(stats) {
     document.getElementById('totalTransactions').textContent = stats.total || 0;
     document.getElementById('totalInflow').textContent = formatCurrency(stats.totalInflow || 0);
     document.getElementById('totalOutflow').textContent = formatCurrency(stats.totalOutflow || 0);
+    // netBalance here is sum of filtered transactions, NOT the real wallet balance
     document.getElementById('netBalance').textContent = formatCurrency(stats.netBalance || 0);
+}
+
+// Update Current Balance from actual provider_wallets
+async function updateCurrentBalance() {
+    const walletId = document.getElementById('walletFilter').value;
+    const el = document.getElementById('netBalance');
+    if (!walletId) {
+        el.textContent = '—';
+        return;
+    }
+    try {
+        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${walletId}`);
+        const result = await res.json();
+        if (result.success && result.data) {
+            el.textContent = formatCurrency(result.data.current_balance ?? result.data.wallet?.current_balance ?? 0);
+        }
+    } catch (e) {
+        console.error('Failed to fetch wallet balance:', e);
+    }
 }
 
 // Filter transactions
@@ -125,14 +164,19 @@ function filterTransactions() {
     const walletId = document.getElementById('walletFilter').value;
     const txnType = document.getElementById('txnTypeFilter').value;
     const direction = document.getElementById('directionFilter').value;
-    const dateFilter = document.getElementById('dateFilter').value;
+    const dateFilterEl = document.getElementById('dateFilter');
+    const dateFilterVal = dateFilterEl._flatpickr ? dateFilterEl._flatpickr.selectedDates : null;
     
     filteredTransactions = transactionsData.filter(txn => {
         // Search
         const matchesSearch = !search || 
             txn.txn_code?.toLowerCase().includes(search) ||
             txn.wallet_name?.toLowerCase().includes(search) ||
-            txn.remarks?.toLowerCase().includes(search);
+            txn.remarks?.toLowerCase().includes(search) ||
+            txn.ticket_txn_code?.toLowerCase().includes(search) ||
+            txn.passenger_name?.toLowerCase().includes(search) ||
+            txn.origin?.toLowerCase().includes(search) ||
+            txn.destination?.toLowerCase().includes(search);
         
         // Wallet filter
         const matchesWallet = !walletId || txn.wallet_id == walletId;
@@ -143,11 +187,21 @@ function filterTransactions() {
         // Direction filter
         const matchesDirection = !direction || txn.direction === direction;
         
-        // Date filter
+        // Date range filter (flatpickr range or plain date)
         let matchesDate = true;
-        if (dateFilter) {
+        if (dateFilterVal && dateFilterVal.length >= 1) {
+            const txnDate = new Date(txn.created_at);
+            txnDate.setHours(0,0,0,0);
+            const from = new Date(dateFilterVal[0]); from.setHours(0,0,0,0);
+            if (dateFilterVal.length >= 2) {
+                const to = new Date(dateFilterVal[1]); to.setHours(23,59,59,999);
+                matchesDate = txnDate >= from && txnDate <= to;
+            } else {
+                matchesDate = txnDate.getTime() === from.getTime();
+            }
+        } else if (!dateFilterVal && dateFilterEl.value) {
             const txnDate = new Date(txn.created_at).toISOString().split('T')[0];
-            matchesDate = txnDate === dateFilter;
+            matchesDate = txnDate === dateFilterEl.value;
         }
         
         return matchesSearch && matchesWallet && matchesTxnType && matchesDirection && matchesDate;
@@ -281,8 +335,10 @@ function resetFilters() {
     document.getElementById('walletFilter').value = '';
     document.getElementById('txnTypeFilter').value = '';
     document.getElementById('directionFilter').value = '';
-    document.getElementById('dateFilter').value = '';
-    
+    const dateEl = document.getElementById('dateFilter');
+    if (dateEl._flatpickr) dateEl._flatpickr.clear();
+    else dateEl.value = '';
+    document.getElementById('netBalance').textContent = '—';
     filterTransactions();
 }
 
@@ -358,33 +414,77 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
 // View transaction details
 async function viewTransaction(txnId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/wallet-transactions/${txnId}`);
+        const response = await fetch(`${window.BASE_URL}/api/wallet-transactions?id=${txnId}`);
         const result = await response.json();
         
         if (result.success) {
             const txn = result.data;
             const details = document.getElementById('transactionDetails');
             
+            // Build ticket details section if this txn references a ticket_transaction
+            const hasTicket = txn.reference_table === 'ticket_transactions' && txn.ticket_txn_code;
+            const ticketSection = hasTicket ? `
+                <hr class="my-3">
+                <h6 class="fw-bold text-primary mb-3"><span class="fas fa-ticket-alt me-2"></span>Linked Ticket Details</h6>
+                <div class="row g-2">
+                    <div class="col-md-6 mb-2">
+                        <label class="fw-bold text-muted small">Ticket Code</label>
+                        <div class="fw-semibold">${txn.ticket_txn_code}</div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label class="fw-bold text-muted small">Ticket Status</label>
+                        <div><span class="badge ${txn.ticket_status === 'cancelled' ? 'bg-danger' : txn.ticket_status === 'refunded' ? 'bg-warning' : 'bg-success'}">${txn.ticket_status || '-'}</span></div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label class="fw-bold text-muted small">Passenger</label>
+                        <div>${txn.passenger_name || '-'}</div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label class="fw-bold text-muted small">Travel Date</label>
+                        <div>${txn.travel_date ? new Date(txn.travel_date).toLocaleDateString('en-PH', {year:'numeric',month:'short',day:'numeric'}) : '-'}</div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label class="fw-bold text-muted small">Route</label>
+                        <div>${txn.origin && txn.destination ? txn.origin + ' → ' + txn.destination : '-'}</div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label class="fw-bold text-muted small">Original Amount</label>
+                        <div>${txn.ticket_total_amount ? formatCurrency(txn.ticket_total_amount) : '-'}</div>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="fw-bold text-muted small">Base Amount</label>
+                        <div>${txn.base_amount ? formatCurrency(txn.base_amount) : '-'}</div>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="fw-bold text-muted small">Service Fee</label>
+                        <div>${txn.service_fee ? formatCurrency(txn.service_fee) : '-'}</div>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="fw-bold text-muted small">Discount</label>
+                        <div>${txn.discount_amount ? formatCurrency(txn.discount_amount) : '-'}</div>
+                    </div>
+                </div>` : '';
+
             details.innerHTML = `
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="fw-bold text-muted small">Transaction Code</label>
-                        <div class="fs-5">${txn.txn_code || '-'}</div>
+                        <div class="fs-6 fw-semibold">${txn.txn_code || '-'}</div>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Transaction Type</label>
+                        <label class="fw-bold text-muted small">Type / Direction</label>
                         <div>
                             <span class="badge bg-primary">${txn.txn_type}</span>
-                            <span class="badge ${txn.direction === 'IN' ? 'bg-success' : 'bg-danger'}">${txn.direction}</span>
+                            <span class="badge ${txn.direction === 'IN' ? 'bg-success' : 'bg-danger'}">${txn.direction === 'IN' ? '↓ IN' : '↑ OUT'}</span>
                         </div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="fw-bold text-muted small">Wallet</label>
-                        <div class="fs-5">${txn.wallet_name || '-'}</div>
-                        <small class="text-muted">${txn.provider_name || ''} - ${txn.branch_name || ''}</small>
+                        <div class="fw-semibold">${txn.wallet_name || '-'}</div>
+                        <small class="text-muted">${txn.provider_name || ''} · ${txn.branch_name || ''}</small>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Amount</label>
+                        <label class="fw-bold text-muted small">Refund Amount</label>
                         <div class="fs-5 fw-bold ${txn.direction === 'IN' ? 'text-success' : 'text-danger'}">
                             ${txn.direction === 'IN' ? '+' : '-'}${formatCurrency(txn.amount)}
                         </div>
@@ -395,27 +495,22 @@ async function viewTransaction(txnId) {
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="fw-bold text-muted small">Balance After</label>
-                        <div class="fw-bold">${formatCurrency(txn.balance_after)}</div>
+                        <div class="fw-bold text-success">${formatCurrency(txn.balance_after)}</div>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Created By</label>
-                        <div>
-                            <span class="fas fa-user me-2"></span>
-                            ${txn.created_by_full_name || txn.created_by_username || 'System'}
-                        </div>
+                        <label class="fw-bold text-muted small">Processed By</label>
+                        <div><span class="fas fa-user me-1"></span>${txn.created_by_full_name || txn.created_by_username || 'System'}</div>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Created At</label>
-                        <div>
-                            <span class="fas fa-clock me-2"></span>
-                            ${formatDateTime(txn.created_at)}
-                        </div>
+                        <label class="fw-bold text-muted small">Date / Time</label>
+                        <div><span class="fas fa-clock me-1"></span>${formatDateTime(txn.created_at)}</div>
                     </div>
-                    <div class="col-12 mb-3">
+                    <div class="col-12 mb-2">
                         <label class="fw-bold text-muted small">Remarks</label>
-                        <div class="p-2 bg-light rounded">${txn.remarks || '-'}</div>
+                        <div class="p-2 bg-light rounded small">${txn.remarks || '-'}</div>
                     </div>
                 </div>
+                ${ticketSection}
             `;
             
             viewTransactionModal.show();

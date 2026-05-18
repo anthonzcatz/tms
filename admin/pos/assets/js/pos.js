@@ -11,7 +11,7 @@ let cart = [];            // Array of cart items
 let paymentLines = [];    // Array of payment method entries
 let activeServiceType = null;
 let activePaymentMethod = null;
-let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal;
+let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal, cancelTicketModal;
 let selectedCustomerId = null;
 let transactionType = localStorage.getItem('posTransactionType') || 'ticket'; // 'ticket' or 'service'
 let ticketInCart = null; // Store the ticket object if in cart
@@ -57,6 +57,12 @@ document.addEventListener('DOMContentLoaded', function() {
     paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
     itemEntryModal = new bootstrap.Modal(document.getElementById('itemEntryModal'));
     clearCartModal = new bootstrap.Modal(document.getElementById('clearCartModal'));
+    const cancelTicketModalElement = document.getElementById('cancelTicketModal');
+    if (cancelTicketModalElement) {
+        cancelTicketModal = new bootstrap.Modal(cancelTicketModalElement);
+    } else {
+        console.error('cancelTicketModal element not found');
+    }
 
     // Toggle order summary collapse icon
     const orderSummaryCollapse = document.getElementById('paymentCartItemsCollapse');
@@ -236,8 +242,10 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             if (window.POS_HAS_SESSION) {
                 document.querySelector('.service-type-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } else {
+            } else if (window.POS_CAN_OPEN) {
                 openSessionModal.show();
+            } else {
+                showToast('warning', 'Not Allowed', 'You cannot open a session. Please contact your manager.');
             }
         }
 
@@ -544,9 +552,9 @@ function viewPassenger(passengerId, event) {
         });
 }
 
-function populateViewPassengerForm(passenger) {
+async function populateViewPassengerForm(passenger) {
     console.log('Populating passenger form with data:', passenger);
-    
+
     document.getElementById('viewPassengerId').value = passenger.passenger_id;
     document.getElementById('viewPassengerFullname').value = passenger.fullname || '';
     document.getElementById('viewPassengerMobile').value = passenger.mobile_number || '';
@@ -555,38 +563,12 @@ function populateViewPassengerForm(passenger) {
     document.getElementById('viewPassengerBirthDate').value = passenger.birth_date || '';
     document.getElementById('viewPassengerStreetAddress').value = passenger.street_address || '';
     document.getElementById('viewPassengerNotes').value = passenger.notes || '';
-    
-    // Set address field values directly
-    document.getElementById('viewPassengerRegion').value = passenger.region_code || '';
-    document.getElementById('viewPassengerProvince').value = passenger.province_code || '';
-    document.getElementById('viewPassengerCity').value = passenger.city_municipality_code || '';
-    document.getElementById('viewPassengerBarangay').value = passenger.barangay_code || '';
-    
-    console.log('Address values set:', {
-        region: passenger.region_code,
-        province: passenger.province_code,
-        city: passenger.city_municipality_code,
-        barangay: passenger.barangay_code
-    });
-    
-    // Load dropdowns in background after setting values
-    if (passenger.region_code) {
-        loadViewProvinces();
-    }
-    if (passenger.province_code) {
-        loadViewCities();
-    }
-    if (passenger.city_municipality_code) {
-        loadViewBarangays();
-    }
-    
-    console.log('Address fields populated');
-    
+
     // Display timestamps
     document.getElementById('viewPassengerCreatedAt').textContent = passenger.created_at ? formatDate(passenger.created_at) : '-';
     document.getElementById('viewPassengerUpdatedAt').textContent = passenger.updated_at ? formatDate(passenger.updated_at) : '-';
     document.getElementById('viewPassengerCreatedBy').textContent = passenger.created_by_name || '-';
-    
+
     // Calculate and display customer duration
     if (passenger.created_at) {
         const createdDate = new Date(passenger.created_at);
@@ -595,7 +577,7 @@ function populateViewPassengerForm(passenger) {
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         const diffMonths = Math.floor(diffDays / 30);
         const diffYears = Math.floor(diffDays / 365);
-        
+
         let duration = '';
         if (diffYears > 0) {
             duration = `${diffYears} year${diffYears > 1 ? 's' : ''}`;
@@ -610,7 +592,7 @@ function populateViewPassengerForm(passenger) {
     } else {
         document.getElementById('viewPassengerCreatedSince').textContent = '-';
     }
-    
+
     // Calculate and display age
     if (passenger.birth_date) {
         const birthDate = new Date(passenger.birth_date);
@@ -624,21 +606,60 @@ function populateViewPassengerForm(passenger) {
     } else {
         document.getElementById('viewPassengerAge').textContent = '-';
     }
-    
-    // Load address dropdowns
-    if (passenger.region_code) {
-        loadViewProvinces();
-        if (passenger.province_code) {
-            loadViewCities();
-            if (passenger.city_municipality_code) {
-                loadViewBarangays();
+
+    // Load address dropdowns sequentially - must await each before setting next value
+    try {
+        // 1. Load regions and set value
+        await populateViewRegionSelect();
+        if (passenger.region_code) {
+            document.getElementById('viewPassengerRegion').value = passenger.region_code;
+
+            // 2. Load provinces for selected region, then set value
+            await loadViewProvinces();
+            if (passenger.province_code) {
+                document.getElementById('viewPassengerProvince').value = passenger.province_code;
+
+                // 3. Load cities for selected province, then set value
+                await loadViewCities();
+                if (passenger.city_municipality_code) {
+                    document.getElementById('viewPassengerCity').value = passenger.city_municipality_code;
+
+                    // 4. Load barangays for selected city, then set value
+                    await loadViewBarangays();
+                    if (passenger.barangay_code) {
+                        document.getElementById('viewPassengerBarangay').value = passenger.barangay_code;
+                    }
+                }
             }
         }
+    } catch (err) {
+        console.error('Error loading address dropdowns:', err);
     }
-    
+
     // Reset to step 1
     viewPassengerStep = 1;
     updateViewPassengerWizardUI();
+}
+
+function populateViewRegionSelect() {
+    const select = document.getElementById('viewPassengerRegion');
+    select.innerHTML = '<option value="">Select Region</option>';
+
+    return fetch(`${window.BASE_URL}/api/psgc?action=regions`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data && data.data.regions) {
+                data.data.regions.forEach(r => {
+                    const option = document.createElement('option');
+                    option.value = r.region_code;
+                    option.textContent = r.region_name;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching regions:', error);
+        });
 }
 
 function formatDate(dateString) {
@@ -906,6 +927,8 @@ function loadDiscountTypes() {
                     option.dataset.discountAmount = 0; // Will be updated if discount has amount
                     select.appendChild(option);
                 });
+            } else if (data.error && data.error.includes('Permission denied')) {
+                showAlert('error', data.error);
             }
         })
         .catch(error => {
@@ -926,6 +949,8 @@ function loadAccommodationTypes() {
                     option.textContent = `${a.name} (${a.code})`;
                     select.appendChild(option);
                 });
+            } else if (data.error && data.error.includes('Permission denied')) {
+                showAlert('error', data.error);
             }
         })
         .catch(error => {
@@ -940,6 +965,9 @@ function loadProviderServiceFees() {
             if (data.success && data.data && data.data.fees) {
                 // Store service fees for later use
                 window.providerServiceFees = data.data.fees;
+            } else if (data.error && data.error.includes('Permission denied')) {
+                // Show permission error in UI
+                showAlert('error', data.error);
             }
             // Load all wallets (not filtered by service fee)
             loadWallets();
@@ -953,7 +981,7 @@ function loadProviderServiceFees() {
 function loadWallets(providerId = null, branchId = null) {
     const select = document.getElementById('ticketWallet');
     let url = `${window.BASE_URL}/api/wallets`;
-    
+
     // Add filter parameters if provided
     if (providerId || branchId) {
         const params = [];
@@ -961,7 +989,7 @@ function loadWallets(providerId = null, branchId = null) {
         if (branchId) params.push(`branch_id=${branchId}`);
         url += `?${params.join('&')}`;
     }
-    
+
     fetch(url)
         .then(response => response.json())
         .then(data => {
@@ -975,11 +1003,36 @@ function loadWallets(providerId = null, branchId = null) {
                     option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} - ₱${parseFloat(w.current_balance).toFixed(2)} (${w.status})`;
                     select.appendChild(option);
                 });
+            } else if (data.error && data.error.includes('Permission denied')) {
+                // Show permission error in UI
+                select.innerHTML = '<option value="">Wallet access restricted (Permission denied)</option>';
+                select.disabled = true;
+                showAlert('error', data.error);
             }
         })
         .catch(error => {
             console.error('Error loading wallets:', error);
+            select.innerHTML = '<option value="">Error loading wallets</option>';
+            select.disabled = true;
         });
+}
+
+function showAlert(type, message) {
+    // Create alert element
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : 'warning'} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(alertDiv);
+
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        alertDiv.classList.remove('show');
+        setTimeout(() => alertDiv.remove(), 150);
+    }, 5000);
 }
 
 function loadServiceFeeForWallet() {
@@ -1258,10 +1311,35 @@ async function submitOpenSession() {
 }
 
 async function openCloseSession() {
+    // Reset form
     document.getElementById('closingCash').value = '';
     document.getElementById('closingNotes').value = '';
     document.getElementById('varianceDisplay').textContent = '₱0.00';
     document.getElementById('varianceDisplay').className = 'fw-bold text-muted';
+
+    // Check permission and set view-only mode if needed
+    const canClose = window.POS_CAN_CLOSE;
+    const warningDiv = document.getElementById('closePermissionWarning');
+    const submitBtn = document.getElementById('closeModalSubmitBtn');
+    const disabledBtn = document.getElementById('closeModalDisabledBtn');
+    const closingCashInput = document.getElementById('closingCash');
+    const closingNotesInput = document.getElementById('closingNotes');
+
+    if (!canClose) {
+        // Show view-only mode
+        warningDiv.classList.remove('d-none');
+        submitBtn.classList.add('d-none');
+        disabledBtn.classList.remove('d-none');
+        closingCashInput.disabled = true;
+        closingNotesInput.disabled = true;
+    } else {
+        // Normal mode
+        warningDiv.classList.add('d-none');
+        submitBtn.classList.remove('d-none');
+        disabledBtn.classList.add('d-none');
+        closingCashInput.disabled = false;
+        closingNotesInput.disabled = false;
+    }
 
     // Fetch session summary
     try {
@@ -1293,8 +1371,8 @@ async function openCloseSession() {
                     <div class="fw-bold">${startedFmt}</div>
                   </div>
                   <div class="col-md-4">
-                    <div class="text-muted small mb-1">Opening Cash</div>
-                    <div class="fw-bold">₱${fmt(s.starting_cash)}</div>
+                    <div class="text-muted small mb-1">Cashier</div>
+                    <div class="fw-bold">${s.cashier_name || '—'}</div>
                   </div>
                   <div class="col-md-4">
                     <div class="text-muted small mb-1">Transactions</div>
@@ -1302,46 +1380,91 @@ async function openCloseSession() {
                   </div>
                 </div>`;
 
-            // Payment type breakdown (Order Summary UI pattern)
-            const paymentTypes = [
-                { label: 'Cash', value: s.total_cash, color: 'text-success' },
-                { label: 'Bank Transfer', value: s.total_bank_transfer, color: 'text-info' },
-                { label: 'E-Wallet', value: s.total_e_wallet, color: 'text-primary' },
-                { label: 'Charge', value: s.total_charge, color: 'text-warning' },
-                { label: 'Other', value: s.total_other, color: 'text-secondary' }
-            ];
-            const activePayments = paymentTypes.filter(p => parseFloat(p.value) > 0);
+            // Payment type breakdown with include_in_expected_cash indicator
+            const totalRefunds = parseFloat(s.total_refunds || 0);
+            const expectedCashFromAPI = parseFloat(s.expected_cash || 0);
 
-            if (activePayments.length > 0) {
+            if (payments.length > 0) {
                 let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
                 html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0">';
-                
-                activePayments.forEach((p, index) => {
-                    const isLast = index === activePayments.length - 1;
-                    const borderClass = !isLast ? 'border-bottom' : '';
-                    const ptClass = index === 0 ? 'pt-0' : '';
-                    const pbClass = isLast ? 'pb-0' : '';
-                    
+
+                // Opening cash row
+                html += `
+                  <tr class="border-bottom">
+                    <td class="ps-0 pt-0"><strong>Opening Cash</strong>
+                      <div class="text-400 fw-normal fs-11 text-secondary">STARTING BALANCE</div>
+                    </td>
+                    <td class="pe-0 text-end pt-0"><strong>₱${fmt(s.starting_cash)}</strong></td>
+                  </tr>`;
+
+                // Payment methods from API with include_in_expected_cash indicator
+                payments.forEach((p, index) => {
+                    const isLast = index === payments.length - 1;
+                    const borderClass = !isLast || totalRefunds > 0 ? 'border-bottom' : '';
+                    const inCashBadge = p.include_in_expected_cash
+                        ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
+                        : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
+
                     html += `
                       <tr class="${borderClass}">
-                        <th class="ps-0 ${ptClass} ${pbClass}">${p.label}
-                          <div class="text-400 fw-normal fs-11">${p.color.replace('text-', '').toUpperCase()}</div>
-                        </th>
-                        <th class="pe-0 text-end ${ptClass} ${pbClass}">₱${fmt(p.value)}</th>
+                        <td class="ps-0">${p.method_name}${inCashBadge}
+                          <div class="text-400 fw-normal fs-11 text-uppercase">${p.method_type}</div>
+                        </td>
+                        <td class="pe-0 text-end">₱${fmt(p.total_amount)}</td>
                       </tr>`;
                 });
-                
+
+                // Show refunds if any
+                if (totalRefunds > 0) {
+                    html += `
+                      <tr class="border-bottom">
+                        <td class="ps-0"><strong>Refunds (Cash Out)</strong>
+                          <div class="text-400 fw-normal fs-11 text-danger">CASH OUT</div>
+                        </td>
+                        <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
+                      </tr>`;
+                }
+
+                // Show expected cash calculation
+                const expectedCashCalc = payments
+                    .filter(p => p.include_in_expected_cash)
+                    .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
+                const netTotal = parseFloat(s.starting_cash || 0) + expectedCashCalc - totalRefunds;
+
                 html += `
-                      <tr>
-                        <th class="ps-0 pb-0">Total</th>
-                        <th class="pe-0 text-end pb-0 text-success">₱${fmt(s.total_sales)}</th>
-                      </tr>
-                    </table>
-                  </div>
+                  <tr class="table-light">
+                    <td class="ps-0 pb-0 pt-2"><strong>Expected Cash</strong>
+                      <div class="text-400 fw-normal fs-11 text-success">STARTING + IN CASH - REFUNDS</div>
+                    </td>
+                    <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(netTotal)}</strong></td>
+                  </tr>
+                </table>
+              </div>
+            </div>`;
+
+                // Add info note about expected cash calculation
+                html += `
+                <div class="alert alert-info fs-10 mb-4">
+                  <span class="fas fa-info-circle me-2"></span>
+                  <strong>How Expected Cash is calculated:</strong><br>
+                  <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)}) - Refunds (₱${fmt(totalRefunds)})</small>
                 </div>`;
+
+                // Add refund info note if there are refunds
+                if (totalRefunds > 0) {
+                    html += `
+                    <div class="alert alert-warning fs-10 mb-4">
+                      <span class="fas fa-exclamation-triangle me-2"></span>
+                      <strong>Note:</strong> Refunds of ₱${fmt(totalRefunds)} have been processed from your cash drawer.
+                    </div>`;
+                }
+
                 document.getElementById('paymentBreakdownSection').innerHTML = html;
             } else {
-                document.getElementById('paymentBreakdownSection').innerHTML = '';
+                document.getElementById('paymentBreakdownSection').innerHTML = `
+                    <div class="alert alert-info fs-10 mb-4">
+                        <span class="fas fa-info-circle me-2"></span>No payments recorded for this session.
+                    </div>`;
             }
         }
     } catch (e) {}
@@ -1383,6 +1506,12 @@ function computeVariance() {
 }
 
 async function submitCloseSession() {
+    // Double-check permission before submitting
+    if (!window.POS_CAN_CLOSE) {
+        showToast('warning', 'Not Allowed', 'You are not authorized to close this session. Please contact your manager.');
+        return;
+    }
+
     const closingCash = parseFloat(document.getElementById('closingCash').value.replace(/,/g, '')) || 0;
     const notes = document.getElementById('closingNotes').value.trim();
 
@@ -1994,7 +2123,11 @@ function computeTicketTotal() {
 function addTicketToCart() {
     if (!window.POS_HAS_SESSION) {
         showToast('warning', 'No Session', 'Please open a cashier session first.');
-        openSessionModal.show();
+        if (window.POS_CAN_OPEN) {
+            openSessionModal.show();
+        } else {
+            showToast('warning', 'Not Allowed', 'You cannot open a session. Please contact your manager.');
+        }
         return;
     }
 
@@ -2044,6 +2177,18 @@ function addTicketToCart() {
     document.getElementById('serviceAddonsSection').style.display = '';
     saveCartToStorage();
     renderCart();
+
+    // Clear ticket form after adding to cart
+    document.getElementById('ticketPassengerSearch').value = '';
+    document.getElementById('ticketPassenger').value = '';
+    document.getElementById('ticketTravelDate').value = '';
+    document.getElementById('ticketBaseAmount').value = '';
+    document.getElementById('ticketDiscount').value = '0';
+    document.getElementById('ticketServiceFee').value = '0';
+    document.getElementById('ticketServiceFeeDisplay').textContent = '-';
+    document.getElementById('ticketBaseAmountDisplay').textContent = '₱0.00';
+    document.getElementById('ticketTotalDisplay').textContent = '₱0.00';
+    window.currentServiceFee = null;
     // Ticket added - no toast to avoid distraction
 }
 
@@ -2077,7 +2222,11 @@ function selectServiceAddon(id, name, defaultAmount, allowCustom) {
 function selectServiceType(id, name, defaultAmount, allowCustom, requiresWallet) {
     if (!window.POS_HAS_SESSION) {
         showToast('warning', 'No Session', 'Please open a cashier session first.');
-        openSessionModal.show();
+        if (window.POS_CAN_OPEN) {
+            openSessionModal.show();
+        } else {
+            showToast('warning', 'Not Allowed', 'You cannot open a session. Please contact your manager.');
+        }
         return;
     }
 
@@ -2104,7 +2253,11 @@ function selectServiceType(id, name, defaultAmount, allowCustom, requiresWallet)
 function quickAddServiceToCart(id, name, defaultAmount, allowCustom, requiresWallet) {
     if (!window.POS_HAS_SESSION) {
         showToast('warning', 'No Session', 'Please open a cashier session first.');
-        openSessionModal.show();
+        if (window.POS_CAN_OPEN) {
+            openSessionModal.show();
+        } else {
+            showToast('warning', 'Not Allowed', 'You cannot open a session. Please contact your manager.');
+        }
         return;
     }
 
@@ -2607,6 +2760,10 @@ async function confirmOrder() {
             paymentModal.hide();
             itemEntryModal.hide();
             document.getElementById('serviceAddonsSection').style.display = 'none';
+            // Refresh wallet balances to reflect updated balance after payment
+            loadWallets();
+            // Refresh recent transactions list
+            loadRecentTransactions();
         } else {
             showToast('danger', 'Transaction Failed', result.error || 'Unknown error.');
         }
@@ -2711,8 +2868,12 @@ function loadRecentTransactions(page = 1) {
                 totalItems = pagination.total || 0;
                 totalPages = pagination.total_pages || 1;
                 currentPage = pagination.current_page || 1;
-                
+
                 renderTransactionsTable(allTransactions);
+                updatePaginationUI();
+            } else if (data.error && data.error.includes('Permission denied')) {
+                showAlert('error', data.error);
+                list.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">Permission denied. You do not have access to view transactions.</td></tr>';
                 updatePaginationUI();
             } else {
                 list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No transactions found.</td></tr>';
@@ -2727,37 +2888,61 @@ function loadRecentTransactions(page = 1) {
 
 function renderTransactionsTable(transactions) {
     const list = document.getElementById('recentTransactionsList');
-    
+
     if (transactions.length === 0) {
         list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No transactions found.</td></tr>';
         return;
     }
-    
+
     let html = '';
     transactions.forEach(txn => {
-        const statusBadge = txn.status === 'booked' || txn.status === 'completed' 
-            ? '<span class="badge bg-soft-success text-success">Active</span>'
-            : txn.status === 'cancelled' 
+        // Check for pending cancellation
+        const hasPendingCancellation = txn.pending_cancellation_id ? true : false;
+
+        let statusBadge = txn.status === 'booked'
+            ? '<span class="badge bg-soft-success text-success">Booked</span>'
+            : txn.status === 'completed'
+                ? '<span class="badge bg-soft-primary text-primary">Completed</span>'
+            : txn.status === 'cancelled'
                 ? '<span class="badge bg-soft-danger text-danger">Cancelled</span>'
+            : txn.status === 'refunded'
+                ? '<span class="badge bg-soft-warning text-warning">Refunded</span>'
                 : `<span class="badge bg-soft-secondary text-secondary">${txn.status}</span>`;
-        
+
         const typeIcon = txn.transaction_type === 'TICKET' ? 'fa-ticket-alt text-primary' : 'fa-concierge-bell text-success';
         const passengerName = txn.passenger_name ? txn.passenger_name.charAt(0).toUpperCase() + txn.passenger_name.slice(1).toLowerCase() : '-';
         const branchName = txn.branch_name ? `<span class="badge bg-soft-primary text-primary">${txn.branch_name}</span>` : '-';
-        const providerName = txn.provider_name ? (txn.provider_type ? 
-            `<div>${txn.provider_name}</div><div><span class="badge bg-soft-info text-info" style="font-size: 0.75em;">${txn.provider_type}</span></div>` : 
+        const providerName = txn.provider_name ? (txn.provider_type ?
+            `<div>${txn.provider_name}</div><div><span class="badge bg-soft-info text-info" style="font-size: 0.75em;">${txn.provider_type}</span></div>` :
             txn.provider_name) : '-';
         const travelDate = txn.travel_date ? new Date(txn.travel_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
         const originDest = (txn.origin && txn.destination) ? `${txn.origin} → ${txn.destination}` : '-';
-        const typeBadge = txn.transaction_type === 'TICKET' 
-            ? '<span class="badge bg-soft-primary text-primary">TICKET</span>' 
+        const typeBadge = txn.transaction_type === 'TICKET'
+            ? '<span class="badge bg-soft-primary text-primary">TICKET</span>'
             : '<span class="badge bg-soft-success text-success">SERVICE</span>';
-        
+
+        // Build cancel button - disable if pending cancellation exists
+        let cancelButton = '<span class="text-muted small">N/A</span>';
+        if (txn.transaction_type === 'TICKET' && (txn.status === 'booked' || txn.status === 'completed')) {
+            if (hasPendingCancellation) {
+                cancelButton = `<span class="badge bg-soft-warning text-warning small" title="Cancellation requested by ${txn.cancellation_requested_by || 'Unknown'}"><i class="fas fa-clock me-1"></i>Cancel Pending</span>`;
+            } else {
+                cancelButton = `<button class="btn btn-sm btn-outline-danger"
+                        data-txn-code="${txn.transaction_code}"
+                        data-base-amount="${txn.base_amount}"
+                        data-service-fee="${txn.service_fee}"
+                        data-txn-data="${encodeURIComponent(JSON.stringify(txn))}"
+                        onclick="openCancelTicketModalFromButton(this)">
+                    <span class="fas fa-times me-1"></span>Cancel
+                </button>`;
+            }
+        }
+
         html += `
             <tr>
                 <td>
                     <div><strong>${txn.transaction_code}</strong></div>
-                    <div>${typeBadge}</div>
+                    <div>${typeBadge} ${txn.cashier_name ? `<span class="text-muted small ms-1">by ${txn.cashier_name}</span>` : ''}</div>
                 </td>
                 <td class="small">${passengerName}</td>
                 <td class="small">${branchName}</td>
@@ -2770,13 +2955,7 @@ function renderTransactionsTable(transactions) {
                     <div>${new Date(txn.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
                     <div class="text-muted" style="font-size: 0.85em;">${new Date(txn.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
                 </td>
-                <td class="text-end">
-                    ${txn.transaction_type === 'TICKET' && (txn.status === 'booked' || txn.status === 'completed') ? 
-                        `<button class="btn btn-sm btn-outline-danger" onclick="openCancelTicketModal('${txn.transaction_code}', ${txn.base_amount}, ${txn.service_fee}, ${JSON.stringify(txn)})">
-                            <span class="fas fa-times me-1"></span>Cancel
-                        </button>` : 
-                        '<span class="text-muted small">N/A</span>'}
-                </td>
+                <td class="text-end">${cancelButton}</td>
             </tr>
         `;
     });
@@ -2890,17 +3069,122 @@ document.addEventListener('DOMContentLoaded', function() {
 // TICKET CANCELLATION
 // =============================================
 
-let cancelTicketModal;
+function displayCancellationPolicy() {
+    const settings = window.CANCELLATION_SETTINGS || {};
+    console.log('Cancellation settings:', settings);
 
-function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 0, txnData = null) {
-    cancelTicketModal = new bootstrap.Modal(document.getElementById('cancelTicketModal'));
+    const processingEl = document.getElementById('cancelPolicyProcessing');
+    const approvalEl = document.getElementById('cancelPolicyApproval');
+
+    if (processingEl) {
+        const days = settings.refund_processing_days !== undefined ? settings.refund_processing_days : 0;
+        if (days === 0) {
+            processingEl.textContent = 'Processing: Refund will be processed immediately';
+        } else {
+            processingEl.textContent = `Processing: Refund will be processed within ${days} day${days > 1 ? 's' : ''}`;
+        }
+    }
+
+    if (approvalEl) {
+        if (settings.requires_confirmation) {
+            approvalEl.textContent = 'Approval: Cancellation requires approval';
+            approvalEl.className = 'text-warning';
+        } else {
+            approvalEl.textContent = 'Approval: Cancellation is auto-approved';
+            approvalEl.className = 'text-success';
+        }
+    }
+}
+
+function openCancelTicketModalFromButton(button) {
+    const txnCode = button.dataset.txnCode;
+    const baseAmount = parseFloat(button.dataset.baseAmount);
+    const serviceFee = parseFloat(button.dataset.serviceFee);
+    const txnData = JSON.parse(decodeURIComponent(button.dataset.txnData));
+    openCancelTicketModal(txnCode, baseAmount, serviceFee, txnData);
+}
+
+async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 0, txnData = null) {
+    console.log('openCancelTicketModal called with:', { txnCode, baseAmount, serviceFee, txnData });
+    console.log('cancelTicketModal:', cancelTicketModal);
+
+    if (!cancelTicketModal) {
+        console.error('cancelTicketModal is not initialized');
+        const modalElement = document.getElementById('cancelTicketModal');
+        if (modalElement) {
+            cancelTicketModal = new bootstrap.Modal(modalElement);
+        } else {
+            console.error('cancelTicketModal element not found in DOM');
+            return;
+        }
+    }
+
+    // Display cancellation policy based on settings
+    displayCancellationPolicy();
+
+    // Reset pending cancellation UI
+    const pendingAlert = document.getElementById('pendingCancellationAlert');
+    const importantAlert = document.getElementById('cancelImportantAlert');
+    const confirmBtn = document.getElementById('confirmCancelBtn');
+    const inputs = document.querySelectorAll('#cancelTicketModal input, #cancelTicketModal textarea');
+
+    if (pendingAlert) { pendingAlert.style.display = 'none'; pendingAlert.classList.add('d-none'); }
+    if (importantAlert) { importantAlert.style.display = ''; importantAlert.classList.remove('d-none'); }
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.style.display = 'inline-block';
+    }
+    inputs.forEach(input => input.disabled = false);
+
+    // Check for pending cancellation if we have a transaction code
+    // Use a request token to discard stale async responses (race condition fix)
+    const checkToken = txnCode;
+    openCancelTicketModal._lastCheckToken = checkToken;
+
+    if (txnCode) {
+        try {
+            const response = await fetch(`${window.BASE_URL}/api/pos/check-cancellation-status?transaction_code=${encodeURIComponent(txnCode)}`);
+            const result = await response.json();
+
+            // Discard if a newer modal open superseded this request
+            if (openCancelTicketModal._lastCheckToken !== checkToken) return;
+
+            if (result.success && result.has_pending_cancellation && result.pending_cancellation) {
+                // Show pending cancellation alert
+                if (pendingAlert) {
+                    pendingAlert.style.display = '';
+                    pendingAlert.classList.remove('d-none');
+                    document.getElementById('pendingRequestedBy').textContent = result.pending_cancellation.requested_by_name || 'Unknown';
+                    const requestedDate = new Date(result.pending_cancellation.requested_at);
+                    document.getElementById('pendingRequestedAt').textContent = requestedDate.toLocaleString('en-PH', {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                    });
+                }
+
+                // Hide important alert
+                if (importantAlert) { importantAlert.style.display = 'none'; importantAlert.classList.add('d-none'); }
+
+                // Disable confirm button
+                if (confirmBtn) {
+                    confirmBtn.disabled = true;
+                    confirmBtn.style.display = 'none';
+                }
+
+                // Disable inputs
+                inputs.forEach(input => input.disabled = true);
+            }
+        } catch (e) {
+            console.error('Error checking cancellation status:', e);
+        }
+    }
+
     cancelTicketModal.show();
-    
+
     // Set values if provided
     document.getElementById('cancelTicketCode').value = txnCode;
     document.getElementById('cancelRefundAmount').value = baseAmount > 0 ? baseAmount : '';
     document.getElementById('cancelReason').value = '';
-    
+
     // Display service fee if provided
     const serviceFeeDisplay = document.getElementById('cancelServiceFeeDisplay');
     if (serviceFeeDisplay && serviceFee > 0) {
@@ -2914,7 +3198,19 @@ function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 0, txn
     const detailsDiv = document.getElementById('cancelTicketDetails');
     if (detailsDiv && txnData) {
         document.getElementById('cancelPassengerName').textContent = txnData.passenger_name || '-';
-        document.getElementById('cancelTravelDate').textContent = txnData.travel_date || '-';
+
+        // Format travel date properly
+        if (txnData.travel_date) {
+            const travelDate = new Date(txnData.travel_date);
+            document.getElementById('cancelTravelDate').textContent = travelDate.toLocaleDateString('en-PH', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } else {
+            document.getElementById('cancelTravelDate').textContent = '-';
+        }
+
         document.getElementById('cancelRoute').textContent = (txnData.origin && txnData.destination) ? `${txnData.origin} → ${txnData.destination}` : '-';
         document.getElementById('cancelProvider').textContent = txnData.provider_name || '-';
         document.getElementById('cancelBaseAmount').textContent = `₱${(parseFloat(txnData.base_amount) || 0).toFixed(2)}`;
@@ -2981,6 +3277,7 @@ function confirmCancelTicket() {
             showToast('success', 'Success', data.message);
             cancelTicketModal.hide();
             loadRecentTransactions(); // Refresh transactions list
+            loadWallets(); // Refresh wallet balances after cancellation refund
         } else {
             showToast('danger', 'Error', data.error || 'Cancellation failed.');
         }

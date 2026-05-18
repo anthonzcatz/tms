@@ -127,13 +127,20 @@ function handleGet() {
                            ' ',
                            COALESCE(e.last_name, 'Admin')
                        ) as created_by_full_name,
-                       ua.emp_id
+                       ua.emp_id,
+                       tt.transaction_code as ticket_txn_code,
+                       tt.origin, tt.destination, tt.travel_date,
+                       tt.base_amount, tt.service_fee, tt.discount_amount, tt.total_amount as ticket_total_amount,
+                       tt.status as ticket_status,
+                       pa.fullname as passenger_name
                 FROM wallet_transactions wt
                 LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
                 LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
                 LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
                 LEFT JOIN user_accounts ua ON wt.created_by = ua.user_id
                 LEFT JOIN employees e ON ua.emp_id = e.emp_id
+                LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
+                LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
                 WHERE wt.wallet_txn_id = :txn_id";
         
         $txn = Database::fetch($sql, ['txn_id' => (int)$txnId]);
@@ -184,7 +191,7 @@ function handleGet() {
 
     $whereClause = implode(' AND ', $where);
 
-    // Get transactions
+    // Get transactions (with ticket_transactions details when reference_table = 'ticket_transactions')
     $sql = "SELECT wt.*,
                    tp.provider_name,
                    bb.branch_name,
@@ -199,13 +206,20 @@ function handleGet() {
                        END,
                        ' ',
                        COALESCE(e.last_name, 'Admin')
-                   ) as created_by_full_name
+                   ) as created_by_full_name,
+                   tt.transaction_code as ticket_txn_code,
+                   tt.origin, tt.destination, tt.travel_date,
+                   tt.base_amount, tt.service_fee, tt.discount_amount, tt.total_amount as ticket_total_amount,
+                   tt.status as ticket_status,
+                   pa.fullname as passenger_name
             FROM wallet_transactions wt
             LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
             LEFT JOIN user_accounts ua ON wt.created_by = ua.user_id
             LEFT JOIN employees e ON ua.emp_id = e.emp_id
+            LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
+            LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
             WHERE $whereClause
             ORDER BY wt.created_at DESC
             LIMIT :limit OFFSET :offset";

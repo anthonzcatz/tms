@@ -195,6 +195,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                   <h6 class="mb-0 text-600">Cancellation</h6>
                 </a>
               </li>
+              <li class="nav-item text-nowrap" role="presentation">
+                <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="pos-tab" data-bs-toggle="tab" href="#pos" role="tab" aria-controls="pos" aria-selected="false">
+                  <span class="fas fa-cash-register icon text-600"></span>
+                  <h6 class="mb-0 text-600">POS Settings</h6>
+                </a>
+              </li>
             </ul>
           </div>
           <div class="card-body p-0">
@@ -351,32 +357,22 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                 <div class="card border-0">
                   <div class="card-body">
                     <h5 class="card-title mb-4"><span class="fas fa-ban me-2"></span>Cancellation Settings</h5>
+                    <div class="alert alert-info fs-10 mb-4">
+                      <span class="fas fa-info-circle me-2"></span>
+                      <strong>Refund Policy:</strong> Ticket cancellations will refund the amount from the cashier's cash drawer directly to the passenger.
+                    </div>
                     <div class="row g-3">
                       <div class="col-md-12">
                         <div class="form-check form-switch">
                           <input class="form-check-input" type="checkbox" name="cancellation_requires_confirmation" id="cancellationRequiresConfirmation" <?php echo ($settings['cancellation_requires_confirmation'] ?? 1) ? 'checked' : ''; ?>>
                           <label class="form-check-label fw-semibold" for="cancellationRequiresConfirmation">Require Confirmation for Cancellations</label>
                         </div>
-                        <small class="text-muted">When enabled, ticket cancellations require manager approval before processing.</small>
-                      </div>
-                      <div class="col-md-12">
-                        <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" name="cancellation_auto_approve" id="cancellationAutoApprove" <?php echo ($settings['cancellation_auto_approve'] ?? 0) ? 'checked' : ''; ?>>
-                          <label class="form-check-label fw-semibold" for="cancellationAutoApprove">Auto-Approve Cancellations</label>
-                        </div>
-                        <small class="text-muted">When enabled, cancellations are automatically approved without requiring confirmation.</small>
-                      </div>
-                      <div class="col-md-12">
-                        <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" name="cancellation_refund_to_wallet" id="cancellationRefundToWallet" <?php echo ($settings['cancellation_refund_to_wallet'] ?? 1) ? 'checked' : ''; ?>>
-                          <label class="form-check-label fw-semibold" for="cancellationRefundToWallet">Refund to Wallet Balance</label>
-                        </div>
-                        <small class="text-muted">When enabled, cancelled tickets are automatically refunded to wallet balance.</small>
+                        <small class="text-muted">When enabled, ticket cancellations require approval before processing. When disabled, cancellations are auto-approved.</small>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label fw-semibold">Refund Processing Days</label>
-                        <input type="number" class="form-control" name="cancellation_refund_processing_days" value="<?php echo intval($settings['cancellation_refund_processing_days'] ?? 3); ?>" min="1" max="30">
-                        <small class="text-muted">Number of days to process refunds.</small>
+                        <input type="number" class="form-control" name="cancellation_refund_processing_days" value="<?php echo intval($settings['cancellation_refund_processing_days'] ?? 0); ?>" max="30" step="1">
+                        <small class="text-muted">Number of days to process refunds. Set to 0 for immediate processing.</small>
                       </div>
                       <div class="col-md-12">
                         <div class="form-check form-switch">
@@ -384,6 +380,56 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                           <label class="form-check-label fw-semibold" for="cancellationAllowPartial">Allow Partial Cancellation</label>
                         </div>
                         <small class="text-muted">When enabled, partial ticket cancellations are allowed.</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- POS Settings Tab -->
+              <div class="tab-pane" id="pos" role="tabpanel" aria-labelledby="pos-tab">
+                <div class="card border-0">
+                  <div class="card-body">
+                    <h5 class="card-title mb-4"><span class="fas fa-cash-register me-2"></span>POS Settings</h5>
+                    <div class="alert alert-info fs-10 mb-4">
+                      <span class="fas fa-info-circle me-2"></span>
+                      <strong>Cashier Session Management:</strong> Control who can open and close cashier sessions.
+                    </div>
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">Cashier Permissions</h6>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="pos_cashier_can_open_session" id="posCashierCanOpen" <?php echo ($settings['pos_cashier_can_open_session'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="posCashierCanOpen">Cashier Can Open Own Session</label>
+                        </div>
+                        <small class="text-muted">When enabled, cashiers can open their own POS sessions. When disabled, only managers can open sessions for them.</small>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="pos_cashier_can_close_session" id="posCashierCanClose" <?php echo ($settings['pos_cashier_can_close_session'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="posCashierCanClose">Cashier Can Close Own Session</label>
+                        </div>
+                        <small class="text-muted">When enabled, cashiers can close their own sessions. When disabled, only managers can close sessions for them.</small>
+                      </div>
+                      <div class="col-md-12"><hr class="my-2"></div>
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">Manager Permissions</h6>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="pos_manager_can_open_for_cashier" id="posManagerCanOpen" <?php echo ($settings['pos_manager_can_open_for_cashier'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="posManagerCanOpen">Manager Can Open Session for Cashier</label>
+                        </div>
+                        <small class="text-muted">When enabled, managers can open POS sessions on behalf of cashiers.</small>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="pos_manager_can_close_for_cashier" id="posManagerCanClose" <?php echo ($settings['pos_manager_can_close_for_cashier'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="posManagerCanClose">Manager Can Close Session for Cashier</label>
+                        </div>
+                        <small class="text-muted">When enabled, managers can close POS sessions on behalf of cashiers.</small>
                       </div>
                     </div>
                   </div>

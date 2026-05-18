@@ -32,8 +32,10 @@ $userBranchId = $user['branch_id'] ?? null;
 
 $filterDate   = $_GET['date']   ?? date('Y-m-d');
 $filterBranch = $_GET['branch'] ?? '';
+$filterStatus = $_GET['status'] ?? '';
 
 $branchWhere = '';
+$statusWhere = '';
 $params = ['date_start' => $filterDate . ' 00:00:00', 'date_end' => $filterDate . ' 23:59:59'];
 
 if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
@@ -42,6 +44,11 @@ if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
 } elseif ($filterBranch) {
     $branchWhere = 'AND cs.branch_id = :branch_id';
     $params['branch_id'] = $filterBranch;
+}
+
+if ($filterStatus) {
+    $statusWhere = 'AND cs.status = :status';
+    $params['status'] = strtoupper($filterStatus);
 }
 
 // Fetch sessions for the day
@@ -58,6 +65,7 @@ $sessions = Database::fetchAll(
      LEFT JOIN employees e_rev ON ua_rev.emp_id = e_rev.emp_id
      WHERE cs.started_at BETWEEN :date_start AND :date_end
        {$branchWhere}
+       {$statusWhere}
      ORDER BY cs.started_at DESC",
     $params
 );
@@ -72,11 +80,31 @@ $summary = Database::fetch(
         SUM(total_cash) AS total_cash
      FROM cashier_sessions cs
      WHERE cs.started_at BETWEEN :date_start AND :date_end
-       {$branchWhere}",
+       {$branchWhere}
+       {$statusWhere}",
     $params
 );
 
-// All branches for filter dropdown
+// All branches for filter dropdown and manager session modal
 $branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE status='active' ORDER BY branch_name");
 
+// Fetch POS settings for manager permissions
+$posSettings = Database::fetch(
+    "SELECT pos_manager_can_open_for_cashier, pos_manager_can_close_for_cashier
+     FROM system_settings WHERE setting_id = 1"
+);
+
+// Pass data to view
+$viewData = [
+    'sessions' => $sessions,
+    'summary' => $summary,
+    'branches' => $branches,
+    'filterDate' => $filterDate,
+    'filterBranch' => $filterBranch,
+    'filterStatus' => $filterStatus,
+    'userRoleCode' => $userRoleCode,
+    'posSettings' => $posSettings
+];
+
+extract($viewData);
 include __DIR__ . '/views/index.php';

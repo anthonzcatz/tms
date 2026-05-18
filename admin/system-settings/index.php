@@ -65,15 +65,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'maintenance_end' => !empty($_POST['maintenance_end']) ? $_POST['maintenance_end'] : null,
             'allow_admin_during_maintenance' => isset($_POST['allow_admin_during_maintenance']) ? 1 : 0,
             'cancellation_requires_confirmation' => isset($_POST['cancellation_requires_confirmation']) ? 1 : 0,
-            'cancellation_auto_approve' => isset($_POST['cancellation_auto_approve']) ? 1 : 0,
-            'cancellation_refund_to_wallet' => isset($_POST['cancellation_refund_to_wallet']) ? 1 : 0,
-            'cancellation_refund_processing_days' => intval($_POST['cancellation_refund_processing_days'] ?? 3),
+            'cancellation_refund_processing_days' => isset($_POST['cancellation_refund_processing_days']) && $_POST['cancellation_refund_processing_days'] !== '' ? intval($_POST['cancellation_refund_processing_days']) : 0,
             'cancellation_allow_partial' => isset($_POST['cancellation_allow_partial']) ? 1 : 0,
+            'pos_cashier_can_open_session' => isset($_POST['pos_cashier_can_open_session']) ? 1 : 0,
+            'pos_cashier_can_close_session' => isset($_POST['pos_cashier_can_close_session']) ? 1 : 0,
+            'pos_manager_can_open_for_cashier' => isset($_POST['pos_manager_can_open_for_cashier']) ? 1 : 0,
+            'pos_manager_can_close_for_cashier' => isset($_POST['pos_manager_can_close_for_cashier']) ? 1 : 0,
             'updated_by' => $user['user_id']
         ];
         
         Database::execute(
-            "UPDATE system_settings SET 
+            "UPDATE system_settings SET
                 company_name = :company_name,
                 company_abbreviation = :company_abbreviation,
                 company_address = :company_address,
@@ -95,10 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 maintenance_end = :maintenance_end,
                 allow_admin_during_maintenance = :allow_admin_during_maintenance,
                 cancellation_requires_confirmation = :cancellation_requires_confirmation,
-                cancellation_auto_approve = :cancellation_auto_approve,
-                cancellation_refund_to_wallet = :cancellation_refund_to_wallet,
                 cancellation_refund_processing_days = :cancellation_refund_processing_days,
                 cancellation_allow_partial = :cancellation_allow_partial,
+                pos_cashier_can_open_session = :pos_cashier_can_open_session,
+                pos_cashier_can_close_session = :pos_cashier_can_close_session,
+                pos_manager_can_open_for_cashier = :pos_manager_can_open_for_cashier,
+                pos_manager_can_close_for_cashier = :pos_manager_can_close_for_cashier,
                 updated_by = :updated_by,
                 updated_at = NOW()
             WHERE setting_id = 1",

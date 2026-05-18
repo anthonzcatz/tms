@@ -56,24 +56,21 @@ if ($totalPaid < $orderTotal) {
     echo json_encode(['success' => false, 'error' => "Payment (₱{$totalPaid}) is less than total (₱{$orderTotal})."]); exit;
 }
 
-// Process transaction with retry for duplicate key errors
-$maxRetries = 50;
-$lastError = null;
+function generateServiceTxnCode($userId) {
+    $microtime = microtime(true);
+    $micro = sprintf('%03d', ($microtime - floor($microtime)) * 1000);
+    $userIdSuffix = sprintf('%03d', $userId % 1000);
+    $random = sprintf('%04d', mt_rand(0, 9999));
+    return 'SVC-' . date('Ymd-His') . '-' . $micro . '-' . $userIdSuffix . '-' . $random;
+}
 
-for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
-    try {
-        // Generate unique transaction code with date, time, microseconds, and random suffix
-        // Format: SVC-YYYYMMDD-HHMMSS-XXX-YY (26 chars total)
-        $microtime = microtime(true);
-        $micro = sprintf('%03d', ($microtime - floor($microtime)) * 1000);
-        $random = sprintf('%02d', mt_rand(0, 99));
-        $txnCode = 'SVC-' . date('Ymd-His') . '-' . $micro . '-' . $random;
-
+try {
         // Start database transaction
         Database::connection()->beginTransaction();
 
         // --- BEGIN: Process each item as a service_transaction ---
         $createdTxnIds = [];
+        $txnCode = null;
 
         foreach ($items as $item) {
             $serviceTypeId = $item['service_type_id'] ?? null;
@@ -84,13 +81,30 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $totalAmt   = floatval($item['total_amount'] ?? ($qty * $unitPrice));
             $description = $item['description'] ?? null;
 
+            // Generate a unique code per item, retry if duplicate
+            $itemCode = null;
+            for ($attempt = 0; $attempt < 10; $attempt++) {
+                $itemCode = generateServiceTxnCode($user['user_id']);
+                $existing = Database::fetch(
+                    "SELECT transaction_code FROM service_transactions WHERE transaction_code = :code",
+                    ['code' => $itemCode]
+                );
+                if (!$existing) break;
+                $itemCode = null;
+                usleep(1000); // wait 1ms before retry
+            }
+            if (!$itemCode) {
+                throw new Exception('Could not generate a unique transaction code after 10 attempts.');
+            }
+            if (!$txnCode) $txnCode = $itemCode; // use first item's code as the order reference
+
             Database::execute(
                 "INSERT INTO service_transactions
                     (transaction_code, branch_id, service_type_id, description, quantity, unit_price, total_amount,
                      status, cashier_session_id, created_by, created_at)
                  VALUES (:code, :branch, :stype, :desc, :qty, :price, :total, 'completed', :session, :uid, NOW())",
                 [
-                    'code'    => $txnCode,
+                    'code'    => $itemCode,
                     'branch'  => $branchId,
                     'stype'   => $serviceTypeId,
                     'desc'    => $description,
@@ -209,31 +223,15 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             'change'           => $totalPaid - $orderTotal,
         ]);
 
-        // Success - exit the retry loop
         exit;
 
-    } catch (Exception $e) {
-        // Rollback transaction on error
-        if (Database::connection()->inTransaction()) {
-            Database::connection()->rollBack();
-        }
-
-        // Log the full error for debugging
-        error_log('POS Transaction Error: ' . $e->getMessage());
-        error_log('SQL Query: ' . $e->getCode());
-
-        // Check if it's a duplicate key error
-        if (strpos($e->getMessage(), 'Duplicate entry') !== false && strpos($e->getMessage(), 'transaction_code') !== false) {
-            $lastError = $e->getMessage();
-            // Retry with a new code
-            continue;
-        }
-
-        // Other error - don't retry
-        echo json_encode(['success' => false, 'error' => 'Transaction failed: ' . $e->getMessage()]);
-        exit;
+} catch (Exception $e) {
+    // Rollback transaction on error
+    if (Database::connection()->inTransaction()) {
+        Database::connection()->rollBack();
     }
-}
 
-// Max retries exceeded
-echo json_encode(['success' => false, 'error' => 'Failed to process transaction after ' . $maxRetries . ' attempts due to duplicate transaction codes. Last error: ' . $lastError]);
+    error_log('POS Transaction Error: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Transaction failed: ' . $e->getMessage()]);
+    exit;
+}

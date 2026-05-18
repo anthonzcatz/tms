@@ -229,15 +229,15 @@ class EmailService {
      * 
      * @param string $to Recipient email
      * @param string $token Reset token
-     * @param string $username Username
+     * @param string $name Employee name (formatted as "First M. Last")
      * @return bool Success status
      */
-    public function sendPasswordResetEmail($to, $token, $username = '') {
-        $resetLink = BASE_URL . '/auth/reset-password?token=' . $token;
+    public function sendPasswordResetEmail($to, $token, $name = '') {
+        $resetLink = BASE_URL . '/reset-password?token=' . $token;
         
         $subject = 'Password Reset Request';
         
-        $body = $this->getPasswordResetTemplate($username, $resetLink);
+        $body = $this->getPasswordResetTemplate($name, $resetLink);
         
         return $this->send($to, $subject, $body);
     }
@@ -245,8 +245,9 @@ class EmailService {
     /**
      * Get password reset email template
      */
-    private function getPasswordResetTemplate($username, $resetLink) {
+    private function getPasswordResetTemplate($name, $resetLink) {
         $companyName = $this->settings['sender_name'] ?? 'Ticketing Services Inc.';
+        $companyAbbreviation = defined('COMPANY_ABBREVIATION') ? COMPANY_ABBREVIATION : 'TMS';
         
         return "
         <!DOCTYPE html>
@@ -254,36 +255,56 @@ class EmailService {
         <head>
             <meta charset='UTF-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>Password Reset</title>
+            <title>Password Reset Request</title>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .body { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-                .button:hover { background: #764ba2; }
-                .footer { text-align: center; margin-top: 20px; color: #777; font-size: 12px; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; padding: 20px; }
+                .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .header { background: #0d6efd; color: white; padding: 40px 30px; text-align: center; }
+                .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 10px; }
+                .header p { font-size: 14px; opacity: 0.9; }
+                .body { padding: 40px 30px; }
+                .body p { margin-bottom: 16px; font-size: 15px; color: #555; }
+                .body .highlight { color: #0d6efd; font-weight: 600; }
+                .button { display: inline-block; padding: 14px 32px; background: #0d6efd; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; margin: 24px 0; transition: all 0.3s ease; }
+                .button:hover { background: #0b5ed7; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(13, 110, 253, 0.4); }
+                .link-box { background: #f8f9fa; border-left: 4px solid #0d6efd; padding: 15px; margin: 20px 0; border-radius: 4px; }
+                .link-box p { margin: 0; font-size: 13px; color: #666; word-break: break-all; }
+                .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+                .warning p { margin: 0; font-size: 14px; color: #856404; }
+                .footer { background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e9ecef; }
+                .footer p { margin: 5px 0; font-size: 13px; color: #6c757d; }
+                .footer a { color: #0d6efd; text-decoration: none; }
+                .footer a:hover { text-decoration: underline; }
+                .logo { font-size: 24px; font-weight: 700; margin-bottom: 5px; }
             </style>
         </head>
         <body>
             <div class='container'>
                 <div class='header'>
+                    <div class='logo'>" . htmlspecialchars($companyAbbreviation) . "</div>
                     <h1>Password Reset Request</h1>
+                    <p>Secure Account Recovery</p>
                 </div>
                 <div class='body'>
-                    <p>Hello " . htmlspecialchars($username ?: 'User') . ",</p>
-                    <p>We received a request to reset your password for your " . htmlspecialchars($companyName) . " account.</p>
-                    <p>Click the button below to reset your password:</p>
+                    <p>Dear <span class='highlight'>" . htmlspecialchars($name ?: 'User') . "</span>,</p>
+                    <p>We received a request to reset your password for your <strong>" . htmlspecialchars($companyName) . "</strong> account.</p>
+                    <p>To proceed with resetting your password, please click the button below:</p>
                     <p style='text-align: center;'>
-                        <a href='" . htmlspecialchars($resetLink) . "' class='button'>Reset Password</a>
+                        <a href='" . htmlspecialchars($resetLink) . "' class='button' style='color: white !important; text-decoration: none;'>Reset Password</a>
                     </p>
-                    <p>Or copy and paste this link into your browser:</p>
-                    <p style='word-break: break-all; color: #666;'>" . htmlspecialchars($resetLink) . "</p>
-                    <p><strong>This link will expire in 1 hour.</strong></p>
-                    <p>If you did not request this password reset, please ignore this email.</p>
+                    <div class='link-box'>
+                        <p><strong>Alternative:</strong> Copy and paste this link into your browser:</p>
+                        <p>" . htmlspecialchars($resetLink) . "</p>
+                    </div>
+                    <div class='warning'>
+                        <p><strong>⚠️ Important:</strong> This link will expire in 1 hour for security reasons.</p>
+                    </div>
+                    <p>If you did not request this password reset, please ignore this email or contact support if you have concerns about your account security.</p>
                 </div>
                 <div class='footer'>
                     <p>&copy; " . date('Y') . " " . htmlspecialchars($companyName) . ". All rights reserved.</p>
+                    <p>This is an automated email. Please do not reply directly to this message.</p>
                 </div>
             </div>
         </body>

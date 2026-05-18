@@ -75,6 +75,25 @@ $passengers = Database::fetchAll(
      ORDER BY fullname ASC"
 );
 
+// Fetch cancellation settings
+$cancellationSettings = Database::fetch(
+    "SELECT cancellation_requires_confirmation,
+            cancellation_refund_processing_days,
+            cancellation_allow_partial
+     FROM system_settings
+     WHERE setting_id = 1"
+);
+
+// Fetch POS settings
+$posSettings = Database::fetch(
+    "SELECT pos_cashier_can_open_session,
+            pos_cashier_can_close_session,
+            pos_manager_can_open_for_cashier,
+            pos_manager_can_close_for_cashier
+     FROM system_settings
+     WHERE setting_id = 1"
+);
+
 // Pass user to view
 $viewData = [
     'userBranchId' => $userBranchId,
@@ -82,7 +101,10 @@ $viewData = [
     'serviceTypes' => $serviceTypes,
     'paymentMethods' => $paymentMethods,
     'bankAccounts' => $bankAccounts,
-    'passengers' => $passengers
+    'passengers' => $passengers,
+    'cancellationSettings' => $cancellationSettings,
+    'posSettings' => $posSettings,
+    'userRoleCode' => $userRoleCode
 ];
 
 extract($viewData);

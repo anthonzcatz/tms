@@ -14,6 +14,17 @@
         </div>
       </div>
       <div class="modal-body">
+        <!-- Permission Warning (shown when user cannot close) -->
+        <div id="closePermissionWarning" class="alert alert-warning d-none mb-4">
+          <div class="d-flex align-items-center">
+            <span class="fas fa-lock me-3 fs-4"></span>
+            <div>
+              <strong>View Only Mode</strong>
+              <div class="small">You are not authorized to close this session. Please contact your manager to close the session.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="row g-3 mb-4">
           <div class="col-12">
             <div class="card mb-4">
@@ -26,52 +37,60 @@
 
         <div class="row g-2 mb-4">
           <div class="col-6">
-            <div class="card h-100">
-              <div class="card-body py-2">
-                <div class="d-flex flex-row align-items-center">
-                  <div class="icon-circle icon-circle-primary me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-wallet text-primary"></span></div>
-                  <div>
-                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Opening Cash</div>
-                    <div class="fw-bold" style="font-size: 1rem;" id="openingCash">₱0.00</div>
+            <div class="card h-100 border-primary">
+              <div class="card-body py-3 px-3">
+                <div class="d-flex align-items-center h-100">
+                  <div class="icon-circle icon-circle-primary me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
+                    <span class="fas fa-wallet text-primary"></span>
+                  </div>
+                  <div class="flex-grow-1 min-width-0">
+                    <div class="text-muted small mb-0">Opening Cash</div>
+                    <div class="fw-bold text-primary fs-6" id="openingCash">₱0.00</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div class="col-6">
-            <div class="card h-100">
-              <div class="card-body py-2">
-                <div class="d-flex flex-row align-items-center">
-                  <div class="icon-circle icon-circle-success me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-chart-line text-success"></span></div>
-                  <div>
-                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Total Sales</div>
-                    <div class="fw-bold text-success" style="font-size: 1rem;" id="totalSales">₱0.00</div>
+            <div class="card h-100 border-success">
+              <div class="card-body py-3 px-3">
+                <div class="d-flex align-items-center h-100">
+                  <div class="icon-circle icon-circle-success me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
+                    <span class="fas fa-chart-line text-success"></span>
+                  </div>
+                  <div class="flex-grow-1 min-width-0">
+                    <div class="text-muted small mb-0">Total Sales</div>
+                    <div class="fw-bold text-success fs-6" id="totalSales">₱0.00</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div class="col-6">
-            <div class="card h-100">
-              <div class="card-body py-2">
-                <div class="d-flex flex-row align-items-center">
-                  <div class="icon-circle icon-circle-info me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-coins text-info"></span></div>
-                  <div>
-                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Expected Cash</div>
-                    <div class="fw-bold" style="font-size: 1rem;" id="expectedCash">₱0.00</div>
+            <div class="card h-100 border-info">
+              <div class="card-body py-3 px-3">
+                <div class="d-flex align-items-center h-100">
+                  <div class="icon-circle icon-circle-info me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
+                    <span class="fas fa-coins text-info"></span>
+                  </div>
+                  <div class="flex-grow-1 min-width-0">
+                    <div class="text-muted small mb-0">Expected Cash</div>
+                    <div class="fw-bold text-info fs-6" id="expectedCash">₱0.00</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div class="col-6">
-            <div class="card h-100">
-              <div class="card-body py-2">
-                <div class="d-flex flex-row align-items-center">
-                  <div class="icon-circle icon-circle-warning me-2" style="width: 36px; height: 36px; font-size: 1rem;"><span class="fas fa-balance-scale text-warning"></span></div>
-                  <div>
-                    <div class="text-muted small mb-0" style="font-size: 0.75rem;">Variance</div>
-                    <div class="fw-bold text-muted" style="font-size: 1rem;" id="varianceDisplay">₱0.00</div>
+            <div class="card h-100 border-warning">
+              <div class="card-body py-3 px-3">
+                <div class="d-flex align-items-center h-100">
+                  <div class="icon-circle icon-circle-warning me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
+                    <span class="fas fa-balance-scale text-warning"></span>
+                  </div>
+                  <div class="flex-grow-1 min-width-0">
+                    <div class="text-muted small mb-0">Variance</div>
+                    <div class="fw-bold text-warning fs-6" id="varianceDisplay">₱0.00</div>
                   </div>
                 </div>
               </div>
@@ -95,9 +114,12 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger" onclick="submitCloseSession()">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeModalCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-danger" id="closeModalSubmitBtn" onclick="submitCloseSession()">
           <span class="fas fa-stop-circle me-1"></span>Close Session
+        </button>
+        <button type="button" class="btn btn-outline-danger d-none" id="closeModalDisabledBtn" disabled>
+          <span class="fas fa-lock me-1"></span>Not Authorized
         </button>
       </div>
     </div>

@@ -47,6 +47,10 @@ if (!$type || $type === 'TICKET') {
         $params['branch_id'] = $branchId;
     }
 
+    // Filter to show only current user's transactions
+    $where[] = 'tt.created_by = :created_by';
+    $params['created_by'] = $user['user_id'];
+
     if ($search) {
         $where[] = '(tt.transaction_code LIKE :search OR pa.fullname LIKE :search)';
         $params['search'] = '%' . $search . '%';
@@ -70,7 +74,7 @@ if (!$type || $type === 'TICKET') {
 
     $whereClause = count($where) > 0 ? implode(' AND ', $where) : '1=1';
 
-    // Fetch recent ticket transactions
+    // Fetch recent ticket transactions with pending cancellation status
     $ticketTxns = Database::fetchAll(
         "SELECT 
             tt.transaction_id,
@@ -93,12 +97,23 @@ if (!$type || $type === 'TICKET') {
             b.branch_name,
             tp.provider_name,
             tp.provider_code,
-            tp.provider_type
+            tp.provider_type,
+            tc.cancellation_id as pending_cancellation_id,
+            tc.status as cancellation_status,
+            tc.refund_amount as cancellation_refund_amount,
+            tc.requested_at as cancellation_requested_at,
+            COALESCE(CONCAT(e.first_name, ' ', e.last_name), ua.username) as cancellation_requested_by,
+            COALESCE(CONCAT(ce.first_name, ' ', ce.last_name), cua.username) as cashier_name
          FROM ticket_transactions tt
          LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
          LEFT JOIN business_branches b ON tt.branch_id = b.branch_id
          LEFT JOIN provider_wallets pw ON tt.wallet_id = pw.wallet_id
          LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+         LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
+         LEFT JOIN user_accounts ua ON tc.requested_by = ua.user_id
+         LEFT JOIN employees e ON ua.emp_id = e.emp_id
+         LEFT JOIN user_accounts cua ON tt.created_by = cua.user_id
+         LEFT JOIN employees ce ON cua.emp_id = ce.emp_id
          WHERE $whereClause
          ORDER BY tt.created_at DESC
          LIMIT :limit OFFSET :offset",
@@ -117,6 +132,10 @@ if (!$type || $type === 'SERVICE') {
         $whereService[] = 'st.branch_id = :branch_id';
         $paramsService['branch_id'] = $branchId;
     }
+
+    // Filter to show only current user's transactions
+    $whereService[] = 'st.created_by = :created_by';
+    $paramsService['created_by'] = $user['user_id'];
 
     if ($search) {
         $whereService[] = '(st.transaction_code LIKE :search OR st.description LIKE :search)';
@@ -161,9 +180,12 @@ if (!$type || $type === 'SERVICE') {
             st.description as passenger_name,
             b.branch_name,
             st.service_type_id,
-            st.description
+            st.description,
+            COALESCE(CONCAT(e.first_name, ' ', e.last_name), ua.username) as cashier_name
          FROM service_transactions st
          LEFT JOIN business_branches b ON st.branch_id = b.branch_id
+         LEFT JOIN user_accounts ua ON st.created_by = ua.user_id
+         LEFT JOIN employees e ON ua.emp_id = e.emp_id
          WHERE $whereServiceClause
          ORDER BY st.created_at DESC
          LIMIT :limit OFFSET :offset",

@@ -19,9 +19,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Auto-hide alerts after 5 seconds
+    // Auto-hide success/error alerts after 5 seconds (but not permanent info notes)
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach(alert => {
+        // Skip auto-hide for permanent info notes
+        if (alert.classList.contains('alert-info')) {
+            return;
+        }
         setTimeout(() => {
             alert.classList.remove('show');
             setTimeout(() => {

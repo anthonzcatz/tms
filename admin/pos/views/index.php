@@ -2,6 +2,16 @@
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php
 require_once dirname(dirname(__DIR__)) . '/includes/head.php';
+
+// Calculate POS permissions once at the top using explicit integer values
+$isManagerOrAdmin = ($userRoleCode === 'SUPER_ADMIN' || $userRoleCode === 'MANAGER');
+$posCashierOpenRaw = intval($posSettings['pos_cashier_can_open_session'] ?? 1);
+$posCashierCloseRaw = intval($posSettings['pos_cashier_can_close_session'] ?? 1);
+$posManagerOpenRaw = intval($posSettings['pos_manager_can_open_for_cashier'] ?? 1);
+$posManagerCloseRaw = intval($posSettings['pos_manager_can_close_for_cashier'] ?? 1);
+
+$canOpenSession = $isManagerOrAdmin ? ($posManagerOpenRaw === 1) : ($posCashierOpenRaw === 1);
+$canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashierCloseRaw === 1);
 ?>
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/pos/assets/css/pos.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/pos.css'); ?>">
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/pos/assets/css/passenger-dropdown.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/passenger-dropdown.css'); ?>">
@@ -74,9 +84,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                       <div class="d-flex align-items-center px-3 py-2 rounded-2 bg-secondary bg-opacity-10 border border-secondary">
                         <span class="text-secondary fw-semibold">No Active Session</span>
                       </div>
+                      <?php if ($canOpenSession): ?>
                       <button class="btn btn-success btn-sm rounded-2" onclick="openSessionModal.show()">
                         <span class="fas fa-play-circle me-1"></span>Open
                       </button>
+                      <?php endif; ?>
                     <?php endif; ?>
                   </div>
                 </div>
@@ -91,9 +103,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           <span class="fas fa-exclamation-triangle me-3 fs-4"></span>
           <div>
             <strong>No Active Session.</strong> You must open a cashier session before processing transactions.
+            <?php if ($canOpenSession): ?>
             <button class="btn btn-sm btn-warning ms-3" onclick="openSessionModal.show()">
               <span class="fas fa-play-circle me-1"></span>Open Session Now
             </button>
+            <?php else: ?>
+            <span class="text-muted ms-3"><small><span class="fas fa-lock me-1"></span>Contact your manager to open a session.</small></span>
+            <?php endif; ?>
           </div>
         </div>
         <?php else: ?>
@@ -494,6 +510,26 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
     window.POS_USER_ID      = <?php echo isset($currentUser) && isset($currentUser['user_id']) ? (int)$currentUser['user_id'] : 'null'; ?>;
     window.POS_HAS_SESSION  = <?php echo $debugActive ? 'true' : 'false'; ?>;
     window.POS_SESSION_START = <?php echo !empty($activeSession) && isset($activeSession['started_at']) ? "'" . $activeSession['started_at'] . "'" : 'null'; ?>;
+
+    // Cancellation settings
+    window.CANCELLATION_SETTINGS = {
+        requires_confirmation: <?php echo ($cancellationSettings['cancellation_requires_confirmation'] ?? 1) ? 'true' : 'false'; ?>,
+        auto_approve: <?php echo ($cancellationSettings['cancellation_auto_approve'] ?? 0) ? 'true' : 'false'; ?>,
+        refund_to_wallet: <?php echo ($cancellationSettings['cancellation_refund_to_wallet'] ?? 1) ? 'true' : 'false'; ?>,
+        refund_processing_days: <?php echo intval($cancellationSettings['cancellation_refund_processing_days'] ?? 3); ?>,
+        allow_partial: <?php echo ($cancellationSettings['cancellation_allow_partial'] ?? 0) ? 'true' : 'false'; ?>
+    };
+
+    // POS Settings and user permissions
+    window.POS_SETTINGS = {
+        cashier_can_open: <?php echo $posCashierOpenRaw === 1 ? 'true' : 'false'; ?>,
+        cashier_can_close: <?php echo $posCashierCloseRaw === 1 ? 'true' : 'false'; ?>,
+        manager_can_open: <?php echo $posManagerOpenRaw === 1 ? 'true' : 'false'; ?>,
+        manager_can_close: <?php echo $posManagerCloseRaw === 1 ? 'true' : 'false'; ?>
+    };
+    window.POS_USER_ROLE = '<?php echo $userRoleCode; ?>';
+    window.POS_CAN_OPEN = (window.POS_USER_ROLE === 'SUPER_ADMIN' || window.POS_USER_ROLE === 'MANAGER') ? window.POS_SETTINGS.manager_can_open : window.POS_SETTINGS.cashier_can_open;
+    window.POS_CAN_CLOSE = (window.POS_USER_ROLE === 'SUPER_ADMIN' || window.POS_USER_ROLE === 'MANAGER') ? window.POS_SETTINGS.manager_can_close : window.POS_SETTINGS.cashier_can_close;
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js"></script>
 </body>

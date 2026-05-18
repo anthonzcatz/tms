@@ -21,9 +21,29 @@ $systemLogo = $systemSettings['system_logo'] ?? null;
 if ($systemLogo) {
     // Only allow relative URLs starting with / or absolute URLs with http/https
     $systemLogo = trim($systemLogo);
-    if (!preg_match('/^\/|https?:\/\//i', $systemLogo)) {
+    if (!preg_match('/^(\/|https?:\/\/)/i', $systemLogo)) {
         $systemLogo = null; // Invalid URL, use default
     }
+}
+
+// Determine page title based on current URL
+$currentPath = $_SERVER['REQUEST_URI'] ?? '';
+$pageTitle = 'Dashboard';
+
+if (preg_match('/\/login/i', $currentPath)) {
+    $pageTitle = 'Login';
+} elseif (preg_match('/\/register/i', $currentPath)) {
+    $pageTitle = 'Register';
+} elseif (preg_match('/\/forgot-password/i', $currentPath)) {
+    $pageTitle = 'Forgot Password';
+} elseif (preg_match('/\/reset-password/i', $currentPath)) {
+    $pageTitle = 'Reset Password';
+} elseif (preg_match('/\/confirm-mail/i', $currentPath)) {
+    $pageTitle = 'Email Confirmation';
+} elseif (preg_match('/\/lock-screen/i', $currentPath)) {
+    $pageTitle = 'Lock Screen';
+} elseif (preg_match('/\/admin\//i', $currentPath)) {
+    $pageTitle = 'Dashboard';
 }
 ?>
   <head>
@@ -35,16 +55,23 @@ if ($systemLogo) {
     <!-- ===============================================-->
     <!--    Document Title-->
     <!-- ===============================================-->
-    <title><?php echo $systemName ?? 'Falcon'; ?> | Dashboard &amp; Web App Template</title>
+    <title><?php echo $systemName ?? 'Falcon'; ?> | <?php echo htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
 
 
     <!-- ===============================================-->
     <!--    Favicons-->
     <!-- ===============================================-->
+    <?php if ($systemLogo): ?>
+    <link rel="apple-touch-icon" sizes="180x180" href="<?php echo BASE_URL . $systemLogo; ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo BASE_URL . $systemLogo; ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo BASE_URL . $systemLogo; ?>">
+    <link rel="shortcut icon" type="image/x-icon" href="<?php echo BASE_URL . $systemLogo; ?>">
+    <?php else: ?>
     <link rel="apple-touch-icon" sizes="180x180" href="<?php echo BASE_URL; ?>/resources/assets/img/favicons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="<?php echo BASE_URL; ?>/resources/assets/img/favicons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="<?php echo BASE_URL; ?>/resources/assets/img/favicons/favicon-16x16.png">
     <link rel="shortcut icon" type="image/x-icon" href="<?php echo BASE_URL; ?>/resources/assets/img/favicons/favicon.ico">
+    <?php endif; ?>
     <link rel="manifest" href="<?php echo BASE_URL; ?>/resources/assets/img/favicons/manifest.json">
     <meta name="msapplication-TileImage" content="<?php echo BASE_URL; ?>/resources/assets/img/favicons/mstile-150x32.png">
     <meta name="theme-color" content="#ffffff">

@@ -1,7 +1,26 @@
 <?php
 require_once __DIR__ . '/navbar-context.php';
 ?>
- <nav class="navbar navbar-light navbar-glass navbar-top navbar-expand">
+<?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
+<?php if (isset($_SESSION['success'])): ?>
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  <span class="fas fa-check-circle me-2"></span>
+  <?php echo htmlspecialchars($_SESSION['success']); ?>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+<?php unset($_SESSION['success']); ?>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['error'])): ?>
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  <span class="fas fa-exclamation-circle me-2"></span>
+  <?php echo htmlspecialchars($_SESSION['error']); ?>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+<?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+
+<nav class="navbar navbar-light navbar-glass navbar-top navbar-expand">
 
             <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVerticalCollapse" aria-controls="navbarVerticalCollapse" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
             <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">

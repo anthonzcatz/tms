@@ -54,6 +54,7 @@ class AuthController
         }
         if ($password === '') {
             $_SESSION['error'] = 'Password is required.';
+            $_SESSION['login_username'] = $username;
             $this->redirect(LOGIN_URL);
         }
 
@@ -62,17 +63,20 @@ class AuthController
         // Generic message — never reveal which field was wrong.
         if (!$user) {
             $_SESSION['error'] = 'Invalid username or password.';
+            $_SESSION['login_username'] = $username;
             $this->redirect(LOGIN_URL);
         }
 
         if (User::isLocked($user)) {
             $_SESSION['error'] = 'Your account is locked. Please try again later or contact an administrator.';
+            $_SESSION['login_username'] = $username;
             $this->redirect(LOGIN_URL);
         }
 
         if (!password_verify($password, $user['password_hash'] ?? '')) {
             User::recordFailedLogin((int) $user['user_id']);
             $_SESSION['error'] = 'Invalid username or password.';
+            $_SESSION['login_username'] = $username;
             $this->redirect(LOGIN_URL);
         }
 
@@ -179,11 +183,14 @@ class AuthController
             $this->fail(FORGOT_PASSWORD_URL, 'Invalid email address.', 'invalid_email');
         }
         
-        // Find user by email
+        // Find user by email with employee details
         $user = Database::fetch(
-            "SELECT user_id, username, email FROM user_accounts 
-             WHERE email = :email 
-             AND status = 'active' AND deleted_at IS NULL 
+            "SELECT ua.user_id, ua.username, ua.email, ua.emp_id,
+                    e.first_name, e.middle_name, e.last_name
+             FROM user_accounts ua
+             LEFT JOIN employees e ON ua.emp_id = e.emp_id
+             WHERE ua.email = :email 
+             AND ua.status = 'active' AND ua.deleted_at IS NULL 
              LIMIT 1",
             ['email' => $email]
         );
@@ -192,6 +199,14 @@ class AuthController
             $_SESSION['error'] = 'The email address you entered is not registered in our system.';
             header('Location: ' . BASE_URL . '/forgot-password');
             exit;
+        }
+        
+        // Format employee name
+        $employeeName = trim(($user['first_name'] ?? '') . ' ' . 
+                           ($user['middle_name'] ? substr($user['middle_name'], 0, 1) . '. ' : '') . 
+                           ($user['last_name'] ?? ''));
+        if (empty($employeeName)) {
+            $employeeName = $user['username'];
         }
         
         // Generate secure token
@@ -223,7 +238,7 @@ class AuthController
         // Send email using EmailService
         try {
             $emailService = new EmailService();
-            $emailService->sendPasswordResetEmail($email, $token, $user['username']);
+            $emailService->sendPasswordResetEmail($email, $token, $employeeName);
         } catch (Exception $e) {
             error_log("Failed to send password reset email: " . $e->getMessage());
             // Continue anyway - don't reveal error to user
@@ -275,6 +290,7 @@ class AuthController
 
     private function redirect(string $url): void
     {
+        session_write_close();
         header('Location: ' . $url);
         exit;
     }

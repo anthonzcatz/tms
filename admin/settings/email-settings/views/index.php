@@ -113,10 +113,20 @@
                     <label class="form-label">Email Method</label>
                     <div class="btn-group" role="group">
                       <input type="radio" class="btn-check" name="email_method" id="method-smtp" value="smtp" <?php echo ($emailSettings['email_method'] ?? 'smtp') === 'smtp' ? 'checked' : ''; ?>>
-                      <label class="btn btn-outline-primary" for="method-smtp">SMTP</label>
+                      <label class="btn btn-outline-primary" for="method-smtp">
+                        SMTP
+                        <?php if (($emailSettings['email_method'] ?? 'smtp') === 'smtp'): ?>
+                          <span class="badge bg-success ms-1">Active</span>
+                        <?php endif; ?>
+                      </label>
                       
                       <input type="radio" class="btn-check" name="email_method" id="method-gmail" value="gmail_api" <?php echo ($emailSettings['email_method'] ?? '') === 'gmail_api' ? 'checked' : ''; ?>>
-                      <label class="btn btn-outline-primary" for="method-gmail">Gmail API</label>
+                      <label class="btn btn-outline-primary" for="method-gmail">
+                        Gmail API
+                        <?php if (($emailSettings['email_method'] ?? '') === 'gmail_api'): ?>
+                          <span class="badge bg-success ms-1">Active</span>
+                        <?php endif; ?>
+                      </label>
                     </div>
                   </div>
 

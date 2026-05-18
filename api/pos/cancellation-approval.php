@@ -31,8 +31,9 @@ if ($method !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 
 $cancellationId = $input['cancellation_id'] ?? null;
-$action = $input['action'] ?? null; // 'approve' or 'reject'
+$action = $input['action'] ?? null;
 $rejectionReason = $input['rejection_reason'] ?? null;
+$remarks = trim($input['remarks'] ?? '');
 
 // Validate
 if (!$cancellationId) { echo json_encode(['success' => false, 'error' => 'Cancellation ID required.']); exit; }
@@ -76,9 +77,8 @@ if (!$wallet) {
 
 // Get system settings
 $settings = Database::fetch(
-    "SELECT cancellation_refund_to_wallet FROM system_settings WHERE setting_id = 1"
+    "SELECT cancellation_refund_processing_days FROM system_settings WHERE setting_id = 1"
 );
-$refundToWallet = $settings['cancellation_refund_to_wallet'] ?? 1;
 
 // Get active cashier session for this user
 $cashierSession = Database::fetch(
@@ -94,148 +94,116 @@ Database::connection()->beginTransaction();
 
 try {
     if ($action === 'approve') {
-        // Update cancellation status to approved
-        Database::execute(
-            "UPDATE ticket_cancellations SET status = 'approved', approved_by = :uid, approved_at = NOW() WHERE cancellation_id = :cid",
-            ['cid' => $cancellationId, 'uid' => $user['user_id']]
-        );
-        
+        // Update cancellation status to approved with remarks
+        $updateSql = "UPDATE ticket_cancellations SET status = 'approved', approved_by = :uid, approved_at = NOW()";
+        $updateParams = ['cid' => $cancellationId, 'uid' => $user['user_id']];
+        if ($remarks) {
+            $updateSql .= ", remarks = :remarks";
+            $updateParams['remarks'] = $remarks;
+        }
+        $updateSql .= " WHERE cancellation_id = :cid";
+        Database::execute($updateSql, $updateParams);
+
         // Update ticket transaction status to cancelled
         Database::execute(
             "UPDATE ticket_transactions SET status = 'cancelled' WHERE transaction_id = :tid",
             ['tid' => $ticketTxn['transaction_id']]
         );
-        
-        // Track refund in cashier session (deduct from cashier's cash)
+
+        // Restore wallet balance (provider gets their balance back on refund)
+        $refundAmount    = floatval($cancellation['refund_amount']);
+        $balanceBefore   = floatval($wallet['current_balance']);
+        $balanceAfter    = $balanceBefore + $refundAmount;
+
+        Database::execute(
+            "UPDATE provider_wallets SET current_balance = :new_balance WHERE wallet_id = :wid",
+            ['new_balance' => $balanceAfter, 'wid' => $wallet['wallet_id']]
+        );
+
+        // Record wallet transaction for the refund
+        // reference_table = 'ticket_transactions' so wallet-transactions view can JOIN and show full ticket details
+        $microtime = microtime(true);
+        $micro = sprintf('%03d', ($microtime - floor($microtime)) * 1000);
+        $wTxnCode = 'RF-' . date('Ymd-His') . '-' . $micro;
+        $wTxnRemarks = 'Refund: ' . $ticketTxn['transaction_code']
+            . ' | Cancellation #' . $cancellationId
+            . ($remarks ? ' | ' . $remarks : '');
+        Database::execute(
+            "INSERT INTO wallet_transactions
+                (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
+             VALUES (:wid, :code, 'REFUND', 'IN', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
+            [
+                'wid'     => $wallet['wallet_id'],
+                'code'    => $wTxnCode,
+                'amount'  => $refundAmount,
+                'before'  => $balanceBefore,
+                'after'   => $balanceAfter,
+                'ref_id'  => $ticketTxn['transaction_id'],
+                'remarks' => $wTxnRemarks,
+                'uid'     => $user['user_id'],
+            ]
+        );
+
+        // Track refund in cashier session (cash out from drawer)
         if ($cancellation['cashier_session_id']) {
             Database::execute(
-                "UPDATE cashier_sessions SET total_refunds = total_refunds + :ramount WHERE session_id = :csid",
-                ['ramount' => $cancellation['refund_amount'], 'csid' => $cancellation['cashier_session_id']]
+                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
+                ['ramount' => $refundAmount, 'csid' => $cancellation['cashier_session_id']]
             );
         }
-        
-        // Process refund to wallet if enabled
-        if ($refundToWallet) {
-            $balanceBefore = $wallet['current_balance'];
-            $balanceAfter = $balanceBefore + $cancellation['refund_amount'];
-            
-            Database::execute(
-                "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wid",
-                ['new_balance' => $balanceAfter, 'wid' => $wallet['wallet_id']]
-            );
-            
-            // Create refund wallet transaction record
-            $walletTxnCode = 'REF-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
-            Database::execute(
-                "INSERT INTO wallet_transactions
-                    (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
-                 VALUES (:wid, :code, 'REFUND', 'IN', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
-                [
-                    'wid' => $wallet['wallet_id'],
-                    'code' => $walletTxnCode,
-                    'amount' => $cancellation['refund_amount'],
-                    'before' => $balanceBefore,
-                    'after' => $balanceAfter,
-                    'ref_id' => $ticketTxn['transaction_id'],
-                    'remarks' => "Ticket cancellation refund approved. Transaction: {$ticketTxn['transaction_code']}. Reason: " . ($cancellation['reason'] ?: 'Not specified'),
-                    'uid' => $user['user_id']
-                ]
-            );
-            
-            // Track wallet refund in cashier session
-            if ($cancellation['cashier_session_id']) {
-                Database::execute(
-                    "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-                    ['ramount' => $cancellation['refund_amount'], 'csid' => $cancellation['cashier_session_id']]
-                );
-            }
-            
-            // Create refund record
-            Database::execute(
-                "INSERT INTO ticket_refunds 
-                    (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount, refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at, wallet_impact_applied)
-                 VALUES (:tid, :code, :cid, :pid, :ramount, 'wallet', 'completed', :ruid, :rcsid, :rtime, :puid, NOW(), 1)",
-                [
-                    'tid' => $ticketTxn['transaction_id'],
-                    'code' => $ticketTxn['transaction_code'],
-                    'cid' => $cancellationId,
-                    'pid' => $ticketTxn['passenger_id'],
-                    'ramount' => $cancellation['refund_amount'],
-                    'ruid' => $cancellation['requested_by'],
-                    'rcsid' => $cancellation['cashier_session_id'],
-                    'rtime' => $cancellation['requested_at'],
-                    'puid' => $user['user_id']
-                ]
-            );
-            
-            // Update cancellation record to mark wallet impact as applied
-            Database::execute(
-                "UPDATE ticket_cancellations SET wallet_impact_applied = 1, processed_at = NOW() WHERE cancellation_id = :cid",
-                ['cid' => $cancellationId]
-            );
-            
-            logActivity($user['user_id'], 'CANCELLATION_APPROVED', 'POS', $ticketTxn['transaction_code'], null,
-                ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxn['transaction_id'], 'refund_amount' => $cancellation['refund_amount'], 'wallet_txn_code' => $walletTxnCode, 'balance_before' => $balanceBefore, 'balance_after' => $balanceAfter]);
-            
-            Database::connection()->commit();
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Cancellation approved and refund processed successfully. Refund given from cashier cash and added to wallet.',
-                'cancellation_id' => $cancellationId,
-                'transaction_code' => $ticketTxn['transaction_code'],
-                'refund_amount' => $cancellation['refund_amount'],
-                'wallet_txn_code' => $walletTxnCode,
-                'new_wallet_balance' => $balanceAfter
-            ]);
-        } else {
-            // Refund to wallet is disabled - just mark as completed without wallet impact
-            Database::execute(
-                "UPDATE ticket_cancellations SET wallet_impact_applied = 1, processed_at = NOW() WHERE cancellation_id = :cid",
-                ['cid' => $cancellationId]
-            );
-            
-            // Create refund record (cash only)
-            Database::execute(
-                "INSERT INTO ticket_refunds 
-                    (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount, refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at, wallet_impact_applied)
-                 VALUES (:tid, :code, :cid, :pid, :ramount, 'cash', 'completed', :ruid, :rcsid, :rtime, :puid, NOW(), 0)",
-                [
-                    'tid' => $ticketTxn['transaction_id'],
-                    'code' => $ticketTxn['transaction_code'],
-                    'cid' => $cancellationId,
-                    'pid' => $ticketTxn['passenger_id'],
-                    'ramount' => $cancellation['refund_amount'],
-                    'ruid' => $cancellation['requested_by'],
-                    'rcsid' => $cancellation['cashier_session_id'],
-                    'rtime' => $cancellation['requested_at'],
-                    'puid' => $user['user_id']
-                ]
-            );
-            
-            logActivity($user['user_id'], 'CANCELLATION_APPROVED', 'POS', $ticketTxn['transaction_code'], null,
-                ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxn['transaction_id'], 'refund_amount' => $cancellation['refund_amount'], 'wallet_impact' => 'skipped']);
-            
-            Database::connection()->commit();
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Cancellation approved successfully. Refund given from cashier cash only.',
-                'cancellation_id' => $cancellationId,
-                'transaction_code' => $ticketTxn['transaction_code'],
-                'refund_amount' => $cancellation['refund_amount']
-            ]);
-        }
-    } else {
-        // Reject cancellation
+
+        // Create refund record - status based on refund_processing_days setting
+        $processingDays = $settings['cancellation_refund_processing_days'] ?? 0;
+        $refundStatus = ($processingDays > 0) ? 'processing' : 'completed';
         Database::execute(
-            "UPDATE ticket_cancellations SET status = 'rejected', approved_by = :uid, approved_at = NOW(), rejection_reason = :reason WHERE cancellation_id = :cid",
-            ['cid' => $cancellationId, 'uid' => $user['user_id'], 'reason' => $rejectionReason]
+            "INSERT INTO ticket_refunds
+                (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount, refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at)
+             VALUES (:tid, :code, :cid, :pid, :ramount, 'cash', :status, :ruid, :rcsid, :rtime, :puid, NOW())",
+            [
+                'tid'   => $ticketTxn['transaction_id'],
+                'code'  => $ticketTxn['transaction_code'],
+                'cid'   => $cancellationId,
+                'pid'   => $ticketTxn['passenger_id'],
+                'ramount' => $refundAmount,
+                'status'  => $refundStatus,
+                'ruid'    => $cancellation['requested_by'],
+                'rcsid'   => $cancellation['cashier_session_id'],
+                'rtime'   => $cancellation['requested_at'],
+                'puid'    => $user['user_id']
+            ]
         );
-        
-        logActivity($user['user_id'], 'CANCELLATION_REJECTED', 'POS', $ticketTxn['transaction_code'], null,
-            ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxn['transaction_id'], 'rejection_reason' => $rejectionReason]);
-        
+
+        logActivity($user['user_id'], 'CANCELLATION_APPROVED', 'POS', $ticketTxn['transaction_code'],
+            ['status' => 'pending'],
+            ['status' => 'approved', 'cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxn['transaction_id'],
+             'refund_amount' => $refundAmount, 'wallet_balance_before' => $balanceBefore, 'wallet_balance_after' => $balanceAfter,
+             'wallet_txn_code' => $wTxnCode, 'remarks' => $remarks]);
+
+        Database::connection()->commit();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Cancellation approved. Refund to be given from cashier cash.',
+            'cancellation_id' => $cancellationId,
+            'transaction_code' => $ticketTxn['transaction_code'],
+            'refund_amount' => $cancellation['refund_amount'],
+            'refund_status' => $refundStatus
+        ]);
+    } else {
+        // Reject cancellation with remarks
+        $updateSql = "UPDATE ticket_cancellations SET status = 'rejected', approved_by = :uid, approved_at = NOW(), rejection_reason = :reason";
+        $updateParams = ['cid' => $cancellationId, 'uid' => $user['user_id'], 'reason' => $rejectionReason];
+        if ($remarks) {
+            $updateSql .= ", remarks = :remarks";
+            $updateParams['remarks'] = $remarks;
+        }
+        $updateSql .= " WHERE cancellation_id = :cid";
+        Database::execute($updateSql, $updateParams);
+
+        logActivity($user['user_id'], 'CANCELLATION_REJECTED', 'POS', $ticketTxn['transaction_code'],
+            ['status' => 'pending'],
+            ['status' => 'rejected', 'cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxn['transaction_id'], 'rejection_reason' => $rejectionReason, 'remarks' => $remarks]);
+
         Database::connection()->commit();
         
         echo json_encode([

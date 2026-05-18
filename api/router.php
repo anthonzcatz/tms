@@ -58,7 +58,9 @@ if (file_exists($apiFile)) {
 }
 
 // Check if it's a single file API (e.g., users.php)
-$apiFile = __DIR__ . "/{$apiName}.php";
+// Remove .php extension if present to avoid double extension
+$apiNameClean = preg_replace('/\.php$/i', '', $apiName);
+$apiFile = __DIR__ . "/{$apiNameClean}.php";
 if (file_exists($apiFile)) {
     require $apiFile;
     exit;

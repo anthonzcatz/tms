@@ -133,7 +133,7 @@ class SidebarHelper {
             } else {
                 // Single item without children
                 $html .= '<li class="nav-item">';
-                $html .= '<a class="nav-link ' . ($isActive ? 'active' : '') . '" href="' . BASE_URL . '/' . ltrim($item['menu_url'], '/') . '" role="button">';
+                $html .= '<a class="nav-link ' . ($isActive ? 'active' : '') . '" href="' . BASE_URL . '/' . ltrim($item['menu_url'] ?? '', '/') . '" role="button">';
                 $html .= '<div class="d-flex align-items-center">';
                 $html .= '<span class="nav-link-icon"><span class="' . htmlspecialchars($item['menu_icon'] ?? 'fas fa-circle') . '"></span></span>';
                 $html .= '<span class="nav-link-text ps-1">' . htmlspecialchars($item['permission_name']) . '</span>';

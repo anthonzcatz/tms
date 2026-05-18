@@ -305,7 +305,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                           <?php endif; ?>
                           <?php if ($method['include_in_expected_cash']): ?>
                             <span class="badge bg-soft-success text-success" title="Included in expected cash calculation">
-                              <span class="fas fa-cash-register me-1"></span>Cash
+                              <span class="fas fa-cash-register me-1"></span>In Cash
+                            </span>
+                          <?php else: ?>
+                            <span class="badge bg-soft-secondary text-secondary" title="Not included in expected cash">
+                              <span class="fas fa-ban me-1"></span>Not Cash
                             </span>
                           <?php endif; ?>
                           <?php if (!$method['requires_confirmation'] && !$method['requires_customer'] && !$method['requires_reference'] && !$method['include_in_expected_cash']): ?>

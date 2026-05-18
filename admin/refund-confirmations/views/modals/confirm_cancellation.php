@@ -61,7 +61,39 @@
             <option value="reject">Reject - Deny cancellation</option>
           </select>
         </div>
-        
+
+        <!-- Action Info Alert -->
+        <div class="alert alert-info d-flex align-items-start mb-3" id="actionInfoAlert">
+          <span class="fas fa-info-circle me-2 mt-1"></span>
+          <div>
+            <strong>What happens on Approval:</strong>
+            <ul class="mb-0 mt-1 ps-3 small">
+              <li>Ticket status will change to <strong>Cancelled</strong></li>
+              <li>Refund amount <span id="modalRefundAmountInline" class="fw-bold text-success">₱0.00</span> will be <strong>restored to the provider wallet</strong></li>
+              <li>A wallet transaction record will be created for audit</li>
+              <li>Cashier session will track the refund</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="alert alert-warning d-flex align-items-start mb-3 d-none" id="rejectInfoAlert">
+          <span class="fas fa-exclamation-triangle me-2 mt-1"></span>
+          <div>
+            <strong>What happens on Rejection:</strong>
+            <ul class="mb-0 mt-1 ps-3 small">
+              <li>Cancellation request will be marked as <strong>Rejected</strong></li>
+              <li>Ticket remains <strong>Active</strong> — no changes to the ticket</li>
+              <li><strong>No refund</strong> will be processed</li>
+              <li>A rejection reason must be provided</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="mb-3" id="remarksDiv">
+          <label class="form-label fw-semibold" for="modalRemarks">Remarks (Optional)</label>
+          <textarea class="form-control" id="modalRemarks" rows="2" placeholder="Add any notes about this approval..."></textarea>
+        </div>
+
         <div class="mb-3" id="rejectionReasonDiv" style="display: none;">
           <label class="form-label fw-semibold" for="modalRejectionReason">Rejection Reason <span class="text-danger">*</span></label>
           <textarea class="form-control" id="modalRejectionReason" rows="3" placeholder="Enter reason for rejection"></textarea>

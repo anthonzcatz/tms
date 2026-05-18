@@ -3,6 +3,14 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../app/helpers/SecurityHelper.php';
 
 $csrf_token = SecurityHelper::generateCSRFToken();
+
+// Collect and clear session messages once
+$sessionError   = $_SESSION['error']   ?? null; unset($_SESSION['error']);
+$sessionSuccess = $_SESSION['success'] ?? null; unset($_SESSION['success']);
+
+// Preserve form input values on error
+$submittedUsername = $_SESSION['login_username'] ?? '';
+unset($_SESSION['login_username']);
 ?>
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
@@ -83,40 +91,39 @@ $csrf_token = SecurityHelper::generateCSRFToken();
                           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                       <?php endif; ?>
-                      
-                      <?php if (isset($_SESSION['error'])): ?>
+
+                      <?php if ($sessionError): ?>
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                           <span class="fas fa-exclamation-circle me-2"></span>
-                          <?php 
-                          echo htmlspecialchars($_SESSION['error']); 
-                          unset($_SESSION['error']);
-                          ?>
+                          <?php echo htmlspecialchars($sessionError); ?>
                           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                       <?php endif; ?>
-                      
-                      <?php if (isset($_SESSION['success'])): ?>
+
+                      <?php if ($sessionSuccess): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                           <span class="fas fa-check-circle me-2"></span>
-                          <?php 
-                          echo htmlspecialchars($_SESSION['success']); 
-                          unset($_SESSION['success']);
-                          ?>
+                          <?php echo htmlspecialchars($sessionSuccess); ?>
                           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                       <?php endif; ?>
-                      
+
                       <form method="POST" action="<?php echo BASE_URL; ?>/auth/login-handler.php" id="loginForm">
                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                         <div class="mb-3">
                           <label class="form-label" for="card-username">Username</label>
-                          <input class="form-control" id="card-username" name="username" type="text" required />
+                          <input class="form-control" id="card-username" name="username" type="text" required value="<?php echo htmlspecialchars($submittedUsername); ?>" />
                         </div>
                         <div class="mb-3">
                           <div class="d-flex justify-content-between">
                             <label class="form-label" for="card-password">Password</label>
                           </div>
-                          <input class="form-control" id="card-password" name="password" type="password" required />
+                          <div class="input-group">
+                            <input class="form-control" id="card-password" name="password" type="password" required />
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                              <i class="fas fa-eye" id="togglePasswordIcon"></i>
+                            </button>
+                          </div>
                         </div>
                         <div class="row flex-between-center">
                           <div class="col-auto">
@@ -128,7 +135,10 @@ $csrf_token = SecurityHelper::generateCSRFToken();
                           <div class="col-auto"><a class="fs-10" href="<?php echo FORGOT_PASSWORD_URL; ?>">Forgot Password?</a></div>
                         </div>
                         <div class="mb-3">
-                          <button class="btn btn-primary d-block w-100 mt-3" type="submit" name="submit">Log in</button>
+                          <button class="btn btn-primary d-block w-100 mt-3" type="submit" name="submit" id="submitBtn">
+                            <span id="btnText">Log in</span>
+                            <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+                          </button>
                         </div>
                       </form>
                       <div class="position-relative mt-4">
@@ -181,12 +191,89 @@ $csrf_token = SecurityHelper::generateCSRFToken();
             document.body.insertAdjacentHTML('beforeend', alertHtml);
             const modal = new bootstrap.Modal(document.getElementById('sessionExpiredModal'));
             modal.show();
-            
+
             // Clear the session flag
             <?php unset($_SESSION['session_expired']); ?>
         });
     </script>
     <?php endif; ?>
+
+    <?php if (isset($_SESSION['authentication_required']) && $_SESSION['authentication_required']): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show authentication required alert using Bootstrap modal
+            const alertHtml = `
+                <div class="modal fade" id="authRequiredModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-info bg-opacity-10">
+                                <h5 class="modal-title text-info">
+                                    <span class="fas fa-info-circle me-2"></span>Authentication Required
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <p>You need to log in to access this page. Please enter your credentials below.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                                    <span class="fas fa-check me-2"></span>OK
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            const modal = new bootstrap.Modal(document.getElementById('authRequiredModal'));
+            modal.show();
+
+            // Clear the session flag
+            <?php unset($_SESSION['authentication_required']); ?>
+        });
+    </script>
+    <?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('loginForm');
+    const passwordInput = document.getElementById('card-password');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    const togglePassword = document.getElementById('togglePassword');
+    const togglePasswordIcon = document.getElementById('togglePasswordIcon');
+
+    // Toggle password visibility
+    if (togglePassword) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            togglePasswordIcon.classList.toggle('fa-eye');
+            togglePasswordIcon.classList.toggle('fa-eye-slash');
+        });
+    }
+
+    // Form submission loading state
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // Validate inputs
+            const username = document.getElementById('card-username').value;
+            const password = passwordInput.value;
+            
+            if (!username || !password) {
+                e.preventDefault();
+                alert('Please enter both username and password.');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            btnText.textContent = 'Logging in...';
+            btnSpinner.classList.remove('d-none');
+        });
+    }
+});
+</script>
 
   </body>
 

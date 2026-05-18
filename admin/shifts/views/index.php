@@ -92,18 +92,18 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           </div>
         </div>
 
-        <!-- Date & Branch Filters -->
+        <!-- Filters (Real-time) -->
         <div class="card mb-3">
           <div class="card-body py-3">
-            <form method="GET" class="row g-3 align-items-center">
-              <div class="col-md-3">
+            <form method="GET" id="shiftsFilterForm" class="row g-3 align-items-end">
+              <div class="col-md-4">
                 <label class="form-label fw-semibold mb-1 small">Date</label>
-                <input type="date" class="form-control" name="date" value="<?php echo htmlspecialchars($filterDate); ?>">
+                <input type="date" class="form-control" name="date" value="<?php echo htmlspecialchars($filterDate); ?>" onchange="this.form.submit()">
               </div>
               <?php if ($userRoleCode === 'SUPER_ADMIN'): ?>
               <div class="col-md-3">
                 <label class="form-label fw-semibold mb-1 small">Branch</label>
-                <select class="form-select" name="branch">
+                <select class="form-select" name="branch" onchange="this.form.submit()">
                   <option value="">All Branches</option>
                   <?php foreach ($branches as $b): ?>
                     <option value="<?php echo $b['branch_id']; ?>" <?php echo $filterBranch == $b['branch_id'] ? 'selected' : ''; ?>>
@@ -113,19 +113,49 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                 </select>
               </div>
               <?php endif; ?>
-              <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">
-                  <span class="fas fa-search me-1"></span>View
-                </button>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold mb-1 small">Session Status</label>
+                <select class="form-select" name="status" onchange="this.form.submit()">
+                  <option value="">All Sessions</option>
+                  <option value="open" <?php echo $filterStatus === 'open' ? 'selected' : ''; ?>>Open Sessions</option>
+                  <option value="closed" <?php echo $filterStatus === 'closed' ? 'selected' : ''; ?>>Closed Sessions</option>
+                </select>
               </div>
-              <div class="col-md-2 d-flex align-items-end">
+              <div class="col-md-2">
                 <a href="<?php echo BASE_URL; ?>/admin/shifts" class="btn btn-outline-secondary w-100">
-                  <span class="fas fa-undo me-1"></span>Today
+                  <span class="fas fa-undo me-1"></span>Reset
                 </a>
               </div>
             </form>
           </div>
         </div>
+
+        <!-- Manager Session Control -->
+        <?php if ($userRoleCode === 'SUPER_ADMIN' || $userRoleCode === 'MANAGER'): ?>
+        <div class="card mb-3 border-primary">
+          <div class="card-header bg-soft-primary py-2">
+            <h6 class="mb-0 fw-bold text-primary"><span class="fas fa-user-cog me-2"></span>Manager Session Control</h6>
+          </div>
+          <div class="card-body py-3">
+            <div class="row g-3 align-items-center">
+              <div class="col-md-8">
+                <p class="mb-0 text-muted small">
+                  <span class="fas fa-info-circle me-1"></span>
+                  As a manager, you can open or close cashier sessions on behalf of cashiers.
+                </p>
+              </div>
+              <div class="col-md-4 d-flex gap-2 justify-content-md-end">
+                <button class="btn btn-success" onclick="openManagerSessionModal('open')">
+                  <span class="fas fa-play-circle me-1"></span>Open Session
+                </button>
+                <button class="btn btn-outline-danger" onclick="openManagerSessionModal('close')">
+                  <span class="fas fa-stop-circle me-1"></span>Close Session
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Sessions -->
         <?php if (empty($sessions)): ?>
@@ -253,6 +283,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
     <!-- Include Modals -->
     <?php include __DIR__ . '/modals/session_detail.php'; ?>
+    <?php if ($userRoleCode === 'SUPER_ADMIN' || $userRoleCode === 'MANAGER'): ?>
+    <?php include __DIR__ . '/modals/manager_session.php'; ?>
+    <?php endif; ?>
 
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>

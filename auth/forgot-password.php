@@ -58,11 +58,14 @@ $csrf_token = SecurityHelper::generateCSRFToken();
                       </div>
                       <div class="row justify-content-center">
                         <div class="col-sm-8 col-md">
-                          <form class="mb-3" method="POST" action="<?php echo BASE_URL; ?>/forgot-password-handler">
+                          <form class="mb-3" method="POST" action="<?php echo BASE_URL; ?>/forgot-password-handler" id="forgotPasswordForm">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                             <input class="form-control" type="email" name="email" placeholder="Email address" required />
                             <div class="mb-3"></div>
-                            <button class="btn btn-primary d-block w-100 mt-3" type="submit" name="submit">Send reset link</button>
+                            <button class="btn btn-primary d-block w-100 mt-3" type="submit" name="submit" id="submitBtn">
+                              <span id="btnText">Send reset link</span>
+                              <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+                            </button>
                           </form><a class="fs-10 text-600" href="<?php echo LOGIN_URL; ?>">I can't recover my account using this page</a>
                         </div>
                       </div>
@@ -80,6 +83,24 @@ $csrf_token = SecurityHelper::generateCSRFToken();
     <!-- ===============================================-->
 
 <?php include __DIR__ . '/auth-scripts.php'; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('forgotPasswordForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // Show loading state
+            submitBtn.disabled = true;
+            btnText.textContent = 'Sending...';
+            btnSpinner.classList.remove('d-none');
+        });
+    }
+});
+</script>
 
   </body>
 
