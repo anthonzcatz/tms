@@ -100,12 +100,13 @@ async function viewHistory(passengerId, name) {
             html = '<div class="list-unstyled mb-0">';
             entries.forEach(e => {
                 if (e._type === 'charge') {
+                    const itemLabel = e.item_label || e.service_type_name || (e.source_type === 'TICKET_TRANSACTION' ? 'Ticket' : 'Service');
                     html += `<div class="history-entry charge mb-2">
                         <div class="d-flex justify-content-between">
-                          <strong class="text-danger"><span class="fas fa-minus-circle me-1"></span>CHARGE</strong>
+                          <strong class="text-danger"><span class="fas fa-minus-circle me-1"></span>${e.method_name || 'CHARGE'}</strong>
                           <strong class="text-danger">+₱${fmt(e.amount)}</strong>
                         </div>
-                        <div class="text-muted small">${e.service_type_name ?? 'Service'} • ${e.txn_code ?? ''}</div>
+                        <div class="text-muted small">${itemLabel} • ${e.txn_code ?? ''}</div>
                         <div class="text-muted" style="font-size:.75rem;">${new Date(e._date).toLocaleString()}</div>
                     </div>`;
                 } else {

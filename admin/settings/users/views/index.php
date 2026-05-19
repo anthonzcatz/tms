@@ -2,6 +2,7 @@
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php include dirname(dirname(dirname(__DIR__))) . '/includes/head.php'; ?>
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/settings/users/assets/css/users.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/users.css'); ?>">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/resources/vendors/choices/choices.min.css">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
@@ -247,6 +248,7 @@
     ?>';
     window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
   </script>
+  <script src="<?php echo BASE_URL; ?>/resources/vendors/choices/choices.min.js"></script>
   <script src="<?php echo BASE_URL; ?>/admin/settings/users/assets/js/users.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/users.js'); ?>"></script>
 
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>

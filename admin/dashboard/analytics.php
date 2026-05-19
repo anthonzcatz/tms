@@ -123,49 +123,37 @@ require_once __DIR__ . '/../_guard.php';
             </div>
             <div class="col-md-6 col-xxl-4">
               <div class="card h-100 bg-line-chart-gradient">
-                <div class="card-header bg-transparent" data-bs-theme="light">
-                  <h5 class="text-white">Users online right now</h5>
-                  <div class="real-time-user display-1 fw-normal text-white" data-countup='{"endValue":119}'>0</div>
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-start" data-bs-theme="light">
+                  <div>
+                    <h5 class="text-white mb-2">Live Sales</h5>
+                    <div class="display-1 fw-normal text-white" id="liveSalesTotal">₱0.00</div>
+                  </div>
+                  <select class="form-select form-select-sm" id="liveSalesFilter" style="width: auto; background-color: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white;">
+                    <option value="1" style="background-color: #212529; color: white;">Last Hour</option>
+                    <option value="6" style="background-color: #212529; color: white;">Last 6 Hours</option>
+                    <option value="24" style="background-color: #212529; color: white;">Last 24 Hours</option>
+                    <option value="today" style="background-color: #212529; color: white;">Today</option>
+                  </select>
                 </div>
                 <div class="card-body text-white fs-10 pb-0" data-bs-theme="light">
-                  <p class="border-bottom pb-2" style="border-color: rgba(255, 255, 255, 0.15) !important">Page views / second</p>
-                  <!-- Find the JS file for the following chart at: src/js/charts/echarts/real-time-users.js-->
-                  <!-- If you are not using gulp based workflow, you can find the transpiled code at: public/assets/js/theme.js-->
-                  <div class="echart-real-time-users" style="height:150px" data-echart-responsive="true"></div>
+                  <p class="border-bottom pb-2" style="border-color: rgba(255, 255, 255, 0.15) !important">Transactions: <span id="liveTransactionCount">0</span></p>
+                  <div id="liveSalesChart" style="height:150px"></div>
                   <div class="list-group-flush mt-4">
                     <div class="rounded-2" style="border:1px solid rgba(255, 255, 255, 0.15)">
                       <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1 fw-semi-bold border-top-0" style="border-bottom:1px solid rgba(255, 255, 255, 0.15)">
-                        <p class="mb-0">Most Active Pages</p>
-                        <p class="mb-0">User Count</p>
+                        <p class="mb-0">Recent Transactions</p>
+                        <p class="mb-0">Amount</p>
                       </div>
-                      <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                        <p class="mb-0">/bootstrap-themes/</p>
-                        <p class="mb-0">3</p>
-                      </div>
-                      <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                        <p class="mb-0">/tags/html5/</p>
-                        <p class="mb-0">3</p>
-                      </div>
-                      <div class="px-3 bg-transparent text-white d-xxl-flex justify-content-between px-0 py-1 d-none" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                        <p class="mb-0">/</p>
-                        <p class="mb-0">2</p>
-                      </div>
-                      <div class="px-3 bg-transparent text-white d-xxl-flex justify-content-between px-0 py-1 d-none" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                        <p class="mb-0">/preview/falcon/dashboard/</p>
-                        <p class="mb-0">2</p>
-                      </div>
-                      <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                        <p class="mb-0">/100-best-themes...all-time/</p>
-                        <p class="mb-0">1</p>
-                      </div>
-                      <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                        <p class="mb-0">/product/falcon-admin-dashboard/</p>
-                        <p class="mb-0">1</p>
+                      <div id="liveTransactionsList" style="max-height: 200px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) rgba(255,255,255,0.1);">
+                        <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
+                          <p class="mb-0">Loading...</p>
+                          <p class="mb-0">-</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="card-footer text-end bg-transparent" data-bs-theme="light"><a class="text-white" href="#!">Real-time data<span class="fa fa-chevron-right ms-1 fs-10"></span></a></div>
+                <div class="card-footer text-end bg-transparent" data-bs-theme="light"><a class="text-white" href="/admin/pos/">View POS<span class="fa fa-chevron-right ms-1 fs-10"></span></a></div>
               </div>
             </div>
             <div class="col-md-6 col-xxl-4">
@@ -393,7 +381,7 @@ require_once __DIR__ . '/../_guard.php';
                           <h6 class="text-700">Completed Goals</h6>
                           <h3 class="fw-normal text-700">1727</h3>
                         </div>
-                        <div class="echart-goal-charts" data-echart-responsive="true" data-echarts='{"tooltip":{"show":false},"series":[{"type":"bar","data":[172,129,123,158,196,106,187,198,152,175,178,165,188,139,115,131,143,140,112,167,180,156,121,190,100],"symbol":"none","itemStyle":{"barBorderRadius":[5,5,0,0]}}],"grid":{"right":"16px","left":"0","bottom":"0","top":"0"}}'></div>
+                        <div id="goalChart1" style="height:50px"></div>
                       </div>
                     </div>
                     <div class="col-sm-4">
@@ -402,7 +390,7 @@ require_once __DIR__ . '/../_guard.php';
                           <h6 class="text-700">Value</h6>
                           <h3 class="fw-normal text-700">$34.2M</h3>
                         </div>
-                        <div class="echart-goal-charts" data-echart-responsive="true" data-echarts='{"tooltip":{"show":false},"series":[{"type":"bar","data":[170,156,171,193,108,178,163,175,117,123,174,199,122,111,113,140,192,167,186,172,131,187,135,115,118],"symbol":"none","itemStyle":{"barBorderRadius":[5,5,0,0]}}],"grid":{"right":"16px","left":"16px","bottom":"0","top":"0"}}'></div>
+                        <div id="goalChart2" style="height:50px"></div>
                       </div>
                     </div>
                     <div class="col-sm-4">
@@ -411,7 +399,7 @@ require_once __DIR__ . '/../_guard.php';
                           <h6 class="text-700">Conversion Rate</h6>
                           <h3 class="fw-normal text-700">19.67%</h3>
                         </div>
-                        <div class="echart-goal-charts" data-echart-responsive="true" data-echarts='{"tooltip":{"show":false},"series":[{"type":"bar","data":[199,181,155,164,108,158,117,148,121,152,189,116,111,130,113,171,193,104,110,153,190,162,180,114,183],"symbol":"none","itemStyle":{"barBorderRadius":[5,5,0,0]}}],"grid":{"right":"0","left":"16px","bottom":"0","top":"0"}}'></div>
+                        <div id="goalChart3" style="height:50px"></div>
                       </div>
                     </div>
                   </div>
@@ -436,14 +424,14 @@ require_once __DIR__ . '/../_guard.php';
                         <h6 class="text-700">Revenue</h6>
                         <h3 class="fw-normal text-700">$10.87k</h3>
                       </div>
-                      <div class="w-100" style="min-height:50px;" data-echart-responsive="true" data-echarts='{"series":[{"type":"line","data":[101,165,140,162,121,190,139],"symbol":"none","color":"#f5803e","areaStyle":{"color":{"type":"linear","x":0,"y":0,"x2":0,"y2":1,"colorStops":[{"offset":0,"color":"rgba(245, 128, 62, .25)"},{"offset":1,"color":"rgba(245, 128, 62, 0)"}]}}}],"xAxis":{"boundaryGap":false},"grid":{"right":"20px","left":"0","bottom":"0","top":"20px"}}'></div>
+                      <div id="campaignRevenueChart" style="height:50px"></div>
                     </div>
                     <div class="col-6">
                       <div>
                         <h6 class="text-700">Clicks</h6>
                         <h3 class="fw-normal text-700">3.8k</h3>
                       </div>
-                      <div class="w-100" style="min-height:50px;" data-echart-responsive="true" data-echarts='{"series":[{"type":"line","data":[119,199,195,101,155,131,180],"symbol":"none"}],"xAxis":{"boundaryGap":false},"grid":{"right":"20px","left":"0","bottom":"0","top":"20px"}}'></div>
+                      <div id="campaignClicksChart" style="height:50px"></div>
                     </div>
                   </div>
                   <div class="mx-nx1">
@@ -789,6 +777,288 @@ require_once __DIR__ . '/../_guard.php';
     <!-- ===============================================-->
     <?php include __DIR__ . '/../includes/footer.php'; ?>
     <?php include __DIR__ . '/../includes/scripts.php'; ?>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script>
+    // Live Sales Data
+    const LIVE_SALES_API = window.BASE_URL + '/api/analytics/live-sales.php';
+    let liveSalesChart = null;
+    let liveSalesInterval = null;
+
+    function initLiveSalesChart() {
+        const chartDom = document.getElementById('liveSalesChart');
+        if (!chartDom) return;
+        
+        liveSalesChart = echarts.init(chartDom);
+        
+        const option = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' }
+            },
+            grid: {
+                left: '5%',
+                right: '5%',
+                bottom: '10%',
+                top: '10%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [],
+                axisLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10 },
+                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10 },
+                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } },
+                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } }
+            },
+            series: [{
+                data: [],
+                type: 'line',
+                smooth: true,
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(255,255,255,0.3)' },
+                        { offset: 1, color: 'rgba(255,255,255,0.05)' }
+                    ])
+                },
+                lineStyle: { color: '#fff', width: 2 },
+                itemStyle: { color: '#fff' }
+            }]
+        };
+        
+        liveSalesChart.setOption(option);
+    }
+
+    function formatCurrency(amount) {
+        return '₱' + parseFloat(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatTime(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function fetchLiveSales() {
+        const filter = document.getElementById('liveSalesFilter').value;
+        let apiUrl = LIVE_SALES_API;
+        
+        if (filter === 'today') {
+            apiUrl += '?hours=24&today=true';
+        } else {
+            apiUrl += '?hours=' + filter;
+        }
+        
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update total sales
+                    document.getElementById('liveSalesTotal').textContent = formatCurrency(data.data.total_sales);
+                    
+                    // Update transaction count
+                    document.getElementById('liveTransactionCount').textContent = data.data.transaction_count;
+                    
+                    // Update chart
+                    if (liveSalesChart) {
+                        const times = data.data.sales_by_minute.map(item => item.time);
+                        const amounts = data.data.sales_by_minute.map(item => item.amount);
+                        
+                        liveSalesChart.setOption({
+                            xAxis: { data: times },
+                            series: [{ data: amounts }]
+                        });
+                    }
+                    
+                    // Update recent transactions list
+                    const listContainer = document.getElementById('liveTransactionsList');
+                    if (data.data.recent_transactions && data.data.recent_transactions.length > 0) {
+                        let html = '';
+                        data.data.recent_transactions.slice(0, 5).forEach(txn => {
+                            html += `
+                                <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
+                                    <p class="mb-0">${txn.order_code} • ${txn.branch_name || 'Unknown'}</p>
+                                    <p class="mb-0">${formatCurrency(txn.grand_total)}</p>
+                                </div>
+                            `;
+                        });
+                        listContainer.innerHTML = html;
+                    } else {
+                        listContainer.innerHTML = `
+                            <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
+                                <p class="mb-0">No transactions yet</p>
+                                <p class="mb-0">-</p>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching live sales:', error);
+            });
+    }
+
+    function initGoalCharts() {
+        // Goal Chart 1 - Completed Goals
+        const goalChart1 = echarts.init(document.getElementById('goalChart1'));
+        goalChart1.setOption({
+            tooltip: { show: false },
+            grid: { right: '16px', left: '0', bottom: '0', top: '0' },
+            xAxis: { 
+                type: 'category',
+                show: false,
+                data: Array(25).fill('')
+            },
+            yAxis: { 
+                type: 'value',
+                show: false
+            },
+            series: [{
+                type: 'bar',
+                data: [172,129,123,158,196,106,187,198,152,175,178,165,188,139,115,131,143,140,112,167,180,156,121,190,100],
+                itemStyle: { barBorderRadius: [5,5,0,0] },
+                barWidth: '60%',
+                showBackground: true,
+                backgroundStyle: { color: 'rgba(0,0,0,0.05)' }
+            }]
+        });
+
+        // Goal Chart 2 - Value
+        const goalChart2 = echarts.init(document.getElementById('goalChart2'));
+        goalChart2.setOption({
+            tooltip: { show: false },
+            grid: { right: '16px', left: '16px', bottom: '0', top: '0' },
+            xAxis: { 
+                type: 'category',
+                show: false,
+                data: Array(25).fill('')
+            },
+            yAxis: { 
+                type: 'value',
+                show: false
+            },
+            series: [{
+                type: 'bar',
+                data: [170,156,171,193,108,178,163,175,117,123,174,199,122,111,113,140,192,167,186,172,131,187,135,115,118],
+                itemStyle: { barBorderRadius: [5,5,0,0] },
+                barWidth: '60%',
+                showBackground: true,
+                backgroundStyle: { color: 'rgba(0,0,0,0.05)' }
+            }]
+        });
+
+        // Goal Chart 3 - Conversion Rate
+        const goalChart3 = echarts.init(document.getElementById('goalChart3'));
+        goalChart3.setOption({
+            tooltip: { show: false },
+            grid: { right: '0', left: '16px', bottom: '0', top: '0' },
+            xAxis: { 
+                type: 'category',
+                show: false,
+                data: Array(25).fill('')
+            },
+            yAxis: { 
+                type: 'value',
+                show: false
+            },
+            series: [{
+                type: 'bar',
+                data: [199,181,155,164,108,158,117,148,121,152,189,116,111,130,113,171,193,104,110,153,190,162,180,114,183],
+                itemStyle: { barBorderRadius: [5,5,0,0] },
+                barWidth: '60%',
+                showBackground: true,
+                backgroundStyle: { color: 'rgba(0,0,0,0.05)' }
+            }]
+        });
+    }
+
+    function initCampaignCharts() {
+        // Campaign Revenue Chart
+        const campaignRevenueChart = echarts.init(document.getElementById('campaignRevenueChart'));
+        campaignRevenueChart.setOption({
+            series: [{
+                type: 'line',
+                data: [101,165,140,162,121,190,139],
+                symbol: 'none',
+                color: '#f5803e',
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(245, 128, 62, .25)' },
+                        { offset: 1, color: 'rgba(245, 128, 62, 0)' }
+                    ])
+                }
+            }],
+            xAxis: { boundaryGap: false, show: false },
+            yAxis: { show: false },
+            grid: { right: '20px', left: '0', bottom: '0', top: '20px' }
+        });
+
+        // Campaign Clicks Chart
+        const campaignClicksChart = echarts.init(document.getElementById('campaignClicksChart'));
+        campaignClicksChart.setOption({
+            series: [{
+                type: 'line',
+                data: [119,199,195,101,155,131,180],
+                symbol: 'none'
+            }],
+            xAxis: { boundaryGap: false, show: false },
+            yAxis: { show: false },
+            grid: { right: '20px', left: '0', bottom: '0', top: '20px' }
+        });
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initLiveSalesChart();
+        initGoalCharts();
+        initCampaignCharts();
+        
+        // Restore filter from localStorage
+        const savedFilter = localStorage.getItem('liveSalesFilter');
+        if (savedFilter) {
+            document.getElementById('liveSalesFilter').value = savedFilter;
+        }
+        
+        // Save filter to localStorage on change
+        document.getElementById('liveSalesFilter').addEventListener('change', function() {
+            localStorage.setItem('liveSalesFilter', this.value);
+            fetchLiveSales();
+        });
+        
+        fetchLiveSales();
+        
+        // Poll every 30 seconds for real-time updates
+        liveSalesInterval = setInterval(fetchLiveSales, 30000);
+        
+        // Handle window resize for all charts
+        window.addEventListener('resize', function() {
+            if (liveSalesChart) liveSalesChart.resize();
+            
+            // Resize goal charts
+            const goalChart1 = echarts.getInstanceByDom(document.getElementById('goalChart1'));
+            const goalChart2 = echarts.getInstanceByDom(document.getElementById('goalChart2'));
+            const goalChart3 = echarts.getInstanceByDom(document.getElementById('goalChart3'));
+            if (goalChart1) goalChart1.resize();
+            if (goalChart2) goalChart2.resize();
+            if (goalChart3) goalChart3.resize();
+            
+            // Resize campaign charts
+            const campaignRevenueChart = echarts.getInstanceByDom(document.getElementById('campaignRevenueChart'));
+            const campaignClicksChart = echarts.getInstanceByDom(document.getElementById('campaignClicksChart'));
+            if (campaignRevenueChart) campaignRevenueChart.resize();
+            if (campaignClicksChart) campaignClicksChart.resize();
+        });
+    });
+
+    // Clean up interval when leaving page
+    window.addEventListener('beforeunload', function() {
+        if (liveSalesInterval) {
+            clearInterval(liveSalesInterval);
+        }
+    });
+    </script>
   </body>
 
 </html>

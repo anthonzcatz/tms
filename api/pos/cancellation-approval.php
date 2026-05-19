@@ -122,9 +122,7 @@ try {
 
         // Record wallet transaction for the refund
         // reference_table = 'ticket_transactions' so wallet-transactions view can JOIN and show full ticket details
-        $microtime = microtime(true);
-        $micro = sprintf('%03d', ($microtime - floor($microtime)) * 1000);
-        $wTxnCode = 'RF-' . date('Ymd-His') . '-' . $micro;
+        $wTxnCode = 'RF-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
         $wTxnRemarks = 'Refund: ' . $ticketTxn['transaction_code']
             . ' | Cancellation #' . $cancellationId
             . ($remarks ? ' | ' . $remarks : '');
@@ -149,6 +147,38 @@ try {
             Database::execute(
                 "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
                 ['ramount' => $refundAmount, 'csid' => $cancellation['cashier_session_id']]
+            );
+        }
+
+        // Update pos_orders totals - deduct the cancelled ticket amount
+        $orderItem = Database::fetch(
+            "SELECT oi.item_id, oi.order_id, oi.total_amount, o.grand_total, o.subtotal
+             FROM pos_order_items oi
+             JOIN pos_orders o ON oi.order_id = o.order_id
+             WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET'
+             LIMIT 1",
+            ['tid' => $ticketTxn['transaction_id']]
+        );
+
+        if ($orderItem) {
+            $orderId = $orderItem['order_id'];
+            $itemTotal = floatval($orderItem['total_amount']);
+            $currentGrand = floatval($orderItem['grand_total']);
+            $currentSubtotal = floatval($orderItem['subtotal']);
+
+            // Update order totals
+            $newGrand = max(0, $currentGrand - $itemTotal);
+            $newSubtotal = max(0, $currentSubtotal - $itemTotal);
+
+            Database::execute(
+                "UPDATE pos_orders SET grand_total = :grand, subtotal = :sub, updated_at = NOW() WHERE order_id = :oid",
+                ['grand' => $newGrand, 'sub' => $newSubtotal, 'oid' => $orderId]
+            );
+
+            // Set the order item total to 0 (mark as cancelled)
+            Database::execute(
+                "UPDATE pos_order_items SET total_amount = 0 WHERE item_id = :iid",
+                ['iid' => $orderItem['item_id']]
             );
         }
 

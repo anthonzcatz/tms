@@ -239,6 +239,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       <th class="ps-3">Method</th>
                       <th>Type</th>
                       <th>Settings</th>
+                      <th>Credit Tracking</th>
                       <th>Sort</th>
                       <th>Status</th>
                       <th class="text-end pe-3">Actions</th>
@@ -248,8 +249,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <?php foreach ($methods as $method):
                       $typeColors = [
                         'CASH' => 'success', 'BANK_TRANSFER' => 'primary',
-                        'E_WALLET' => 'purple', 'CHARGE' => 'warning',
-                        'CARD' => 'info', 'OTHER' => 'secondary'
+                        'E_WALLET' => 'info', 'CHARGE' => 'warning',
+                        'CARD' => 'secondary', 'OTHER' => 'dark'
                       ];
                       $typeLabels = [
                         'CASH' => 'Cash', 'BANK_TRANSFER' => 'Bank Transfer',
@@ -316,6 +317,15 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                             <span class="text-muted small">—</span>
                           <?php endif; ?>
                         </div>
+                      </td>
+                      <td class="py-3">
+                        <?php if (isset($method['tracks_credit']) && $method['tracks_credit']): ?>
+                          <span class="badge bg-soft-warning text-warning" title="Tracks customer credit/billing">
+                            <span class="fas fa-file-invoice-dollar me-1"></span>Yes
+                          </span>
+                        <?php else: ?>
+                          <span class="text-muted small">—</span>
+                        <?php endif; ?>
                       </td>
                       <td class="py-3">
                         <span class="badge bg-light text-dark"><?php echo $method['sort_order']; ?></span>

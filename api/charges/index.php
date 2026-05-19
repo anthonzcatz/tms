@@ -25,16 +25,19 @@ if ($method === 'GET') {
     $passengerId = $_GET['passenger_id'] ?? null;
     if (!$passengerId) { echo json_encode(['success' => false, 'error' => 'passenger_id required']); return; }
 
-    // Charge entries (from transaction_payments where method_type = CHARGE)
+    // Charge entries (from transaction_payments where payment method tracks_credit = 1)
     $charges = Database::fetchAll(
-        "SELECT tp.payment_id, tp.amount, tp.created_at,
-                st.transaction_code AS txn_code,
-                stype.name AS service_type_name
+        "SELECT tp.payment_id, tp.amount, tp.created_at, tp.source_type,
+                pm.method_name, pm.method_type,
+                COALESCE(st.transaction_code, tt.transaction_code) AS txn_code,
+                stype.name AS service_type_name,
+                CASE WHEN tp.source_type = 'TICKET_TRANSACTION' THEN 'Ticket' ELSE stype.name END AS item_label
          FROM transaction_payments tp
          JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
          LEFT JOIN service_transactions st ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
          LEFT JOIN service_types stype ON st.service_type_id = stype.service_type_id
-         WHERE pm.method_type = 'CHARGE' AND tp.charged_to_passenger_id = :pid
+         LEFT JOIN ticket_transactions tt ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.ticket_txn_id
+         WHERE pm.tracks_credit = 1 AND tp.charged_to_passenger_id = :pid
          ORDER BY tp.created_at DESC",
         ['pid' => $passengerId]
     );
@@ -79,33 +82,45 @@ if ($method === 'POST') {
     $pm = Database::fetch("SELECT * FROM payment_methods WHERE method_id = :id", ['id' => $methodId]);
     $confirmStatus = ($pm && $pm['requires_confirmation']) ? 'PENDING' : 'NOT_REQUIRED';
 
-    Database::execute(
-        "INSERT INTO charge_payments
-            (payment_code, passenger_id, branch_id, payment_method_id, amount_paid, balance_before, balance_after,
-             reference_number, confirmation_status, notes, created_by, created_at)
-         VALUES (:code, :pid, :branch, :method, :amount, :before, :after, :ref, :confirm, :notes, :uid, NOW())",
-        ['code' => $payCode, 'pid' => $passengerId, 'branch' => $branchId, 'method' => $methodId,
-         'amount' => $applied, 'before' => $balBefore, 'after' => $balAfter,
-         'ref' => $refNum, 'confirm' => $confirmStatus, 'notes' => $notes, 'uid' => $user['user_id']]
-    );
+    try {
+        Database::connection()->beginTransaction();
 
-    // Update customer_charges aggregate
-    $newStatus = $balAfter <= 0 ? 'CLEAR' : $chargeRow['status'];
-    Database::execute(
-        "UPDATE customer_charges SET
-            total_paid = total_paid + :paid,
-            balance = :after,
-            status = :status,
-            last_payment_date = NOW(),
-            updated_at = NOW()
-         WHERE passenger_id = :pid",
-        ['paid' => $applied, 'after' => $balAfter, 'status' => $newStatus, 'pid' => $passengerId]
-    );
+        Database::execute(
+            "INSERT INTO charge_payments
+                (payment_code, passenger_id, branch_id, payment_method_id, amount_paid, balance_before, balance_after,
+                 reference_number, confirmation_status, notes, created_by, created_at)
+             VALUES (:code, :pid, :branch, :method, :amount, :before, :after, :ref, :confirm, :notes, :uid, NOW())",
+            ['code' => $payCode, 'pid' => $passengerId, 'branch' => $branchId, 'method' => $methodId,
+             'amount' => $applied, 'before' => $balBefore, 'after' => $balAfter,
+             'ref' => $refNum, 'confirm' => $confirmStatus, 'notes' => $notes, 'uid' => $user['user_id']]
+        );
 
-    logActivity($user['user_id'], 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', $payCode,
-        ['balance' => $balBefore], ['balance' => $balAfter, 'amount_paid' => $applied]);
+        // Update customer_charges aggregate
+        $newStatus = $balAfter <= 0 ? 'CLEAR' : $chargeRow['status'];
+        Database::execute(
+            "UPDATE customer_charges SET
+                total_paid = total_paid + :paid,
+                balance = :after,
+                status = :status,
+                last_payment_date = NOW(),
+                updated_at = NOW()
+             WHERE passenger_id = :pid",
+            ['paid' => $applied, 'after' => $balAfter, 'status' => $newStatus, 'pid' => $passengerId]
+        );
 
-    echo json_encode(['success' => true, 'message' => 'Payment recorded.', 'new_balance' => $balAfter, 'payment_code' => $payCode]);
+        Database::connection()->commit();
+
+        logActivity($user['user_id'], 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', $payCode,
+            ['balance' => $balBefore], ['balance' => $balAfter, 'amount_paid' => $applied]);
+
+        echo json_encode(['success' => true, 'message' => 'Payment recorded.', 'new_balance' => $balAfter, 'payment_code' => $payCode]);
+    } catch (Exception $e) {
+        if (Database::connection()->inTransaction()) {
+            Database::connection()->rollBack();
+        }
+        error_log('Charge Payment Error: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Failed to record payment: ' . $e->getMessage()]);
+    }
     return;
 }
 

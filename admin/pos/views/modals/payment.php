@@ -44,7 +44,7 @@
           <div class="row g-2" id="paymentMethodsGrid">
             <?php foreach ($paymentMethods as $pm):
               $icons = ['CASH'=>'fa-money-bill-wave','BANK_TRANSFER'=>'fa-university','E_WALLET'=>'fa-mobile-alt','CHARGE'=>'fa-file-invoice','CARD'=>'fa-credit-card','OTHER'=>'fa-ellipsis-h'];
-              $colors = ['CASH'=>'success','BANK_TRANSFER'=>'primary','E_WALLET'=>'purple','CHARGE'=>'warning','CARD'=>'info','OTHER'=>'secondary'];
+              $colors = ['CASH'=>'success','BANK_TRANSFER'=>'primary','E_WALLET'=>'info','CHARGE'=>'warning','CARD'=>'secondary','OTHER'=>'dark'];
               $icon = $pm['icon'] ?: ($icons[$pm['method_type']] ?? 'fa-credit-card');
               $color = $colors[$pm['method_type']] ?? 'secondary';
             ?>
@@ -57,6 +57,7 @@
                    data-requires-confirmation="<?php echo $pm['requires_confirmation'] ? '1' : '0'; ?>"
                    data-requires-customer="<?php echo $pm['requires_customer'] ? '1' : '0'; ?>"
                    data-requires-reference="<?php echo $pm['requires_reference'] ? '1' : '0'; ?>"
+                   data-tracks-credit="<?php echo !empty($pm['tracks_credit']) ? '1' : '0'; ?>"
                    onclick="selectPaymentMethod(this)">
                 <div class="mb-2"><span class="fas <?php echo $icon; ?> text-<?php echo $color; ?> fs-3"></span></div>
                 <div class="fw-semibold small"><?php echo htmlspecialchars($pm['method_name']); ?></div>

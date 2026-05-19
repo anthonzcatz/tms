@@ -18,8 +18,13 @@
           <div class="col-12">
             <label class="form-label fw-semibold" for="sessionBranchId">Branch <span class="text-danger">*</span></label>
             <select class="form-select" id="sessionBranchId" name="sessionBranchId">
-              <?php foreach ($branches as $b): ?>
-                <option value="<?php echo $b['branch_id']; ?>" <?php echo ($userBranchId == $b['branch_id']) ? 'selected' : ''; ?>>
+              <?php
+              // Parse branch IDs for comparison (handles comma-separated like "1,2")
+              $userBranchIds = array_map('trim', explode(',', $userBranchId ?? ''));
+              foreach ($branches as $b):
+                $isSelected = in_array($b['branch_id'], $userBranchIds);
+              ?>
+                <option value="<?php echo $b['branch_id']; ?>" <?php echo $isSelected ? 'selected' : ''; ?>>
                   <?php echo htmlspecialchars($b['branch_name']); ?>
                 </option>
               <?php endforeach; ?>

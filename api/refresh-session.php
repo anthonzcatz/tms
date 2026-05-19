@@ -27,7 +27,8 @@ try {
     }
 
     // Extend the session expiry time in database
-    $expiresAt = date('Y-m-d H:i:s', time() + (int) env('SESSION_LIFETIME', 7200));
+    $sessionLifetime = (int) env('SESSION_LIFETIME', 7200);
+    $expiresAt = date('Y-m-d H:i:s', time() + $sessionLifetime);
 
     Database::execute(
         "UPDATE user_sessions
@@ -43,8 +44,31 @@ try {
         ]
     );
 
+    // Regenerate session ID periodically for security (every 30 minutes)
+    if (!isset($_SESSION['last_regenerated']) || (time() - $_SESSION['last_regenerated']) > 1800) {
+        session_regenerate_id(true);
+        $_SESSION['last_regenerated'] = time();
+    }
+
     // Update PHP session expiry time
     $_SESSION['login_time'] = time();
+
+    // Extend the session cookie lifetime (sliding expiration)
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['SERVER_PORT'] ?? null) == 443);
+    
+    setcookie(
+        session_name(),
+        session_id(),
+        [
+            'expires' => time() + $sessionLifetime,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]
+    );
 
     echo json_encode([
         'success' => true,

@@ -18,12 +18,26 @@ function filterPermissions() {
     return;
   }
   
-  const searchTerm = searchInput.value.toLowerCase();
+  const searchTerm = searchInput.value.toLowerCase().trim();
   const tableRows = permissionsTable.querySelectorAll('tbody.list tr');
   
   tableRows.forEach(function(row) {
-    const rowText = row.textContent.toLowerCase();
-    if (rowText.includes(searchTerm)) {
+    const codeCell = row.querySelector('.code');
+    const nameCell = row.querySelector('.name');
+    const moduleCell = row.querySelector('.module');
+    const urlCell = row.querySelector('.url');
+    
+    const code = codeCell ? codeCell.textContent.toLowerCase() : '';
+    const name = nameCell ? nameCell.textContent.toLowerCase() : '';
+    const module = moduleCell ? moduleCell.textContent.toLowerCase() : '';
+    const url = urlCell ? urlCell.textContent.toLowerCase() : '';
+    
+    const matches = code.includes(searchTerm) || 
+                    name.includes(searchTerm) || 
+                    module.includes(searchTerm) || 
+                    url.includes(searchTerm);
+    
+    if (matches || searchTerm === '') {
       row.style.display = '';
     } else {
       row.style.display = 'none';

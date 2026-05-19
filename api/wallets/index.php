@@ -216,6 +216,8 @@ function handlePost() {
     
     $providerId = $input['provider_id'] ?? null;
     $branchId = $input['branch_id'] ?? null;
+    $initialBalance = floatval($input['initial_balance'] ?? 0);
+    $status = $input['status'] ?? 'active';
     
     // Validate required fields
     if (!$providerId || !$branchId) {
@@ -234,13 +236,15 @@ function handlePost() {
         return;
     }
     
-    // Insert new wallet
+    // Insert new wallet with initial balance
     $sql = "INSERT INTO provider_wallets (provider_id, branch_id, current_balance, status, created_at)
-            VALUES (:provider_id, :branch_id, 0.00, 'active', NOW())";
+            VALUES (:provider_id, :branch_id, :initial_balance, :status, NOW())";
     
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
-        'branch_id' => (int)$branchId
+        'branch_id' => (int)$branchId,
+        'initial_balance' => $initialBalance,
+        'status' => $status
     ]);
     
     $walletId = Database::connection()->lastInsertId();
@@ -256,11 +260,12 @@ function handlePost() {
             'wallet_id' => $walletId,
             'provider_id' => $providerId,
             'branch_id' => $branchId,
-            'initial_balance' => 0.00
+            'initial_balance' => $initialBalance,
+            'status' => $status
         ]
     );
     
-    echo json_encode(['success' => true, 'message' => 'Wallet created successfully', 'wallet_id' => $walletId]);
+    echo json_encode(['success' => true, 'message' => 'Wallet created successfully', 'wallet_id' => $walletId, 'initial_balance' => $initialBalance]);
 }
 
 /**

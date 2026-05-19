@@ -194,8 +194,7 @@ function handlePost() {
     $providerId = $input['provider_id'] ?? null;
     $branchId = $input['branch_id'] ?? null;
     $feeType = $input['fee_type'] ?? null;
-    $feeAmount = $input['fee_amount'] ?? 0;
-    $feePercentage = $input['fee_percentage'] ?? 0;
+    $feeAmount = $input['fee_value'] ?? 0;
     $status = $input['status'] ?? 'active';
     
     // Validate required fields
@@ -216,15 +215,14 @@ function handlePost() {
     }
     
     // Insert new service fee
-    $sql = "INSERT INTO provider_service_fees (provider_id, branch_id, fee_type, fee_amount, fee_percentage, is_active, created_by, created_at)
-            VALUES (:provider_id, :branch_id, :fee_type, :fee_amount, :fee_percentage, :is_active, :created_by, NOW())";
+    $sql = "INSERT INTO provider_service_fees (provider_id, branch_id, fee_type, fee_value, is_active, created_by, created_at)
+            VALUES (:provider_id, :branch_id, :fee_type, :fee_value, :is_active, :created_by, NOW())";
     
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
         'branch_id' => (int)$branchId,
         'fee_type' => $feeType,
-        'fee_amount' => (float)$feeAmount,
-        'fee_percentage' => (float)$feePercentage,
+        'fee_value' => (float)$feeAmount,
         'is_active' => $status === 'active' ? 1 : 0,
         'created_by' => $user['user_id']
     ]);
@@ -243,8 +241,7 @@ function handlePost() {
             'provider_id' => $providerId,
             'branch_id' => $branchId,
             'fee_type' => $feeType,
-            'fee_amount' => $feeAmount,
-            'fee_percentage' => $feePercentage,
+            'fee_value' => $feeAmount,
             'status' => $status
         ]
     );
@@ -275,8 +272,7 @@ function handlePut() {
     $providerId = $input['provider_id'] ?? null;
     $branchId = $input['branch_id'] ?? null;
     $feeType = $input['fee_type'] ?? null;
-    $feeAmount = $input['fee_amount'] ?? null;
-    $feePercentage = $input['fee_percentage'] ?? null;
+    $feeAmount = $input['fee_value'] ?? null;
     $status = $input['status'] ?? null;
     
     if (!$feeId) {
@@ -312,12 +308,8 @@ function handlePut() {
         $params['fee_type'] = $feeType;
     }
     if ($feeAmount !== null) {
-        $updateFields[] = "fee_amount = :fee_amount";
-        $params['fee_amount'] = (float)$feeAmount;
-    }
-    if ($feePercentage !== null) {
-        $updateFields[] = "fee_percentage = :fee_percentage";
-        $params['fee_percentage'] = (float)$feePercentage;
+        $updateFields[] = "fee_value = :fee_value";
+        $params['fee_value'] = (float)$feeAmount;
     }
     if ($status !== null) {
         $updateFields[] = "is_active = :is_active";

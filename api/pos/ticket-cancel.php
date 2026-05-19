@@ -141,7 +141,39 @@ try {
                 ['ramount' => $refundAmount, 'csid' => $cashierSessionId]
             );
         }
-        
+
+        // Update pos_orders totals - deduct the cancelled ticket amount
+        $orderItem = Database::fetch(
+            "SELECT oi.item_id, oi.order_id, oi.total_amount, o.grand_total, o.subtotal
+             FROM pos_order_items oi
+             JOIN pos_orders o ON oi.order_id = o.order_id
+             WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET'
+             LIMIT 1",
+            ['tid' => $ticketTxnId]
+        );
+
+        if ($orderItem) {
+            $orderId = $orderItem['order_id'];
+            $itemTotal = floatval($orderItem['total_amount']);
+            $currentGrand = floatval($orderItem['grand_total']);
+            $currentSubtotal = floatval($orderItem['subtotal']);
+
+            // Update order totals
+            $newGrand = max(0, $currentGrand - $itemTotal);
+            $newSubtotal = max(0, $currentSubtotal - $itemTotal);
+
+            Database::execute(
+                "UPDATE pos_orders SET grand_total = :grand, subtotal = :sub, updated_at = NOW() WHERE order_id = :oid",
+                ['grand' => $newGrand, 'sub' => $newSubtotal, 'oid' => $orderId]
+            );
+
+            // Set the order item total to 0 (mark as cancelled)
+            Database::execute(
+                "UPDATE pos_order_items SET total_amount = 0 WHERE item_id = :iid",
+                ['iid' => $orderItem['item_id']]
+            );
+        }
+
         logActivity($user['user_id'], 'TICKET_CANCEL_REQUEST', 'POS', $ticketTxn['transaction_code'], null,
             ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId, 'refund_amount' => $refundAmount, 'status' => 'pending']);
         
@@ -196,6 +228,77 @@ try {
             );
         }
 
+        // Re-fetch wallet inside transaction to get latest balance (prevent race conditions)
+        $wallet = Database::fetch(
+            "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active' FOR UPDATE",
+            ['wid' => $walletId]
+        );
+        if (!$wallet) {
+            throw new Exception('Wallet not found or inactive during refund processing.');
+        }
+
+        // Restore wallet balance (provider gets their balance back on refund)
+        $balanceBefore   = floatval($wallet['current_balance']);
+        $balanceAfter    = $balanceBefore + $refundAmount;
+
+        Database::execute(
+            "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wid",
+            ['new_balance' => $balanceAfter, 'wid' => $walletId]
+        );
+
+        // Create wallet transaction record for the refund
+        $wTxnCode = 'REFUND-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
+        $remarks = 'Auto-approved cancellation refund for ticket ' . $ticketTxn['transaction_code']
+            . ' | Cancellation #' . $cancellationId
+            . ($reason ? ' | ' . $reason : '');
+        Database::execute(
+            "INSERT INTO wallet_transactions
+                (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
+             VALUES (:wid, :code, 'REFUND', 'IN', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
+            [
+                'wid'     => $walletId,
+                'code'    => $wTxnCode,
+                'amount'  => $refundAmount,
+                'before'  => $balanceBefore,
+                'after'   => $balanceAfter,
+                'ref_id'  => $ticketTxnId,
+                'remarks' => $remarks,
+                'uid'     => $user['user_id']
+            ]
+        );
+
+        // Update pos_orders totals - deduct the cancelled ticket amount
+        $orderItem = Database::fetch(
+            "SELECT oi.item_id, oi.order_id, oi.total_amount, o.grand_total, o.subtotal
+             FROM pos_order_items oi
+             JOIN pos_orders o ON oi.order_id = o.order_id
+             WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET'
+             LIMIT 1",
+            ['tid' => $ticketTxnId]
+        );
+
+        if ($orderItem) {
+            $orderId = $orderItem['order_id'];
+            $itemTotal = floatval($orderItem['total_amount']);
+            $currentGrand = floatval($orderItem['grand_total']);
+            $currentSubtotal = floatval($orderItem['subtotal']);
+
+            // Update order totals
+            $newGrand = max(0, $currentGrand - $itemTotal);
+            $newSubtotal = max(0, $currentSubtotal - $itemTotal);
+
+            Database::execute(
+                "UPDATE pos_orders SET grand_total = :grand, subtotal = :sub, updated_at = NOW() WHERE order_id = :oid",
+                ['grand' => $newGrand, 'sub' => $newSubtotal, 'oid' => $orderId]
+            );
+
+            // Set the order item total to 0 (mark as cancelled)
+            Database::execute(
+                "UPDATE pos_order_items SET total_amount = 0 WHERE item_id = :iid",
+                ['iid' => $orderItem['item_id']]
+            );
+        }
+
         // Create refund record - status based on refund_processing_days setting
         $processingDays = $settings['cancellation_refund_processing_days'] ?? 0;
         $refundStatus = ($processingDays > 0) ? 'processing' : 'completed';
@@ -217,7 +320,9 @@ try {
         );
 
         logActivity($user['user_id'], 'TICKET_CANCEL', 'POS', $ticketTxn['transaction_code'], null,
-            ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId, 'refund_amount' => $refundAmount, 'refund_method' => 'cash']);
+            ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId, 'refund_amount' => $refundAmount,
+             'refund_method' => 'cash', 'wallet_balance_before' => $balanceBefore, 'wallet_balance_after' => $balanceAfter,
+             'wallet_txn_code' => $wTxnCode, 'requires_confirmation' => false]);
 
         Database::connection()->commit();
 

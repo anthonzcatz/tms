@@ -61,6 +61,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
+                  <div class="col-lg-auto d-flex align-items-center mt-3 mt-lg-0">
+                    <?php if ($canCreateWallet): ?>
+                    <button class="btn btn-primary" onclick="openAddWalletModal()">
+                      <span class="fas fa-plus me-2"></span>Add Wallet
+                    </button>
+                    <?php endif; ?>
+                  </div>
                 </div>
               </div>
             </div>
@@ -158,6 +165,75 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <!-- Filter Bar -->
+        <div class="card mb-3 shadow-sm">
+          <div class="card-header bg-light py-2">
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="mb-0 fw-bold text-primary">
+                <span class="fas fa-filter me-2"></span>Filter Wallets
+              </h6>
+              <span class="badge bg-primary"><?php echo count($wallets); ?> of <?php echo count($baseWallets ?? $wallets); ?> shown</span>
+            </div>
+          </div>
+          <div class="card-body py-3">
+            <form method="GET" id="filterForm">
+              <!-- Quick Search (client-side) -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                  <label class="form-label small text-muted mb-1">Quick Search</label>
+                  <div class="search-box position-relative">
+                    <input type="text" class="form-control ps-4" id="walletSearch" placeholder="Search wallet name...">
+                    <span class="fas fa-search position-absolute text-muted" style="left: 0.75rem; top: 50%; transform: translateY(-50%);"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label small text-muted mb-1">Provider</label>
+                <select class="form-select" name="provider" onchange="this.form.submit()">
+                  <option value="">All Providers</option>
+                  <?php foreach ($filterProviders as $provider): ?>
+                    <option value="<?php echo htmlspecialchars($provider['provider_name']); ?>" <?php echo $filterProvider === $provider['provider_name'] ? 'selected' : ''; ?>>
+                      <?php echo htmlspecialchars($provider['provider_name']); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Branch</label>
+                <select class="form-select" name="branch" onchange="this.form.submit()">
+                  <option value="">All Branches</option>
+                  <?php foreach ($filterBranches as $branch): ?>
+                    <option value="<?php echo htmlspecialchars($branch['branch_name']); ?>" <?php echo $filterBranch === $branch['branch_name'] ? 'selected' : ''; ?>>
+                      <?php echo htmlspecialchars($branch['branch_name']); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select class="form-select" name="status" onchange="this.form.submit()">
+                  <option value="">All Status</option>
+                  <option value="active" <?php echo $filterStatus === 'active' ? 'selected' : ''; ?>>Active</option>
+                  <option value="inactive" <?php echo $filterStatus === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Actions</label>
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">
+                    <span class="fas fa-filter me-1"></span>Apply Filter
+                  </button>
+                  <a href="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/" class="btn btn-outline-secondary">
+                    <span class="fas fa-times me-1"></span>Clear
+                  </a>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <!-- Info Card -->
         <div class="card mb-3">
           <div class="card-header bg-light py-2 cursor-pointer" onclick="toggleHowItWorks()" style="cursor: pointer;">
@@ -194,7 +270,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         </script>
 
         <!-- Wallet Cards Display -->
-        <div class="row g-3 mb-3">
+        <div class="row g-3 mb-3" id="walletCardsContainer">
           <?php if (empty($wallets)): ?>
             <div class="col-12">
               <div class="card border-0 shadow-sm">
@@ -253,17 +329,36 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             <?php endforeach; ?>
           <?php endif; ?>
         </div>
-      </div>
-    </main>
 
-    <!-- Include Modals -->
-    <?php include __DIR__ . '/modals/add_wallet.php'; ?>
-    <?php include __DIR__ . '/modals/edit_wallet.php'; ?>
-    <?php include __DIR__ . '/modals/adjust_balance.php'; ?>
+        <script>
+        // Client-side search for instant filtering (like shifts page)
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('walletSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const term = this.value.toLowerCase();
+                    // Select all wallet card containers
+                    const cards = document.querySelectorAll('#walletCardsContainer > .col-sm-6, #walletCardsContainer > .col-md-4');
+                    cards.forEach(card => {
+                        const name = card.querySelector('h6')?.textContent?.toLowerCase() || '';
+                        const branchEl = card.querySelector('.fa-building');
+                        const branch = branchEl?.parentElement?.textContent?.toLowerCase() || '';
+                        const match = name.includes(term) || branch.includes(term);
+                        card.style.display = match ? '' : 'none';
+                    });
+                });
+            }
+        });
+        </script>
 
-    <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/assets/js/provider-wallets.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-wallets.js'); ?>"></script>
+        <!-- Include Modals -->
+        <?php include __DIR__ . '/modals/add_wallet.php'; ?>
+        <?php include __DIR__ . '/modals/edit_wallet.php'; ?>
+        <?php include __DIR__ . '/modals/adjust_balance.php'; ?>
 
-    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
-    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
-  </body>
-</html>
+        <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/assets/js/provider-wallets.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-wallets.js'); ?>"></script>
+
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+      </body>
+    </html>

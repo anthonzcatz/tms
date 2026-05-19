@@ -908,6 +908,8 @@ CREATE TABLE payment_methods (
     requires_customer BOOLEAN DEFAULT FALSE,
     requires_reference BOOLEAN DEFAULT FALSE,
 
+    tracks_credit BOOLEAN DEFAULT FALSE COMMENT 'Whether this payment method tracks customer credit/billing (e.g., CHARGE/utang)',
+
     is_active BOOLEAN DEFAULT TRUE,
     sort_order INT DEFAULT 0,
 
@@ -915,7 +917,8 @@ CREATE TABLE payment_methods (
     updated_at TIMESTAMP NULL,
 
     INDEX idx_method_type (method_type),
-    INDEX idx_is_active (is_active)
+    INDEX idx_is_active (is_active),
+    INDEX idx_tracks_credit (tracks_credit)
 );
 
 

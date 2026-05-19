@@ -33,14 +33,19 @@ $serviceTypes = Database::fetchAll(
 );
 
 // Fetch active branches for this user
-if ($userRoleCode === 'SUPER_ADMIN' || !$userBranchId) {
+// Support multiple branch_ids (comma-separated like "1,2" or single "2")
+$hasValidBranchId = !empty($userBranchId) && $userBranchId !== '0' && $userBranchId !== '';
+if ($userRoleCode === 'SUPER_ADMIN' || !$hasValidBranchId) {
     $branches = Database::fetchAll(
         "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
     );
 } else {
+    // Handle comma-separated branch_ids
+    $branchIds = array_map('trim', explode(',', $userBranchId));
+    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
     $branches = Database::fetchAll(
-        "SELECT branch_id, branch_name FROM business_branches WHERE branch_id = :id AND status = 'active'",
-        ['id' => $userBranchId]
+        "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders) AND status = 'active' ORDER BY branch_name",
+        $branchIds
     );
 }
 

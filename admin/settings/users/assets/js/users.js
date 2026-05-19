@@ -13,6 +13,7 @@ let deleteUserId = null;
 let userModal = null;
 let deleteModal = null;
 let cropperModal = null;
+let branchChoices = null;
 
 // Wizard state
 let currentStep = 1;
@@ -73,6 +74,29 @@ function initComponents() {
     tooltipTriggerList.map(function(tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+
+    // Initialize Choices.js for branch multi-select
+    const branchSelect = document.getElementById('branchId');
+    if (branchSelect && typeof Choices !== 'undefined') {
+        // Parse data-options if present
+        let options = {};
+        const dataOptions = branchSelect.getAttribute('data-options');
+        if (dataOptions) {
+            try {
+                options = JSON.parse(dataOptions);
+            } catch (e) {
+                console.warn('Failed to parse data-options for branchId:', e);
+            }
+        }
+        branchChoices = new Choices(branchSelect, {
+            removeItemButton: true,
+            placeholder: true,
+            placeholderValue: 'Select branch...',
+            searchEnabled: true,
+            allowHTML: false,
+            ...options
+        });
+    }
 }
 
 /**
@@ -172,6 +196,15 @@ function setupEventListeners() {
     const employeeIdSelect = document.getElementById('employeeId');
     employeeIdSelect.addEventListener('change', function() {
         updateNextButtonState();
+    });
+
+    // Close employee dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('employeeDropdown');
+        const searchInput = document.getElementById('employeeSearch');
+        if (dropdown && searchInput && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
     });
 
     // Role selection validation
@@ -573,6 +606,15 @@ function openAddUserModal() {
     if (empId) empId.value = '';
     const empDetails = document.getElementById('employeeDetailsSection');
     if (empDetails) empDetails.style.display = 'none';
+    const empDropdown = document.getElementById('employeeDropdown');
+    if (empDropdown) empDropdown.style.display = 'none';
+    // Reset branch multi-select (Choices.js)
+    if (branchChoices) {
+        branchChoices.removeActiveItems();
+    } else {
+        const branchSel = document.getElementById('branchId');
+        if (branchSel) Array.from(branchSel.options).forEach(o => o.selected = false);
+    }
 
     // Reset profile image
     const preview = document.getElementById('profileImagePreview');
@@ -777,7 +819,22 @@ async function openEditUserModal(userId) {
             document.getElementById('employeeId').value = user.emp_id || '';
             document.getElementById('employeeSearch').value = user.fullname || '';
             document.getElementById('roleId').value = user.role_id;
-            document.getElementById('branchId').value = user.branch_id || '';
+            // Pre-select multiple branches (Choices.js)
+            if (branchChoices) {
+                branchChoices.removeActiveItems();
+                const selectedBranches = user.branch_id ? String(user.branch_id).split(',').map(v => v.trim()).filter(v => v) : [];
+                selectedBranches.forEach(branchId => {
+                    branchChoices.setChoiceByValue(branchId);
+                });
+            } else {
+                const branchSelect = document.getElementById('branchId');
+                if (branchSelect) {
+                    const selectedBranches = user.branch_id ? String(user.branch_id).split(',').map(v => v.trim()) : [];
+                    Array.from(branchSelect.options).forEach(opt => {
+                        opt.selected = selectedBranches.includes(opt.value);
+                    });
+                }
+            }
             document.getElementById('isActive').checked = user.status === 'active';
             document.getElementById('isTimeRestricted').checked = user.is_time_restricted == 1;
             document.getElementById('allowedLoginStart').value = user.allowed_login_start || '';
@@ -900,12 +957,21 @@ async function saveUser() {
     saveBtnText.textContent = isEdit ? 'Updating...' : 'Saving...';
     
     try {
+        // Get branch values from Choices.js or native select
+        let branchIds = [];
+        if (branchChoices) {
+            branchIds = branchChoices.getValue(true); // true returns array of values
+        } else {
+            const branchSel = document.getElementById('branchId');
+            branchIds = Array.from(branchSel.selectedOptions).map(o => o.value).filter(v => v);
+        }
+
         const data = {
             username: document.getElementById('username').value,
             email: document.getElementById('email').value,
             emp_id: document.getElementById('employeeId').value || null,
             role_id: document.getElementById('roleId').value,
-            branch_id: document.getElementById('branchId').value || null,
+            branch_id: branchIds.length ? branchIds : null,
             status: document.getElementById('isActive').checked ? 'active' : 'inactive',
             is_time_restricted: document.getElementById('isTimeRestricted').checked ? 1 : 0,
             allowed_login_start: document.getElementById('allowedLoginStart').value || null,
@@ -1543,22 +1609,29 @@ function updateEmployeeDetails() {
 function filterEmployees() {
     const searchInput = document.getElementById('employeeSearch');
     const employeeList = document.getElementById('employeeList');
-    const searchTerm = searchInput.value.toLowerCase();
+    const employeeDropdown = document.getElementById('employeeDropdown');
+    const searchTerm = searchInput.value.toLowerCase().trim();
 
     const options = employeeList.querySelectorAll('.employee-option');
+    let visibleCount = 0;
     options.forEach(option => {
         const text = option.textContent.toLowerCase();
         if (text.includes(searchTerm)) {
             option.style.display = 'block';
+            visibleCount++;
         } else {
             option.style.display = 'none';
         }
     });
+
+    // Show dropdown if there are visible results
+    employeeDropdown.style.display = visibleCount > 0 ? 'block' : 'none';
 }
 
 function selectEmployee(empId, empName) {
     const employeeSelect = document.getElementById('employeeId');
     const searchInput = document.getElementById('employeeSearch');
+    const employeeDropdown = document.getElementById('employeeDropdown');
 
     // Set the value in the hidden select
     employeeSelect.value = empId;
@@ -1566,8 +1639,24 @@ function selectEmployee(empId, empName) {
     // Update the search input to show selected employee
     searchInput.value = empName;
 
+    // Close the dropdown
+    if (employeeDropdown) employeeDropdown.style.display = 'none';
+
     // Trigger the update function
     updateEmployeeDetails();
+    updateNextButtonState();
+}
+
+function clearEmployeeSearch() {
+    const searchInput = document.getElementById('employeeSearch');
+    const employeeSelect = document.getElementById('employeeId');
+    const employeeDropdown = document.getElementById('employeeDropdown');
+    const empDetails = document.getElementById('employeeDetailsSection');
+
+    if (searchInput) searchInput.value = '';
+    if (employeeSelect) employeeSelect.value = '';
+    if (employeeDropdown) employeeDropdown.style.display = 'none';
+    if (empDetails) empDetails.style.display = 'none';
     updateNextButtonState();
 }
 

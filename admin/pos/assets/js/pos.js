@@ -32,6 +32,14 @@ function loadCartFromStorage() {
         if (savedTicketInCart) {
             ticketInCart = JSON.parse(savedTicketInCart);
         }
+        // Ensure sync: if cart is empty, clear ticketInCart; if cart has ticket, ensure ticketInCart is set
+        const hasTicketInCart = cart.some(i => i.type === 'ticket');
+        if (cart.length === 0) {
+            ticketInCart = null;
+        } else if (hasTicketInCart && !ticketInCart) {
+            // Cart has ticket but ticketInCart is null - resync
+            ticketInCart = cart.find(i => i.type === 'ticket');
+        }
     } catch (e) {
         console.error('Error loading cart from storage:', e);
     }
@@ -969,12 +977,12 @@ function loadProviderServiceFees() {
                 // Show permission error in UI
                 showAlert('error', data.error);
             }
-            // Load all wallets (not filtered by service fee)
-            loadWallets();
+            // Load wallets filtered by user's assigned branch
+            loadWallets(null, window.POS_BRANCH_ID);
         })
         .catch(error => {
             console.error('Error loading provider service fees:', error);
-            loadWallets(); // Fallback to loading all wallets
+            loadWallets(null, window.POS_BRANCH_ID); // Fallback loading with user's branch
         });
 }
 
@@ -982,11 +990,14 @@ function loadWallets(providerId = null, branchId = null) {
     const select = document.getElementById('ticketWallet');
     let url = `${window.BASE_URL}/api/wallets`;
 
+    // Use user's assigned branch by default if not provided
+    const userBranchId = branchId || window.POS_BRANCH_ID || null;
+
     // Add filter parameters if provided
-    if (providerId || branchId) {
+    if (providerId || userBranchId) {
         const params = [];
         if (providerId) params.push(`provider_id=${providerId}`);
-        if (branchId) params.push(`branch_id=${branchId}`);
+        if (userBranchId) params.push(`branch_id=${userBranchId}`);
         url += `?${params.join('&')}`;
     }
 
@@ -1549,35 +1560,32 @@ async function submitCloseSession() {
 function switchTransactionType(type) {
     if (type === transactionType) return;
     
-    // For transactions tab, switch directly without checking cart
+    // For transactions tab - just switch view, don't clear cart (it's just for viewing)
     if (type === 'transaction') {
         transactionType = type;
         localStorage.setItem('posTransactionType', type);
         updateTransactionTypeUI();
-        // Clear filters and load transactions on page 1
-        document.getElementById('filterSearch').value = '';
-        document.getElementById('filterType').value = '';
-        document.getElementById('filterStatus').value = '';
+        
+        // Set date to today if not already set
         const dateInput = document.getElementById('filterDate');
-        if (dateInput._flatpickr) {
-            dateInput._flatpickr.setDate('today');
+        if (dateInput && dateInput._flatpickr) {
+            const currentValue = dateInput.value;
+            if (!currentValue) {
+                const today = new Date();
+                dateInput._flatpickr.setDate([today, today]);
+            }
         }
+        
+        // Load transactions on page 1
         loadRecentTransactions(1);
         return;
     }
-    
-    // Check if cart has items
-    if (cart.length > 0) {
-        // Store pending type and show confirmation modal
-        pendingTransactionType = type;
-        switchTypeModal.show();
-        return;
-    }
-    
-    // No items in cart, switch directly
+
+    // Switching between ticket and service modes - allow freely, cart can hold both
     transactionType = type;
     localStorage.setItem('posTransactionType', type);
     updateTransactionTypeUI();
+    
 }
 
 function confirmSwitchType() {
@@ -1603,6 +1611,7 @@ function updateTransactionTypeUI() {
     document.getElementById('ticketSection').style.display = transactionType === 'ticket' ? '' : 'none';
     document.getElementById('serviceSection').style.display = transactionType === 'service' ? '' : 'none';
     document.getElementById('transactionSection').style.display = transactionType === 'transaction' ? '' : 'none';
+
 }
 
 // =============================================
@@ -2132,7 +2141,7 @@ function addTicketToCart() {
     }
 
     const passengerId = document.getElementById('ticketPassenger').value;
-    const travelDate = document.getElementById('ticketTravelDate').value;
+    const ticketNumber = document.getElementById('ticketNumber').value.trim();
     // const origin = document.getElementById('ticketOrigin').value.trim();
     // const destination = document.getElementById('ticketDestination').value.trim();
     const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
@@ -2148,7 +2157,7 @@ function addTicketToCart() {
     const walletProviderId = walletOption ? walletOption.dataset.providerId : null;
 
     if (!passengerId) { showToast('danger', 'Error', 'Please select a passenger.'); return; }
-    if (!travelDate) { showToast('danger', 'Error', 'Please enter travel date.'); return; }
+    if (!ticketNumber) { showToast('danger', 'Error', 'Please enter ticket number.'); return; }
     if (!walletId) { showToast('danger', 'Error', 'Please select a wallet.'); return; }
     // if (!origin) { showToast('danger', 'Error', 'Please enter origin.'); return; }
     // if (!destination) { showToast('danger', 'Error', 'Please enter destination.'); return; }
@@ -2157,11 +2166,11 @@ function addTicketToCart() {
     // Get passenger name from search input
     const passengerName = document.getElementById('ticketPassengerSearch').value.trim();
 
-    ticketInCart = {
+    const ticketItem = {
         type: 'ticket',
         passengerId,
         passengerName,
-        travelDate,
+        ticketNumber,
         origin: null,
         destination: null,
         baseAmount,
@@ -2173,15 +2182,21 @@ function addTicketToCart() {
         providerId: walletProviderId
     };
 
-    cart = [ticketInCart]; // Replace cart with ticket
-    document.getElementById('serviceAddonsSection').style.display = '';
+    // Only one ticket allowed per cart
+    if (cart.some(i => i.type === 'ticket')) {
+        showToast('warning', 'Ticket Already Added', 'Only one ticket is allowed per cart. Remove the existing ticket first.');
+        return;
+    }
+
+    ticketInCart = ticketItem;
+    cart.unshift(ticketItem); // Ticket always first in cart
     saveCartToStorage();
     renderCart();
 
     // Clear ticket form after adding to cart
     document.getElementById('ticketPassengerSearch').value = '';
     document.getElementById('ticketPassenger').value = '';
-    document.getElementById('ticketTravelDate').value = '';
+    document.getElementById('ticketNumber').value = '';
     document.getElementById('ticketBaseAmount').value = '';
     document.getElementById('ticketDiscount').value = '0';
     document.getElementById('ticketServiceFee').value = '0';
@@ -2190,29 +2205,6 @@ function addTicketToCart() {
     document.getElementById('ticketTotalDisplay').textContent = '₱0.00';
     window.currentServiceFee = null;
     // Ticket added - no toast to avoid distraction
-}
-
-function toggleServiceAddons() {
-    const body = document.getElementById('serviceAddonsBody');
-    body.style.display = body.style.display === 'none' ? '' : 'none';
-}
-
-function selectServiceAddon(id, name, defaultAmount, allowCustom) {
-    if (!ticketInCart) {
-        showToast('warning', 'No Ticket', 'Please add a ticket first.');
-        return;
-    }
-
-    activeServiceType = { id, name, defaultAmount, allowCustom };
-
-    document.getElementById('itemServiceName').value = name;
-    document.getElementById('itemUnitPrice').value = parseFloat(defaultAmount || 0).toFixed(2);
-    document.getElementById('itemUnitPrice').readOnly = !allowCustom;
-    document.getElementById('itemQty').value = 1;
-    computeItemTotal();
-
-    document.getElementById('itemEntryCard').style.display = '';
-    document.getElementById('itemEntryCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // =============================================
@@ -2313,13 +2305,7 @@ function addItemToCart() {
         description
     };
 
-    if (transactionType === 'ticket' && ticketInCart) {
-        // Add as addon to ticket
-        cart.push(serviceItem);
-    } else {
-        // Service only mode
-        cart.push(serviceItem);
-    }
+    cart.push(serviceItem);
 
     itemEntryModal.hide();
     document.getElementById('itemDescription').value = '';
@@ -2347,7 +2333,6 @@ function renderCart() {
         clearBtn.style.display = 'none';
         payBtn.disabled = true;
         ticketInCart = null;
-        document.getElementById('serviceAddonsSection').style.display = 'none';
         document.getElementById('cartSubtotal').textContent = '₱0.00';
         document.getElementById('cartTotal').textContent = '₱0.00';
         return;
@@ -2356,6 +2341,7 @@ function renderCart() {
     emptyMsg.style.display = 'none';
     clearBtn.style.display = '';
     payBtn.disabled = false;
+
 
     let html = '';
     let subtotal = 0;
@@ -2366,9 +2352,8 @@ function renderCart() {
             <div class="cart-item d-flex justify-content-between align-items-start border-start border-4 border-primary">
               <div class="flex-grow-1">
                 <div class="fw-semibold small text-primary"><span class="fas fa-ticket-alt me-1"></span>${item.passengerName}</div>
-                <div class="text-muted" style="font-size:0.75rem;">${item.origin} → ${item.destination}</div>
-                <div class="text-muted" style="font-size:0.75rem;">${item.travelDate}</div>
-                <div class="text-muted small">Base: ₱${fmt(item.baseAmount)} | Fee: ₱${fmt(item.serviceFee)}</div>
+                <div class="text-muted" style="font-size:0.75rem;">Ticket #: ${item.ticketNumber}</div>
+                <div class="text-muted small">Cost: ₱${fmt(item.baseAmount)} | Fee: ₱${fmt(item.serviceFee)}</div>
               </div>
               <div class="d-flex align-items-center gap-2">
                 <strong class="text-success">₱${fmt(item.total)}</strong>
@@ -2404,8 +2389,10 @@ function removeCartItem(idx) {
     const item = cart[idx];
     if (item.type === 'ticket') {
         ticketInCart = null;
-        cart = []; // Clear everything if ticket is removed
-        document.getElementById('serviceAddonsSection').style.display = 'none';
+        cart = []; // Clear everything when ticket is removed (services may depend on it)
+        saveCartToStorage();
+        renderCart();
+        return;
     } else {
         cart.splice(idx, 1);
     }
@@ -2430,7 +2417,6 @@ function confirmClearCart() {
     renderCart();
     renderPaymentLines();
     paymentModal.hide();
-    document.getElementById('serviceAddonsSection').style.display = 'none';
     clearCartModal.hide();
     // Cart cleared - no toast to avoid distraction
 }
@@ -2468,7 +2454,7 @@ function populatePaymentModalCart() {
                             <span class="fas fa-ticket-alt me-2"></span>${item.passengerName}
                         </div>
                         <div class="text-muted small">
-                            ${item.travelDate} • Base: ₱${fmt(item.baseAmount)}${item.serviceFee > 0 ? ' + Fee: ₱' + fmt(item.serviceFee) : ''}${item.discount > 0 ? ' - Discount: ₱' + fmt(item.discount) : ''}
+                            Ticket #: ${item.ticketNumber} • Cost: ₱${fmt(item.baseAmount)}${item.serviceFee > 0 ? ' + Fee: ₱' + fmt(item.serviceFee) : ''}${item.discount > 0 ? ' - Discount: ₱' + fmt(item.discount) : ''}
                         </div>
                     </div>
                     <div class="fw-bold">₱${fmt(item.total)}</div>
@@ -2507,6 +2493,7 @@ function selectPaymentMethod(el) {
         requiresConfirmation: el.dataset.requiresConfirmation === '1',
         requiresCustomer: el.dataset.requiresCustomer === '1',
         requiresReference: el.dataset.requiresReference === '1',
+        tracksCredit: el.dataset.tracksCredit === '1',
     };
 
     const remaining = getCartTotal() - paymentLines.reduce((s, p) => s + p.amount, 0);
@@ -2546,9 +2533,17 @@ function selectPaymentMethod(el) {
     });
     bankSelect.value = '';
 
-    // If payment method requires customer, open customer selection modal
-    if (activePaymentMethod.requiresCustomer) {
-        openCustomerModal();
+    // If method tracks credit/billing, determine passenger
+    if (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) {
+        // If there's a ticket in cart, auto-use that passenger
+        const ticketItem = cart.find(i => i.type === 'ticket');
+        if (ticketItem && ticketItem.passengerId) {
+            selectedCustomerId = ticketItem.passengerId;
+            document.getElementById('paymentEntryRow').style.display = '';
+        } else {
+            // No ticket passenger — open customer selector
+            openCustomerModal();
+        }
     } else {
         document.getElementById('paymentEntryRow').style.display = '';
     }
@@ -2569,8 +2564,8 @@ function addPaymentLine() {
     if (activePaymentMethod.requiresReference && !refNum) {
         showToast('danger', 'Reference Required', 'Please enter the reference number.'); return;
     }
-    if (activePaymentMethod.type === 'CHARGE' && !selectedCustomerId) {
-        showToast('danger', 'Customer Required', 'Please select a customer for CHARGE payment.'); return;
+    if ((activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) && !selectedCustomerId) {
+        showToast('danger', 'Customer Required', 'Please select a customer for this payment method.'); return;
     }
     const bankAccountId = document.getElementById('bankAccountSelect').value || null;
 
@@ -2579,10 +2574,11 @@ function addPaymentLine() {
         methodName: activePaymentMethod.name,
         methodType: activePaymentMethod.type,
         requiresConfirmation: activePaymentMethod.requiresConfirmation,
+        tracksCredit: activePaymentMethod.tracksCredit,
         amount,
         referenceNumber: refNum || null,
         bankAccountId,
-        passengerId: activePaymentMethod.type === 'CHARGE' ? selectedCustomerId : null
+        passengerId: (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) ? selectedCustomerId : null
     });
 
     document.getElementById('paymentEntryRow').style.display = 'none';
@@ -2619,6 +2615,7 @@ function renderPaymentLines() {
                     <span class="fw-bold">${p.methodName}</span>
                     ${p.referenceNumber ? `<span class="text-muted small ms-2">Ref: ${p.referenceNumber}</span>` : ''}
                     ${p.requiresConfirmation ? '<span class="badge bg-soft-warning text-warning ms-2 small">Needs Confirm</span>' : ''}
+                    ${p.tracksCredit && p.passengerId ? '<span class="badge bg-soft-danger text-danger ms-2 small"><span class="fas fa-file-invoice-dollar me-1"></span>Billed to Account</span>' : ''}
                 </div>
             </div>
             <div class="d-flex align-items-center gap-3">
@@ -2692,17 +2689,17 @@ async function confirmOrder() {
         payload = {
             session_id: window.POS_SESSION_ID,
             branch_id: window.POS_BRANCH_ID,
-            ticket: {
+            tickets: [{
                 passenger_id: ticket.passengerId,
                 origin: ticket.origin,
                 destination: ticket.destination,
-                travel_date: ticket.travelDate,
+                ticket_number: ticket.ticketNumber,
                 base_amount: ticket.baseAmount,
                 service_fee: ticket.serviceFee,
                 discount_amount: ticket.discount,
                 total_amount: ticket.total,
                 wallet_id: ticket.walletId
-            },
+            }],
             services: services.map(s => ({
                 service_type_id: s.serviceTypeId,
                 description: s.description || null,
@@ -2759,9 +2756,8 @@ async function confirmOrder() {
             renderPaymentLines();
             paymentModal.hide();
             itemEntryModal.hide();
-            document.getElementById('serviceAddonsSection').style.display = 'none';
             // Refresh wallet balances to reflect updated balance after payment
-            loadWallets();
+            loadWallets(null, window.POS_BRANCH_ID);
             // Refresh recent transactions list
             loadRecentTransactions();
         } else {
@@ -2896,70 +2892,242 @@ function renderTransactionsTable(transactions) {
 
     let html = '';
     transactions.forEach(txn => {
-        // Check for pending cancellation
         const hasPendingCancellation = txn.pending_cancellation_id ? true : false;
+        const isOrderBased = !!txn.order_id; // new grouped order
+        const orderItems = txn.order_items || [];
 
-        let statusBadge = txn.status === 'booked'
-            ? '<span class="badge bg-soft-success text-success">Booked</span>'
-            : txn.status === 'completed'
-                ? '<span class="badge bg-soft-primary text-primary">Completed</span>'
-            : txn.status === 'cancelled'
-                ? '<span class="badge bg-soft-danger text-danger">Cancelled</span>'
-            : txn.status === 'refunded'
-                ? '<span class="badge bg-soft-warning text-warning">Refunded</span>'
-                : `<span class="badge bg-soft-secondary text-secondary">${txn.status}</span>`;
+        // Check for cancelled items in order
+        const cancelledTicketCount = parseInt(txn.cancelled_ticket_count || 0);
+        const cancelledServiceCount = parseInt(txn.cancelled_service_count || 0);
+        const hasCancelledItems = cancelledTicketCount > 0 || cancelledServiceCount > 0;
+        const totalItems = parseInt(txn.ticket_count || 0) + parseInt(txn.service_count || 0);
+        const allItemsCancelled = hasCancelledItems && (cancelledTicketCount + cancelledServiceCount) >= totalItems;
 
-        const typeIcon = txn.transaction_type === 'TICKET' ? 'fa-ticket-alt text-primary' : 'fa-concierge-bell text-success';
-        const passengerName = txn.passenger_name ? txn.passenger_name.charAt(0).toUpperCase() + txn.passenger_name.slice(1).toLowerCase() : '-';
+        let statusBadge;
+        if (txn.status === 'booked') {
+            statusBadge = '<span class="badge bg-soft-success text-success">Booked</span>';
+        } else if (txn.status === 'completed') {
+            if (allItemsCancelled) {
+                statusBadge = '<span class="badge bg-soft-danger text-danger">Cancelled</span>';
+            } else if (hasCancelledItems) {
+                statusBadge = '<span class="badge bg-soft-primary text-primary">Completed</span>';
+            } else {
+                statusBadge = '<span class="badge bg-soft-primary text-primary">Completed</span>';
+            }
+        } else if (txn.status === 'cancelled') {
+            statusBadge = '<span class="badge bg-soft-danger text-danger">Cancelled</span>';
+        } else if (txn.status === 'refunded') {
+            statusBadge = '<span class="badge bg-soft-warning text-warning">Refunded</span>';
+        } else {
+            statusBadge = `<span class="badge bg-soft-secondary text-secondary">${txn.status}</span>`;
+        }
+
+        // Add pending cancellation indicator
+        if (hasPendingCancellation) {
+            statusBadge += ` <span class="badge bg-soft-warning text-warning ms-1" title="Cancellation requested by ${txn.cancellation_requested_by || 'Unknown'}"><i class="fas fa-clock me-1"></i>Pending Cancel</span>`;
+        }
+
+        // Add cancelled items indicator
+        if (hasCancelledItems && !hasPendingCancellation) {
+            if (allItemsCancelled) {
+                statusBadge += ` <span class="badge bg-soft-danger text-danger ms-1" title="${cancelledTicketCount} ticket(s) and ${cancelledServiceCount} service(s) cancelled"><i class="fas fa-times-circle me-1"></i>All Cancelled</span>`;
+            } else {
+                statusBadge += ` <span class="badge bg-soft-warning text-warning ms-1" title="${cancelledTicketCount} ticket(s) and ${cancelledServiceCount} service(s) cancelled"><i class="fas fa-exclamation-circle me-1"></i>Partially Cancelled</span>`;
+            }
+        }
+
         const branchName = txn.branch_name ? `<span class="badge bg-soft-primary text-primary">${txn.branch_name}</span>` : '-';
-        const providerName = txn.provider_name ? (txn.provider_type ?
-            `<div>${txn.provider_name}</div><div><span class="badge bg-soft-info text-info" style="font-size: 0.75em;">${txn.provider_type}</span></div>` :
-            txn.provider_name) : '-';
-        const travelDate = txn.travel_date ? new Date(txn.travel_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
-        const originDest = (txn.origin && txn.destination) ? `${txn.origin} → ${txn.destination}` : '-';
-        const typeBadge = txn.transaction_type === 'TICKET'
-            ? '<span class="badge bg-soft-primary text-primary">TICKET</span>'
-            : '<span class="badge bg-soft-success text-success">SERVICE</span>';
+        const ticketNumber = txn.ticket_number || '-';
+        const createdAt = new Date(txn.created_at);
 
-        // Build cancel button - disable if pending cancellation exists
+        // Build type badge(s)
+        let typeBadge = '';
+        if (isOrderBased) {
+            const tCount = parseInt(txn.ticket_count || 0);
+            const sCount = parseInt(txn.service_count || 0);
+            if (tCount > 0) typeBadge += `<span class="badge bg-soft-primary text-primary me-1"><i class="fas fa-ticket-alt me-1"></i>${tCount > 1 ? tCount + '×' : ''}Ticket</span>`;
+            if (sCount > 0) typeBadge += `<span class="badge bg-soft-success text-success"><i class="fas fa-concierge-bell me-1"></i>${sCount > 1 ? sCount + '×' : ''}Service</span>`;
+        } else {
+            typeBadge = txn.transaction_type === 'TICKET'
+                ? '<span class="badge bg-soft-primary text-primary">TICKET</span>'
+                : '<span class="badge bg-soft-success text-success">SERVICE</span>';
+        }
+
+        // Passenger / description cell
+        let passengerCell = '-';
+        if (isOrderBased && orderItems.length > 0) {
+            const names = [...new Set(orderItems.filter(i => i.item_type === 'TICKET' && i.passenger_name).map(i => i.passenger_name.charAt(0).toUpperCase() + i.passenger_name.slice(1).toLowerCase()))];
+            passengerCell = names.length > 0 ? names.join('<br>') : (txn.passenger_name || '-');
+        } else if (txn.passenger_name) {
+            passengerCell = txn.passenger_name.charAt(0).toUpperCase() + txn.passenger_name.slice(1).toLowerCase();
+        }
+
+        // Provider cell
+        let providerCell = '-';
+        if (isOrderBased && orderItems.length > 0) {
+            const providers = [...new Set(orderItems.filter(i => i.provider_name).map(i => i.provider_name))];
+            providerCell = providers.length > 0 ? providers.join('<br>') : '-';
+        } else if (txn.provider_name) {
+            providerCell = txn.provider_type
+                ? `<div>${txn.provider_name}</div><div><span class="badge bg-soft-info text-info" style="font-size:0.75em;">${txn.provider_type}</span></div>`
+                : txn.provider_name;
+        }
+
+        // Origin/Dest cell
+        let routeCell = '-';
+        if (isOrderBased && orderItems.length > 0) {
+            const routes = [...new Set(orderItems.filter(i => i.item_type === 'TICKET' && i.origin && i.destination).map(i => `${i.origin} → ${i.destination}`))];
+            routeCell = routes.length > 0 ? routes.join('<br>') : '-';
+        } else {
+            routeCell = (txn.origin && txn.destination) ? `${txn.origin} → ${txn.destination}` : '-';
+        }
+
+        // Items breakdown (collapsible) for order-based
+        let itemsBreakdown = '';
+        if (isOrderBased && orderItems.length > 0) {
+            const rowId = `order-items-${txn.order_id}`;
+            let itemRows = '';
+            orderItems.forEach(item => {
+                // Check if item is cancelled/refunded
+                const isTicketCancelled = item.item_type === 'TICKET' && ['cancelled', 'refunded'].includes(item.ticket_status);
+                const isServiceCancelled = item.item_type === 'SERVICE' && ['cancelled', 'refunded'].includes(item.service_status);
+                const isCancelled = isTicketCancelled || isServiceCancelled;
+                const cancelledBadge = isCancelled ? '<span class="badge bg-danger text-white ms-1" style="font-size:0.6rem;">CANCELLED</span>' : '';
+                const rowClass = isCancelled ? 'table-secondary text-muted' : 'table-light';
+                const textStyle = isCancelled ? 'text-decoration: line-through; opacity: 0.7;' : '';
+
+                if (item.item_type === 'TICKET') {
+                    const td = item.travel_date ? new Date(item.travel_date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+                    const iconColor = isCancelled ? 'text-muted' : 'text-primary';
+                    itemRows += `<tr class="${rowClass}" style="font-size:0.8em;${textStyle}">
+                        <td colspan="2"><i class="fas fa-ticket-alt ${iconColor} me-1"></i>${item.passenger_name || '-'}${cancelledBadge}</td>
+                        <td colspan="2">${item.provider_name || '-'}</td>
+                        <td>${td}</td>
+                        <td>${item.origin && item.destination ? item.origin + ' → ' + item.destination : '-'}</td>
+                        <td>₱${fmt(item.total_amount)}</td>
+                        <td colspan="3">${item.transaction_code || ''}</td>
+                    </tr>`;
+                } else {
+                    const svcName = item.service_type_name || item.service_name || 'Service';
+                    const svcDesc = item.description || item.service_name || '-';
+                    const iconColor = isCancelled ? 'text-muted' : 'text-success';
+                    itemRows += `<tr class="${rowClass}" style="font-size:0.8em;${textStyle}">
+                        <td colspan="2"><i class="fas fa-concierge-bell ${iconColor} me-1"></i>${svcName}${cancelledBadge}</td>
+                        <td colspan="2">${svcDesc !== svcName ? svcDesc : '-'}</td>
+                        <td>-</td><td>-</td>
+                        <td>₱${fmt(item.total_amount)}</td>
+                        <td colspan="3">${item.transaction_code || ''}</td>
+                    </tr>`;
+                }
+            });
+            itemsBreakdown = `<tr id="${rowId}" style="display:none;">
+                <td colspan="10" class="p-0">
+                  <table class="table table-sm mb-0 border-top">
+                    <thead class="table-secondary"><tr style="font-size:0.75em;">
+                      <th colspan="2">Item / Passenger</th><th colspan="2">Provider / Description</th>
+                      <th>Travel Date</th><th>Route</th><th>Amount</th><th colspan="3">Code</th>
+                    </tr></thead>
+                    <tbody>${itemRows}</tbody>
+                  </table>
+                </td>
+              </tr>`;
+        }
+
+        // Cancel button - for legacy single-ticket or orders containing tickets
         let cancelButton = '<span class="text-muted small">N/A</span>';
-        if (txn.transaction_type === 'TICKET' && (txn.status === 'booked' || txn.status === 'completed')) {
+        // Only count active tickets (not cancelled/refunded)
+        const hasActiveTicketsInOrder = isOrderBased && orderItems.some(i =>
+            i.item_type === 'TICKET' && !['cancelled', 'refunded'].includes(i.ticket_status)
+        );
+        const canCancelTicket = (!isOrderBased && txn.transaction_type === 'TICKET') || hasActiveTicketsInOrder;
+
+        if (canCancelTicket && (txn.status === 'booked' || txn.status === 'completed')) {
             if (hasPendingCancellation) {
                 cancelButton = `<span class="badge bg-soft-warning text-warning small" title="Cancellation requested by ${txn.cancellation_requested_by || 'Unknown'}"><i class="fas fa-clock me-1"></i>Cancel Pending</span>`;
             } else {
+                // For orders, use the first active (non-cancelled) ticket's transaction code
+                const ticketItem = hasActiveTicketsInOrder
+                    ? orderItems.find(i => i.item_type === 'TICKET' && !['cancelled', 'refunded'].includes(i.ticket_status))
+                    : null;
+                
+                // Calculate base amount and service fee correctly
+                // For order items: total = base + service_fee, so base = total - service_fee
+                const cancelTxnCode = ticketItem ? ticketItem.transaction_code : txn.transaction_code;
+                let cancelBaseAmount, cancelServiceFee, cancelTotalAmount;
+                if (ticketItem) {
+                    const itemTotal = parseFloat(ticketItem.total_amount) || 0;
+                    const itemServiceFee = parseFloat(ticketItem.service_fee) || 0;
+                    cancelServiceFee = itemServiceFee;
+                    cancelBaseAmount = itemTotal - itemServiceFee; // Base amount without service fee
+                    cancelTotalAmount = itemTotal;
+                } else {
+                    cancelBaseAmount = parseFloat(txn.base_amount) || 0;
+                    cancelServiceFee = parseFloat(txn.service_fee) || 0;
+                    cancelTotalAmount = parseFloat(txn.total_amount) || (cancelBaseAmount + cancelServiceFee);
+                }
+
+                // Build cancel data object
+                const cancelData = ticketItem ? {
+                    transaction_code: ticketItem.transaction_code,
+                    base_amount: cancelBaseAmount,
+                    service_fee: cancelServiceFee,
+                    total_amount: cancelTotalAmount,
+                    passenger_name: ticketItem.passenger_name,
+                    provider_name: ticketItem.provider_name,
+                    origin: ticketItem.origin,
+                    destination: ticketItem.destination,
+                    travel_date: ticketItem.travel_date,
+                    status: 'booked'
+                } : txn;
+
                 cancelButton = `<button class="btn btn-sm btn-outline-danger"
-                        data-txn-code="${txn.transaction_code}"
-                        data-base-amount="${txn.base_amount}"
-                        data-service-fee="${txn.service_fee}"
-                        data-txn-data="${encodeURIComponent(JSON.stringify(txn))}"
+                        data-txn-code="${cancelTxnCode}"
+                        data-base-amount="${cancelBaseAmount}"
+                        data-service-fee="${cancelServiceFee}"
+                        data-txn-data="${encodeURIComponent(JSON.stringify(cancelData))}"
                         onclick="openCancelTicketModalFromButton(this)">
                     <span class="fas fa-times me-1"></span>Cancel
                 </button>`;
             }
         }
 
+        // Toggle button for order items
+        const toggleBtn = isOrderBased && orderItems.length > 0
+            ? `<button class="btn btn-xs btn-outline-secondary p-1 ms-1" style="font-size:0.7rem;" onclick="toggleOrderItems('order-items-${txn.order_id}', this)" title="View items"><i class="fas fa-list"></i></button>`
+            : '';
+
         html += `
             <tr>
                 <td>
-                    <div><strong>${txn.transaction_code}</strong></div>
+                    <div class="d-flex align-items-center gap-1">
+                        <strong>${txn.transaction_code}</strong>${toggleBtn}
+                    </div>
                     <div>${typeBadge} ${txn.cashier_name ? `<span class="text-muted small ms-1">by ${txn.cashier_name}</span>` : ''}</div>
                 </td>
-                <td class="small">${passengerName}</td>
+                <td class="small">${passengerCell}</td>
                 <td class="small">${branchName}</td>
-                <td class="small">${providerName}</td>
-                <td class="small">${travelDate}</td>
-                <td class="small">${originDest}</td>
+                <td class="small">${providerCell}</td>
+                <td class="small">${ticketNumber}</td>
                 <td>₱${fmt(txn.total_amount)}</td>
                 <td>${statusBadge}</td>
                 <td class="small">
-                    <div>${new Date(txn.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
-                    <div class="text-muted" style="font-size: 0.85em;">${new Date(txn.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div>${createdAt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                    <div class="text-muted" style="font-size:0.85em;">${createdAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
                 </td>
                 <td class="text-end">${cancelButton}</td>
             </tr>
+            ${itemsBreakdown}
         `;
     });
     list.innerHTML = html;
+}
+
+function toggleOrderItems(rowId, btn) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    const hidden = row.style.display === 'none';
+    row.style.display = hidden ? '' : 'none';
+    btn.innerHTML = hidden ? '<i class="fas fa-chevron-up"></i>' : '<i class="fas fa-list"></i>';
 }
 
 function updatePaginationUI() {
@@ -3019,49 +3187,60 @@ function clearFilters() {
 // Load recent transactions on page load
 document.addEventListener('DOMContentLoaded', function() {
     if (window.POS_HAS_SESSION) {
-        // Initialize date picker with custom configuration to fix single date display
-        const dateInput = document.getElementById('filterDate');
-        if (dateInput && window.flatpickr) {
-            window.flatpickr(dateInput, {
-                mode: 'range',
-                dateFormat: 'Y-m-d',
-                disableMobile: true,
-                position: 'below',
-                onChange: function(selectedDates, dateStr, instance) {
-                    // Trigger filter transactions when date changes
-                    filterTransactions();
-                }
-            });
-        }
-        
-        // Restore filter values from localStorage
-        const savedSearch = localStorage.getItem('pos_filter_search');
-        const savedType = localStorage.getItem('pos_filter_type');
-        const savedStatus = localStorage.getItem('pos_filter_status');
-        const savedDate = localStorage.getItem('pos_filter_date');
-        
-        if (savedSearch !== null) document.getElementById('filterSearch').value = savedSearch;
-        if (savedType !== null) document.getElementById('filterType').value = savedType;
-        if (savedStatus !== null) document.getElementById('filterStatus').value = savedStatus;
-        
-        // Restore date picker value
-        if (savedDate) {
+        // Wait for theme to initialize flatpickr via datetimepicker class
+        setTimeout(function() {
             const dateInput = document.getElementById('filterDate');
-            if (dateInput._flatpickr) {
-                if (savedDate.includes(' to ')) {
-                    // It's a range
-                    const [startDate, endDate] = savedDate.split(' to ');
-                    dateInput._flatpickr.setDate([startDate, endDate]);
+            if (dateInput && dateInput._flatpickr) {
+                // Hook into flatpickr onChange — fires for both manual date picks AND predefined range buttons
+                dateInput._flatpickr.config.onChange.push(function(selectedDates, dateStr, instance) {
+                    // Only fire when both start and end are selected (full range)
+                    if (selectedDates.length === 2 || (selectedDates.length === 1 && instance.config.mode !== 'range')) {
+                        filterTransactions();
+                    }
+                });
+
+                // Restore filter values from localStorage
+                const savedSearch = localStorage.getItem('pos_filter_search');
+                const savedType = localStorage.getItem('pos_filter_type');
+                let savedStatus = localStorage.getItem('pos_filter_status');
+                const savedDate = localStorage.getItem('pos_filter_date');
+
+                // Validate status - 'booked' is not valid for orders, clear it
+                if (savedStatus === 'booked') {
+                    savedStatus = '';
+                    localStorage.removeItem('pos_filter_status');
+                }
+
+                if (savedSearch !== null) document.getElementById('filterSearch').value = savedSearch;
+                if (savedType !== null) document.getElementById('filterType').value = savedType;
+                if (savedStatus !== null && savedStatus !== '') document.getElementById('filterStatus').value = savedStatus;
+
+                // Restore date picker value or set default to today
+                if (savedDate) {
+                    if (savedDate.includes(' to ')) {
+                        const [startDate, endDate] = savedDate.split(' to ');
+                        dateInput._flatpickr.setDate([startDate, endDate]);
+                    } else {
+                        dateInput._flatpickr.setDate(savedDate);
+                    }
                 } else {
-                    // It's a single date
-                    dateInput._flatpickr.setDate(savedDate);
+                    // No saved date, set default to today (single day range)
+                    const today = new Date();
+                    dateInput._flatpickr.setDate([today, today]);
+                    localStorage.setItem('pos_filter_date', today.toISOString().split('T')[0] + ' to ' + today.toISOString().split('T')[0]);
+                }
+
+                // Only load transactions if we're on the transaction tab
+                if (transactionType === 'transaction') {
+                    loadRecentTransactions(1);
+                } else {
+                    const list = document.getElementById('recentTransactionsList');
+                    if (list) {
+                        list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Switch to Transaction History to view transactions.</td></tr>';
+                    }
                 }
             }
-        }
-        
-        if (transactionType === 'transaction') {
-            loadRecentTransactions(1);
-        }
+        }, 300); // Wait for theme to initialize flatpickr
     }
 });
 
@@ -3199,17 +3378,8 @@ async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 
     if (detailsDiv && txnData) {
         document.getElementById('cancelPassengerName').textContent = txnData.passenger_name || '-';
 
-        // Format travel date properly
-        if (txnData.travel_date) {
-            const travelDate = new Date(txnData.travel_date);
-            document.getElementById('cancelTravelDate').textContent = travelDate.toLocaleDateString('en-PH', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-        } else {
-            document.getElementById('cancelTravelDate').textContent = '-';
-        }
+        // Show ticket number
+        document.getElementById('cancelTravelDate').textContent = txnData.ticket_number || '-';
 
         document.getElementById('cancelRoute').textContent = (txnData.origin && txnData.destination) ? `${txnData.origin} → ${txnData.destination}` : '-';
         document.getElementById('cancelProvider').textContent = txnData.provider_name || '-';
@@ -3277,7 +3447,7 @@ function confirmCancelTicket() {
             showToast('success', 'Success', data.message);
             cancelTicketModal.hide();
             loadRecentTransactions(); // Refresh transactions list
-            loadWallets(); // Refresh wallet balances after cancellation refund
+            loadWallets(null, window.POS_BRANCH_ID); // Refresh wallet balances after cancellation refund
         } else {
             showToast('danger', 'Error', data.error || 'Cancellation failed.');
         }

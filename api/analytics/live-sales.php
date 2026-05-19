@@ -1,0 +1,102 @@
+<?php
+require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
+
+header('Content-Type: application/json');
+
+try {
+    $user = Auth::user();
+    if (!$user) {
+        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+        exit;
+    }
+
+    // Get time range (default to last 1 hour for real-time data)
+    $hours = isset($_GET['hours']) ? intval($_GET['hours']) : 1;
+    $today = isset($_GET['today']) && $_GET['today'] === 'true';
+    $branchId = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
+
+    // Build query for live sales from POS orders
+    if ($today) {
+        $whereClause = "WHERE po.status = 'completed' AND DATE(po.created_at) = CURDATE()";
+        $params = [];
+    } else {
+        $whereClause = "WHERE po.status = 'completed' AND po.created_at >= DATE_SUB(NOW(), INTERVAL :hours HOUR)";
+        $params = ['hours' => $hours];
+    }
+
+    // Filter by branch if specified and user is not SUPER_ADMIN
+    if ($branchId && $user['role_code'] !== 'SUPER_ADMIN') {
+        $whereClause .= " AND po.branch_id = :branch_id";
+        $params['branch_id'] = $branchId;
+    } elseif ($user['role_code'] !== 'SUPER_ADMIN' && $user['branch_id']) {
+        // Filter by user's assigned branches
+        $userBranchIds = array_map('trim', explode(',', $user['branch_id']));
+        $placeholders = implode(',', array_fill(0, count($userBranchIds), '?'));
+        $whereClause .= " AND po.branch_id IN ($placeholders)";
+        $params = array_merge($params, $userBranchIds);
+    }
+
+    // Get total sales amount
+    $totalSales = Database::fetch(
+        "SELECT COALESCE(SUM(po.grand_total), 0) as total FROM pos_orders po $whereClause",
+        $params
+    );
+
+    // Get transaction count
+    $transactionCount = Database::fetch(
+        "SELECT COUNT(*) as count FROM pos_orders po $whereClause",
+        $params
+    );
+
+    // Get recent transactions for the list (last 10)
+    $recentTransactions = Database::fetchAll(
+        "SELECT po.order_code, po.grand_total, po.created_at,
+                bb.branch_name,
+                CONCAT(e.first_name, ' ', COALESCE(CONCAT(LEFT(e.middle_name, 1), '. '), ''), e.last_name) as cashier_name
+         FROM pos_orders po
+         LEFT JOIN business_branches bb ON po.branch_id = bb.branch_id
+         LEFT JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
+         LEFT JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
+         LEFT JOIN employees e ON ua.emp_id = e.emp_id
+         $whereClause
+         ORDER BY po.created_at DESC
+         LIMIT 10",
+        $params
+    );
+
+    // Get sales by minute for the chart (last 60 minutes)
+    $salesByMinute = [];
+    for ($i = 59; $i >= 0; $i--) {
+        $minuteStart = date('Y-m-d H:i:s', strtotime("-$i minutes"));
+        $minuteEnd = date('Y-m-d H:i:s', strtotime("-" . ($i - 1) . " minutes"));
+        
+        $minuteSales = Database::fetch(
+            "SELECT COALESCE(SUM(po.grand_total), 0) as total,
+                    COUNT(*) as count
+             FROM pos_orders po
+             WHERE po.status = 'completed'
+             AND po.created_at >= :start AND po.created_at < :end",
+            ['start' => $minuteStart, 'end' => $minuteEnd]
+        );
+
+        $salesByMinute[] = [
+            'time' => date('H:i', strtotime("-$i minutes")),
+            'amount' => floatval($minuteSales['total']),
+            'count' => intval($minuteSales['count'])
+        ];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data' => [
+            'total_sales' => floatval($totalSales['total']),
+            'transaction_count' => intval($transactionCount['count']),
+            'recent_transactions' => $recentTransactions,
+            'sales_by_minute' => $salesByMinute
+        ]
+    ]);
+
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}

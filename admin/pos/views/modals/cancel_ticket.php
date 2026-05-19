@@ -55,7 +55,7 @@
                     <span id="cancelPassengerName" class="fw-semibold">-</span>
                   </div>
                   <div class="col-6">
-                    <small class="text-muted d-block mb-1 fs-10">Travel Date</small>
+                    <small class="text-muted d-block mb-1 fs-10">Ticket Number</small>
                     <span id="cancelTravelDate" class="fw-semibold">-</span>
                   </div>
                   <div class="col-6">
@@ -67,7 +67,7 @@
                     <span id="cancelProvider" class="fw-semibold">-</span>
                   </div>
                   <div class="col-4">
-                    <small class="text-muted d-block mb-1 fs-10">Base Amount</small>
+                    <small class="text-muted d-block mb-1 fs-10">Cost</small>
                     <span id="cancelBaseAmount" class="fw-semibold">₱0.00</span>
                   </div>
                   <div class="col-4">
@@ -100,7 +100,7 @@
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelRefundAmount">Refund Amount (₱)</label>
               <input type="number" class="form-control" id="cancelRefundAmount" placeholder="0.00" min="0" step="0.01">
-              <small class="text-muted">Only the Base Amount will be refunded to the wallet balance (excluding Service Fee: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>).</small>
+              <small class="text-muted">Only the Cost will be refunded to the wallet balance (excluding Service Fee: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>).</small>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelReason">Reason for Cancellation</label>

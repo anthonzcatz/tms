@@ -36,11 +36,7 @@
             </div>
             <div class="col-md-6">
               <label for="addFeeAmount" class="form-label fw-bold">Fee Amount</label>
-              <input type="text" class="form-control" id="addFeeAmount" name="fee_amount" placeholder="0.00" pattern="[0-9,.]*">
-            </div>
-            <div class="col-md-6">
-              <label for="addFeePercentage" class="form-label fw-bold">Fee Percentage (%)</label>
-              <input type="number" class="form-control" id="addFeePercentage" name="fee_percentage" step="0.01" min="0" max="100" placeholder="0.00">
+              <input type="text" class="form-control" id="addFeeAmount" name="fee_value" placeholder="0.00" pattern="[0-9,.]*">
             </div>
             <div class="col-md-6">
               <label for="addStatus" class="form-label fw-bold">Status</label>

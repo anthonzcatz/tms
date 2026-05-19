@@ -42,18 +42,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                       <h4 class="mb-0 text-primary fw-bold">Customer <span class="text-info fw-medium">Charges</span></h4>
                   <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
                   <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a >Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
                     <li class="breadcrumb-item active">Customer Charges</li>
                   </ol>
                  </nav>
                  </h6>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-          </div>
-        </div>
                 </div>
               </div>
             </div>

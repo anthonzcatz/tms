@@ -38,6 +38,7 @@ function openAddMethodModal() {
     document.getElementById('addRequiresCustomer').checked = false;
     document.getElementById('addRequiresReference').checked = false;
     document.getElementById('addIncludeInExpectedCash').checked = false;
+    document.getElementById('addTracksCredit').checked = false;
     addMethodModal.show();
 }
 
@@ -63,6 +64,7 @@ async function submitAddMethod() {
         requires_customer: document.getElementById('addRequiresCustomer').checked ? 1 : 0,
         requires_reference: document.getElementById('addRequiresReference').checked ? 1 : 0,
         include_in_expected_cash: document.getElementById('addIncludeInExpectedCash').checked ? 1 : 0,
+        tracks_credit: document.getElementById('addTracksCredit').checked ? 1 : 0,
         is_active: 1
     };
 
@@ -107,6 +109,7 @@ async function editMethod(methodId) {
         document.getElementById('editRequiresCustomer').checked = !!parseInt(m.requires_customer);
         document.getElementById('editRequiresReference').checked = !!parseInt(m.requires_reference);
         document.getElementById('editIncludeInExpectedCash').checked = !!parseInt(m.include_in_expected_cash);
+        document.getElementById('editTracksCredit').checked = !!parseInt(m.tracks_credit);
         document.getElementById('editIsActive').checked = !!parseInt(m.is_active);
         editMethodModal.show();
     } catch (err) {
@@ -139,6 +142,7 @@ async function submitEditMethod() {
         requires_customer: document.getElementById('editRequiresCustomer').checked ? 1 : 0,
         requires_reference: document.getElementById('editRequiresReference').checked ? 1 : 0,
         include_in_expected_cash: document.getElementById('editIncludeInExpectedCash').checked ? 1 : 0,
+        tracks_credit: document.getElementById('editTracksCredit').checked ? 1 : 0,
         is_active: document.getElementById('editIsActive').checked ? 1 : 0
     };
 

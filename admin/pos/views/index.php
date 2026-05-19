@@ -201,8 +201,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </div>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label fw-semibold" for="ticketTravelDate">Travel Date</label>
-                    <input type="date" class="form-control" id="ticketTravelDate" name="ticketTravelDate">
+                    <label class="form-label fw-semibold" for="ticketNumber">Ticket Number</label>
+                    <input type="text" class="form-control" id="ticketNumber" name="ticketNumber" placeholder="Enter ticket number for tracking">
                   </div>
                   <!-- Hidden for now - Origin and Destination
                   <div class="col-md-6">
@@ -215,7 +215,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   </div>
                   -->
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketBaseAmount">Base Amount (₱)</label>
+                    <label class="form-label fw-semibold" for="ticketBaseAmount">Cost (₱)</label>
                     <input type="number" class="form-control" id="ticketBaseAmount" name="ticketBaseAmount" min="0" step="0.01" placeholder="0.00" oninput="computeTicketTotal()">
                   </div>
                   <div class="col-md-4">
@@ -241,7 +241,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     <div class="form-control bg-light" id="ticketServiceFeeDisplay">-</div>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold">Base Amount</label>
+                    <label class="form-label fw-semibold">Cost</label>
                     <div class="form-control bg-light" id="ticketBaseAmountDisplay">₱0.00</div>
                   </div>
                   <!-- Hidden input for service fee value -->
@@ -267,7 +267,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
               </div>
               <!--/.bg-holder-->
               <div class="card-header py-2 bg-light position-relative z-1">
-                <h6 class="mb-0 fw-bold"><span class="fas fa-concierge-bell me-2 text-primary"></span>Select Service</h6>
+                <h6 class="mb-0 fw-bold"><span class="fas fa-concierge-bell me-2 text-primary"></span>Select Service Add-ons</h6>
               </div>
               <div class="card-body position-relative z-1">
                 <div class="row g-3">
@@ -308,38 +308,6 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
               </div>
             </div>
 
-            <!-- Service Add-ons (for tickets) -->
-            <div class="card mb-3" id="serviceAddonsSection" style="display:none;">
-              <div class="card-header py-2 bg-light">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0 fw-bold"><span class="fas fa-plus-circle me-2 text-success"></span>Add Service Add-ons</h6>
-                  <button class="btn btn-sm btn-outline-secondary" onclick="toggleServiceAddons()">
-                    <span class="fas fa-chevron-down"></span>
-                  </button>
-                </div>
-              </div>
-              <div class="card-body" id="serviceAddonsBody" style="display:none;">
-                <div class="row g-2 mb-3">
-                  <?php foreach ($serviceTypes as $st): ?>
-                  <div class="col-6 col-md-4 col-lg-3">
-                    <div class="card service-type-card text-center p-2"
-                         onclick="selectServiceAddon(<?php echo $st['service_type_id']; ?>, '<?php echo htmlspecialchars($st['name'], ENT_QUOTES); ?>', <?php echo $st['default_amount']; ?>, <?php echo $st['allow_custom_amount'] ? 'true' : 'false'; ?>)">
-                      <div class="mb-1">
-                        <span class="fas fa-concierge-bell text-primary fs-4"></span>
-                      </div>
-                      <div class="fw-semibold small"><?php echo htmlspecialchars($st['name']); ?></div>
-                      <?php if ($st['default_amount'] > 0): ?>
-                        <div class="text-success" style="font-size:0.75rem;">₱<?php echo number_format($st['default_amount'], 2); ?></div>
-                      <?php else: ?>
-                        <div class="text-muted" style="font-size:0.75rem;">Custom</div>
-                      <?php endif; ?>
-                    </div>
-                  </div>
-                  <?php endforeach; ?>
-                </div>
-              </div>
-            </div>
-
             <!-- Transactions Section -->
             <div class="card mb-3" id="transactionSection" style="display:none;">
               <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-7.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
@@ -367,14 +335,13 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   <div class="col-md-2">
                     <select class="form-select form-select-sm" id="filterStatus" onchange="filterTransactions()">
                       <option value="">All Status</option>
-                      <option value="booked">Booked</option>
                       <option value="completed">Completed</option>
                       <option value="cancelled">Cancelled</option>
                       <option value="refunded">Refunded</option>
                     </select>
                   </div>
                   <div class="col-md-2">
-                    <input type="text" class="form-control form-control-sm pos-date-picker" id="filterDate" placeholder="Select date range" onchange="filterTransactions()">
+                    <input type="text" class="form-control form-control-sm datetimepicker" id="filterDate" placeholder="Select date range" data-options='{"mode":"range","dateFormat":"Y-m-d","disableMobile":true,"position":"below","predefinedRanges":["today","last_7_days","last_month"]}'>
                   </div>
                   <div class="col-md-3">
                     <button class="btn btn-sm btn-outline-secondary w-100" onclick="clearFilters()">
@@ -392,8 +359,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                         <th>Passenger/Description</th>
                         <th>Branch</th>
                         <th>Provider</th>
-                        <th>Travel Date</th>
-                        <th>Origin/Dest</th>
+                        <th>Ticket Number</th>
                         <th>Amount</th>
                         <th>Status</th>
                         <th>Date</th>
@@ -402,8 +368,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </thead>
                     <tbody id="recentTransactionsList">
                       <tr>
-                        <td colspan="10" class="text-center text-muted py-4">
-                          <span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...
+                        <td colspan="9" class="text-center text-muted py-4">
+                          <span class="fas fa-info-circle me-2"></span>Select filters and click Refresh to load transactions.
                         </td>
                       </tr>
                     </tbody>

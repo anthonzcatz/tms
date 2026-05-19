@@ -71,16 +71,17 @@
                     <label for="employeeId" class="form-label fw-bold">
                       Link to Employee <span class="text-danger">*</span>
                     </label>
-                    <div class="input-group">
-                      <span class="input-group-text"><i class="fas fa-id-badge"></i></span>
-                      <input type="text" class="form-control" id="employeeSearch" placeholder="Search employee..." onkeyup="filterEmployees()">
-                      <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                        <i class="fas fa-chevron-down"></i>
-                      </button>
-                      <select class="d-none" id="employeeId" name="emp_id" onchange="updateEmployeeDetails()" required>
+                    <div class="position-relative">
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-id-badge"></i></span>
+                        <input type="text" class="form-control" id="employeeSearch" placeholder="Type to search employee..." autocomplete="off" oninput="filterEmployees()" onfocus="filterEmployees()">
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearEmployeeSearch()" title="Clear">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                      <select class="d-none" id="employeeId" name="emp_id" required>
                         <option value="">Select Employee</option>
                         <?php
-                        // Fetch employees from database with full name and details
                         $employees = @Database::fetchAll("SELECT emp_id, first_name, last_name, middle_name, b_permanent_address, emp_street_address, b_cont_no, b_email FROM employees ORDER BY first_name, last_name");
                         if ($employees): foreach ($employees as $emp): 
                             $middleInitial = $emp['middle_name'] ? strtoupper(substr($emp['middle_name'], 0, 1)) . '.' : '';
@@ -91,29 +92,31 @@
                                   data-permanent-address="<?php echo htmlspecialchars($emp['b_permanent_address']); ?>"
                                   data-street-address="<?php echo htmlspecialchars($emp['emp_street_address'] ?? ''); ?>"
                                   data-contact-number="<?php echo htmlspecialchars($emp['b_cont_no']); ?>"
-                                  data-email="<?php echo htmlspecialchars($emp['b_email']); ?>"
-                                  data-search-text="<?php echo htmlspecialchars(strtolower($displayName)); ?>">
+                                  data-email="<?php echo htmlspecialchars($emp['b_email']); ?>">
                             <?php echo htmlspecialchars($displayName); ?>
                           </option>
                         <?php endforeach; endif; ?>
                       </select>
-                      <div class="dropdown-menu w-100" id="employeeDropdown" style="max-height: 200px; overflow-y: auto;">
-                        <div class="px-3 py-2 text-muted" id="employeeList">
+                      <div id="employeeDropdown" class="border rounded shadow-sm bg-white position-absolute w-100" style="display:none; max-height:220px; overflow-y:auto; z-index:9999; top:100%; left:0;">
+                        <div id="employeeList">
                           <?php if ($employees): foreach ($employees as $emp): 
                             $middleInitial = $emp['middle_name'] ? strtoupper(substr($emp['middle_name'], 0, 1)) . '.' : '';
                             $displayName = trim($emp['first_name'] . ' ' . $middleInitial . ' ' . $emp['last_name']);
                           ?>
-                            <a href="#" class="dropdown-item employee-option" onclick="selectEmployee(<?php echo $emp['emp_id']; ?>, '<?php echo htmlspecialchars($displayName); ?>')">
-                              <?php echo htmlspecialchars($displayName); ?>
+                            <a href="#" class="dropdown-item employee-option py-2" 
+                               data-emp-id="<?php echo $emp['emp_id']; ?>"
+                               data-emp-name="<?php echo htmlspecialchars($displayName, ENT_QUOTES); ?>"
+                               onclick="selectEmployee(<?php echo $emp['emp_id']; ?>, '<?php echo htmlspecialchars($displayName, ENT_QUOTES); ?>'); return false;">
+                              <i class="fas fa-user me-2 text-muted" style="margin-left: 8px;"></i><?php echo htmlspecialchars($displayName); ?>
                             </a>
                           <?php endforeach; else: ?>
-                            <div class="dropdown-item text-muted">No employees found</div>
+                            <div class="dropdown-item text-muted py-2">No employees found</div>
                           <?php endif; ?>
                         </div>
                       </div>
                     </div>
                     <div class="invalid-feedback">Please select an employee</div>
-                    <small class="text-muted">Required: Select an existing employee record</small>
+                    <small class="text-muted">Required: Type to search and select an existing employee record</small>
                   </div>
                 </div>
 
@@ -302,21 +305,17 @@
                     <label for="branchId" class="form-label fw-bold">
                       Branch
                     </label>
-                    <div class="input-group">
-                      <span class="input-group-text"><i class="fas fa-building"></i></span>
-                      <select class="form-select" id="branchId" name="branch_id">
-                        <option value="">No Branch</option>
-                        <?php
-                        // Fetch branches from database
-                        $branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE deleted_at IS NULL ORDER BY branch_name");
-                        foreach ($branches as $branch): ?>
-                          <option value="<?php echo $branch['branch_id']; ?>">
-                            <?php echo htmlspecialchars($branch['branch_name']); ?>
-                          </option>
-                        <?php endforeach; ?>
-                      </select>
-                    </div>
-                    <small class="text-muted">Assign user to a specific branch (optional)</small>
+                    <select class="form-select js-choice" id="branchId" name="branch_id[]" multiple="multiple" size="1" data-options='{"removeItemButton":true,"placeholder":true,"searchEnabled":true,"placeholderValue":"Select branch..."}'>
+                      <option value="" disabled>Select branch...</option>
+                      <?php
+                      $branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE deleted_at IS NULL ORDER BY branch_name");
+                      foreach ($branches as $branch): ?>
+                        <option value="<?php echo $branch['branch_id']; ?>">
+                          <?php echo htmlspecialchars($branch['branch_name']); ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">Select one or more branches (optional)</small>
                   </div>
                 </div>
               </div>

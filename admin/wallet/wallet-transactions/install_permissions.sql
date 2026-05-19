@@ -228,6 +228,101 @@ CROSS JOIN permissions p
 WHERE r.role_code = 'ADMIN' 
 AND p.permission_code IN ('VIEW_WALLET_MANAGEMENT', 'VIEW_SERVICE_FEES');
 
+-- Add CREATE_WALLET action permission (non-menu)
+INSERT IGNORE INTO permissions (
+    permission_code,
+    permission_name,
+    module_name,
+    parent_permission_id,
+    menu_order,
+    menu_icon,
+    menu_url,
+    menu_level,
+    is_menu_item
+)
+SELECT
+    'CREATE_WALLET',
+    'CREATE WALLET',
+    'ADMIN',
+    (SELECT permission_id FROM permissions WHERE permission_code = 'VIEW_WALLET_MANAGEMENT'),
+    0,
+    NULL,
+    NULL,
+    2,
+    0
+FROM dual
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE permission_code = 'CREATE_WALLET');
+
+-- Add UPDATE_WALLET action permission (non-menu)
+INSERT IGNORE INTO permissions (
+    permission_code,
+    permission_name,
+    module_name,
+    parent_permission_id,
+    menu_order,
+    menu_icon,
+    menu_url,
+    menu_level,
+    is_menu_item
+)
+SELECT
+    'UPDATE_WALLET',
+    'UPDATE WALLET',
+    'ADMIN',
+    (SELECT permission_id FROM permissions WHERE permission_code = 'VIEW_WALLET_MANAGEMENT'),
+    0,
+    NULL,
+    NULL,
+    2,
+    0
+FROM dual
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE permission_code = 'UPDATE_WALLET');
+
+-- Add DELETE_WALLET action permission (non-menu)
+INSERT IGNORE INTO permissions (
+    permission_code,
+    permission_name,
+    module_name,
+    parent_permission_id,
+    menu_order,
+    menu_icon,
+    menu_url,
+    menu_level,
+    is_menu_item
+)
+SELECT
+    'DELETE_WALLET',
+    'DELETE WALLET',
+    'ADMIN',
+    (SELECT permission_id FROM permissions WHERE permission_code = 'VIEW_WALLET_MANAGEMENT'),
+    0,
+    NULL,
+    NULL,
+    2,
+    0
+FROM dual
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE permission_code = 'DELETE_WALLET');
+
+-- Assign wallet CRUD permissions to SUPER_ADMIN
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT 
+    r.role_id,
+    p.permission_id
+FROM user_roles r
+CROSS JOIN permissions p
+WHERE r.role_code = 'SUPER_ADMIN' 
+AND p.permission_code IN ('CREATE_WALLET', 'UPDATE_WALLET', 'DELETE_WALLET');
+
+-- Assign wallet CRUD permissions to ADMIN role
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT 
+    r.role_id,
+    p.permission_id
+FROM user_roles r
+CROSS JOIN permissions p
+WHERE r.role_code = 'ADMIN' 
+AND p.permission_code IN ('CREATE_WALLET', 'UPDATE_WALLET', 'DELETE_WALLET');
+
 -- Assign VIEW_WALLET_MANAGEMENT and VIEW_SERVICE_FEES permissions to MANAGER role (for viewing only)
 INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT 

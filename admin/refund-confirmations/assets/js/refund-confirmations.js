@@ -94,6 +94,17 @@ function buildParams(page) {
     return p;
 }
 
+// Handle review button click - parses data attribute and opens modal
+function handleReviewClick(btn) {
+    try {
+        const data = JSON.parse(btn.getAttribute('data-cancel'));
+        openConfirmModal(data.id, data.code, data.amount, data.type, data.reason, data.requestedBy, data.passenger, data.origin, data.destination, data.requestedAt);
+    } catch (e) {
+        console.error('Failed to parse cancellation data:', e);
+        showToast('danger', 'Error', 'Failed to load cancellation details');
+    }
+}
+
 // Open confirmation modal
 function openConfirmModal(cancellationId, transactionCode, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt) {
     currentCancellationId = cancellationId;
@@ -204,19 +215,18 @@ function renderTable(rows) {
         const amount      = parseFloat(c.refund_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
         const reviewBtn = c.status === 'pending'
-            ? `<button class="btn btn-sm btn-success" title="Review"
-                 onclick="openConfirmModal(
-                   ${c.cancellation_id},
-                   ${JSON.stringify(c.transaction_code)},
-                   ${JSON.stringify(parseFloat(c.refund_amount).toFixed(2))},
-                   ${JSON.stringify(c.cancellation_type)},
-                   ${JSON.stringify(c.reason || '')},
-                   ${JSON.stringify(c.requested_by_name || '—')},
-                   ${JSON.stringify(c.passenger_name || '—')},
-                   ${JSON.stringify(c.origin || '')},
-                   ${JSON.stringify(c.destination || '')},
-                   ${JSON.stringify(requestedAt)}
-                 )"><span class="fas fa-check-double me-1"></span>Review</button>`
+            ? `<button class="btn btn-sm btn-success" title="Review" data-cancel='${JSON.stringify({
+                   id: c.cancellation_id,
+                   code: c.transaction_code,
+                   amount: parseFloat(c.refund_amount).toFixed(2),
+                   type: c.cancellation_type,
+                   reason: c.reason || '',
+                   requestedBy: c.requested_by_name || '—',
+                   passenger: c.passenger_name || '—',
+                   origin: c.origin || '',
+                   destination: c.destination || '',
+                   requestedAt: requestedAt
+                 })}' onclick="handleReviewClick(this)"><span class="fas fa-check-double me-1"></span>Review</button>`
             : `<span class="text-muted small">Reviewed</span>`;
 
         return `<tr>

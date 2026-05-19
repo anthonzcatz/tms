@@ -163,7 +163,7 @@ function handleGet() {
             CONCAT_WS(' ', e.first_name, IF(e.middle_name IS NOT NULL AND e.middle_name != '', CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), ''), e.last_name) AS fullname,
             ua.profile_image,
             ua.branch_id,
-            bb.branch_name,
+            GROUP_CONCAT(bb.branch_name ORDER BY bb.branch_name SEPARATOR ', ') AS branch_name,
             ua.status,
             ua.is_time_restricted,
             ua.allowed_login_start,
@@ -189,7 +189,7 @@ function handleGet() {
         FROM user_accounts ua
         LEFT JOIN user_roles ur ON ua.role_id = ur.role_id
         LEFT JOIN employees e ON ua.emp_id = e.emp_id
-        LEFT JOIN business_branches bb ON ua.branch_id = bb.branch_id
+        LEFT JOIN business_branches bb ON FIND_IN_SET(bb.branch_id, ua.branch_id)
         WHERE 1=1
     ";
 
@@ -211,7 +211,7 @@ function handleGet() {
     }
 
     if ($branchId) {
-        $sql .= " AND ua.branch_id = :branch_id";
+        $sql .= " AND FIND_IN_SET(:branch_id, ua.branch_id)";
         $params['branch_id'] = (int)$branchId;
     }
 
@@ -225,7 +225,7 @@ function handleGet() {
         $params['search'] = '%' . $search . '%';
     }
     
-    $sql .= " ORDER BY ua.created_at DESC";
+    $sql .= " GROUP BY ua.user_id ORDER BY ua.created_at DESC";
     
     $users = Database::fetchAll($sql, $params);
     $currentUserId = Auth::id();
@@ -336,7 +336,7 @@ function handlePost() {
             'email' => $data['email'],
             'emp_id' => isset($data['emp_id']) ? ($data['emp_id'] ? (int)$data['emp_id'] : null) : null,
             'role_id' => (int)$data['role_id'],
-            'branch_id' => isset($data['branch_id']) ? ($data['branch_id'] ? (int)$data['branch_id'] : null) : null,
+            'branch_id' => isset($data['branch_id']) ? (is_array($data['branch_id']) ? (count($data['branch_id']) ? implode(',', array_map('intval', $data['branch_id'])) : null) : ($data['branch_id'] ? $data['branch_id'] : null)) : null,
             'profile_image' => $profileImagePath,
             'status' => isset($data['status']) ? $data['status'] : 'active',
             'is_time_restricted' => isset($data['is_time_restricted']) ? (int)$data['is_time_restricted'] : 0,
@@ -442,7 +442,12 @@ function handlePut() {
     
     if (isset($data['branch_id'])) {
         $updateFields[] = "branch_id = :branch_id";
-        $params['branch_id'] = $data['branch_id'] ? (int)$data['branch_id'] : null;
+        $branchVal = $data['branch_id'];
+        if (is_array($branchVal)) {
+            $params['branch_id'] = count($branchVal) ? implode(',', array_map('intval', $branchVal)) : null;
+        } else {
+            $params['branch_id'] = $branchVal ? $branchVal : null;
+        }
     }
     
     if (isset($data['email'])) {

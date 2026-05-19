@@ -56,17 +56,33 @@ if ($totalPaid < $orderTotal) {
     echo json_encode(['success' => false, 'error' => "Payment (₱{$totalPaid}) is less than total (₱{$orderTotal})."]); exit;
 }
 
-function generateServiceTxnCode($userId) {
-    $microtime = microtime(true);
-    $micro = sprintf('%03d', ($microtime - floor($microtime)) * 1000);
-    $userIdSuffix = sprintf('%03d', $userId % 1000);
-    $random = sprintf('%04d', mt_rand(0, 9999));
-    return 'SVC-' . date('Ymd-His') . '-' . $micro . '-' . $userIdSuffix . '-' . $random;
+function generateServiceTxnCode() {
+    return 'SVC-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
 }
 
 try {
         // Start database transaction
         Database::connection()->beginTransaction();
+
+        // --- Create pos_orders record: ORD-YYYYMMDD-HHMM-### ---
+        $orderCode = 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
+
+        Database::execute(
+            "INSERT INTO pos_orders
+                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, amount_paid, change_amount, status, created_at)
+             VALUES (:code, :branch, :session, :uid, :subtotal, 0, :grand, :paid, :change, 'completed', NOW())",
+            [
+                'code'    => $orderCode,
+                'branch'  => $branchId,
+                'session' => $sessionId,
+                'uid'     => $user['user_id'],
+                'subtotal'=> $orderTotal,
+                'grand'   => $orderTotal,
+                'paid'    => $totalPaid,
+                'change'  => $totalPaid - $orderTotal,
+            ]
+        );
+        $orderId = Database::connection()->lastInsertId();
 
         // --- BEGIN: Process each item as a service_transaction ---
         $createdTxnIds = [];
@@ -76,49 +92,66 @@ try {
             $serviceTypeId = $item['service_type_id'] ?? null;
             if (!$serviceTypeId) continue;
 
-            $qty        = intval($item['quantity'] ?? 1);
-            $unitPrice  = floatval($item['unit_price'] ?? 0);
-            $totalAmt   = floatval($item['total_amount'] ?? ($qty * $unitPrice));
+            $qty         = intval($item['quantity'] ?? 1);
+            $unitPrice   = floatval($item['unit_price'] ?? 0);
+            $totalAmt    = floatval($item['total_amount'] ?? ($qty * $unitPrice));
             $description = $item['description'] ?? null;
+            $passengerId = $item['passenger_id'] ?? null;
 
             // Generate a unique code per item, retry if duplicate
             $itemCode = null;
             for ($attempt = 0; $attempt < 10; $attempt++) {
-                $itemCode = generateServiceTxnCode($user['user_id']);
+                $itemCode = generateServiceTxnCode();
                 $existing = Database::fetch(
                     "SELECT transaction_code FROM service_transactions WHERE transaction_code = :code",
                     ['code' => $itemCode]
                 );
                 if (!$existing) break;
                 $itemCode = null;
-                usleep(1000); // wait 1ms before retry
+                usleep(1000);
             }
             if (!$itemCode) {
                 throw new Exception('Could not generate a unique transaction code after 10 attempts.');
             }
-            if (!$txnCode) $txnCode = $itemCode; // use first item's code as the order reference
+            if (!$txnCode) $txnCode = $itemCode;
 
             Database::execute(
                 "INSERT INTO service_transactions
-                    (transaction_code, branch_id, service_type_id, description, quantity, unit_price, total_amount,
+                    (transaction_code, branch_id, service_type_id, passenger_id, description, quantity, unit_price, total_amount,
                      status, cashier_session_id, created_by, created_at)
-                 VALUES (:code, :branch, :stype, :desc, :qty, :price, :total, 'completed', :session, :uid, NOW())",
+                 VALUES (:code, :branch, :stype, :passenger, :desc, :qty, :price, :total, 'completed', :session, :uid, NOW())",
                 [
-                    'code'    => $itemCode,
-                    'branch'  => $branchId,
-                    'stype'   => $serviceTypeId,
-                    'desc'    => $description,
-                    'qty'     => $qty,
-                    'price'   => $unitPrice,
-                    'total'   => $totalAmt,
-                    'session' => $sessionId,
-                    'uid'     => $user['user_id'],
+                    'code'      => $itemCode,
+                    'branch'    => $branchId,
+                    'stype'     => $serviceTypeId,
+                    'passenger' => $passengerId,
+                    'desc'      => $description,
+                    'qty'       => $qty,
+                    'price'     => $unitPrice,
+                    'total'     => $totalAmt,
+                    'session'   => $sessionId,
+                    'uid'       => $user['user_id'],
                 ]
             );
-            $createdTxnIds[] = Database::connection()->lastInsertId();
+            $serviceTxnId    = Database::connection()->lastInsertId();
+            $createdTxnIds[] = $serviceTxnId;
+
+            // --- Write pos_order_items for this service ---
+            Database::execute(
+                "INSERT INTO pos_order_items
+                    (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
+                 VALUES (:oid, 'SERVICE', :ref, :code, :total, NOW())",
+                [
+                    'oid'   => $orderId,
+                    'ref'   => $serviceTxnId,
+                    'code'  => $itemCode,
+                    'total' => $totalAmt,
+                ]
+            );
         }
 
         if (empty($createdTxnIds)) {
+            Database::connection()->rollBack();
             echo json_encode(['success' => false, 'error' => 'No valid items processed.']); exit;
         }
 
@@ -136,10 +169,11 @@ try {
             // Determine confirmation status
             $methodInfo = Database::fetch("SELECT * FROM payment_methods WHERE method_id = :id", ['id' => $methodId]);
             $confirmStatus = ($methodInfo && $methodInfo['requires_confirmation']) ? 'PENDING' : 'NOT_REQUIRED';
-            $methodType = $methodInfo['method_type'] ?? '';
+            $methodType    = $methodInfo['method_type'] ?? '';
+            $tracksCredit  = !empty($methodInfo['tracks_credit']);
 
-            // Handle CHARGE payments - create/update customer_charges
-            if ($methodType === 'CHARGE' && $passengerId) {
+            // Handle credit-tracking payments — post to customer_charges
+            if ($tracksCredit && $passengerId) {
                 // Ensure customer_charges record exists
                 $existingCharge = Database::fetch(
                     "SELECT * FROM customer_charges WHERE passenger_id = :pid",
@@ -152,13 +186,14 @@ try {
                         ['pid' => $passengerId]
                     );
                 }
-                // Update customer_charges
+                // Update customer_charges — fixed CASE WHEN END
                 Database::execute(
                     "UPDATE customer_charges
                      SET total_charged = total_charged + :amt,
                          balance = balance + :amt,
-                         status = CASE WHEN balance + :amt > 0 THEN 'OUTSTANDING' ELSE 'CLEAR',
-                         last_charge_date = NOW()
+                         status = CASE WHEN (balance + :amt) > 0 THEN 'OUTSTANDING' ELSE 'CLEAR' END,
+                         last_charge_date = NOW(),
+                         updated_at = NOW()
                      WHERE passenger_id = :pid",
                     ['pid' => $passengerId, 'amt' => $amount]
                 );
@@ -208,8 +243,8 @@ try {
             ['total' => $orderTotal, 'id' => $sessionId]
         );
 
-        logActivity($user['user_id'], 'PROCESS_TRANSACTION', 'POS', $txnCode, null,
-            ['transaction_code' => $txnCode, 'total' => $orderTotal, 'items' => count($createdTxnIds)]);
+        logActivity($user['user_id'], 'PROCESS_TRANSACTION', 'POS', $orderCode, null,
+            ['order_code' => $orderCode, 'total' => $orderTotal, 'items' => count($createdTxnIds)]);
 
         // Commit transaction
         Database::connection()->commit();
@@ -217,7 +252,8 @@ try {
         echo json_encode([
             'success'          => true,
             'message'          => 'Transaction processed successfully.',
-            'transaction_code' => $txnCode,
+            'transaction_code' => $orderCode,
+            'order_id'         => $orderId,
             'total'            => $orderTotal,
             'paid'             => $totalPaid,
             'change'           => $totalPaid - $orderTotal,

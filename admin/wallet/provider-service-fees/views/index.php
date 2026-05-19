@@ -61,6 +61,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
+                  <div class="col-lg-auto mt-3 mt-lg-0">
+                    <button class="btn btn-primary" onclick="openAddFeeModal()">
+                      <span class="fas fa-plus me-2"></span>Add Service Fee
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

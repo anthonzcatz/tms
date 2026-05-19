@@ -61,7 +61,6 @@ async function saveFee() {
     const branchId = document.getElementById('addBranchId').value;
     const feeType = document.getElementById('addFeeType').value;
     const feeAmount = document.getElementById('addFeeAmount').value;
-    const feePercentage = document.getElementById('addFeePercentage').value;
     const status = document.getElementById('addStatus').value;
     
     if (!providerId || !branchId || !feeType) {
@@ -88,8 +87,7 @@ async function saveFee() {
                 provider_id: providerId,
                 branch_id: branchId,
                 fee_type: feeType,
-                fee_amount: parseFloat(feeAmount) || 0,
-                fee_percentage: parseFloat(feePercentage) || 0,
+                fee_value: parseFloat(feeAmount) || 0,
                 status: status
             })
         });
@@ -125,8 +123,7 @@ async function editFee(feeId) {
             document.getElementById('editProviderId').value = fee.provider_id;
             document.getElementById('editBranchId').value = fee.branch_id;
             document.getElementById('editFeeType').value = fee.fee_type;
-            document.getElementById('editFeeAmount').value = fee.fee_amount || '';
-            document.getElementById('editFeePercentage').value = fee.fee_percentage || '';
+            document.getElementById('editFeeAmount').value = fee.fee_value || '';
             document.getElementById('editStatus').value = fee.is_active ? 'active' : 'inactive';
             
             // Display current provider and branch names
@@ -186,7 +183,6 @@ async function updateFee() {
     const branchId = document.getElementById('editBranchId').value;
     const feeType = document.getElementById('editFeeType').value;
     const feeAmount = document.getElementById('editFeeAmount').value;
-    const feePercentage = document.getElementById('editFeePercentage').value;
     const status = document.getElementById('editStatus').value;
     
     if (!providerId || !branchId || !feeType) {
@@ -214,8 +210,7 @@ async function updateFee() {
                 provider_id: providerId,
                 branch_id: branchId,
                 fee_type: feeType,
-                fee_amount: parseFloat(feeAmount) || 0,
-                fee_percentage: parseFloat(feePercentage) || 0,
+                fee_value: parseFloat(feeAmount) || 0,
                 status: status
             })
         });

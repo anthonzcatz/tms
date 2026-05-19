@@ -49,8 +49,14 @@ function handleGet() {
                     COALESCE(cs.total_other, 0) AS total_other,
                     COALESCE(cs.total_refunds_wallet, 0) AS total_refunds,
                     (SELECT COUNT(*) FROM service_transactions WHERE session_id = cs.session_id) AS txn_count,
-                    (cs.starting_cash + COALESCE(cs.total_cash, 0)) AS expected_cash
+                    (cs.starting_cash + COALESCE(cs.total_cash, 0)) AS expected_cash,
+                    -- Cashier name from employees table (format: First M. Last)
+                    CONCAT(e.first_name, ' ', 
+                           COALESCE(CONCAT(LEFT(e.middle_name, 1), '. '), ''), 
+                           e.last_name) AS cashier_name
              FROM cashier_sessions cs
+             LEFT JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
+             LEFT JOIN employees e ON ua.emp_id = e.emp_id
              WHERE cs.session_id = :id",
             ['id' => $id]
         );
@@ -193,7 +199,12 @@ function handlePut() {
 
     $session = Database::fetch("SELECT * FROM cashier_sessions WHERE session_id = :id", ['id' => $sessionId]);
     if (!$session) { echo json_encode(['success' => false, 'error' => 'Session not found.']); return; }
-    if ($session['cashier_user_id'] != $user['user_id']) { echo json_encode(['success' => false, 'error' => 'Not your session.']); return; }
+
+    // Allow managers and super admins to close any session
+    $isManager = ($user['role_code'] === 'SUPER_ADMIN' || $user['role_code'] === 'MANAGER');
+    if ($session['cashier_user_id'] != $user['user_id'] && !$isManager) {
+        echo json_encode(['success' => false, 'error' => 'Not your session.']); return;
+    }
 
     if ($action === 'close') {
         if ($session['status'] !== 'OPEN') { echo json_encode(['success' => false, 'error' => 'Session is not open.']); return; }
