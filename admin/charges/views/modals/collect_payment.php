@@ -35,17 +35,42 @@
             <div class="form-text">Can be partial or full payment.</div>
           </div>
           <div class="col-md-6">
+            <label class="form-label fw-semibold">Branch</label>
+            <input type="text" class="form-control" id="collectBranchName" readonly>
+            <input type="hidden" id="collectBranchId">
+          </div>
+          <div class="col-md-6">
             <label class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
             <select class="form-select" id="collectMethodId" onchange="toggleCollectRef()">
               <option value="">Select method</option>
               <?php foreach ($paymentMethods as $pm): ?>
                 <option value="<?php echo $pm['method_id']; ?>"
                         data-type="<?php echo htmlspecialchars($pm['method_type']); ?>"
-                        data-req-ref="<?php echo $pm['requires_reference'] ? '1' : '0'; ?>">
+                        data-req-ref="<?php echo $pm['requires_reference'] ? '1' : '0'; ?>"
+                        data-req-bank="<?php echo $pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET' ? '1' : '0'; ?>">
                   <?php echo htmlspecialchars($pm['method_name']); ?>
                 </option>
               <?php endforeach; ?>
             </select>
+          </div>
+          <div class="col-md-6" id="collectBankRow" style="display:none;">
+            <label class="form-label fw-semibold">Bank Account <span class="text-danger">*</span></label>
+            <select class="form-select" id="collectBankAccountId">
+              <option value="">Select bank account</option>
+              <?php foreach ($bankAccounts as $bank): ?>
+                <option value="<?php echo $bank['bank_account_id']; ?>">
+                  <?php echo htmlspecialchars($bank['bank_name'] . ' - ' . $bank['account_number']); ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12" id="confirmationInfoBox" style="display:none;">
+            <div class="alert alert-info d-flex align-items-start py-2">
+              <span class="fas fa-info-circle me-2 mt-1"></span>
+              <div class="small">
+                <strong>Confirmation Required:</strong> This payment will require manager approval before the bank account balance is updated. It will appear in <a href="<?php echo BASE_URL; ?>/admin/bank-confirmations/" target="_blank">Bank Confirmations</a>.
+              </div>
+            </div>
           </div>
           <div class="col-md-6" id="collectRefRow" style="display:none;">
             <label class="form-label fw-semibold">Reference # <span class="text-danger">*</span></label>

@@ -108,11 +108,12 @@ if ($useOrdersTable) {
         "SELECT
             o.order_id,
             o.order_code as transaction_code,
-            o.grand_total as total_amount,
+            COALESCE(o.original_grand_total, o.grand_total) as total_amount,
             o.discount_total as discount_amount,
             o.subtotal as base_amount,
             0 as service_fee,
             o.status,
+            COALESCE(o.total_refunded_amount, 0) as total_refunded_amount,
             o.created_at,
             o.branch_id,
             o.created_by,
@@ -156,6 +157,11 @@ if ($useOrdersTable) {
              LEFT JOIN employees e_req ON ua_req.emp_id = e_req.emp_id
              WHERE oi8.order_id = o.order_id AND tc.cancellation_id IS NOT NULL
              LIMIT 1) as cancellation_requested_by,
+            (SELECT SUM(tc.refund_amount)
+             FROM pos_order_items oi8
+             LEFT JOIN ticket_transactions tt ON oi8.reference_id = tt.transaction_id AND oi8.item_type = 'TICKET'
+             LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
+             WHERE oi8.order_id = o.order_id AND tc.cancellation_id IS NOT NULL) as pending_refund_amount,
             -- Count cancelled tickets in this order
             (SELECT COUNT(*)
              FROM pos_order_items oi9

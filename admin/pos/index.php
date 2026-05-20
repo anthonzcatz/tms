@@ -109,7 +109,13 @@ $viewData = [
     'passengers' => $passengers,
     'cancellationSettings' => $cancellationSettings,
     'posSettings' => $posSettings,
-    'userRoleCode' => $userRoleCode
+    'userRoleCode' => $userRoleCode,
+    'depositBankAccounts' => Database::fetchAll(
+        "SELECT bank_account_id, bank_name, account_name, account_number
+         FROM bank_accounts
+         WHERE is_active = 1
+         ORDER BY bank_name ASC"
+    )
 ];
 
 extract($viewData);

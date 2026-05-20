@@ -17,7 +17,7 @@ let branchChoices = null;
 
 // Wizard state
 let currentStep = 1;
-const totalSteps = 5;
+const totalSteps = 6;
 
 // Image cropper variables
 let originalImage = null;
@@ -137,6 +137,9 @@ function setupEventListeners() {
             showToast('warning', 'Warning', 'Only SUPER_ADMIN can assign super admin roles');
             this.value = '';
         }
+        
+        // Update transport assignment step visibility
+        updateTransportAssignmentStep();
     });
 
     // Username validation
@@ -360,6 +363,23 @@ function renderUsersTable() {
             const statusBadgeClass = isActive ? 'badge-subtle-success' : (user.status === 'inactive' ? 'badge-subtle-warning' : 'badge-subtle-danger');
             const hasProfileImage = !!user.profile_image;
             
+            // Build transport assignments display for cashiers
+            let transportDisplay = '';
+            if (user.role_code === 'CASHIER' && user.transport_assignments && user.transport_assignments.length > 0) {
+                const transportTypes = user.transport_assignments.map(a => {
+                    if (a.provider_name) return a.provider_name;
+                    if (a.transport_type) return a.transport_type.toUpperCase();
+                    return '';
+                }).filter(t => t);
+                
+                if (transportTypes.length > 0) {
+                    transportDisplay = `<div class="d-flex gap-1 flex-wrap mt-1">
+                        ${transportTypes.slice(0, 3).map(t => `<span class="badge bg-100 text-600 fs-10"><span class="fas fa-plane me-1"></span>${t}</span>`).join('')}
+                        ${transportTypes.length > 3 ? `<span class="badge bg-100 text-600 fs-10">+${transportTypes.length - 3}</span>` : ''}
+                    </div>`;
+                }
+            }
+            
             // Avatar content - either image or initials
             let avatarContent;
             if (hasProfileImage) {
@@ -399,6 +419,7 @@ function renderUsersTable() {
                                     <h6 class="mb-0 text-500">${formatDate(user.last_login_at) || 'Never'}</h6>
                                 </div>
                             </div>
+                            ${transportDisplay}
                         </div>
                     </div>
                     <div class="border-bottom mt-4 mb-x1"></div>
@@ -639,6 +660,18 @@ function openAddUserModal() {
  * Navigate to next step
  */
 function nextStep() {
+    // Check if we should skip step 6 (provider assignments) for non-cashier roles
+    if (currentStep === 5) {
+        const roleIdSelect = document.getElementById('roleId');
+        const selectedOption = roleIdSelect.options[roleIdSelect.selectedIndex];
+        const roleCode = selectedOption ? selectedOption.dataset.roleCode : '';
+        
+        // Skip step 6 if not CASHIER role
+        if (roleCode !== 'CASHIER') {
+            currentStep = 6; // Skip to end
+        }
+    }
+    
     if (currentStep < totalSteps) {
         currentStep++;
         updateWizardUI();
@@ -819,6 +852,10 @@ async function openEditUserModal(userId) {
             document.getElementById('employeeId').value = user.emp_id || '';
             document.getElementById('employeeSearch').value = user.fullname || '';
             document.getElementById('roleId').value = user.role_id;
+            
+            // Update transport assignment step visibility based on role
+            updateTransportAssignmentStep();
+            
             // Pre-select multiple branches (Choices.js)
             if (branchChoices) {
                 branchChoices.removeActiveItems();
@@ -839,6 +876,18 @@ async function openEditUserModal(userId) {
             document.getElementById('isTimeRestricted').checked = user.is_time_restricted == 1;
             document.getElementById('allowedLoginStart').value = user.allowed_login_start || '';
             document.getElementById('allowedLoginEnd').value = user.allowed_login_end || '';
+            
+            // Set transport restriction checkbox state
+            const restrictTransportCheckbox = document.getElementById('restrictTransport');
+            if (restrictTransportCheckbox) {
+                restrictTransportCheckbox.checked = user.has_restricted_transport == 1;
+                toggleTransportRestriction();
+            }
+            
+            // Load transport assignments if restricted
+            if (user.has_restricted_transport == 1) {
+                await loadTransportAssignments(user.user_id);
+            }
             
             // Populate allowed days checkboxes
             if (user.allowed_days) {
@@ -1040,6 +1089,37 @@ async function saveUser() {
         }
 
         if (result.success) {
+            // Handle transport assignments if user is a cashier
+            const roleIdSelect = document.getElementById('roleId');
+            const selectedOption = roleIdSelect.options[roleIdSelect.selectedIndex];
+            const roleCode = selectedOption ? selectedOption.dataset.roleCode : '';
+            
+            if (roleCode === 'CASHIER') {
+                const restrictTransport = document.getElementById('restrictTransport').checked;
+                const transportTypes = [];
+                const specificProviders = [];
+                
+                // Collect transport types
+                document.querySelectorAll('input[name="transport_types[]"]:checked').forEach(cb => {
+                    transportTypes.push(cb.value);
+                });
+                
+                // Collect specific providers
+                document.querySelectorAll('.provider-checkbox:checked').forEach(cb => {
+                    specificProviders.push(cb.value);
+                });
+                
+                // Save transport assignments
+                if (restrictTransport && (transportTypes.length > 0 || specificProviders.length > 0)) {
+                    const userId = result.user_id || document.getElementById('userId').value;
+                    await saveTransportAssignments(userId, transportTypes, specificProviders);
+                } else if (!restrictTransport) {
+                    // Remove all transport assignments if restriction is disabled
+                    const userId = result.user_id || document.getElementById('userId').value;
+                    await removeTransportAssignments(userId);
+                }
+            }
+            
             showToast('success', 'Success', result.message || (isEdit ? 'User updated successfully' : 'User created successfully'));
             userModal.hide();
             loadUsers();
@@ -1682,6 +1762,173 @@ async function checkUsernameExists(username, excludeUserId = null) {
         return result.exists === true;
     } catch (error) {
         console.error('Error checking username:', error);
+        return false;
+    }
+}
+
+/**
+ * Toggle transport restriction section
+ */
+function toggleTransportRestriction() {
+    const restrictCheckbox = document.getElementById('restrictTransport');
+    const section = document.getElementById('transportAssignmentSection');
+    
+    if (restrictCheckbox && section) {
+        section.style.display = restrictCheckbox.checked ? 'block' : 'none';
+    }
+}
+
+/**
+ * Handle transport selection (specific providers override type selection)
+ */
+function handleTransportSelection() {
+    const specificProviders = document.querySelectorAll('.provider-checkbox:checked');
+    const typeCheckboxes = document.querySelectorAll('input[name="transport_types[]"]');
+    
+    // If specific providers are selected, disable type checkboxes
+    typeCheckboxes.forEach(typeCheckbox => {
+        typeCheckbox.disabled = specificProviders.length > 0;
+        if (specificProviders.length > 0) {
+            typeCheckbox.checked = false;
+        }
+    });
+}
+
+/**
+ * Show/hide transport assignment step based on role
+ */
+function updateTransportAssignmentStep() {
+    const roleIdSelect = document.getElementById('roleId');
+    const providerStep = document.getElementById('providerAssignmentStep');
+    
+    if (roleIdSelect && providerStep) {
+        const selectedOption = roleIdSelect.options[roleIdSelect.selectedIndex];
+        const roleCode = selectedOption ? selectedOption.dataset.roleCode : '';
+        
+        // Only show transport assignment step for CASHIER role
+        if (roleCode === 'CASHIER') {
+            providerStep.style.display = 'block';
+        } else {
+            providerStep.style.display = 'none';
+            // If currently on step 6, move to step 5
+            if (currentStep === 6) {
+                currentStep = 5;
+                updateWizardUI();
+            }
+        }
+    }
+}
+
+/**
+ * Save transport assignments for a cashier
+ */
+async function saveTransportAssignments(userId, transportTypes, specificProviders) {
+    try {
+        // First, remove existing assignments for this user
+        await removeTransportAssignments(userId);
+        
+        // Then add new assignments
+        if (specificProviders.length > 0) {
+            // Add specific provider assignments
+            for (const providerId of specificProviders) {
+                await fetch(`${window.BASE_URL}/api/cashier-provider-assignments/index.php`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': window.CSRF_TOKEN
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        provider_id: providerId,
+                        transport_type: null
+                    }),
+                    credentials: 'same-origin'
+                });
+            }
+        } else if (transportTypes.length > 0) {
+            // Add transport type assignments
+            for (const transportType of transportTypes) {
+                await fetch(`${window.BASE_URL}/api/cashier-provider-assignments/index.php`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': window.CSRF_TOKEN
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        provider_id: null,
+                        transport_type: transportType
+                    }),
+                    credentials: 'same-origin'
+                });
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error saving transport assignments:', error);
+        return false;
+    }
+}
+
+/**
+ * Load transport assignments for a user
+ */
+async function loadTransportAssignments(userId) {
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/cashier-provider-assignments/index.php?user_id=${userId}`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data && result.data.assignments) {
+                // Clear current selections
+                document.querySelectorAll('input[name="transport_types[]"]').forEach(cb => cb.checked = false);
+                document.querySelectorAll('.provider-checkbox').forEach(cb => cb.checked = false);
+                
+                // Populate assignments
+                result.data.assignments.forEach(assignment => {
+                    if (assignment.provider_id) {
+                        const providerCheckbox = document.querySelector(`.provider-checkbox[value="${assignment.provider_id}"]`);
+                        if (providerCheckbox) {
+                            providerCheckbox.checked = true;
+                        }
+                    } else if (assignment.transport_type) {
+                        const typeCheckbox = document.querySelector(`input[name="transport_types[]"][value="${assignment.transport_type}"]`);
+                        if (typeCheckbox) {
+                            typeCheckbox.checked = true;
+                        }
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading transport assignments:', error);
+    }
+}
+
+/**
+ * Remove all transport assignments for a user
+ */
+async function removeTransportAssignments(userId) {
+    try {
+        await fetch(`${window.BASE_URL}/api/cashier-provider-assignments/index.php`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.CSRF_TOKEN
+            },
+            body: JSON.stringify({
+                user_id: userId
+            }),
+            credentials: 'same-origin'
+        });
+        return true;
+    } catch (error) {
+        console.error('Error removing transport assignments:', error);
         return false;
     }
 }

@@ -5,9 +5,11 @@ function fmt(n) {
 }
 
 let sessionDetailModal;
+let recordDepositModal;
 
 document.addEventListener('DOMContentLoaded', function () {
     sessionDetailModal = new bootstrap.Modal(document.getElementById('sessionDetailModal'));
+    recordDepositModal = new bootstrap.Modal(document.getElementById('recordDepositModal'));
 });
 
 async function viewSessionDetail(sessionId) {
@@ -77,6 +79,20 @@ async function viewSessionDetail(sessionId) {
             </div>
           </div>
         </div>`;
+
+        // Deposit status if closed
+        if (s.status === 'CLOSED' && s.deposit_status) {
+            const depositColor = {'PENDING': 'warning', 'DEPOSITED': 'success', 'NOT_APPLICABLE': 'secondary'}[s.deposit_status] || 'secondary';
+            const depositIcon = {'PENDING': 'fa-clock', 'DEPOSITED': 'fa-check-circle', 'NOT_APPLICABLE': 'fa-ban'}[s.deposit_status] || 'fa-circle';
+            html += `
+            <div class="card mb-4">
+              <div class="card-body py-3">
+                <div class="text-muted small mb-1">Deposit Status</div>
+                <div class="fw-bold"><span class="badge bg-soft-${depositColor} text-${depositColor}"><span class="fas ${depositIcon} me-1"></span>${s.deposit_status}</span></div>
+                ${s.deposited_at ? `<div class="text-muted small mt-1">Deposited at: ${new Date(s.deposited_at).toLocaleString()}</div>` : ''}
+              </div>
+            </div>`;
+        }
 
         // Session summary
         const variance = parseFloat(s.cash_variance ?? 0);
@@ -259,6 +275,59 @@ async function viewSessionDetail(sessionId) {
         document.getElementById('sessionDetailContent').innerHTML = html;
     } catch (e) {
         document.getElementById('sessionDetailContent').innerHTML = '<p class="text-danger text-center py-3">Error loading session details.</p>';
+    }
+}
+
+// Record Deposit Functions
+function openRecordDepositModal(sessionId, actualCash) {
+    document.getElementById('depositSessionId').value = sessionId;
+    document.getElementById('depositAmount').value = '₱' + fmt(actualCash);
+    document.getElementById('depositCustomAmount').value = '';
+    document.getElementById('depositBankAccountId').value = '';
+    recordDepositModal.show();
+}
+
+async function submitRecordDeposit() {
+    const sessionId = document.getElementById('depositSessionId').value;
+    const bankAccountId = document.getElementById('depositBankAccountId').value;
+    const customAmount = document.getElementById('depositCustomAmount').value;
+    
+    if (!bankAccountId) {
+        showToast('danger', 'Validation Error', 'Please select a bank account.');
+        return;
+    }
+    
+    const payload = {
+        session_id: sessionId,
+        bank_account_id: bankAccountId
+    };
+    
+    if (customAmount) {
+        payload.deposit_amount = parseFloat(customAmount);
+    }
+    
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/sessions`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: sessionId,
+                action: 'record_deposit',
+                bank_account_id: bankAccountId,
+                deposit_amount: customAmount ? parseFloat(customAmount) : null
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            recordDepositModal.hide();
+            showToast('success', 'Deposit Recorded', 'Cash deposit has been recorded successfully.');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            showToast('danger', 'Error', result.error || 'Failed to record deposit.');
+        }
+    } catch (err) {
+        showToast('danger', 'Error', 'An unexpected error occurred.');
+        console.error(err);
     }
 }
 

@@ -20,34 +20,52 @@ function toggleHowItWorks() {
     i.className = 'fas fa-chevron-' + (open ? 'down' : 'up');
 }
 
-function openCollectModal(passengerId, name, contact, balance) {
+function openCollectModal(passengerId, name, contact, balance, branchId, branchName) {
     document.getElementById('collectPassengerId').value = passengerId;
-    document.getElementById('collectCustomerName').textContent = name;
+    document.getElementById('collectCustomerName').textContent = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
     document.getElementById('collectCustomerContact').textContent = contact;
     document.getElementById('collectBalance').textContent = '₱' + fmt(balance);
     document.getElementById('collectAmount').value = parseFloat(balance).toFixed(2);
+    document.getElementById('collectBranchId').value = branchId || '';
+    document.getElementById('collectBranchName').value = branchName || '';
     document.getElementById('collectMethodId').value = '';
+    document.getElementById('collectBankAccountId').value = '';
     document.getElementById('collectRefNum').value = '';
     document.getElementById('collectNotes').value = '';
     document.getElementById('collectRefRow').style.display = 'none';
+    document.getElementById('collectBankRow').style.display = 'none';
+    document.getElementById('confirmationInfoBox').style.display = 'none';
     collectPaymentModal.show();
 }
 
 function toggleCollectRef() {
     const sel = document.getElementById('collectMethodId');
     const opt = sel.options[sel.selectedIndex];
-    const req = opt ? opt.dataset.reqRef === '1' : false;
-    document.getElementById('collectRefRow').style.display = req ? '' : 'none';
+    const reqRef = opt ? opt.dataset.reqRef === '1' : false;
+    const reqBank = opt ? opt.dataset.reqBank === '1' : false;
+    document.getElementById('collectRefRow').style.display = reqRef ? '' : 'none';
+    document.getElementById('collectBankRow').style.display = reqBank ? '' : 'none';
+    
+    // Show/hide confirmation info box for bank/e-wallet payments
+    const confirmationInfoBox = document.getElementById('confirmationInfoBox');
+    if (reqBank && window.CHARGE_CONFIRMATION_REQUIRED) {
+        confirmationInfoBox.style.display = 'block';
+    } else {
+        confirmationInfoBox.style.display = 'none';
+    }
 }
 
 async function submitCollectPayment() {
     const passengerId = document.getElementById('collectPassengerId').value;
     const amount      = parseFloat(document.getElementById('collectAmount').value) || 0;
     const methodId    = document.getElementById('collectMethodId').value;
+    const branchId    = document.getElementById('collectBranchId').value;
+    const bankAcctId  = document.getElementById('collectBankAccountId').value;
     const refNum      = document.getElementById('collectRefNum').value.trim();
     const notes       = document.getElementById('collectNotes').value.trim();
 
     if (!methodId)  { showToast('danger', 'Validation Error', 'Select a payment method.'); return; }
+    if (!branchId)  { showToast('danger', 'Validation Error', 'Branch information is required.'); return; }
     if (amount <= 0){ showToast('danger', 'Validation Error', 'Enter a valid amount.'); return; }
 
     const sel = document.getElementById('collectMethodId');
@@ -55,12 +73,23 @@ async function submitCollectPayment() {
     if (opt && opt.dataset.reqRef === '1' && !refNum) {
         showToast('danger', 'Reference Required', 'Please enter the reference number.'); return;
     }
+    if (opt && opt.dataset.reqBank === '1' && !bankAcctId) {
+        showToast('danger', 'Bank Account Required', 'Please select a bank account.'); return;
+    }
 
     try {
         const res = await fetch(`${window.BASE_URL}/api/charges`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ passenger_id: passengerId, amount_paid: amount, payment_method_id: methodId, reference_number: refNum || null, notes: notes || null })
+            body: JSON.stringify({ 
+                passenger_id: passengerId, 
+                amount_paid: amount, 
+                payment_method_id: methodId, 
+                branch_id: branchId,
+                bank_account_id: bankAcctId || null,
+                reference_number: refNum || null, 
+                notes: notes || null 
+            })
         });
         const result = await res.json();
         if (result.success) {
@@ -101,23 +130,60 @@ async function viewHistory(passengerId, name) {
             entries.forEach(e => {
                 if (e._type === 'charge') {
                     const itemLabel = e.item_label || e.service_type_name || (e.source_type === 'TICKET_TRANSACTION' ? 'Ticket' : 'Service');
+                    const dateObj = new Date(e._date);
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + 
+                                          dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    const branchInfo = e.branch_name ? `<div class="text-muted small"><span class="fas fa-building me-1"></span>${e.branch_name}</div>` : '';
+                    const cashierInfo = e.cashier_name ? `<div class="text-muted small"><span class="fas fa-user me-1"></span>${e.cashier_name}</div>` : '';
                     html += `<div class="history-entry charge mb-2">
                         <div class="d-flex justify-content-between">
                           <strong class="text-danger"><span class="fas fa-minus-circle me-1"></span>${e.method_name || 'CHARGE'}</strong>
                           <strong class="text-danger">+₱${fmt(e.amount)}</strong>
                         </div>
                         <div class="text-muted small">${itemLabel} • ${e.txn_code ?? ''}</div>
-                        <div class="text-muted" style="font-size:.75rem;">${new Date(e._date).toLocaleString()}</div>
+                        ${branchInfo}
+                        ${cashierInfo}
+                        <div class="text-muted" style="font-size:.75rem;">${formattedDate}</div>
                     </div>`;
                 } else {
+                    const dateObj = new Date(e._date);
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + 
+                                          dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    
+                    // Check confirmation status
+                    const confStatus = e.confirmation_status || 'NOT_REQUIRED';
+                    let statusBadge = '';
+                    let balanceRestoredMsg = '';
+                    let remarksMsg = e.notes ? `<div class="text-muted small"><span class="fas fa-sticky-note me-1"></span>${e.notes}</div>` : '';
+                    
+                    if (confStatus === 'PENDING') {
+                        statusBadge = '<span class="badge bg-soft-warning text-warning fs-10">PENDING</span>';
+                    } else if (confStatus === 'CONFIRMED') {
+                        statusBadge = '<span class="badge bg-soft-success text-success fs-10">CONFIRMED</span>';
+                        if (e.confirmed_by) {
+                            remarksMsg += `<div class="text-muted small"><span class="fas fa-user-check me-1"></span>Confirmed by ${e.confirmed_by}</div>`;
+                        }
+                    } else if (confStatus === 'REJECTED') {
+                        statusBadge = '<span class="badge bg-soft-danger text-danger fs-10">REJECTED</span>';
+                        balanceRestoredMsg = '<div class="text-info small"><span class="fas fa-undo me-1"></span>Balance restored</div>';
+                        if (e.confirmed_by) {
+                            remarksMsg += `<div class="text-muted small"><span class="fas fa-user-times me-1"></span>Rejected by ${e.confirmed_by}</div>`;
+                        }
+                    }
+                    
+                    const statusHtml = confStatus !== 'NOT_REQUIRED' ? `<div class="mb-1">${statusBadge}</div>` : '';
+                    
                     html += `<div class="history-entry payment mb-2">
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                           <strong class="text-success"><span class="fas fa-plus-circle me-1"></span>PAYMENT</strong>
                           <strong class="text-success">-₱${fmt(e.amount_paid)}</strong>
                         </div>
+                        ${statusHtml}
                         <div class="text-muted small">${e.method_name ?? 'Cash'} ${e.reference_number ? '• Ref: ' + e.reference_number : ''}</div>
                         <div class="text-muted small">Before: ₱${fmt(e.balance_before)} → After: ₱${fmt(e.balance_after)}</div>
-                        <div class="text-muted" style="font-size:.75rem;">${new Date(e._date).toLocaleString()}</div>
+                        ${balanceRestoredMsg}
+                        ${remarksMsg}
+                        <div class="text-muted" style="font-size:.75rem;">${formattedDate}</div>
                     </div>`;
                 }
             });
@@ -133,15 +199,30 @@ async function viewHistory(passengerId, name) {
 function applyFilters() {
     const search = document.getElementById('filterSearch').value.toLowerCase();
     const status = document.getElementById('filterStatus').value;
+    const balanceRange = document.getElementById('filterBalanceRange').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
     const rows   = document.querySelectorAll('.charge-row');
     let visible  = 0;
+
     rows.forEach(row => {
         let show = true;
         if (search && !row.dataset.search.includes(search)) show = false;
         if (status && row.dataset.status !== status) show = false;
+
+        const balance = parseFloat(row.dataset.balance) || 0;
+        if (balanceRange === 'positive' && balance <= 0) show = false;
+        if (balanceRange === 'zero' && balance > 0) show = false;
+        if (balanceRange === 'high' && balance < 5000) show = false;
+
+        const lastDate = row.dataset.lastDate;
+        if (dateFrom && lastDate && new Date(lastDate) < new Date(dateFrom)) show = false;
+        if (dateTo && lastDate && new Date(lastDate) > new Date(dateTo)) show = false;
+
         row.style.display = show ? '' : 'none';
         if (show) visible++;
     });
+
     const msg = document.getElementById('noResultsMsg');
     if (msg) msg.classList.toggle('d-none', visible > 0);
 }
@@ -149,6 +230,9 @@ function applyFilters() {
 function resetFilters() {
     document.getElementById('filterSearch').value = '';
     document.getElementById('filterStatus').value = '';
+    document.getElementById('filterBalanceRange').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
     applyFilters();
 }
 

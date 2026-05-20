@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `pos_orders` (
   `subtotal`           decimal(12,2) DEFAULT 0.00 COMMENT 'Pre-discount sum of all items',
   `discount_total`     decimal(12,2) DEFAULT 0.00,
   `grand_total`        decimal(12,2) DEFAULT 0.00 COMMENT 'Amount due after discounts',
+  `original_grand_total` decimal(12,2) DEFAULT 0.00 COMMENT 'Original amount before cancellations',
   `amount_paid`        decimal(12,2) DEFAULT 0.00,
   `change_amount`      decimal(12,2) DEFAULT 0.00,
   `status`             enum('completed','cancelled','refunded') DEFAULT 'completed',

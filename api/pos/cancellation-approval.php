@@ -150,35 +150,23 @@ try {
             );
         }
 
-        // Update pos_orders totals - deduct the cancelled ticket amount
+        // Update pos_orders - set order item total to 0 (mark as cancelled) and update total_refunded_amount
         $orderItem = Database::fetch(
-            "SELECT oi.item_id, oi.order_id, oi.total_amount, o.grand_total, o.subtotal
-             FROM pos_order_items oi
-             JOIN pos_orders o ON oi.order_id = o.order_id
-             WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET'
-             LIMIT 1",
+            "SELECT oi.item_id, oi.order_id FROM pos_order_items oi WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET' LIMIT 1",
             ['tid' => $ticketTxn['transaction_id']]
         );
 
         if ($orderItem) {
-            $orderId = $orderItem['order_id'];
-            $itemTotal = floatval($orderItem['total_amount']);
-            $currentGrand = floatval($orderItem['grand_total']);
-            $currentSubtotal = floatval($orderItem['subtotal']);
-
-            // Update order totals
-            $newGrand = max(0, $currentGrand - $itemTotal);
-            $newSubtotal = max(0, $currentSubtotal - $itemTotal);
-
-            Database::execute(
-                "UPDATE pos_orders SET grand_total = :grand, subtotal = :sub, updated_at = NOW() WHERE order_id = :oid",
-                ['grand' => $newGrand, 'sub' => $newSubtotal, 'oid' => $orderId]
-            );
-
-            // Set the order item total to 0 (mark as cancelled)
+            // Set the order item total to 0 (mark as cancelled for UI)
             Database::execute(
                 "UPDATE pos_order_items SET total_amount = 0 WHERE item_id = :iid",
                 ['iid' => $orderItem['item_id']]
+            );
+            
+            // Update total_refunded_amount in pos_orders
+            Database::execute(
+                "UPDATE pos_orders SET total_refunded_amount = COALESCE(total_refunded_amount, 0) + :ramount WHERE order_id = :oid",
+                ['ramount' => $refundAmount, 'oid' => $orderItem['order_id']]
             );
         }
 
@@ -229,6 +217,20 @@ try {
         }
         $updateSql .= " WHERE cancellation_id = :cid";
         Database::execute($updateSql, $updateParams);
+
+        // Decrement total_refunded_amount in pos_orders since refund was rejected
+        $orderItem = Database::fetch(
+            "SELECT oi.order_id FROM pos_order_items oi WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET' LIMIT 1",
+            ['tid' => $ticketTxn['transaction_id']]
+        );
+
+        if ($orderItem) {
+            $refundAmount = floatval($cancellation['refund_amount']);
+            Database::execute(
+                "UPDATE pos_orders SET total_refunded_amount = GREATEST(0, COALESCE(total_refunded_amount, 0) - :ramount) WHERE order_id = :oid",
+                ['ramount' => $refundAmount, 'oid' => $orderItem['order_id']]
+            );
+        }
 
         logActivity($user['user_id'], 'CANCELLATION_REJECTED', 'POS', $ticketTxn['transaction_code'],
             ['status' => 'pending'],

@@ -38,26 +38,36 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                  break;
          }
          ?>
-        <!-- Page Header -->
-        <div class="row g-3 mb-3">
+        <!-- Header Card (Standard Pattern) -->
+        <div class="row g-4 mb-4">
           <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h2 class="mb-1">Wallet Transactions</h2>
-                <nav aria-label="breadcrumb">
-                  <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Wallet Transactions</li>
-                  </ol>
-                </nav>
-              </div>
-              <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-primary" onclick="openWalletManagementModal()">
-                  <span class="fas fa-wallet me-2"></span>Wallet Management
-                </button>
-                <button type="button" class="btn btn-primary" onclick="openAddTransactionModal()">
-                  <span class="fas fa-plus-circle me-2"></span>Add Transaction
-                </button>
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="bg-holder bg-card d-none d-md-block" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-bg.png);"></div>
+              <div class="card-header z-1">
+                <div class="row flex-between-center gx-0">
+                  <div class="col-lg-auto d-flex align-items-center">
+                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <div class="ms-x1">
+                      <h4 class="mb-0 text-primary fw-bold">Wallet <span class="text-info fw-medium">Transactions</span></h4>
+                      <h6 class="mb-1 text-primary">
+                        <nav aria-label="breadcrumb">
+                          <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a>Home</a></li>
+                            <li class="breadcrumb-item active">Wallet Transactions</li>
+                          </ol>
+                        </nav>
+                      </h6>
+                    </div>
+                  </div>
+                  <div class="col-lg-auto d-flex gap-2">
+                    <button type="button" class="btn btn-outline-primary" onclick="openWalletManagementModal()">
+                      <span class="fas fa-wallet me-2"></span>Wallet Management
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="openAddTransactionModal()">
+                      <span class="fas fa-plus-circle me-2"></span>Add Transaction
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

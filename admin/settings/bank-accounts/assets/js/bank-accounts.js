@@ -32,6 +32,7 @@ function openAddAccountModal() {
     document.getElementById('addAccountName').value = '';
     document.getElementById('addAccountNumber').value = '';
     document.getElementById('addAccountType').value = '';
+    document.getElementById('addCurrentBalance').value = '0.00';
     document.getElementById('addBranchId').value = '';
     document.getElementById('addPaymentMethodId').value = '';
     document.getElementById('addNotes').value = '';
@@ -54,6 +55,7 @@ async function submitAddAccount() {
         account_name: accountName,
         account_number: accountNumber,
         account_type: document.getElementById('addAccountType').value.trim() || null,
+        current_balance: parseFloat(document.getElementById('addCurrentBalance').value) || 0,
         branch_id: document.getElementById('addBranchId').value || null,
         payment_method_id: document.getElementById('addPaymentMethodId').value || null,
         notes: document.getElementById('addNotes').value.trim() || null,
@@ -95,6 +97,7 @@ async function editAccount(accountId) {
         document.getElementById('editAccountName').value = a.account_name;
         document.getElementById('editAccountNumber').value = a.account_number;
         document.getElementById('editAccountType').value = a.account_type || '';
+        document.getElementById('editCurrentBalance').value = '₱' + (a.current_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('editBranchId').value = a.branch_id || '';
         document.getElementById('editPaymentMethodId').value = a.payment_method_id || '';
         document.getElementById('editNotes').value = a.notes || '';

@@ -8,8 +8,6 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
-require_once dirname(__DIR__) . '/_guard.php';
-
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
 header('Pragma: no-cache');
@@ -24,6 +22,11 @@ if ($user['role_code'] !== 'SUPER_ADMIN') {
     $defaultDashboard = BASE_URL . '/admin/dashboard';
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;
+}
+
+// Define NAVBAR_POSITION if not already defined
+if (!defined('NAVBAR_POSITION')) {
+    define('NAVBAR_POSITION', $_SESSION['navbarPosition'] ?? 'vertical');
 }
 
 // Handle POST request to update settings
@@ -71,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'pos_cashier_can_close_session' => isset($_POST['pos_cashier_can_close_session']) ? 1 : 0,
             'pos_manager_can_open_for_cashier' => isset($_POST['pos_manager_can_open_for_cashier']) ? 1 : 0,
             'pos_manager_can_close_for_cashier' => isset($_POST['pos_manager_can_close_for_cashier']) ? 1 : 0,
+            'bank_pos_payments_require_confirmation' => isset($_POST['bank_pos_payments_require_confirmation']) ? 1 : 0,
+            'bank_charge_payments_require_confirmation' => isset($_POST['bank_charge_payments_require_confirmation']) ? 1 : 0,
+            'bank_deposits_require_confirmation' => isset($_POST['bank_deposits_require_confirmation']) ? 1 : 0,
             'updated_by' => $user['user_id']
         ];
         
@@ -103,6 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 pos_cashier_can_close_session = :pos_cashier_can_close_session,
                 pos_manager_can_open_for_cashier = :pos_manager_can_open_for_cashier,
                 pos_manager_can_close_for_cashier = :pos_manager_can_close_for_cashier,
+                bank_pos_payments_require_confirmation = :bank_pos_payments_require_confirmation,
+                bank_charge_payments_require_confirmation = :bank_charge_payments_require_confirmation,
+                bank_deposits_require_confirmation = :bank_deposits_require_confirmation,
                 updated_by = :updated_by,
                 updated_at = NOW()
             WHERE setting_id = 1",

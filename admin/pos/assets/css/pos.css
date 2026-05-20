@@ -17,6 +17,12 @@
 .icon-circle-danger { background-color: rgba(220, 53, 69, 0.1); }
 .icon-circle-secondary { background-color: rgba(108, 117, 125, 0.1); }
 
+/* Wallet select styling */
+#ticketWallet {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+}
+
 /* ---- Session Banner ---- */
 .session-banner {
     border-left: 4px solid #198754;

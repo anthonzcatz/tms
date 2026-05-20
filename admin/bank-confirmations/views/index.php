@@ -41,7 +41,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               <div class="col-lg-auto d-flex align-items-center">
                 <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                 <div class="ms-x1">
-                      <h4 class="mb-0 text-primary fw-bold">Bank Transfer <span class="text-info fw-medium">Confirmations</span></h4>
+                      <h4 class="mb-0 text-primary fw-bold">Bank Transfer, Deposit <span class="text-info fw-medium">& Charge Confirmations</span></h4>
                   <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
                   <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a >Home</a></li>
@@ -116,8 +116,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           <div class="card-body" id="howItWorksContent" style="display:none;">
             <ul class="mb-0">
               <li>When a cashier records a <strong>Bank Transfer</strong> or <strong>E-Wallet</strong> payment, it is flagged as <span class="badge bg-soft-warning text-warning">Pending</span> confirmation.</li>
-              <li>A manager or authorized user reviews the reference number and confirms receipt in the bank/e-wallet.</li>
-              <li>Once <span class="badge bg-soft-success text-success">Confirmed</span>, the payment is finalized. <span class="badge bg-soft-danger text-danger">Rejected</span> payments need the cashier to re-record.</li>
+              <li>When a cashier records a <strong>Cash Deposit</strong> from a closed shift, it is also flagged as <span class="badge bg-soft-warning text-warning">Pending</span> confirmation.</li>
+              <li>When a cashier collects a <strong>Charge Payment (Utang)</strong> via bank/e-wallet in <code>/admin/charges/</code>, it is flagged as <span class="badge bg-soft-warning text-warning">Pending</span> confirmation if the setting is enabled.</li>
+              <li>A manager or authorized user reviews the reference number (for transfers) or deposit details (for cash deposits) and confirms receipt.</li>
+              <li>Once <span class="badge bg-soft-success text-success">Confirmed</span>, the payment/deposit is finalized and the bank account balance is updated.</li>
+              <li><span class="badge bg-soft-danger text-danger">Rejected</span> items need the cashier to re-record. For charge collections, the customer balance is restored and they will need to pay again.</li>
               <li>Unconfirmed amounts are not counted in cash reconciliation until confirmed.</li>
             </ul>
           </div>
@@ -177,32 +180,48 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   </thead>
                   <tbody>
                     <?php foreach ($payments as $p):
-                      $statusClass = strtolower($p['confirmation_status']);
-                      $statusColors = ['PENDING' => 'warning', 'CONFIRMED' => 'success', 'REJECTED' => 'danger'];
-                      $color = $statusColors[$p['confirmation_status']] ?? 'secondary';
+                      $itemStatus = $p['item_status'] ?? $p['confirmation_status'] ?? 'PENDING';
+                      $statusClass = strtolower($itemStatus);
+                      $itemType = $p['item_type'] ?? 'PAYMENT';
+                      $itemId = $p['payment_id'] ?? 0;
                     ?>
                     <tr class="payment-row"
-                        data-status="<?php echo htmlspecialchars($p['confirmation_status']); ?>"
+                        data-status="<?php echo htmlspecialchars($itemStatus); ?>"
                         data-search="<?php echo strtolower(htmlspecialchars(
                             ($p['reference_number'] ?? '') . ' ' .
                             ($p['cashier_name'] ?? '') . ' ' .
                             ($p['bank_name'] ?? '') . ' ' .
-                            ($p['method_name'] ?? '')
+                            ($p['method_name'] ?? '') . ' ' .
+                            ($p['service_txn_code'] ?? '') . ' ' .
+                            ($p['payment_code'] ?? '')
                         )); ?>"
                         data-date="<?php echo date('Y-m-d', strtotime($p['created_at'])); ?>">
                       <td class="ps-3 py-3">
-                        <div class="fw-semibold"><?php echo htmlspecialchars($p['service_txn_code'] ?? 'TXN-' . $p['payment_id']); ?></div>
-                        <div class="text-muted small"><?php echo htmlspecialchars($p['service_type_name'] ?? 'Service'); ?></div>
+                        <div class="d-flex align-items-center">
+                          <?php if ($itemType === 'DEPOSIT'): ?>
+                            <span class="badge bg-soft-primary text-primary me-2"><span class="fas fa-university me-1"></span>DEPOSIT</span>
+                          <?php elseif ($itemType === 'CHARGE'): ?>
+                            <span class="badge bg-soft-purple text-purple me-2"><span class="fas fa-file-invoice-dollar me-1"></span>CHARGE</span>
+                          <?php else: ?>
+                            <span class="badge bg-soft-info text-info me-2"><span class="fas fa-credit-card me-1"></span>PAYMENT</span>
+                          <?php endif; ?>
+                        </div>
+                        <div class="fw-semibold"><?php echo htmlspecialchars($p['payment_code'] ?? $p['service_txn_code'] ?? 'TXN-' . $itemId); ?></div>
+                        <div class="text-muted small"><?php echo htmlspecialchars($p['service_type_name'] ?? ($itemType === 'DEPOSIT' ? 'Cash Deposit' : ($itemType === 'CHARGE' ? 'Charge Collection' : 'Service'))); ?></div>
                         <div class="text-muted" style="font-size:0.75rem;"><?php echo $p['branch_name'] ? htmlspecialchars($p['branch_name']) : '—'; ?></div>
                         <div class="text-muted" style="font-size:0.75rem;"><?php echo date('M d, Y h:i A', strtotime($p['created_at'])); ?></div>
                       </td>
                       <td class="py-3">
-                        <div class="fw-semibold text-success fs-6">₱<?php echo number_format($p['amount'], 2); ?></div>
-                        <div class="small"><span class="badge bg-soft-primary text-primary"><?php echo htmlspecialchars($p['method_name']); ?></span></div>
-                        <?php if ($p['reference_number']): ?>
-                          <div class="mt-1"><span class="ref-badge"><?php echo htmlspecialchars($p['reference_number']); ?></span></div>
+                        <div class="fw-semibold text-success fs-6">₱<?php echo number_format($p['amount'] ?? $p['amount_paid'], 2); ?></div>
+                        <?php if ($itemType === 'PAYMENT' || $itemType === 'CHARGE'): ?>
+                          <div class="small"><span class="badge bg-soft-primary text-primary"><?php echo htmlspecialchars($p['method_name']); ?></span></div>
+                          <?php if ($p['reference_number']): ?>
+                            <div class="mt-1"><span class="ref-badge"><?php echo htmlspecialchars($p['reference_number']); ?></span></div>
+                          <?php else: ?>
+                            <div class="text-muted small">No ref #</div>
+                          <?php endif; ?>
                         <?php else: ?>
-                          <div class="text-muted small">No ref #</div>
+                          <div class="small text-muted">Cash Deposit</div>
                         <?php endif; ?>
                       </td>
                       <td class="py-3">
@@ -229,23 +248,24 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                         <span class="badge status-badge-<?php echo $statusClass; ?> fs-10 px-3 py-2">
                           <?php
                           $icons = ['PENDING' => 'fa-clock', 'CONFIRMED' => 'fa-check-circle', 'REJECTED' => 'fa-times-circle'];
-                          echo '<span class="fas ' . ($icons[$p['confirmation_status']] ?? 'fa-circle') . ' me-1"></span>';
-                          echo htmlspecialchars($p['confirmation_status']);
+                          echo '<span class="fas ' . ($icons[$itemStatus] ?? 'fa-circle') . ' me-1"></span>';
+                          echo htmlspecialchars($itemStatus);
                           ?>
                         </span>
                       </td>
                       <td class="py-3 text-end pe-3">
-                        <?php if ($p['confirmation_status'] === 'PENDING'): ?>
+                        <?php if ($itemStatus === 'PENDING'): ?>
                           <button class="btn btn-sm btn-success me-1" title="Review"
                             onclick="openConfirmModal(
-                              <?php echo $p['payment_id']; ?>,
-                              '<?php echo htmlspecialchars($p['method_name'], ENT_QUOTES); ?>',
-                              '<?php echo number_format($p['amount'], 2); ?>',
+                              <?php echo $itemId; ?>,
+                              '<?php echo htmlspecialchars($itemType, ENT_QUOTES); ?>',
+                              '<?php echo htmlspecialchars($p['method_name'] ?? 'Cash Deposit', ENT_QUOTES); ?>',
+                              '<?php echo number_format($p['amount'] ?? $p['amount_paid'] ?? 0, 2); ?>',
                               '<?php echo htmlspecialchars($p['reference_number'] ?? '—', ENT_QUOTES); ?>',
-                              '<?php echo htmlspecialchars(($p['bank_name'] ?? '') . ($p['account_name'] ? ' — ' . $p['account_name'] : ''), ENT_QUOTES); ?>',
+                              '<?php echo htmlspecialchars(($p['bank_name'] ?? '') . (!empty($p['account_name']) ? ' — ' . $p['account_name'] : ''), ENT_QUOTES); ?>',
                               '<?php echo htmlspecialchars($p['cashier_name'] ?? '—', ENT_QUOTES); ?>',
                               '<?php echo date('M d, Y h:i A', strtotime($p['created_at'])); ?>',
-                              '<?php echo htmlspecialchars($p['service_type_name'] ?? '—', ENT_QUOTES); ?>',
+                              '<?php echo htmlspecialchars($p['service_type_name'] ?? ($itemType === 'CHARGE' ? 'Charge Collection' : '—'), ENT_QUOTES); ?>',
                               '<?php echo htmlspecialchars($p['branch_name'] ?? '—', ENT_QUOTES); ?>'
                             )">
                             <span class="fas fa-check-double me-1"></span>Review

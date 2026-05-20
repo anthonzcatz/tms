@@ -154,10 +154,41 @@ function handleGet() {
     $params = [];
 
     // SUPER_ADMIN can see all wallets, others are restricted to their branch
-    global $userRoleCode, $userBranchId;
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchFilter = "WHERE pw.branch_id = :user_branch_id";
-        $params['user_branch_id'] = $userBranchId;
+    global $userRoleCode, $userBranchId, $user;
+    
+    // Check if user has an active cashier session - use session's branch_id if available
+    $sessionBranchId = null;
+    if ($userRoleCode === 'CASHIER' && $user['user_id']) {
+        $activeSession = Database::fetch(
+            "SELECT branch_id FROM cashier_sessions 
+             WHERE cashier_user_id = :user_id 
+             AND status = 'OPEN' 
+             AND ended_at IS NULL 
+             ORDER BY started_at DESC 
+             LIMIT 1",
+            ['user_id' => $user['user_id']]
+        );
+        if ($activeSession && $activeSession['branch_id']) {
+            $sessionBranchId = $activeSession['branch_id'];
+        }
+    }
+    
+    // Use session branch_id if active session exists, otherwise use user's assigned branch
+    $effectiveBranchId = $sessionBranchId ?: $userBranchId;
+    
+    if ($userRoleCode !== 'SUPER_ADMIN' && $effectiveBranchId) {
+        // Parse comma-separated branch IDs
+        $userBranchIds = array_map('intval', explode(',', $effectiveBranchId));
+        $userBranchIds = array_filter($userBranchIds);
+        
+        if (!empty($userBranchIds)) {
+            $branchPlaceholders = [];
+            foreach ($userBranchIds as $i => $branchId) {
+                $branchPlaceholders[] = ':user_branch_' . $i;
+                $params['user_branch_' . $i] = $branchId;
+            }
+            $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+        }
     }
 
     // Filter by provider_id if provided
@@ -174,8 +205,66 @@ function handleGet() {
         $params['branch_id'] = (int)$branchId;
     }
 
+    // Filter by transport type for cashiers with restrictions
+    // Fetch user data directly to get has_restricted_transport
+    $userData = Database::fetch(
+        "SELECT has_restricted_transport FROM user_accounts WHERE user_id = :user_id",
+        ['user_id' => $user['user_id']]
+    );
+    $hasRestrictedTransport = ($userData['has_restricted_transport'] ?? 0) == 1;
+    
+    if ($userRoleCode === 'CASHIER' && $hasRestrictedTransport) {
+        // Get cashier's transport assignments
+        $transportAssignments = Database::fetchAll(
+            "SELECT cta.provider_id, cta.transport_type
+             FROM cashier_transport_assignments cta
+             WHERE cta.user_id = :user_id",
+            ['user_id' => $user['user_id']]
+        );
+
+        if ($transportAssignments) {
+            $allowedProviderIds = [];
+            $allowedTransportTypes = [];
+
+            foreach ($transportAssignments as $assignment) {
+                if ($assignment['provider_id']) {
+                    $allowedProviderIds[] = (int)$assignment['provider_id'];
+                }
+                if ($assignment['transport_type']) {
+                    $allowedTransportTypes[] = $assignment['transport_type'];
+                }
+            }
+
+            // Build filter for specific providers or transport types
+            $transportFilter = "";
+            if (!empty($allowedProviderIds)) {
+                $providerPlaceholders = [];
+                foreach ($allowedProviderIds as $i => $pid) {
+                    $providerPlaceholders[] = ':transport_provider_' . $i;
+                    $params['transport_provider_' . $i] = $pid;
+                }
+                $transportFilter = "pw.provider_id IN (" . implode(',', $providerPlaceholders) . ")";
+            } elseif (!empty($allowedTransportTypes)) {
+                $typePlaceholders = [];
+                foreach ($allowedTransportTypes as $i => $type) {
+                    $typePlaceholders[] = ':transport_type_' . $i;
+                    $params['transport_type_' . $i] = $type;
+                }
+                $transportFilter = "tp.provider_type IN (" . implode(',', $typePlaceholders) . ")";
+            }
+
+            if ($transportFilter) {
+                $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . $transportFilter;
+            } else {
+                // No assignments - show no wallets
+                $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "1 = 0";
+            }
+        }
+    }
+
     $sql = "SELECT pw.*,
                    tp.provider_name,
+                   tp.provider_type,
                    bb.branch_name,
                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
             FROM provider_wallets pw

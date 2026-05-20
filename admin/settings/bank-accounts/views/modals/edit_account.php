@@ -33,6 +33,11 @@
             <input type="text" class="form-control" id="editAccountType" maxlength="50">
           </div>
           <div class="col-md-6">
+            <label class="form-label fw-semibold">Current Balance (₱)</label>
+            <input type="text" class="form-control" id="editCurrentBalance" readonly>
+            <div class="form-text">Balance is automatically updated by transactions</div>
+          </div>
+          <div class="col-md-6">
             <label class="form-label fw-semibold">Branch</label>
             <select class="form-select" id="editBranchId">
               <option value="">Company-wide (All Branches)</option>

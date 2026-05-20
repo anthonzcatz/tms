@@ -59,6 +59,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
+                  <div class="col-lg-auto">
+                    <button class="btn btn-primary" onclick="openAddAccountModal()">
+                      <span class="fas fa-plus me-1"></span>Add Bank Account
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -191,6 +196,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       <th>Account Number</th>
                       <th>Payment Method</th>
                       <th>Branch</th>
+                      <th>Balance</th>
                       <th>Status</th>
                       <th class="text-end pe-3">Actions</th>
                     </tr>
@@ -249,6 +255,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         <?php endif; ?>
                       </td>
                       <td class="py-3">
+                        <div class="fw-bold text-success">₱<?php echo number_format($acc['current_balance'] ?? 0, 2); ?></div>
+                      </td>
+                      <td class="py-3">
                         <div class="form-check form-switch mb-0">
                           <input class="form-check-input" type="checkbox"
                             <?php echo $acc['is_active'] ? 'checked' : ''; ?>
@@ -257,6 +266,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         </div>
                       </td>
                       <td class="py-3 text-end pe-3">
+                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openBalanceAdjustmentModal(<?php echo $acc['bank_account_id']; ?>, <?php echo $acc['current_balance']; ?>)" title="Balance Adjustment">
+                          <span class="fas fa-balance-scale"></span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-info me-1" onclick="openViewTransactionsModal(<?php echo $acc['bank_account_id']; ?>)" title="View Transactions">
+                          <span class="fas fa-history"></span>
+                        </button>
                         <button class="btn btn-sm btn-outline-warning me-1" onclick="editAccount(<?php echo $acc['bank_account_id']; ?>)" title="Edit">
                           <span class="fas fa-edit"></span>
                         </button>
@@ -285,8 +300,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
   <script src="<?php echo BASE_URL; ?>/admin/settings/bank-accounts/assets/js/bank-accounts.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/bank-accounts.js'); ?>"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/settings/bank-accounts/assets/js/view-transactions.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/view-transactions.js'); ?>"></script>
 
   <?php include __DIR__ . '/modals/add_account.php'; ?>
   <?php include __DIR__ . '/modals/edit_account.php'; ?>
+  <?php include __DIR__ . '/modals/view_transactions.php'; ?>
+  <?php include __DIR__ . '/modals/balance_adjustment.php'; ?>
 </body>
 </html>

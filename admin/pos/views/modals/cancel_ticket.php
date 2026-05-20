@@ -103,8 +103,8 @@
               <small class="text-muted">Only the Cost will be refunded to the wallet balance (excluding Service Fee: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>).</small>
             </div>
             <div class="mb-3">
-              <label class="form-label fw-semibold" for="cancelReason">Reason for Cancellation</label>
-              <textarea class="form-control" id="cancelReason" rows="4" placeholder="Enter reason for cancellation (optional)"></textarea>
+              <label class="form-label fw-semibold" for="cancelReason">Reason for Cancellation <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="cancelReason" rows="4" placeholder="Enter reason for cancellation" required></textarea>
             </div>
           </div>
         </div>

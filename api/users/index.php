@@ -117,6 +117,7 @@ function handleGet() {
                 ua.allowed_login_start,
                 ua.allowed_login_end,
                 ua.allowed_days,
+                ua.has_restricted_transport,
                 ua.created_at,
                 ua.updated_at,
                 ua.last_login_at,
@@ -169,9 +170,7 @@ function handleGet() {
             ua.allowed_login_start,
             ua.allowed_login_end,
             ua.allowed_days,
-            ua.created_at,
-            ua.updated_at,
-            ua.last_login_at,
+            ua.has_restricted_transport,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -229,9 +228,25 @@ function handleGet() {
     
     $users = Database::fetchAll($sql, $params);
     $currentUserId = Auth::id();
+    
+    // Fetch transport assignments for cashiers
     foreach ($users as &$listedUser) {
         if ($currentUserId && (int)$listedUser['user_id'] === $currentUserId) {
             $listedUser['is_online'] = 1;
+        }
+        
+        // Get transport assignments if user is a cashier
+        if ($listedUser['role_code'] === 'CASHIER') {
+            $assignments = Database::fetchAll(
+                "SELECT cta.transport_type, tp.provider_name
+                 FROM cashier_transport_assignments cta
+                 LEFT JOIN ticket_providers tp ON cta.provider_id = tp.provider_id
+                 WHERE cta.user_id = :user_id",
+                ['user_id' => $listedUser['user_id']]
+            );
+            $listedUser['transport_assignments'] = $assignments;
+        } else {
+            $listedUser['transport_assignments'] = [];
         }
     }
     unset($listedUser);

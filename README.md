@@ -78,7 +78,7 @@ Passenger: passenger_accounts
 - [x] Payment Methods (admin/settings/payment-methods/) — Manage CASH, GCash, Bank Transfer, etc. Add/edit/disable methods
 - [x] Bank Accounts (admin/settings/bank-accounts/) — Manage company bank accounts per branch
 - [x] Service Types (admin/settings/service-types/) — Manage Print Fee, Photocopy, etc.
-- [ ] System Settings (admin/system-settings/) — Configure company info, cancellation settings, maintenance mode, etc.
+- [x] System Settings (admin/system-settings/) — Configure company info, cancellation settings, maintenance mode, bank transaction settings
 
 ### Phase 2: Operational Modules
 - [x] Cashier POS (admin/pos/) — Main checkout screen: sell tickets, print fees, accept mixed payments, track cashier session
@@ -86,6 +86,11 @@ Passenger: passenger_accounts
 - [x] Customer Charges (Utang) (admin/charges/) — View customer balances, accept payments, track collections
 - [x] Cashier Shift Reports (admin/shifts/) — Daily reconciliation, variance reports per cashier
 - [ ] Refund Confirmations (admin/refund-confirmations/) — Manager approves/rejects pending ticket cancellation and refund requests
+
+### Phase 3: Financial Tracking
+- [x] Bank Transactions (admin/bank-transactions/) — Track all bank movements (deposits, receipts, disbursements) with balance tracking
+- [x] Update shifts page to show deposit status and allow recording delayed deposits
+- [x] Update POS session close modal to include deposit options
 
 ## Module Creation Guidelines
 

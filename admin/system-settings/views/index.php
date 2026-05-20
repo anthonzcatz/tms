@@ -201,6 +201,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                   <h6 class="mb-0 text-600">POS Settings</h6>
                 </a>
               </li>
+              <li class="nav-item text-nowrap" role="presentation">
+                <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="bank-tab" data-bs-toggle="tab" href="#bank" role="tab" aria-controls="bank" aria-selected="false">
+                  <span class="fas fa-university icon text-600"></span>
+                  <h6 class="mb-0 text-600">Bank Transactions</h6>
+                </a>
+              </li>
             </ul>
           </div>
           <div class="card-body p-0">
@@ -430,6 +436,53 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                           <label class="form-check-label fw-semibold" for="posManagerCanClose">Manager Can Close Session for Cashier</label>
                         </div>
                         <small class="text-muted">When enabled, managers can close POS sessions on behalf of cashiers.</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bank Transactions Tab -->
+              <div class="tab-pane" id="bank" role="tabpanel" aria-labelledby="bank-tab">
+                <div class="card border-0">
+                  <div class="card-body">
+                    <h5 class="card-title mb-4"><span class="fas fa-university me-2"></span>Bank Transaction Settings</h5>
+                    <div class="alert alert-info fs-10 mb-4">
+                      <span class="fas fa-info-circle me-2"></span>
+                      <strong>Confirmation Workflow:</strong> Configure which bank movements require manager confirmation before updating account balances.
+                    </div>
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">POS Payments</h6>
+                      </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="bank_pos_payments_require_confirmation" id="bankPosPaymentsConfirm" <?php echo ($settings['bank_pos_payments_require_confirmation'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="bankPosPaymentsConfirm">POS Bank/E-Wallet Payments Require Confirmation</label>
+                        </div>
+                        <small class="text-muted">When enabled, bank transfer and e-wallet payments from POS require manager confirmation before bank account balance is updated.</small>
+                      </div>
+                      <div class="col-md-12"><hr class="my-2"></div>
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">Charge Collections</h6>
+                      </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="bank_charge_payments_require_confirmation" id="bankChargePaymentsConfirm" <?php echo ($settings['bank_charge_payments_require_confirmation'] ?? 0) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="bankChargePaymentsConfirm">Charge Collections Require Confirmation</label>
+                        </div>
+                        <small class="text-muted">When enabled, bank/e-wallet payments for customer charges (utang) require manager confirmation before bank account balance is updated.</small>
+                      </div>
+                      <div class="col-md-12"><hr class="my-2"></div>
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">Cash Deposits</h6>
+                      </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="bank_deposits_require_confirmation" id="bankDepositsConfirm" <?php echo ($settings['bank_deposits_require_confirmation'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="bankDepositsConfirm">Cash Deposits Require Confirmation</label>
+                        </div>
+                        <small class="text-muted">When enabled, cash deposits from cashier shifts require manager confirmation before bank account balance is updated. "Deposit Now" option bypasses this.</small>
                       </div>
                     </div>
                   </div>

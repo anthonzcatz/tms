@@ -83,9 +83,9 @@ function handlePost() {
 
     Database::execute(
         "INSERT INTO bank_accounts
-            (branch_id, bank_name, account_name, account_number, account_type, payment_method_id, is_active, notes, created_at)
+            (branch_id, bank_name, account_name, account_number, account_type, payment_method_id, current_balance, is_active, notes, created_at)
          VALUES
-            (:branch_id, :bank_name, :account_name, :account_number, :account_type, :payment_method_id, :is_active, :notes, NOW())",
+            (:branch_id, :bank_name, :account_name, :account_number, :account_type, :payment_method_id, :current_balance, :is_active, :notes, NOW())",
         [
             'branch_id' => $input['branch_id'] ?: null,
             'bank_name' => $bankName,
@@ -93,6 +93,7 @@ function handlePost() {
             'account_number' => $accountNumber,
             'account_type' => $input['account_type'] ?? null,
             'payment_method_id' => $input['payment_method_id'] ?: null,
+            'current_balance' => $input['current_balance'] ?? 0,
             'is_active' => $input['is_active'] ?? 1,
             'notes' => $input['notes'] ?? null,
         ]
@@ -139,8 +140,8 @@ function handlePut() {
         "UPDATE bank_accounts SET
             branch_id = :branch_id, bank_name = :bank_name, account_name = :account_name,
             account_number = :account_number, account_type = :account_type,
-            payment_method_id = :payment_method_id, is_active = :is_active,
-            notes = :notes, updated_at = NOW()
+            payment_method_id = :payment_method_id,
+            is_active = :is_active, notes = :notes, updated_at = NOW()
          WHERE bank_account_id = :id",
         [
             'branch_id' => $input['branch_id'] ?: null,

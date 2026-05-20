@@ -231,7 +231,12 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketWallet">Wallet</label>
+                    <label class="form-label fw-semibold d-flex justify-content-between" for="ticketWallet">
+                      <span>Wallet</span>
+                      <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" onclick="refreshWallets()" title="Refresh Wallets">
+                        <span class="fas fa-sync-alt"></span>
+                      </button>
+                    </label>
                     <select class="form-select" id="ticketWallet" name="ticketWallet" onchange="loadServiceFeeForWallet()">
                       <option value="">Select Wallet</option>
                     </select>

@@ -39,5 +39,36 @@ $roles = Database::fetchAll(
      ORDER BY role_name"
 );
 
+// Get all branches for dropdown
+$branches = Database::fetchAll(
+    "SELECT branch_id, branch_name 
+     FROM business_branches 
+     WHERE status = 'active' 
+     ORDER BY branch_name"
+);
+
+// Get all ticket providers for cashier assignments
+$providers = Database::fetchAll(
+    "SELECT provider_id, provider_code, provider_name, provider_type 
+     FROM ticket_providers 
+     WHERE status = 'active' 
+     ORDER BY provider_type, provider_name"
+);
+
+// Get existing cashier transport assignments
+$transportAssignments = Database::fetchAll(
+    "SELECT cta.user_id, cta.provider_id, cta.transport_type, 
+            tp.provider_name, tp.provider_code
+     FROM cashier_transport_assignments cta
+     LEFT JOIN ticket_providers tp ON cta.provider_id = tp.provider_id
+     ORDER BY cta.user_id"
+);
+
+// Group assignments by user_id for easier access
+$assignmentsByUser = [];
+foreach ($transportAssignments as $assignment) {
+    $assignmentsByUser[$assignment['user_id']][] = $assignment;
+}
+
 // Include the main view
 include __DIR__ . '/views/index.php';

@@ -69,8 +69,8 @@ try {
 
         Database::execute(
             "INSERT INTO pos_orders
-                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, amount_paid, change_amount, status, created_at)
-             VALUES (:code, :branch, :session, :uid, :subtotal, 0, :grand, :paid, :change, 'completed', NOW())",
+                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, original_grand_total, amount_paid, change_amount, status, created_at)
+             VALUES (:code, :branch, :session, :uid, :subtotal, 0, :grand, :original, :paid, :change, 'completed', NOW())",
             [
                 'code'    => $orderCode,
                 'branch'  => $branchId,
@@ -78,6 +78,7 @@ try {
                 'uid'     => $user['user_id'],
                 'subtotal'=> $orderTotal,
                 'grand'   => $orderTotal,
+                'original'=> $orderTotal,
                 'paid'    => $totalPaid,
                 'change'  => $totalPaid - $orderTotal,
             ]

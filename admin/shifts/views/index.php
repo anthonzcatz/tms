@@ -262,14 +262,28 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   </div>
                 </div>
                 <div class="card-footer py-3 d-flex justify-content-between align-items-center">
-                  <?php if ($s['reviewed_by_name']): ?>
-                    <span class="text-muted small"><span class="fas fa-user-check me-1 text-success"></span>Reviewed by <?php echo htmlspecialchars($s['reviewed_by_name']); ?></span>
-                  <?php else: ?>
-                    <span class="text-muted small">Not yet reviewed</span>
-                  <?php endif; ?>
-                  <button class="btn btn-sm btn-primary" onclick="viewSessionDetail(<?php echo $s['session_id']; ?>)">
-                    <span class="fas fa-eye me-1"></span>Details
-                  </button>
+                  <div>
+                    <?php if ($s['deposit_status'] === 'PENDING'): ?>
+                      <span class="badge bg-soft-warning text-warning me-2"><span class="fas fa-clock me-1"></span>Pending Deposit</span>
+                    <?php elseif ($s['deposit_status'] === 'DEPOSITED'): ?>
+                      <span class="badge bg-soft-success text-success me-2"><span class="fas fa-check-circle me-1"></span>Deposited</span>
+                    <?php endif; ?>
+                    <?php if ($s['reviewed_by_name']): ?>
+                      <span class="text-muted small"><span class="fas fa-user-check me-1 text-success"></span>Reviewed by <?php echo htmlspecialchars($s['reviewed_by_name']); ?></span>
+                    <?php else: ?>
+                      <span class="text-muted small">Not yet reviewed</span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <?php if ($s['status'] === 'CLOSED' && $s['deposit_status'] === 'PENDING'): ?>
+                    <button class="btn btn-sm btn-success" onclick="openRecordDepositModal(<?php echo $s['session_id']; ?>, <?php echo $s['actual_cash']; ?>)">
+                      <span class="fas fa-university me-1"></span>Record Deposit
+                    </button>
+                    <?php endif; ?>
+                    <button class="btn btn-sm btn-primary" onclick="viewSessionDetail(<?php echo $s['session_id']; ?>)">
+                      <span class="fas fa-eye me-1"></span>Details
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -283,6 +297,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
     <!-- Include Modals -->
     <?php include __DIR__ . '/modals/session_detail.php'; ?>
+    <?php include __DIR__ . '/modals/record_deposit.php'; ?>
     <?php if ($userRoleCode === 'SUPER_ADMIN' || $userRoleCode === 'MANAGER'): ?>
     <?php include __DIR__ . '/modals/manager_session.php'; ?>
     <?php endif; ?>

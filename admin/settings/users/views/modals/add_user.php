@@ -51,6 +51,12 @@
             </div>
             <div class="step-label">Time Restrictions</div>
           </div>
+          <div class="step-item" data-step="6" id="providerAssignmentStep" style="display: none;">
+            <div class="step-icon">
+              <span class="fas fa-plane"></span>
+            </div>
+            <div class="step-label">Provider Access</div>
+          </div>
         </div>
         
         <form id="userForm" novalidate autocomplete="off">
@@ -400,6 +406,103 @@
                       </div>
                     </div>
                     <small class="text-muted d-block mt-2">Select which days the user is allowed to log in</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 6: Transportation Type Assignments (Cashier Only) -->
+          <div class="wizard-step" data-step="6">
+            <div class="card border-0 shadow-sm m-3">
+              <div class="card-header bg-light border-0 py-2">
+                <h6 class="mb-0 fw-bold text-primary">
+                  <span class="fas fa-plane me-2"></span>Transportation Type Access (Cashier Only)
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-12 mb-4">
+                    <div class="form-check form-switch form-check-lg">
+                      <input class="form-check-input" type="checkbox" id="restrictTransport" name="restrict_transport" value="1" onchange="toggleTransportRestriction()">
+                      <label class="form-check-label fw-bold" for="restrictTransport">
+                        <span class="fas fa-lock me-2"></span>Restrict to Specific Transportation Types
+                      </label>
+                      <small class="text-muted d-block ms-5">When enabled, this cashier can only sell tickets for selected transport types/providers</small>
+                    </div>
+                  </div>
+
+                  <div class="col-md-12 mb-4" id="transportAssignmentSection" style="display: none;">
+                    <label class="form-label fw-bold mb-3">Assign Transportation Types/Providers</label>
+                    
+                    <div class="row">
+                      <div class="col-md-6 mb-3">
+                        <h6 class="fw-bold text-primary mb-2">By Transportation Type</h6>
+                        <div class="d-flex flex-column gap-2">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="transportType-airline" name="transport_types[]" value="airline">
+                            <label class="form-check-label" for="transportType-airline">
+                              <span class="fas fa-plane me-2"></span>Airlines
+                            </label>
+                          </div>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="transportType-shipping" name="transport_types[]" value="shipping">
+                            <label class="form-check-label" for="transportType-shipping">
+                              <span class="fas fa-ship me-2"></span>Shipping
+                            </label>
+                          </div>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="transportType-bus" name="transport_types[]" value="bus">
+                            <label class="form-check-label" for="transportType-bus">
+                              <span class="fas fa-bus me-2"></span>Bus Lines
+                            </label>
+                          </div>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="transportType-other" name="transport_types[]" value="other">
+                            <label class="form-check-label" for="transportType-other">
+                              <span class="fas fa-ellipsis-h me-2"></span>Other
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="col-md-6 mb-3">
+                        <h6 class="fw-bold text-primary mb-2">Or Select Specific Providers</h6>
+                        <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
+                          <?php
+                          $groupedProviders = [];
+                          foreach ($providers as $provider) {
+                            $groupedProviders[$provider['provider_type']][] = $provider;
+                          }
+                          foreach ($groupedProviders as $type => $typeProviders):
+                            $typeIcon = match($type) {
+                              'airline' => 'fa-plane',
+                              'shipping' => 'fa-ship',
+                              'bus' => 'fa-bus',
+                              'other' => 'fa-ellipsis-h'
+                            };
+                          ?>
+                            <div class="mb-2">
+                              <strong class="text-primary"><span class="fas <?php echo $typeIcon; ?> me-1"></span><?php echo ucfirst($type); ?></strong>
+                              <?php foreach ($typeProviders as $provider): ?>
+                                <div class="form-check ms-3">
+                                  <input class="form-check-input provider-checkbox" type="checkbox" 
+                                         id="provider-<?php echo $provider['provider_id']; ?>" 
+                                         name="specific_providers[]" 
+                                         value="<?php echo $provider['provider_id']; ?>"
+                                         data-transport-type="<?php echo $provider['provider_type']; ?>"
+                                         onchange="handleTransportSelection()">
+                                  <label class="form-check-label" for="provider-<?php echo $provider['provider_id']; ?>">
+                                    <?php echo htmlspecialchars($provider['provider_name']); ?>
+                                  </label>
+                                </div>
+                              <?php endforeach; ?>
+                            </div>
+                          <?php endforeach; ?>
+                        </div>
+                        <small class="text-muted d-block mt-2">Select specific providers (overrides type selection)</small>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

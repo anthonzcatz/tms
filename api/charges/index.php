@@ -31,12 +31,18 @@ if ($method === 'GET') {
                 pm.method_name, pm.method_type,
                 COALESCE(st.transaction_code, tt.transaction_code) AS txn_code,
                 stype.name AS service_type_name,
-                CASE WHEN tp.source_type = 'TICKET_TRANSACTION' THEN 'Ticket' ELSE stype.name END AS item_label
+                CASE WHEN tp.source_type = 'TICKET_TRANSACTION' THEN 'Ticket' ELSE stype.name END AS item_label,
+                bb.branch_name,
+                CONCAT(e.first_name, IF(e.middle_name IS NOT NULL AND e.middle_name != '', CONCAT(' ', LEFT(e.middle_name, 1), '.'), ''), ' ', e.last_name) AS cashier_name
          FROM transaction_payments tp
          JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+         LEFT JOIN cashier_sessions cs ON tp.cashier_session_id = cs.session_id
+         LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
+         LEFT JOIN user_accounts ua ON tp.created_by = ua.user_id
+         LEFT JOIN employees e ON ua.emp_id = e.emp_id
          LEFT JOIN service_transactions st ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
          LEFT JOIN service_types stype ON st.service_type_id = stype.service_type_id
-         LEFT JOIN ticket_transactions tt ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.ticket_txn_id
+         LEFT JOIN ticket_transactions tt ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
          WHERE pm.tracks_credit = 1 AND tp.charged_to_passenger_id = :pid
          ORDER BY tp.created_at DESC",
         ['pid' => $passengerId]
@@ -61,12 +67,17 @@ if ($method === 'POST') {
     $passengerId = $input['passenger_id'] ?? null;
     $amountPaid  = floatval($input['amount_paid'] ?? 0);
     $methodId    = $input['payment_method_id'] ?? null;
+    $bankAcctId  = $input['bank_account_id'] ?? null;
     $refNum      = $input['reference_number'] ?? null;
     $notes       = $input['notes'] ?? null;
-    $branchId    = $user['branch_id'] ?? null;
+    $branchId    = $input['branch_id'] ?? $user['branch_id'] ?? null;
 
     if (!$passengerId || $amountPaid <= 0 || !$methodId) {
         echo json_encode(['success' => false, 'error' => 'passenger_id, amount_paid, and payment_method_id are required.']); return;
+    }
+
+    if (!$branchId) {
+        echo json_encode(['success' => false, 'error' => 'branch_id is required.']); return;
     }
 
     // Get current balance
@@ -80,22 +91,74 @@ if ($method === 'POST') {
 
     $payCode = 'CP-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
     $pm = Database::fetch("SELECT * FROM payment_methods WHERE method_id = :id", ['id' => $methodId]);
-    $confirmStatus = ($pm && $pm['requires_confirmation']) ? 'PENDING' : 'NOT_REQUIRED';
+    
+    // Check system settings for bank confirmation requirement
+    $settings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
+    $requireConfirmation = false;
+    
+    // For bank/e-wallet payments, check system setting directly
+    if ($bankAcctId && ($pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET')) {
+        // System setting overrides payment method setting for bank/e-wallet charge payments
+        $requireConfirmation = ($settings['bank_charge_payments_require_confirmation'] ?? 0) == 1;
+    } elseif ($pm && $pm['requires_confirmation']) {
+        // For non-bank methods, use payment method's requires_confirmation setting
+        $requireConfirmation = true;
+    }
+    
+    $confirmStatus = $requireConfirmation ? 'PENDING' : 'NOT_REQUIRED';
 
     try {
         Database::connection()->beginTransaction();
 
         Database::execute(
             "INSERT INTO charge_payments
-                (payment_code, passenger_id, branch_id, payment_method_id, amount_paid, balance_before, balance_after,
+                (payment_code, passenger_id, branch_id, payment_method_id, bank_account_id, amount_paid, balance_before, balance_after,
                  reference_number, confirmation_status, notes, created_by, created_at)
-             VALUES (:code, :pid, :branch, :method, :amount, :before, :after, :ref, :confirm, :notes, :uid, NOW())",
+             VALUES (:code, :pid, :branch, :method, :bank, :amount, :before, :after, :ref, :confirm, :notes, :uid, NOW())",
             ['code' => $payCode, 'pid' => $passengerId, 'branch' => $branchId, 'method' => $methodId,
-             'amount' => $applied, 'before' => $balBefore, 'after' => $balAfter,
+             'bank' => $bankAcctId, 'amount' => $applied, 'before' => $balBefore, 'after' => $balAfter,
              'ref' => $refNum, 'confirm' => $confirmStatus, 'notes' => $notes, 'uid' => $user['user_id']]
         );
 
+        // Create bank transaction if payment method is bank/e-wallet and bank_account_id is provided
+        // Only create immediately if confirmation is NOT required
+        if ($bankAcctId && ($pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET') && !$requireConfirmation) {
+            $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $bankAcctId]);
+            if ($bankAccount) {
+                $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
+                $balAfterBank = $balBeforeBank + $applied;
+                
+                $bankTxnCode = 'BANK-' . date('Ymd-His') . '-' . strtoupper(substr(uniqid(), -5));
+                Database::execute(
+                    "INSERT INTO bank_transactions
+                        (bank_account_id, txn_code, txn_type, direction, amount, balance_before, balance_after,
+                         reference_table, reference_id, remarks, confirmation_status, created_by, created_at)
+                     VALUES (:bank_id, :code, 'RECEIPT', 'IN', :amount, :before, :after, 'charge_payments', :ref_id, :remarks, 'CONFIRMED', :uid, NOW())",
+                    [
+                        'bank_id' => $bankAcctId,
+                        'code' => $bankTxnCode,
+                        'amount' => $applied,
+                        'before' => $balBeforeBank,
+                        'after' => $balAfterBank,
+                        'ref_id' => Database::connection()->lastInsertId(),
+                        'remarks' => "Payment collection from passenger {$passengerId}",
+                        'uid' => $user['user_id']
+                    ]
+                );
+                
+                Database::execute(
+                    "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                    ['balance' => $balAfterBank, 'id' => $bankAcctId]
+                );
+                
+                logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankTxnCode,
+                    null, ['bank_account_id' => $bankAcctId, 'amount' => $applied, 'type' => 'RECEIPT']);
+            }
+        }
+
         // Update customer_charges aggregate
+        // Balance is always updated immediately for better UX
+        // If confirmation is required and payment is rejected, balance will be reverted
         $newStatus = $balAfter <= 0 ? 'CLEAR' : $chargeRow['status'];
         Database::execute(
             "UPDATE customer_charges SET

@@ -94,6 +94,14 @@ $posSettings = Database::fetch(
      FROM system_settings WHERE setting_id = 1"
 );
 
+// Fetch bank accounts for deposit modal
+$bankAccounts = Database::fetchAll(
+    "SELECT bank_account_id, bank_name, account_name, account_number
+     FROM bank_accounts
+     WHERE is_active = 1
+     ORDER BY bank_name ASC"
+);
+
 // Pass data to view
 $viewData = [
     'sessions' => $sessions,
@@ -103,7 +111,8 @@ $viewData = [
     'filterBranch' => $filterBranch,
     'filterStatus' => $filterStatus,
     'userRoleCode' => $userRoleCode,
-    'posSettings' => $posSettings
+    'posSettings' => $posSettings,
+    'bankAccounts' => $bankAccounts
 ];
 
 extract($viewData);

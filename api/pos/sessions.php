@@ -210,6 +210,15 @@ function handlePut() {
         if ($session['status'] !== 'OPEN') { echo json_encode(['success' => false, 'error' => 'Session is not open.']); return; }
         $closingCash = $input['closing_cash_balance'] ?? 0;
         $notes = $input['notes'] ?? null;
+        $cashDepositBankId = $input['cash_deposit_bank_id'] ?? null;
+        $depositNow = $input['deposit_now'] ?? false;
+        
+        // Check system settings for deposit confirmation requirement
+        $settings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
+        $depositRequiresConfirmation = ($settings['bank_deposits_require_confirmation'] ?? 1) == 1;
+        
+        // If deposit_now is checked, bypass confirmation
+        $requireDepositConfirmation = $cashDepositBankId && !$depositNow && $depositRequiresConfirmation;
 
         // Get payment breakdown for this session to calculate expected cash based on payment method settings
         $paymentWhere = "AND tp.created_at >= :start";
@@ -240,16 +249,158 @@ function handlePut() {
         $expectedCash = $session['starting_cash'] + $expectedCashPayments;
         $variance = $closingCash - $expectedCash;
 
-        Database::execute(
-            "UPDATE cashier_sessions SET
-                ended_at = NOW(), actual_cash = :close, expected_cash = :expected,
-                cash_variance = :variance, status = 'CLOSED', notes = :notes
-             WHERE session_id = :id",
-            ['close' => $closingCash, 'expected' => $expectedCash, 'variance' => $variance, 'notes' => $notes, 'id' => $sessionId]
-        );
-        logActivity($user['user_id'], 'CLOSE_SESSION', 'POS', "SES-{$sessionId}", null, ['closing_cash' => $closingCash, 'variance' => $variance]);
-        echo json_encode(['success' => true, 'message' => 'Session closed.', 'variance' => $variance]);
-        return;
+        // Determine deposit status based on system settings
+        $depositStatus = 'NOT_APPLICABLE';
+        if ($cashDepositBankId) {
+            if ($depositNow) {
+                $depositStatus = 'DEPOSITED';
+            } elseif ($requireDepositConfirmation) {
+                $depositStatus = 'PENDING';
+            } else {
+                $depositStatus = 'DEPOSITED';
+            }
+        }
+
+        try {
+            Database::connection()->beginTransaction();
+
+            Database::execute(
+                "UPDATE cashier_sessions SET
+                    ended_at = NOW(), actual_cash = :close, expected_cash = :expected,
+                    cash_variance = :variance, status = 'CLOSED', notes = :notes,
+                    cash_deposit_bank_id = :bank_id, deposit_status = :deposit_status,
+                    deposited_at = :deposited_at, deposited_by = :deposited_by
+                 WHERE session_id = :id",
+                [
+                    'close' => $closingCash, 'expected' => $expectedCash, 'variance' => $variance,
+                    'notes' => $notes, 'bank_id' => $cashDepositBankId, 'deposit_status' => $depositStatus,
+                    'deposited_at' => $depositNow ? 'NOW()' : null, 'deposited_by' => $depositNow ? $user['user_id'] : null,
+                    'id' => $sessionId
+                ]
+            );
+
+            // Create bank transaction if cash was deposited immediately
+            if ($cashDepositBankId && $depositStatus === 'DEPOSITED') {
+                $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $cashDepositBankId]);
+                if ($bankAccount) {
+                    $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
+                    $balAfterBank = $balBeforeBank + $closingCash;
+                    
+                    $bankTxnCode = 'BANK-' . date('Ymd-His') . '-' . strtoupper(substr(uniqid(), -5));
+                    Database::execute(
+                        "INSERT INTO bank_transactions
+                            (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
+                             reference_table, reference_id, remarks, created_by, created_at)
+                         VALUES (:bank_id, :code, 'CONFIRMED', 'DEPOSIT', 'IN', :amount, :before, :after, 'cashier_sessions', :ref_id, :remarks, :uid, NOW())",
+                        [
+                            'bank_id' => $cashDepositBankId,
+                            'code' => $bankTxnCode,
+                            'amount' => $closingCash,
+                            'before' => $balBeforeBank,
+                            'after' => $balAfterBank,
+                            'ref_id' => $sessionId,
+                            'remarks' => "Cash deposit from session {$session['session_code']}",
+                            'uid' => $user['user_id']
+                        ]
+                    );
+                    
+                    Database::execute(
+                        "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                        ['balance' => $balAfterBank, 'id' => $cashDepositBankId]
+                    );
+                    
+                    logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankTxnCode,
+                        null, ['bank_account_id' => $cashDepositBankId, 'amount' => $closingCash, 'type' => 'DEPOSIT']);
+                }
+            }
+
+            Database::connection()->commit();
+
+            logActivity($user['user_id'], 'CLOSE_SESSION', 'POS', "SES-{$sessionId}", null, ['closing_cash' => $closingCash, 'variance' => $variance]);
+            echo json_encode(['success' => true, 'message' => 'Session closed.', 'variance' => $variance]);
+            return;
+        } catch (Exception $e) {
+            Database::connection()->rollBack();
+            echo json_encode(['success' => false, 'error' => 'Failed to close session: ' . $e->getMessage()]);
+            return;
+        }
+    }
+
+    // Record deposit for a closed session
+    if ($action === 'record_deposit') {
+        if ($session['status'] !== 'CLOSED') { echo json_encode(['success' => false, 'error' => 'Session must be closed first.']); return; }
+        if ($session['deposit_status'] === 'DEPOSITED') { echo json_encode(['success' => false, 'error' => 'Already deposited.']); return; }
+        
+        $bankAccountId = $input['bank_account_id'] ?? null;
+        if (!$bankAccountId) { echo json_encode(['success' => false, 'error' => 'Bank account is required.']); return; }
+
+        $depositAmount = $input['deposit_amount'] ?? $session['actual_cash'];
+        
+        // Check system settings for deposit confirmation requirement
+        $settings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
+        $depositRequiresConfirmation = ($settings['bank_deposits_require_confirmation'] ?? 1) == 1;
+        
+        try {
+            Database::connection()->beginTransaction();
+
+            // Update session deposit status
+            Database::execute(
+                "UPDATE cashier_sessions SET
+                    cash_deposit_bank_id = :bank_id, deposit_status = 'DEPOSITED',
+                    deposited_at = NOW(), deposited_by = :uid
+                 WHERE session_id = :id",
+                ['bank_id' => $bankAccountId, 'uid' => $user['user_id'], 'id' => $sessionId]
+            );
+
+            // Create bank transaction
+            $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $bankAccountId]);
+            if ($bankAccount) {
+                $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
+                $balAfterBank = $balBeforeBank + $depositAmount;
+                
+                $bankTxnCode = 'BANK-' . date('Ymd-His') . '-' . strtoupper(substr(uniqid(), -5));
+                $confirmStatus = $depositRequiresConfirmation ? 'PENDING' : 'CONFIRMED';
+                
+                Database::execute(
+                    "INSERT INTO bank_transactions
+                        (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
+                         reference_table, reference_id, remarks, created_by, created_at)
+                     VALUES (:bank_id, :code, :confirm, 'DEPOSIT', 'IN', :amount, :before, :after, 'cashier_sessions', :ref_id, :remarks, :uid, NOW())",
+                    [
+                        'bank_id' => $bankAccountId,
+                        'code' => $bankTxnCode,
+                        'confirm' => $confirmStatus,
+                        'amount' => $depositAmount,
+                        'before' => $balBeforeBank,
+                        'after' => $balAfterBank,
+                        'ref_id' => $sessionId,
+                        'remarks' => "Cash deposit from session {$session['session_code']}" . ($depositRequiresConfirmation ? ' (pending confirmation)' : ''),
+                        'uid' => $user['user_id']
+                    ]
+                );
+                
+                // Only update bank balance if confirmation is not required
+                if (!$depositRequiresConfirmation) {
+                    Database::execute(
+                        "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                        ['balance' => $balAfterBank, 'id' => $bankAccountId]
+                    );
+                    
+                    logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankTxnCode,
+                        null, ['bank_account_id' => $bankAccountId, 'amount' => $depositAmount, 'type' => 'DEPOSIT']);
+                }
+            }
+
+            Database::connection()->commit();
+
+            logActivity($user['user_id'], 'RECORD_DEPOSIT', 'POS', "SES-{$sessionId}", null, ['bank_account_id' => $bankAccountId, 'amount' => $depositAmount]);
+            echo json_encode(['success' => true, 'message' => 'Deposit recorded successfully. Awaiting confirmation.']);
+            return;
+        } catch (Exception $e) {
+            Database::connection()->rollBack();
+            echo json_encode(['success' => false, 'error' => 'Failed to record deposit: ' . $e->getMessage()]);
+            return;
+        }
     }
 
     echo json_encode(['success' => false, 'error' => 'Unknown action.']);

@@ -986,6 +986,10 @@ function loadProviderServiceFees() {
         });
 }
 
+function refreshWallets() {
+    loadWallets(null, window.POS_BRANCH_ID);
+}
+
 function loadWallets(providerId = null, branchId = null) {
     const select = document.getElementById('ticketWallet');
     let url = `${window.BASE_URL}/api/wallets`;
@@ -1006,14 +1010,26 @@ function loadWallets(providerId = null, branchId = null) {
         .then(data => {
             if (data.success && data.data && data.data.wallets) {
                 select.innerHTML = '<option value="">Select Wallet</option>';
-                data.data.wallets.forEach(w => {
+                // Filter only active wallets
+                const activeWallets = data.data.wallets.filter(w => w.status === 'active');
+                
+                activeWallets.forEach(w => {
                     const option = document.createElement('option');
                     option.value = w.wallet_id;
                     option.dataset.providerId = w.provider_id;
                     option.dataset.branchId = w.branch_id;
-                    option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} - ₱${parseFloat(w.current_balance).toFixed(2)} (${w.status})`;
+                    option.dataset.providerType = w.provider_type;
+                    
+                    const typeLabel = w.provider_type ? w.provider_type.toUpperCase() : 'OTHER';
+                    option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${parseFloat(w.current_balance).toFixed(2)} • [${typeLabel}]`;
                     select.appendChild(option);
                 });
+                
+                // If no active wallets
+                if (activeWallets.length === 0) {
+                    select.innerHTML = '<option value="">No active wallets available</option>';
+                    select.disabled = true;
+                }
             } else if (data.error && data.error.includes('Permission denied')) {
                 // Show permission error in UI
                 select.innerHTML = '<option value="">Wallet access restricted (Permission denied)</option>';
@@ -1525,6 +1541,8 @@ async function submitCloseSession() {
 
     const closingCash = parseFloat(document.getElementById('closingCash').value.replace(/,/g, '')) || 0;
     const notes = document.getElementById('closingNotes').value.trim();
+    const bankAccountId = document.getElementById('depositBankAccountId').value || null;
+    const depositNow = document.getElementById('depositNow').checked;
 
     const btn = document.querySelector('#closeSessionModal .btn-danger');
     const originalText = btn.innerHTML;
@@ -1532,10 +1550,22 @@ async function submitCloseSession() {
     btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Closing...';
 
     try {
+        const payload = {
+            session_id: window.POS_SESSION_ID,
+            closing_cash_balance: closingCash,
+            notes,
+            action: 'close'
+        };
+        
+        if (bankAccountId) {
+            payload.cash_deposit_bank_id = bankAccountId;
+            payload.deposit_now = depositNow;
+        }
+
         const res = await fetch(`${window.BASE_URL}/api/pos/sessions`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: window.POS_SESSION_ID, closing_cash_balance: closingCash, notes, action: 'close' })
+            body: JSON.stringify(payload)
         });
         const result = await res.json();
         if (result.success) {
@@ -3096,6 +3126,13 @@ function renderTransactionsTable(transactions) {
             ? `<button class="btn btn-xs btn-outline-secondary p-1 ms-1" style="font-size:0.7rem;" onclick="toggleOrderItems('order-items-${txn.order_id}', this)" title="View items"><i class="fas fa-list"></i></button>`
             : '';
 
+        // Display amount - show original amount and pending/refunded amount if applicable
+        const amountDisplay = hasPendingCancellation && txn.pending_refund_amount
+            ? `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.pending_refund_amount)} refund pending)</span>`
+            : (txn.total_refunded_amount && parseFloat(txn.total_refunded_amount) > 0
+                ? `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.total_refunded_amount)} refunded)</span>`
+                : `₱${fmt(txn.total_amount)}`);
+
         html += `
             <tr>
                 <td>
@@ -3108,7 +3145,7 @@ function renderTransactionsTable(transactions) {
                 <td class="small">${branchName}</td>
                 <td class="small">${providerCell}</td>
                 <td class="small">${ticketNumber}</td>
-                <td>₱${fmt(txn.total_amount)}</td>
+                <td>${amountDisplay}</td>
                 <td>${statusBadge}</td>
                 <td class="small">
                     <div>${createdAt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
@@ -3425,9 +3462,100 @@ function confirmCancelTicket() {
         return;
     }
     
+    if (!reason) {
+        showToast('danger', 'Error', 'Please enter a reason for cancellation.');
+        return;
+    }
+    
+    // Show refund confirmation modal
+    showRefundConfirmModal(txnCode, refundAmount, reason);
+}
+
+function showRefundConfirmModal(txnCode, refundAmount, reason) {
+    const modalHtml = `
+        <div class="modal fade" id="refundConfirmModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title">
+                            <span class="fas fa-money-bill-wave text-warning me-2"></span>
+                            Confirm Refund Amount
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <span class="fas fa-exclamation-triangle me-2"></span>
+                            <strong>Important:</strong> This refund will be deducted from your cash drawer and will affect your Close Cashier Session Expected Cash calculation.
+                        </div>
+                        <div class="card border-0 bg-light mb-3">
+                            <div class="card-body">
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <td class="fw-bold">Transaction Code:</td>
+                                        <td class="text-end">${txnCode}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">Refund Amount:</td>
+                                        <td class="text-end text-danger fw-bold">₱${refundAmount.toFixed(2)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">Reason:</td>
+                                        <td class="text-end">${reason || 'N/A'}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirmRefund">
+                            <label class="form-check-label" for="confirmRefund">
+                                I confirm that I will give ₱${refundAmount.toFixed(2)} to the passenger/customer from the cash drawer
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <span class="fas fa-times me-1"></span>Cancel
+                        </button>
+                        <button type="button" class="btn btn-danger" id="confirmRefundBtn" disabled onclick="executeTicketCancellation('${txnCode}', ${refundAmount}, '${reason}')">
+                            <span class="fas fa-check me-1"></span>Confirm & Cancel Ticket
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('refundConfirmModal');
+    if (existingModal) existingModal.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    const modalElement = document.getElementById('refundConfirmModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
+    // Enable confirm button when checkbox is checked
+    document.getElementById('confirmRefund').addEventListener('change', function() {
+        document.getElementById('confirmRefundBtn').disabled = !this.checked;
+    });
+    
+    modal.show();
+    
+    // Cleanup on hide
+    modalElement.addEventListener('hidden.bs.modal', function() {
+        modalElement.remove();
+    });
+}
+
+function executeTicketCancellation(txnCode, refundAmount, reason) {
     const btn = document.querySelector('#cancelTicketModal .btn-danger');
     btn.disabled = true;
     btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
+    
+    // Hide confirmation modal
+    bootstrap.Modal.getInstance(document.getElementById('refundConfirmModal')).hide();
     
     fetch(`${window.BASE_URL}/api/pos/ticket-cancel.php`, {
         method: 'POST',

@@ -78,8 +78,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         // --- Create pos_orders record ---
         Database::execute(
             "INSERT INTO pos_orders
-                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, amount_paid, change_amount, status, created_at)
-             VALUES (:code, :branch, :session, :uid, :subtotal, :discount, :grand, :paid, :change, 'completed', NOW())",
+                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, original_grand_total, amount_paid, change_amount, status, created_at)
+             VALUES (:code, :branch, :session, :uid, :subtotal, :discount, :grand, :original, :paid, :change, 'completed', NOW())",
             [
                 'code'     => $orderCode,
                 'branch'   => $branchId,
@@ -88,6 +88,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 'subtotal' => $orderTotal + $discountTotal,
                 'discount' => $discountTotal,
                 'grand'    => $orderTotal,
+                'original' => $orderTotal,
                 'paid'     => $totalPaid,
                 'change'   => $totalPaid - $orderTotal,
             ]

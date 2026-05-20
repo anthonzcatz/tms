@@ -112,6 +112,38 @@
             <textarea class="form-control" id="closingNotes" name="closingNotes" rows="2" placeholder="Optional closing notes or remarks"></textarea>
           </div>
         </div>
+
+        <!-- Deposit Options -->
+        <div class="card bg-light mt-4">
+          <div class="card-body py-3">
+            <h6 class="fw-bold mb-3"><span class="fas fa-university me-2 text-primary"></span>Cash Deposit Options</h6>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold" for="depositBankAccountId">Deposit to Bank Account</label>
+                <select class="form-select" id="depositBankAccountId" name="depositBankAccountId">
+                  <option value="">No Deposit (Keep in Safe)</option>
+                  <?php if (isset($bankAccounts) && is_array($bankAccounts)): ?>
+                    <?php foreach ($bankAccounts as $bank): ?>
+                      <option value="<?php echo $bank['bank_account_id']; ?>">
+                        <?php echo htmlspecialchars($bank['bank_name']); ?> - <?php echo htmlspecialchars($bank['account_name']); ?> (<?php echo htmlspecialchars($bank['account_number']); ?>)
+                      </option>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
+                </select>
+                <div class="form-text">Select a bank account if you will deposit the cash now.</div>
+              </div>
+              <div class="col-md-6 d-flex align-items-end">
+                <div class="form-check mt-3">
+                  <input class="form-check-input" type="checkbox" id="depositNow" name="depositNow">
+                  <label class="form-check-label" for="depositNow">
+                    <strong>Deposit Now</strong>
+                    <div class="small text-muted">Check to record the deposit immediately. Uncheck to record later.</div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeModalCancelBtn">Cancel</button>

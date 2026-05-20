@@ -32,6 +32,11 @@
             <input type="text" class="form-control" id="addAccountType" placeholder="e.g. Savings, Checking, E-Wallet" maxlength="50">
           </div>
           <div class="col-md-6">
+            <label class="form-label fw-semibold">Initial Balance (₱)</label>
+            <input type="number" class="form-control" id="addCurrentBalance" step="0.01" placeholder="0.00" value="0.00">
+            <div class="form-text">Set initial balance for existing accounts</div>
+          </div>
+          <div class="col-md-6">
             <label class="form-label fw-semibold">Branch</label>
             <select class="form-select" id="addBranchId">
               <option value="">Company-wide (All Branches)</option>

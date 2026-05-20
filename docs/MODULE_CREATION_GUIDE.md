@@ -166,6 +166,36 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         }
         ?>
 
+        <!-- Header Card (Standard Pattern) -->
+        <div class="row g-4 mb-4">
+          <div class="col-12">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="bg-holder bg-card d-none d-md-block" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-bg.png);"></div>
+              <div class="card-header z-1">
+                <div class="row flex-between-center gx-0">
+                  <div class="col-lg-auto d-flex align-items-center">
+                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <div class="ms-x1">
+                      <h4 class="mb-0 text-primary fw-bold">Module <span class="text-info fw-medium">Title</span></h4>
+                      <h6 class="mb-1 text-primary">
+                        <nav aria-label="breadcrumb">
+                          <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a>Home</a></li>
+                            <li class="breadcrumb-item active">Module Name</li>
+                          </ol>
+                        </nav>
+                      </h6>
+                    </div>
+                  </div>
+                  <div class="col-lg-auto d-flex gap-2">
+                    <!-- Optional: Action buttons here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- YOUR PAGE CONTENT HERE -->
 
       </div>
