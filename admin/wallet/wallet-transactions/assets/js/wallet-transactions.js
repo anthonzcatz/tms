@@ -392,7 +392,13 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
         });
         
         const result = await response.json();
-        
+
+        // Refresh CSRF token if returned by server
+        if (result.csrf_token) {
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta) csrfMeta.setAttribute('content', result.csrf_token);
+        }
+
         if (result.success) {
             showToast('success', 'Success', 'Transaction added successfully');
             if (!walletId) {

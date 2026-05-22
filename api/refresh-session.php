@@ -26,8 +26,11 @@ try {
         exit;
     }
 
-    // Extend the session expiry time in database
-    $sessionLifetime = (int) env('SESSION_LIFETIME', 7200);
+    // Extend the session expiry time in database — read from system_settings for consistency
+    $settingsRow = Database::fetch("SELECT session_lifetime_minutes FROM system_settings LIMIT 1");
+    $sessionLifetime = isset($settingsRow['session_lifetime_minutes'])
+        ? (int) $settingsRow['session_lifetime_minutes'] * 60
+        : (int) env('SESSION_LIFETIME', 7200);
     $expiresAt = date('Y-m-d H:i:s', time() + $sessionLifetime);
 
     Database::execute(

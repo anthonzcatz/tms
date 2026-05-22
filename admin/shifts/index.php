@@ -23,7 +23,7 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 } elseif (!Auth::canAccessModule('admin/shifts/')) {
     $message = 'You do not have permission to access Cashier Shift Reports.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
-    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }
 
@@ -55,6 +55,7 @@ if ($filterStatus) {
 $sessions = Database::fetchAll(
     "SELECT cs.*,
             COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username) AS cashier_name,
+            ua.profile_image,
             bb.branch_name,
             COALESCE(CONCAT_WS(' ', e_rev.first_name, e_rev.last_name), ua_rev.username) AS reviewed_by_name
      FROM cashier_sessions cs

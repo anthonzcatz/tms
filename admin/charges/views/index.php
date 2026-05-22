@@ -219,7 +219,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                       </td>
                       <td class="py-3">
                         <span class="text-muted small">
-                          <?php echo $c['last_charge_date'] ? date('M d, Y', strtotime($c['last_charge_date'])) : '—'; ?>
+                          <?php echo $c['last_charge_date'] ? Auth::formatTimestamp($c['last_charge_date'], 'M d, Y') : '—'; ?>
                         </span>
                       </td>
                       <td class="py-3">

@@ -9,12 +9,14 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
-         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, NOW())",
+         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, :created_at)",
         ['uid' => $userId, 'action' => $action, 'mod' => $module, 'ref' => $ref,
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
+         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null,
+         'created_at' => $now]
     );
 }
 
@@ -79,7 +81,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         Database::execute(
             "INSERT INTO pos_orders
                 (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, original_grand_total, amount_paid, change_amount, status, created_at)
-             VALUES (:code, :branch, :session, :uid, :subtotal, :discount, :grand, :original, :paid, :change, 'completed', NOW())",
+             VALUES (:code, :branch, :session, :uid, :subtotal, :discount, :grand, :original, :paid, :change, 'completed', :created_at)",
             [
                 'code'     => $orderCode,
                 'branch'   => $branchId,
@@ -91,6 +93,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 'original' => $orderTotal,
                 'paid'     => $totalPaid,
                 'change'   => $totalPaid - $orderTotal,
+                'created_at' => date('Y-m-d H:i:s'),
             ]
         );
         $orderId = Database::connection()->lastInsertId();
@@ -110,7 +113,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                      cashier_session_id, created_by, created_at)
                  VALUES (:code, :wallet, :passenger, :origin, :destination,
                          :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
-                         :session, :uid, NOW())",
+                         :session, :uid, :created_at)",
                 [
                     'code'           => $txnCode,
                     'wallet'         => $ticket['wallet_id'] ?? null,
@@ -123,6 +126,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     'total_amount'   => floatval($ticket['total_amount'] ?? 0),
                     'session'        => $sessionId,
                     'uid'            => $user['user_id'],
+                    'created_at'     => date('Y-m-d H:i:s'),
                 ]
             );
             $ticketTxnId = Database::connection()->lastInsertId();
@@ -132,12 +136,13 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             Database::execute(
                 "INSERT INTO pos_order_items
                     (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
-                 VALUES (:oid, 'TICKET', :ref, :code, :total, NOW())",
+                 VALUES (:oid, 'TICKET', :ref, :code, :total, :created_at)",
                 [
                     'oid'   => $orderId,
                     'ref'   => $ticketTxnId,
                     'code'  => $txnCode,
                     'total' => floatval($ticket['total_amount'] ?? 0),
+                    'created_at' => date('Y-m-d H:i:s'),
                 ]
             );
 
@@ -166,15 +171,15 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 $balanceAfter  = $balanceBefore - $baseAmount;
 
                 Database::execute(
-                    "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wid",
-                    ['new_balance' => $balanceAfter, 'wid' => $walletId]
+                    "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = :updated_at WHERE wallet_id = :wid",
+                    ['new_balance' => $balanceAfter, 'updated_at' => date('Y-m-d H:i:s'), 'wid' => $walletId]
                 );
 
                 $walletTxnCode = 'ADJ-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
                 Database::execute(
                     "INSERT INTO wallet_transactions
                         (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
-                     VALUES (:wid, :code, 'ADJUSTMENT', 'OUT', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
+                     VALUES (:wid, :code, 'ADJUSTMENT', 'OUT', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, :created_at)",
                     [
                         'wid'    => $walletId,
                         'code'   => $walletTxnCode,
@@ -184,6 +189,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'ref_id' => $ticketTxnId,
                         'remarks'=> "Ticket sale - Base Amount only. Order: {$orderCode}, Txn: {$txnCode}",
                         'uid'    => $user['user_id'],
+                        'created_at' => date('Y-m-d H:i:s'),
                     ]
                 );
 
@@ -214,8 +220,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     if (!$existingCharge) {
                         Database::execute(
                             "INSERT INTO customer_charges (passenger_id, total_charged, total_paid, balance, status, last_charge_date)
-                             VALUES (:pid, 0, 0, 0, 'CLEAR', NOW())",
-                            ['pid' => $resolvedPassengerId]
+                             VALUES (:pid, 0, 0, 0, 'CLEAR', :last_charge_date)",
+                            ['pid' => $resolvedPassengerId, 'last_charge_date' => date('Y-m-d H:i:s')]
                         );
                     }
                     // Fixed CASE WHEN END
@@ -224,10 +230,10 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                          SET total_charged = total_charged + :amt1,
                              balance = balance + :amt2,
                              status = CASE WHEN (balance + :amt3) > 0 THEN 'OUTSTANDING' ELSE 'CLEAR' END,
-                             last_charge_date = NOW(),
-                             updated_at = NOW()
+                             last_charge_date = :last_charge_date,
+                             updated_at = :updated_at
                          WHERE passenger_id = :pid",
-                        ['pid' => $resolvedPassengerId, 'amt1' => $amount, 'amt2' => $amount, 'amt3' => $amount]
+                        ['pid' => $resolvedPassengerId, 'amt1' => $amount, 'amt2' => $amount, 'amt3' => $amount, 'last_charge_date' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]
                     );
                 }
 
@@ -235,7 +241,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     "INSERT INTO transaction_payments
                         (source_type, source_id, payment_method_id, bank_account_id, amount, reference_number,
                          payment_date, confirmation_status, charged_to_passenger_id, cashier_session_id, created_by, created_at)
-                     VALUES ('TICKET_TRANSACTION', :src, :method, :bank, :amount, :ref, CURDATE(), :confirm, :passenger, :session, :uid, NOW())",
+                     VALUES ('TICKET_TRANSACTION', :src, :method, :bank, :amount, :ref, CURDATE(), :confirm, :passenger, :session, :uid, :created_at)",
                     [
                         'src'       => $ticketTxnId,
                         'method'    => $methodId,
@@ -246,6 +252,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'passenger' => $resolvedPassengerId ?: null,
                         'session'   => $sessionId,
                         'uid'       => $user['user_id'],
+                        'created_at' => date('Y-m-d H:i:s'),
                     ]
                 );
             }
@@ -264,7 +271,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 "INSERT INTO service_transactions
                     (transaction_code, branch_id, service_type_id, passenger_id, description,
                      quantity, unit_price, total_amount, status, cashier_session_id, created_by, created_at)
-                 VALUES (:code, :branch, :stype, :passenger, :desc, :qty, :price, :total, 'completed', :session, :uid, NOW())",
+                 VALUES (:code, :branch, :stype, :passenger, :desc, :qty, :price, :total, 'completed', :session, :uid, :created_at)",
                 [
                     'code'      => $svcCode,
                     'branch'    => $branchId,
@@ -276,6 +283,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     'total'     => floatval($svc['total_amount'] ?? 0),
                     'session'   => $sessionId,
                     'uid'       => $user['user_id'],
+                    'created_at' => date('Y-m-d H:i:s'),
                 ]
             );
             $serviceTxnId    = Database::connection()->lastInsertId();
@@ -285,12 +293,13 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             Database::execute(
                 "INSERT INTO pos_order_items
                     (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
-                 VALUES (:oid, 'SERVICE', :ref, :code, :total, NOW())",
+                 VALUES (:oid, 'SERVICE', :ref, :code, :total, :created_at)",
                 [
                     'oid'   => $orderId,
                     'ref'   => $serviceTxnId,
                     'code'  => $svcCode,
                     'total' => floatval($svc['total_amount'] ?? 0),
+                    'created_at' => date('Y-m-d H:i:s'),
                 ]
             );
 

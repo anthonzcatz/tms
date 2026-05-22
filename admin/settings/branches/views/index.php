@@ -61,6 +61,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
+                  <div class="col-lg-auto d-flex align-items-center mt-3 mt-lg-0">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBranchModal">
+                      <span class="fas fa-plus me-2"></span>Add Branch
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -200,10 +205,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <table class="table table-hover" id="branchesTable">
                 <thead class="table-light">
                   <tr>
-                    <th>Branch Code</th>
-                    <th>Branch Name</th>
+                    <th>Branch</th>
                     <th>Location</th>
-                    <th>Contact</th>
+                    <th>Contact Info</th>
+                    <th>Operating Hours</th>
+                    <th>Manager</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
                   </tr>
@@ -211,7 +217,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                 <tbody>
                   <?php if (empty($branches)): ?>
                     <tr>
-                      <td colspan="6" class="text-center py-5">
+                      <td colspan="7" class="text-center py-5">
                         <div class="empty-state">
                           <div class="empty-state-icon">
                             <span class="fas fa-building"></span>
@@ -225,44 +231,129 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <?php foreach ($branches as $branch): ?>
                       <tr data-status="<?php echo $branch['status']; ?>">
                         <td>
-                          <span class="fw-bold"><?php echo htmlspecialchars($branch['branch_code']); ?></span>
+                          <div class="d-flex flex-column">
+                            <span class="fw-bold"><?php echo htmlspecialchars($branch['branch_name']); ?></span>
+                            <small class="text-muted"><?php echo htmlspecialchars($branch['branch_code']); ?></small>
+                          </div>
                         </td>
-                        <td><?php echo htmlspecialchars($branch['branch_name']); ?></td>
                         <td>
                           <small class="text-muted">
-                            <?php 
-                            $location = [];
-                            if ($branch['barangay_name']) $location[] = $branch['barangay_name'];
-                            if ($branch['city_municipality_name']) $location[] = $branch['city_municipality_name'];
-                            if ($branch['province_name']) $location[] = $branch['province_name'];
-                            if ($branch['region_name']) $location[] = $branch['region_name'];
-                            echo implode(', ', array_slice($location, 0, 3));
-                            ?>
+                            <div class="d-flex flex-column">
+                              <?php if (!empty($branch['street_address'])): ?>
+                                <span><?php echo htmlspecialchars($branch['street_address']); ?></span>
+                              <?php endif; ?>
+                              <span>
+                                <?php 
+                                $locationParts = [];
+                                if ($branch['barangay_name']) $locationParts[] = $branch['barangay_name'];
+                                if ($branch['city_municipality_name']) $locationParts[] = $branch['city_municipality_name'];
+                                if ($branch['province_name']) $locationParts[] = $branch['province_name'];
+                                
+                                echo htmlspecialchars(implode(', ', array_slice($locationParts, 0, 3)));
+                                ?>
+                              </span>
+                              <?php if (!empty($branch['landmark'])): ?>
+                                <span class="text-muted"><i class="fas fa-map-marker-alt me-1 text-warning"></i><?php echo htmlspecialchars($branch['landmark']); ?></span>
+                              <?php endif; ?>
+                            </div>
+                          </small>
+                        </td>
+                        <td>
+                          <?php
+                          // Check if is_24_hours column exists
+                          if (isset($branch['is_24_hours']) && $branch['is_24_hours'] == 1) {
+                              echo '<span class="badge bg-success">24/7</span>';
+                          } elseif (isset($branch['monday_open'])) {
+                              // Display operating hours if columns exist
+                              $hours = [];
+                              $days = [
+                                  'Monday' => ['open' => $branch['monday_open'] ?? null, 'close' => $branch['monday_close'] ?? null, 'closed' => $branch['monday_closed'] ?? 0, 'break_start' => $branch['monday_break_start'] ?? null, 'break_end' => $branch['monday_break_end'] ?? null],
+                                  'Tuesday' => ['open' => $branch['tuesday_open'] ?? null, 'close' => $branch['tuesday_close'] ?? null, 'closed' => $branch['tuesday_closed'] ?? 0, 'break_start' => $branch['tuesday_break_start'] ?? null, 'break_end' => $branch['tuesday_break_end'] ?? null],
+                                  'Wednesday' => ['open' => $branch['wednesday_open'] ?? null, 'close' => $branch['wednesday_close'] ?? null, 'closed' => $branch['wednesday_closed'] ?? 0, 'break_start' => $branch['wednesday_break_start'] ?? null, 'break_end' => $branch['wednesday_break_end'] ?? null],
+                                  'Thursday' => ['open' => $branch['thursday_open'] ?? null, 'close' => $branch['thursday_close'] ?? null, 'closed' => $branch['thursday_closed'] ?? 0, 'break_start' => $branch['thursday_break_start'] ?? null, 'break_end' => $branch['thursday_break_end'] ?? null],
+                                  'Friday' => ['open' => $branch['friday_open'] ?? null, 'close' => $branch['friday_close'] ?? null, 'closed' => $branch['friday_closed'] ?? 0, 'break_start' => $branch['friday_break_start'] ?? null, 'break_end' => $branch['friday_break_end'] ?? null],
+                                  'Saturday' => ['open' => $branch['saturday_open'] ?? null, 'close' => $branch['saturday_close'] ?? null, 'closed' => $branch['saturday_closed'] ?? 0, 'break_start' => $branch['saturday_break_start'] ?? null, 'break_end' => $branch['saturday_break_end'] ?? null],
+                                  'Sunday' => ['open' => $branch['sunday_open'] ?? null, 'close' => $branch['sunday_close'] ?? null, 'closed' => $branch['sunday_closed'] ?? 0, 'break_start' => $branch['sunday_break_start'] ?? null, 'break_end' => $branch['sunday_break_end'] ?? null]
+                              ];
+                              
+                              $dayShort = ['Monday' => 'M', 'Tuesday' => 'T', 'Wednesday' => 'W', 'Thursday' => 'Th', 'Friday' => 'F', 'Saturday' => 'S', 'Sunday' => 'Su'];
+                              
+                              foreach ($days as $dayName => $day) {
+                                  if ($day['closed'] == 1) {
+                                      $hours[] = $dayShort[$dayName] . ': Closed';
+                                  } elseif ($day['open'] && $day['close']) {
+                                      $timeStr = $dayShort[$dayName] . ': ' . substr($day['open'], 0, 5) . '-' . substr($day['close'], 0, 5);
+                                      if ($day['break_start'] && $day['break_end']) {
+                                          $timeStr .= ' (Break: ' . substr($day['break_start'], 0, 5) . '-' . substr($day['break_end'], 0, 5) . ')';
+                                      }
+                                      $hours[] = $timeStr;
+                                  }
+                              }
+                              
+                              if (!empty($hours)) {
+                                  echo '<small class="text-muted">' . implode('<br>', array_slice($hours, 0, 3)) . '</small>';
+                                  if (count($hours) > 3) {
+                                      echo '<br><small class="text-muted">...</small>';
+                                  }
+                              } else {
+                                  echo '<small class="text-muted">Not set</small>';
+                              }
+                          } else {
+                              // Columns don't exist yet, show placeholder
+                              echo '<small class="text-muted">N/A</small>';
+                          }
+                          ?>
+                        </td>
+                        <td>
+                          <small class="text-muted">
+                            <div class="d-flex flex-column">
+                              <?php if (!empty($branch['contact_number'])): ?>
+                                <span><i class="fas fa-phone me-1 text-primary"></i><?php echo htmlspecialchars($branch['contact_number']); ?></span>
+                              <?php endif; ?>
+                              <?php if (!empty($branch['email'])): ?>
+                                <span><i class="fas fa-envelope me-1 text-primary"></i><?php echo htmlspecialchars($branch['email']); ?></span>
+                              <?php endif; ?>
+                              <?php if (empty($branch['contact_number']) && empty($branch['email'])): ?>
+                                <span>-</span>
+                              <?php endif; ?>
+                            </div>
                           </small>
                         </td>
                         <td>
                           <small class="text-muted">
-                            <?php echo htmlspecialchars($branch['contact_number'] ?? '-'); ?>
+                            <?php if (!empty($branch['manager_name'])): ?>
+                              <div class="d-flex flex-column">
+                                <span class="fw-bold"><?php echo htmlspecialchars($branch['manager_name']); ?></span>
+                                <?php if (!empty($branch['manager_contact'])): ?>
+                                  <span class="text-muted"><i class="fas fa-phone-alt me-1"></i><?php echo htmlspecialchars($branch['manager_contact']); ?></span>
+                                <?php endif; ?>
+                              </div>
+                            <?php else: ?>
+                              <span>-</span>
+                            <?php endif; ?>
                           </small>
                         </td>
                         <td>
-                          <div class="form-check form-switch">
-                            <input class="form-check-input branch-status-switch" type="checkbox" 
+                          <div class="form-check form-switch d-flex align-items-center">
+                            <input class="form-check-input me-3 branch-status-switch" type="checkbox" 
                                    id="branchSwitch<?php echo $branch['branch_id']; ?>"
                                    data-branch-id="<?php echo $branch['branch_id']; ?>"
                                    <?php echo $branch['status'] === 'active' ? 'checked' : ''; ?>
                                    style="width: 2.5em; height: 1.25em;">
-                            <label class="form-check-label" for="branchSwitch<?php echo $branch['branch_id']; ?>" style="font-size: 0.75rem;">
-                              <?php echo $branch['status'] === 'active' ? 'Active' : 'Inactive'; ?>
+                            <label class="form-check-label fw-bold" for="branchSwitch<?php echo $branch['branch_id']; ?>" style="font-size: 0.75rem;">
+                              <?php echo $branch['status'] === 'active' ? '<span class="text-success">Active</span>' : '<span class="text-danger">Inactive</span>'; ?>
                             </label>
                           </div>
                         </td>
                         <td class="text-end">
                           <div class="btn-group">
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editBranch(<?php echo $branch['branch_id']; ?>)">
+                            <button type="button" class="btn btn-sm btn-outline-info" onclick="viewBranchDetails(<?php echo $branch['branch_id']; ?>)" title="View Details">
+                              <span class="fas fa-eye"></span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editBranch(<?php echo $branch['branch_id']; ?>)" title="Edit">
                               <span class="fas fa-edit"></span>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteBranch(<?php echo $branch['branch_id']; ?>)">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteBranch(<?php echo $branch['branch_id']; ?>)" title="Delete">
                               <span class="fas fa-trash"></span>
                             </button>
                           </div>

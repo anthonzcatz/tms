@@ -100,6 +100,36 @@ function initComponents() {
 }
 
 /**
+ * Time restrictions toggle handler
+ */
+function applyTimeRestrictionToggle(isEnabled) {
+    const startField = document.getElementById('allowedLoginStart');
+    const endField   = document.getElementById('allowedLoginEnd');
+    const dayBoxes   = document.querySelectorAll('input[name="allowed_days[]"]');
+    const card       = document.querySelector('.wizard-step[data-step="5"] .card-body');
+
+    if (!startField || !endField) return;
+
+    startField.disabled = !isEnabled;
+    endField.disabled   = !isEnabled;
+    dayBoxes.forEach(cb => { cb.disabled = !isEnabled; });
+
+    if (card) {
+        card.querySelectorAll('.col-md-6, .col-md-12:not(:first-child)').forEach(col => {
+            col.style.opacity = isEnabled ? '1' : '0.45';
+            col.style.pointerEvents = isEnabled ? '' : 'none';
+        });
+    }
+
+    // When disabling, clear all values so stale data is not saved
+    if (!isEnabled) {
+        startField.value = '';
+        endField.value   = '';
+        dayBoxes.forEach(cb => { cb.checked = false; });
+    }
+}
+
+/**
  * Setup all event listeners
  */
 function setupEventListeners() {
@@ -215,25 +245,13 @@ function setupEventListeners() {
     roleIdSelect.addEventListener('change', function() {
         updateNextButtonState();
     });
-    
-    // Time restrictions toggle handler
+
     document.getElementById('isTimeRestricted').addEventListener('change', function() {
-        const isEnabled = this.checked;
-        document.getElementById('allowedLoginStart').disabled = !isEnabled;
-        document.getElementById('allowedLoginEnd').disabled = !isEnabled;
-        
-        // Disable/enable day checkboxes
-        document.querySelectorAll('input[name="allowed_days[]"]').forEach(cb => {
-            cb.disabled = !isEnabled;
-        });
+        applyTimeRestrictionToggle(this.checked);
     });
-    
-    // Initialize time fields as disabled
-    document.getElementById('allowedLoginStart').disabled = true;
-    document.getElementById('allowedLoginEnd').disabled = true;
-    document.querySelectorAll('input[name="allowed_days[]"]').forEach(cb => {
-        cb.disabled = true;
-    });
+
+    // Initialize time fields as disabled on page load
+    applyTimeRestrictionToggle(false);
     
     // Form validation on input
     const formInputs = document.querySelectorAll('#userForm input, #userForm select');
@@ -420,6 +438,7 @@ function renderUsersTable() {
                                 </div>
                             </div>
                             ${transportDisplay}
+                            ${Number(user.is_time_restricted) === 1 ? `<div class="mt-1"><span class="badge bg-warning-subtle text-warning fs-10" title="Login time restrictions are active"><span class="fas fa-clock me-1"></span>Time Restricted</span></div>` : ''}
                         </div>
                     </div>
                     <div class="border-bottom mt-4 mb-x1"></div>
@@ -825,13 +844,13 @@ async function openEditUserModal(userId) {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const result = await response.json();
-        
+
         if (result.success && result.data) {
             const user = result.data;
 
@@ -844,7 +863,7 @@ async function openEditUserModal(userId) {
                 usernameFeedback.style.display = 'none';
                 usernameFeedback.textContent = 'Username must be 3-20 alphanumeric characters';
             }
-            
+
             // Populate form
             document.getElementById('userId').value = user.user_id;
             document.getElementById('username').value = user.username;
@@ -852,10 +871,10 @@ async function openEditUserModal(userId) {
             document.getElementById('employeeId').value = user.emp_id || '';
             document.getElementById('employeeSearch').value = user.fullname || '';
             document.getElementById('roleId').value = user.role_id;
-            
+
             // Update transport assignment step visibility based on role
             updateTransportAssignmentStep();
-            
+
             // Pre-select multiple branches (Choices.js)
             if (branchChoices) {
                 branchChoices.removeActiveItems();
@@ -873,22 +892,24 @@ async function openEditUserModal(userId) {
                 }
             }
             document.getElementById('isActive').checked = user.status === 'active';
-            document.getElementById('isTimeRestricted').checked = user.is_time_restricted == 1;
+            const timeRestricted = user.is_time_restricted == 1;
+            document.getElementById('isTimeRestricted').checked = timeRestricted;
             document.getElementById('allowedLoginStart').value = user.allowed_login_start || '';
             document.getElementById('allowedLoginEnd').value = user.allowed_login_end || '';
-            
+            applyTimeRestrictionToggle(timeRestricted);
+
             // Set transport restriction checkbox state
             const restrictTransportCheckbox = document.getElementById('restrictTransport');
             if (restrictTransportCheckbox) {
                 restrictTransportCheckbox.checked = user.has_restricted_transport == 1;
                 toggleTransportRestriction();
             }
-            
+
             // Load transport assignments if restricted
             if (user.has_restricted_transport == 1) {
                 await loadTransportAssignments(user.user_id);
             }
-            
+
             // Populate allowed days checkboxes
             if (user.allowed_days) {
                 const days = user.allowed_days.split(',');
@@ -900,11 +921,11 @@ async function openEditUserModal(userId) {
                     cb.checked = false;
                 });
             }
-            
+
             // Update modal title
             document.getElementById('modalTitleText').textContent = 'Edit User';
             document.getElementById('saveBtnText').textContent = 'Update User';
-            
+
             // Password is optional for edit
             const pwdField = document.getElementById('password');
             if (pwdField) {
@@ -926,19 +947,19 @@ async function openEditUserModal(userId) {
             } else {
                 if (empDetails) empDetails.style.display = 'none';
             }
-            
+
             // Handle profile image
             const preview = document.getElementById('profileImagePreview');
             const placeholder = document.getElementById('profileImagePlaceholder');
             const previewImg = preview.querySelector('img');
-            
+
             // Helper to build image URL
             const buildImageUrl = (path) => {
                 if (!path) return '';
                 if (path.startsWith('http')) return path;
                 return `${window.BASE_URL}${path}`;
             };
-            
+
             if (user.profile_image) {
                 // Use the profile image from database
                 const imgUrl = buildImageUrl(user.profile_image) + '?t=' + Date.now();
@@ -951,7 +972,7 @@ async function openEditUserModal(userId) {
                 };
                 previewImg.onerror = function() {
                     this.onerror = null;
-                    preview.style.display = 'none';
+                    previewImg.style.display = 'none';
                     placeholder.style.display = 'block';
                     previewImg.src = '';
                 };
@@ -962,14 +983,14 @@ async function openEditUserModal(userId) {
                 // No profile image
                 previewImg.onerror = null;
                 previewImg.src = '';
-                preview.style.display = 'none';
+                previewImg.style.display = 'none';
                 placeholder.style.display = 'block';
             }
-            
+
             // Reset wizard to step 1
             currentStep = 1;
             updateWizardUI();
-            
+
             // Clear validation states
             document.querySelectorAll('#userForm .is-invalid').forEach(el => {
                 el.classList.remove('is-invalid');
@@ -1015,6 +1036,8 @@ async function saveUser() {
             branchIds = Array.from(branchSel.selectedOptions).map(o => o.value).filter(v => v);
         }
 
+        const isTimeRestricted = document.getElementById('isTimeRestricted').checked;
+
         const data = {
             username: document.getElementById('username').value,
             email: document.getElementById('email').value,
@@ -1022,16 +1045,19 @@ async function saveUser() {
             role_id: document.getElementById('roleId').value,
             branch_id: branchIds.length ? branchIds : null,
             status: document.getElementById('isActive').checked ? 'active' : 'inactive',
-            is_time_restricted: document.getElementById('isTimeRestricted').checked ? 1 : 0,
-            allowed_login_start: document.getElementById('allowedLoginStart').value || null,
-            allowed_login_end: document.getElementById('allowedLoginEnd').value || null
+            is_time_restricted: isTimeRestricted ? 1 : 0,
+            // Explicitly null these out when restriction is off so no stale values linger in DB
+            allowed_login_start: isTimeRestricted ? (document.getElementById('allowedLoginStart').value || null) : null,
+            allowed_login_end:   isTimeRestricted ? (document.getElementById('allowedLoginEnd').value   || null) : null
         };
         
-        // Collect allowed days
+        // Collect allowed days — always empty array when restriction is disabled
         const allowedDays = [];
-        document.querySelectorAll('input[name="allowed_days[]"]:checked').forEach(cb => {
-            allowedDays.push(cb.value);
-        });
+        if (isTimeRestricted) {
+            document.querySelectorAll('input[name="allowed_days[]"]:checked').forEach(cb => {
+                allowedDays.push(cb.value);
+            });
+        }
         data.allowed_days = allowedDays.length > 0 ? allowedDays.join(',') : null;
         
         // Handle profile image - only send if it's a base64 string (newly uploaded/cropped)

@@ -163,7 +163,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
             <div class="card-body empty-state">
               <div class="empty-state-icon"><span class="fas fa-clipboard-list"></span></div>
               <div class="empty-state-text">No Sessions Found</div>
-              <div class="empty-state-subtext">No cashier sessions for <?php echo date('F d, Y', strtotime($filterDate)); ?>.</div>
+              <div class="empty-state-subtext">No cashier sessions for <?php echo Auth::formatTimestamp($filterDate, 'F d, Y'); ?>.</div>
             </div>
           </div>
         <?php else: ?>
@@ -181,7 +181,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
                       <div class="d-flex align-items-center">
-                        <div class="icon-circle icon-circle-<?php echo $statusColor; ?> me-2"><span class="fas fa-user text-<?php echo $statusColor; ?>"></span></div>
+                        <?php if ($s['profile_image']): ?>
+                          <img class="rounded-circle me-2" src="<?php echo BASE_URL . $s['profile_image']; ?>" alt="<?php echo htmlspecialchars($s['cashier_name']); ?>" width="40" height="40" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                          <div class="icon-circle icon-circle-<?php echo $statusColor; ?> me-2" style="display:none;"><span class="fas fa-user text-<?php echo $statusColor; ?>"></span></div>
+                        <?php else: ?>
+                          <div class="icon-circle icon-circle-<?php echo $statusColor; ?> me-2"><span class="fas fa-user text-<?php echo $statusColor; ?>"></span></div>
+                        <?php endif; ?>
                         <div>
                           <span class="fw-bold"><?php echo htmlspecialchars($s['cashier_name']); ?></span>
                           <div class="text-muted small"><?php echo htmlspecialchars($s['branch_name'] ?? '—'); ?></div>
@@ -194,9 +199,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   </div>
                   <div class="text-muted small mt-2">
                     <span class="fas fa-clock me-1"></span><?php echo $s['session_code'] ?? 'SES-' . $s['session_id']; ?> •
-                    Started: <?php echo date('h:i A', strtotime($s['started_at'])); ?>
+                    Started: <?php echo Auth::formatTimestamp($s['started_at'], 'h:i A'); ?>
                     <?php if ($s['ended_at']): ?>
-                      — Closed: <?php echo date('h:i A', strtotime($s['ended_at'])); ?>
+                      — Closed: <?php echo Auth::formatTimestamp($s['ended_at'], 'h:i A'); ?>
                     <?php endif; ?>
                   </div>
                 </div>

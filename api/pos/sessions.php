@@ -9,12 +9,14 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
-         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, NOW())",
+         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, :created_at)",
         ['uid' => $userId, 'action' => $action, 'mod' => $module, 'ref' => $ref,
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
+         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null,
+         'created_at' => $now]
     );
 }
 
@@ -48,13 +50,16 @@ function handleGet() {
                     COALESCE(cs.total_charge, 0) AS total_charge,
                     COALESCE(cs.total_other, 0) AS total_other,
                     COALESCE(cs.total_refunds_wallet, 0) AS total_refunds,
-                    (SELECT COUNT(*) FROM service_transactions WHERE session_id = cs.session_id) AS txn_count,
+                    (SELECT COUNT(*) FROM service_transactions WHERE session_id = cs.session_id) +
+                    (SELECT COUNT(*) FROM ticket_transactions WHERE session_id = cs.session_id) AS txn_count,
                     (cs.starting_cash + COALESCE(cs.total_cash, 0)) AS expected_cash,
+                    bb.branch_name,
                     -- Cashier name from employees table (format: First M. Last)
                     CONCAT(e.first_name, ' ', 
                            COALESCE(CONCAT(LEFT(e.middle_name, 1), '. '), ''), 
                            e.last_name) AS cashier_name
              FROM cashier_sessions cs
+             LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
              LEFT JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
              LEFT JOIN employees e ON ua.emp_id = e.emp_id
              WHERE cs.session_id = :id",
@@ -68,10 +73,10 @@ function handleGet() {
             return;
         }
 
-        // Get payment breakdown from transaction_payments (same logic as shifts API)
+        // Get payment breakdown from transaction_payments (filter by session ID, not cashier ID)
         $paymentWhere = "AND tp.created_at >= :start";
         $paymentParams = [
-            'uid'   => $session['cashier_user_id'],
+            'sid'   => $session['session_id'],
             'start' => $session['started_at']
         ];
         if ($session['ended_at']) {
@@ -83,7 +88,7 @@ function handleGet() {
             "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
              FROM transaction_payments tp
              JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE tp.created_by = :uid
+             WHERE tp.cashier_session_id = :sid
                $paymentWhere
              GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash
              ORDER BY total_amount DESC",
@@ -125,7 +130,9 @@ function handleGet() {
     $sql = "SELECT cs.*, 
                    bb.branch_name,
                    COALESCE(cs.total_refunds_wallet, 0) AS total_refunds,
-                   CONCAT_WS(' ', e.first_name, e.last_name) AS cashier_name
+                   CONCAT(e.first_name, ' ', 
+                          COALESCE(CONCAT(LEFT(e.middle_name, 1), '. '), ''), 
+                          e.last_name) AS cashier_name
             FROM cashier_sessions cs
             LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
             LEFT JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
@@ -165,28 +172,37 @@ function handlePost() {
     global $user;
     $input = json_decode(file_get_contents('php://input'), true);
     $branchId = $input['branch_id'] ?? null;
-    $openingCash = $input['opening_cash_balance'] ?? 0;
+    $openingCash = $input['opening_cash_balance'] ?? $input['starting_cash'] ?? 0;
     $notes = $input['notes'] ?? null;
+    $cashierUserId = $input['cashier_user_id'] ?? $user['user_id'];
+    $openedByManager = $input['opened_by_manager'] ?? false;
 
     if (!$branchId) { echo json_encode(['success' => false, 'error' => 'Branch is required.']); return; }
 
-    // Check for already open session
+    // Check for already open session for the cashier
     $open = Database::fetch(
         "SELECT session_id FROM cashier_sessions WHERE cashier_user_id = :uid AND status = 'OPEN'",
-        ['uid' => $user['user_id']]
+        ['uid' => $cashierUserId]
     );
-    if ($open) { echo json_encode(['success' => false, 'error' => 'You already have an open session. Close it first.']); return; }
+    if ($open) { echo json_encode(['success' => false, 'error' => 'This cashier already has an open session. Close it first.']); return; }
 
     // Generate session code
     $sessionCode = 'SES-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 
     Database::execute(
         "INSERT INTO cashier_sessions (session_code, cashier_user_id, branch_id, started_at, starting_cash, status, notes)
-         VALUES (:code, :uid, :branch, NOW(), :cash, 'OPEN', :notes)",
-        ['code' => $sessionCode, 'uid' => $user['user_id'], 'branch' => $branchId, 'cash' => $openingCash, 'notes' => $notes]
+         VALUES (:code, :uid, :branch, :started_at, :cash, 'OPEN', :notes)",
+        ['code' => $sessionCode, 'uid' => $cashierUserId, 'branch' => $branchId, 'started_at' => date('Y-m-d H:i:s'), 'cash' => $openingCash, 'notes' => $notes]
     );
     $sessionId = Database::connection()->lastInsertId();
-    logActivity($user['user_id'], 'OPEN_SESSION', 'POS', "SES-{$sessionId}", null, ['branch_id' => $branchId, 'opening_cash' => $openingCash]);
+    
+    $activityData = ['branch_id' => $branchId, 'opening_cash' => $openingCash];
+    if ($openedByManager) {
+        $activityData['opened_by_manager'] = $user['user_id'];
+        $activityData['cashier_user_id'] = $cashierUserId;
+    }
+    
+    logActivity($user['user_id'], 'OPEN_SESSION', 'POS', "SES-{$sessionId}", null, $activityData);
     echo json_encode(['success' => true, 'message' => 'Session opened.', 'session_id' => $sessionId]);
 }
 
@@ -223,7 +239,7 @@ function handlePut() {
         // Get payment breakdown for this session to calculate expected cash based on payment method settings
         $paymentWhere = "AND tp.created_at >= :start";
         $paymentParams = [
-            'uid'   => $session['cashier_user_id'],
+            'sid'   => $session['session_id'],
             'start' => $session['started_at']
         ];
 
@@ -231,7 +247,7 @@ function handlePut() {
             "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
              FROM transaction_payments tp
              JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE tp.created_by = :uid
+             WHERE tp.cashier_session_id = :sid
                $paymentWhere
              GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash",
             $paymentParams
@@ -245,8 +261,9 @@ function handlePut() {
             }
         }
 
-        // Compute expected cash using payment method settings
-        $expectedCash = $session['starting_cash'] + $expectedCashPayments;
+        // Compute expected cash: starting cash + in-cash payments - refunds
+        $totalRefunds = floatval($session['total_refunds'] ?? 0);
+        $expectedCash = $session['starting_cash'] + $expectedCashPayments - $totalRefunds;
         $variance = $closingCash - $expectedCash;
 
         // Determine deposit status based on system settings
@@ -266,15 +283,16 @@ function handlePut() {
 
             Database::execute(
                 "UPDATE cashier_sessions SET
-                    ended_at = NOW(), actual_cash = :close, expected_cash = :expected,
+                    ended_at = :ended_at, actual_cash = :close, expected_cash = :expected,
                     cash_variance = :variance, status = 'CLOSED', notes = :notes,
                     cash_deposit_bank_id = :bank_id, deposit_status = :deposit_status,
                     deposited_at = :deposited_at, deposited_by = :deposited_by
                  WHERE session_id = :id",
                 [
+                    'ended_at' => date('Y-m-d H:i:s'),
                     'close' => $closingCash, 'expected' => $expectedCash, 'variance' => $variance,
                     'notes' => $notes, 'bank_id' => $cashDepositBankId, 'deposit_status' => $depositStatus,
-                    'deposited_at' => $depositNow ? 'NOW()' : null, 'deposited_by' => $depositNow ? $user['user_id'] : null,
+                    'deposited_at' => $depositNow ? date('Y-m-d H:i:s') : null, 'deposited_by' => $depositNow ? $user['user_id'] : null,
                     'id' => $sessionId
                 ]
             );
@@ -291,7 +309,7 @@ function handlePut() {
                         "INSERT INTO bank_transactions
                             (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
                              reference_table, reference_id, remarks, created_by, created_at)
-                         VALUES (:bank_id, :code, 'CONFIRMED', 'DEPOSIT', 'IN', :amount, :before, :after, 'cashier_sessions', :ref_id, :remarks, :uid, NOW())",
+                         VALUES (:bank_id, :code, 'CONFIRMED', 'DEPOSIT', 'IN', :amount, :before, :after, 'cashier_sessions', :ref_id, :remarks, :uid, :created_at)",
                         [
                             'bank_id' => $cashDepositBankId,
                             'code' => $bankTxnCode,
@@ -300,7 +318,8 @@ function handlePut() {
                             'after' => $balAfterBank,
                             'ref_id' => $sessionId,
                             'remarks' => "Cash deposit from session {$session['session_code']}",
-                            'uid' => $user['user_id']
+                            'uid' => $user['user_id'],
+                            'created_at' => date('Y-m-d H:i:s')
                         ]
                     );
                     
@@ -347,9 +366,9 @@ function handlePut() {
             Database::execute(
                 "UPDATE cashier_sessions SET
                     cash_deposit_bank_id = :bank_id, deposit_status = 'DEPOSITED',
-                    deposited_at = NOW(), deposited_by = :uid
+                    deposited_at = :deposited_at, deposited_by = :uid
                  WHERE session_id = :id",
-                ['bank_id' => $bankAccountId, 'uid' => $user['user_id'], 'id' => $sessionId]
+                ['bank_id' => $bankAccountId, 'deposited_at' => date('Y-m-d H:i:s'), 'uid' => $user['user_id'], 'id' => $sessionId]
             );
 
             // Create bank transaction
@@ -365,7 +384,7 @@ function handlePut() {
                     "INSERT INTO bank_transactions
                         (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
                          reference_table, reference_id, remarks, created_by, created_at)
-                     VALUES (:bank_id, :code, :confirm, 'DEPOSIT', 'IN', :amount, :before, :after, 'cashier_sessions', :ref_id, :remarks, :uid, NOW())",
+                     VALUES (:bank_id, :code, :confirm, 'DEPOSIT', 'IN', :amount, :before, :after, 'cashier_sessions', :ref_id, :remarks, :uid, :created_at)",
                     [
                         'bank_id' => $bankAccountId,
                         'code' => $bankTxnCode,
@@ -375,7 +394,8 @@ function handlePut() {
                         'after' => $balAfterBank,
                         'ref_id' => $sessionId,
                         'remarks' => "Cash deposit from session {$session['session_code']}" . ($depositRequiresConfirmation ? ' (pending confirmation)' : ''),
-                        'uid' => $user['user_id']
+                        'uid' => $user['user_id'],
+                        'created_at' => date('Y-m-d H:i:s')
                     ]
                 );
                 

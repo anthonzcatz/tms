@@ -20,7 +20,7 @@ $user = Auth::user();
 if ($user['role_code'] !== 'SUPER_ADMIN') {
     $message = 'Only SUPER_ADMIN can access System Settings.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
-    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }
 
@@ -51,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_abbreviation' => trim($_POST['company_abbreviation'] ?? ''),
             'company_address' => trim($_POST['company_address'] ?? ''),
             'company_contact_number' => trim($_POST['company_contact_number'] ?? ''),
+            'company_tin' => trim($_POST['company_tin'] ?? ''),
             'company_email' => filter_var(trim($_POST['company_email'] ?? ''), FILTER_SANITIZE_EMAIL),
             'company_tagline' => trim($_POST['company_tagline'] ?? ''),
             'system_name' => $systemName,
@@ -62,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'report_footer' => trim($_POST['report_footer'] ?? ''),
             'system_timezone' => trim($_POST['system_timezone'] ?? 'Asia/Manila'),
             'system_currency' => trim($_POST['system_currency'] ?? 'PHP'),
+            'session_warning_timeout' => isset($_POST['session_warning_timeout']) && $_POST['session_warning_timeout'] !== '' ? intval($_POST['session_warning_timeout']) : 15,
             'maintenance_mode' => isset($_POST['maintenance_mode']) ? 1 : 0,
             'maintenance_message' => trim($_POST['maintenance_message'] ?? ''),
             'maintenance_start' => !empty($_POST['maintenance_start']) ? $_POST['maintenance_start'] : null,
@@ -77,6 +79,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'bank_pos_payments_require_confirmation' => isset($_POST['bank_pos_payments_require_confirmation']) ? 1 : 0,
             'bank_charge_payments_require_confirmation' => isset($_POST['bank_charge_payments_require_confirmation']) ? 1 : 0,
             'bank_deposits_require_confirmation' => isset($_POST['bank_deposits_require_confirmation']) ? 1 : 0,
+            'session_lifetime_minutes' => isset($_POST['session_lifetime_minutes']) && $_POST['session_lifetime_minutes'] !== '' ? max(5, min(1440, (int)$_POST['session_lifetime_minutes'])) : 120,
+            'device_approval_required' => isset($_POST['device_approval_required']) ? 1 : 0,
+            'max_concurrent_sessions'  => isset($_POST['max_concurrent_sessions']) && $_POST['max_concurrent_sessions'] !== '' ? max(1, min(10, (int)$_POST['max_concurrent_sessions'])) : 1,
+            // Printer Settings
+            'receipt_printing_enabled' => isset($_POST['receipt_printing_enabled']) ? 1 : 0,
+            'receipt_paper_width' => trim($_POST['receipt_paper_width'] ?? '80mm'),
+            'receipt_auto_print' => isset($_POST['receipt_auto_print']) ? 1 : 0,
+            'receipt_show_preview' => isset($_POST['receipt_show_preview']) ? 1 : 0,
+            'receipt_copies' => isset($_POST['receipt_copies']) && $_POST['receipt_copies'] !== '' ? max(1, min(3, (int)$_POST['receipt_copies'])) : 1,
+            'receipt_customer_copy' => isset($_POST['receipt_customer_copy']) ? 1 : 0,
+            'receipt_merchant_copy' => isset($_POST['receipt_merchant_copy']) ? 1 : 0,
+            'receipt_auto_cut' => isset($_POST['receipt_auto_cut']) ? 1 : 0,
+            'receipt_open_cash_drawer' => isset($_POST['receipt_open_cash_drawer']) ? 1 : 0,
+            'receipt_show_cashier' => isset($_POST['receipt_show_cashier']) ? 1 : 0,
+            'receipt_show_payment_method' => isset($_POST['receipt_show_payment_method']) ? 1 : 0,
+            'receipt_show_branch' => isset($_POST['receipt_show_branch']) ? 1 : 0,
+            'receipt_qr_code_enabled' => isset($_POST['receipt_qr_code_enabled']) ? 1 : 0,
+            'receipt_qr_format' => trim($_POST['receipt_qr_format'] ?? 'TRANSACTION_ID'),
+            'receipt_logo_enabled' => isset($_POST['receipt_logo_enabled']) ? 1 : 0,
+            'receipt_show_tin' => isset($_POST['receipt_show_tin']) ? 1 : 0,
+            'receipt_show_service_fee' => isset($_POST['receipt_show_service_fee']) ? 1 : 0,
+            'receipt_show_base_amount' => isset($_POST['receipt_show_base_amount']) ? 1 : 0,
+            'receipt_show_discount' => isset($_POST['receipt_show_discount']) ? 1 : 0,
+            'receipt_custom_footer' => trim($_POST['receipt_custom_footer'] ?? ''),
+            'printer_type' => trim($_POST['printer_type'] ?? 'THERMAL'),
             'updated_by' => $user['user_id']
         ];
         
@@ -86,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 company_abbreviation = :company_abbreviation,
                 company_address = :company_address,
                 company_contact_number = :company_contact_number,
+                company_tin = :company_tin,
                 company_email = :company_email,
                 company_tagline = :company_tagline,
                 system_name = :system_name,
@@ -97,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 report_footer = :report_footer,
                 system_timezone = :system_timezone,
                 system_currency = :system_currency,
+                session_warning_timeout = :session_warning_timeout,
                 maintenance_mode = :maintenance_mode,
                 maintenance_message = :maintenance_message,
                 maintenance_start = :maintenance_start,
@@ -112,10 +141,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 bank_pos_payments_require_confirmation = :bank_pos_payments_require_confirmation,
                 bank_charge_payments_require_confirmation = :bank_charge_payments_require_confirmation,
                 bank_deposits_require_confirmation = :bank_deposits_require_confirmation,
+                session_lifetime_minutes = :session_lifetime_minutes,
+                device_approval_required = :device_approval_required,
+                max_concurrent_sessions  = :max_concurrent_sessions,
+                receipt_printing_enabled = :receipt_printing_enabled,
+                receipt_paper_width = :receipt_paper_width,
+                receipt_auto_print = :receipt_auto_print,
+                receipt_show_preview = :receipt_show_preview,
+                receipt_copies = :receipt_copies,
+                receipt_customer_copy = :receipt_customer_copy,
+                receipt_merchant_copy = :receipt_merchant_copy,
+                receipt_auto_cut = :receipt_auto_cut,
+                receipt_open_cash_drawer = :receipt_open_cash_drawer,
+                receipt_show_cashier = :receipt_show_cashier,
+                receipt_show_payment_method = :receipt_show_payment_method,
+                receipt_show_branch = :receipt_show_branch,
+                receipt_qr_code_enabled = :receipt_qr_code_enabled,
+                receipt_qr_format = :receipt_qr_format,
+                receipt_logo_enabled = :receipt_logo_enabled,
+                receipt_show_tin = :receipt_show_tin,
+                receipt_show_service_fee = :receipt_show_service_fee,
+                receipt_show_base_amount = :receipt_show_base_amount,
+                receipt_show_discount = :receipt_show_discount,
+                receipt_custom_footer = :receipt_custom_footer,
+                printer_type = :printer_type,
                 updated_by = :updated_by,
-                updated_at = NOW()
+                updated_at = :updated_at
             WHERE setting_id = 1",
-            $data
+            array_merge($data, ['updated_at' => date('Y-m-d H:i:s')])
         );
         
         // Clear maintenance settings cache so changes take effect immediately

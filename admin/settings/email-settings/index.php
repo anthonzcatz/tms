@@ -24,7 +24,7 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow
 } elseif (!Auth::canAccessModule('admin/settings/email-settings/')) {
     http_response_code(403);
-    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }
 
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     gmail_client_id = :gmail_client_id,
                     gmail_client_secret = :gmail_client_secret,
                     gmail_refresh_token = :gmail_refresh_token,
-                    updated_at = NOW()
+                    updated_at = :updated_at
                 WHERE setting_id = 1",
                 [
                     'method' => $emailMethod,
@@ -142,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'sender_email' => $senderEmail,
                     'gmail_client_id' => $gmailClientId,
                     'gmail_client_secret' => $gmailClientSecret,
-                    'gmail_refresh_token' => $gmailRefreshToken
+                    'gmail_refresh_token' => $gmailRefreshToken,
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]
             );
         } else {
@@ -155,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ) VALUES (
                     :method, :smtp_host, :smtp_port, :smtp_username, :smtp_password,
                     :smtp_encryption, :sender_name, :sender_email, :gmail_client_id,
-                    :gmail_client_secret, :gmail_refresh_token, NOW(), NOW()
+                    :gmail_client_secret, :gmail_refresh_token, :created_at, :updated_at
                 )",
                 [
                     'method' => $emailMethod,
@@ -168,7 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'sender_email' => $senderEmail,
                     'gmail_client_id' => $gmailClientId,
                     'gmail_client_secret' => $gmailClientSecret,
-                    'gmail_refresh_token' => $gmailRefreshToken
+                    'gmail_refresh_token' => $gmailRefreshToken,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ]
             );
         }

@@ -47,6 +47,8 @@ class AuthController
 
         $username = trim((string) ($_POST['username'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
+        $browserLatitude = !empty($_POST['browser_latitude']) ? (float) $_POST['browser_latitude'] : null;
+        $browserLongitude = !empty($_POST['browser_longitude']) ? (float) $_POST['browser_longitude'] : null;
 
         if ($username === '') {
             $_SESSION['error'] = 'Username is required.';
@@ -88,13 +90,31 @@ class AuthController
             );
         }
 
-        // Success
+        // Time restriction enforcement
+        $timeError = User::checkTimeRestrictions($user);
+        if ($timeError !== null) {
+            User::logTimeRestrictionViolation(
+                (int) $user['user_id'],
+                $timeError,
+                $_SERVER['REMOTE_ADDR'] ?? 'unknown'
+            );
+            $_SESSION['error'] = $timeError;
+            $_SESSION['login_username'] = $username;
+            $this->redirect(LOGIN_URL);
+        }
+
+        // Success — attempt to establish session
         User::recordSuccessfulLogin((int) $user['user_id']);
-        Auth::login($user);
+        $loginSuccess = Auth::login($user, $browserLatitude, $browserLongitude);
+
+        if (!$loginSuccess) {
+            // Device pending or blocked — Auth::login() already set $_SESSION['login_error']
+            $_SESSION['login_username'] = $username;
+            $this->redirect(LOGIN_URL);
+        }
+
         unset($_SESSION['rate_limit'][$rateKey]);
         SecurityHelper::regenerateCSRFToken();
-
-        $_SESSION['success'] = 'Login successful! Welcome back, ' . ($user['fullname'] ?? $user['username']) . '.';
 
         // Redirect to role's default dashboard
         $dashboard = $user['default_dashboard'] ?? '/admin/dashboard/analytics';
@@ -151,13 +171,14 @@ class AuthController
             "INSERT INTO user_accounts
                 (user_code, role_id, fullname, email, password_hash, status, created_at)
              VALUES
-                (:user_code, :role_id, :fullname, :email, :hash, 'active', NOW())",
+                (:user_code, :role_id, :fullname, :email, :hash, 'active', :created_at)",
             [
                 'user_code' => 'U' . strtoupper(bin2hex(random_bytes(4))),
                 'role_id'   => $role['role_id'],
                 'fullname'  => $name,
                 'email'     => $email,
                 'hash'      => password_hash($password, PASSWORD_ARGON2ID),
+                'created_at' => date('Y-m-d H:i:s'),
             ]
         );
 
@@ -224,14 +245,15 @@ class AuthController
             "INSERT INTO password_reset_tokens 
              (user_id, token, email, expires_at, ip_address, user_agent, created_at)
              VALUES 
-             (:user_id, :token, :email, :expires_at, :ip, :ua, NOW())",
+             (:user_id, :token, :email, :expires_at, :ip, :ua, :created_at)",
             [
                 'user_id' => $user['user_id'],
                 'token' => $token,
                 'email' => $email,
                 'expires_at' => $expiresAt,
                 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                'ua' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
+                'ua' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                'created_at' => date('Y-m-d H:i:s')
             ]
         );
         

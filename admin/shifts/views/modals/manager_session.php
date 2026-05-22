@@ -25,7 +25,7 @@
           <div class="card bg-light mb-3">
             <div class="card-body py-2">
               <div class="row g-2">
-                <div class="col-md-6">
+                <div class="col-md-12">
                   <label class="form-label small fw-semibold mb-1">Filter by Branch</label>
                   <select class="form-select form-select-sm" id="managerOpenBranchFilter" onchange="filterCashierOptions()">
                     <option value="">All Branches</option>
@@ -33,10 +33,6 @@
                       <option value="<?php echo $b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?></option>
                     <?php endforeach; ?>
                   </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold mb-1">Search Cashier</label>
-                  <input type="text" class="form-control form-control-sm" id="managerOpenCashierSearch" placeholder="Type to search..." oninput="filterCashierOptions()">
                 </div>
               </div>
             </div>
@@ -74,15 +70,10 @@
                 <small>This cashier has no assigned branch and cannot open a session.</small>
               </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-12">
               <label class="form-label fw-semibold">Starting Cash (₱) <span class="text-danger">*</span></label>
-              <input type="number" class="form-control" id="managerOpenStartingCash" placeholder="0.00" step="0.01" min="0">
+              <input type="text" class="form-control text-end fw-bold" id="managerOpenStartingCash" placeholder="0.00" oninput="formatNumberInput(this)" autofocus>
               <div class="form-text small">Physical cash at the start of shift</div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Expected End Time</label>
-              <input type="time" class="form-control" id="managerOpenExpectedEnd">
-              <div class="form-text small">Optional: Expected shift end time</div>
             </div>
             <div class="col-12">
               <label class="form-label fw-semibold">Notes</label>
@@ -105,7 +96,7 @@
           <div class="card bg-light mb-3">
             <div class="card-body py-2">
               <div class="row g-2">
-                <div class="col-md-6">
+                <div class="col-md-12">
                   <label class="form-label small fw-semibold mb-1">Filter by Branch</label>
                   <select class="form-select form-select-sm" id="managerCloseBranchFilter" onchange="filterCloseSessionOptions()">
                     <option value="">All Branches</option>
@@ -113,10 +104,6 @@
                       <option value="<?php echo $b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?></option>
                     <?php endforeach; ?>
                   </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold mb-1">Search Cashier</label>
-                  <input type="text" class="form-control form-select-sm" id="managerCloseCashierSearch" placeholder="Type to search..." oninput="filterCloseSessionOptions()">
                 </div>
               </div>
             </div>

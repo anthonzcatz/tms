@@ -258,6 +258,8 @@ function openAddBranchModal() {
     document.getElementById('addProvinceCode').disabled = true;
     document.getElementById('addCityCode').disabled = true;
     document.getElementById('addBarangayCode').disabled = true;
+    // Reset wizard to step 1
+    goToAddStep(1);
     addBranchModal.show();
 }
 
@@ -306,6 +308,60 @@ async function saveBranch() {
     const email = document.getElementById('addEmail').value;
     const status = document.getElementById('addStatus').checked ? 'active' : 'inactive';
     
+    // Operating hours - with fallback for missing elements
+    const getElementValue = (id, defaultValue) => {
+        const el = document.getElementById(id);
+        return el ? el.value : defaultValue;
+    };
+    
+    const getElementChecked = (id, defaultValue) => {
+        const el = document.getElementById(id);
+        return el ? (el.checked ? 1 : 0) : defaultValue;
+    };
+    
+    const mondayOpen = getElementValue('addMondayOpen', '08:00');
+    const mondayClose = getElementValue('addMondayClose', '18:00');
+    const mondayClosed = getElementChecked('addMondayClosed', 0);
+    const mondayBreakStart = getElementValue('addMondayBreakStart', '');
+    const mondayBreakEnd = getElementValue('addMondayBreakEnd', '');
+    const tuesdayOpen = getElementValue('addTuesdayOpen', '08:00');
+    const tuesdayClose = getElementValue('addTuesdayClose', '18:00');
+    const tuesdayClosed = getElementChecked('addTuesdayClosed', 0);
+    const tuesdayBreakStart = getElementValue('addTuesdayBreakStart', '');
+    const tuesdayBreakEnd = getElementValue('addTuesdayBreakEnd', '');
+    const wednesdayOpen = getElementValue('addWednesdayOpen', '08:00');
+    const wednesdayClose = getElementValue('addWednesdayClose', '18:00');
+    const wednesdayClosed = getElementChecked('addWednesdayClosed', 0);
+    const wednesdayBreakStart = getElementValue('addWednesdayBreakStart', '');
+    const wednesdayBreakEnd = getElementValue('addWednesdayBreakEnd', '');
+    const thursdayOpen = getElementValue('addThursdayOpen', '08:00');
+    const thursdayClose = getElementValue('addThursdayClose', '18:00');
+    const thursdayClosed = getElementChecked('addThursdayClosed', 0);
+    const thursdayBreakStart = getElementValue('addThursdayBreakStart', '');
+    const thursdayBreakEnd = getElementValue('addThursdayBreakEnd', '');
+    const fridayOpen = getElementValue('addFridayOpen', '08:00');
+    const fridayClose = getElementValue('addFridayClose', '18:00');
+    const fridayClosed = getElementChecked('addFridayClosed', 0);
+    const fridayBreakStart = getElementValue('addFridayBreakStart', '');
+    const fridayBreakEnd = getElementValue('addFridayBreakEnd', '');
+    const saturdayOpen = getElementValue('addSaturdayOpen', '08:00');
+    const saturdayClose = getElementValue('addSaturdayClose', '18:00');
+    const saturdayClosed = getElementChecked('addSaturdayClosed', 0);
+    const saturdayBreakStart = getElementValue('addSaturdayBreakStart', '');
+    const saturdayBreakEnd = getElementValue('addSaturdayBreakEnd', '');
+    const sundayOpen = getElementValue('addSundayOpen', '08:00');
+    const sundayClose = getElementValue('addSundayClose', '18:00');
+    const sundayClosed = getElementChecked('addSundayClosed', 0);
+    const sundayBreakStart = getElementValue('addSundayBreakStart', '');
+    const sundayBreakEnd = getElementValue('addSundayBreakEnd', '');
+    const is24Hours = getElementChecked('addIs24Hours', 0);
+    
+    // Additional settings - with fallback
+    const maxCapacity = getElementValue('addMaxCapacity', 100);
+    const managerName = getElementValue('addManagerName', '');
+    const managerContact = getElementValue('addManagerContact', '');
+    const notes = getElementValue('addNotes', '');
+    
     if (!branchCode || !branchName) {
         showToast('warning', 'Warning', 'Please fill in required fields');
         return;
@@ -322,23 +378,69 @@ async function saveBranch() {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
         
+        const requestBody = {
+            branch_code: branchCode,
+            branch_name: branchName,
+            region_code: regionCode,
+            province_code: provinceCode,
+            city_municipality_code: cityCode,
+            barangay_code: barangayCode,
+            street_address: streetAddress,
+            landmark: landmark,
+            zip_code: zipCode,
+            contact_number: contactNumber,
+            email: email,
+            status: status
+        };
+        
+        // Only add operating hours if the elements exist
+        if (document.getElementById('addMondayOpen')) {
+            requestBody.monday_open = mondayOpen + ':00';
+            requestBody.monday_close = mondayClose + ':00';
+            requestBody.monday_closed = mondayClosed;
+            requestBody.monday_break_start = mondayBreakStart ? mondayBreakStart + ':00' : null;
+            requestBody.monday_break_end = mondayBreakEnd ? mondayBreakEnd + ':00' : null;
+            requestBody.tuesday_open = tuesdayOpen + ':00';
+            requestBody.tuesday_close = tuesdayClose + ':00';
+            requestBody.tuesday_closed = tuesdayClosed;
+            requestBody.tuesday_break_start = tuesdayBreakStart ? tuesdayBreakStart + ':00' : null;
+            requestBody.tuesday_break_end = tuesdayBreakEnd ? tuesdayBreakEnd + ':00' : null;
+            requestBody.wednesday_open = wednesdayOpen + ':00';
+            requestBody.wednesday_close = wednesdayClose + ':00';
+            requestBody.wednesday_closed = wednesdayClosed;
+            requestBody.wednesday_break_start = wednesdayBreakStart ? wednesdayBreakStart + ':00' : null;
+            requestBody.wednesday_break_end = wednesdayBreakEnd ? wednesdayBreakEnd + ':00' : null;
+            requestBody.thursday_open = thursdayOpen + ':00';
+            requestBody.thursday_close = thursdayClose + ':00';
+            requestBody.thursday_closed = thursdayClosed;
+            requestBody.thursday_break_start = thursdayBreakStart ? thursdayBreakStart + ':00' : null;
+            requestBody.thursday_break_end = thursdayBreakEnd ? thursdayBreakEnd + ':00' : null;
+            requestBody.friday_open = fridayOpen + ':00';
+            requestBody.friday_close = fridayClose + ':00';
+            requestBody.friday_closed = fridayClosed;
+            requestBody.friday_break_start = fridayBreakStart ? fridayBreakStart + ':00' : null;
+            requestBody.friday_break_end = fridayBreakEnd ? fridayBreakEnd + ':00' : null;
+            requestBody.saturday_open = saturdayOpen + ':00';
+            requestBody.saturday_close = saturdayClose + ':00';
+            requestBody.saturday_closed = saturdayClosed;
+            requestBody.saturday_break_start = saturdayBreakStart ? saturdayBreakStart + ':00' : null;
+            requestBody.saturday_break_end = saturdayBreakEnd ? saturdayBreakEnd + ':00' : null;
+            requestBody.sunday_open = sundayOpen + ':00';
+            requestBody.sunday_close = sundayClose + ':00';
+            requestBody.sunday_closed = sundayClosed;
+            requestBody.sunday_break_start = sundayBreakStart ? sundayBreakStart + ':00' : null;
+            requestBody.sunday_break_end = sundayBreakEnd ? sundayBreakEnd + ':00' : null;
+            requestBody.is_24_hours = is24Hours;
+            requestBody.max_capacity = maxCapacity;
+            requestBody.manager_name = managerName;
+            requestBody.manager_contact = managerContact;
+            requestBody.notes = notes;
+        }
+        
         const response = await fetch(`${window.BASE_URL}/api/business-branches`, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({
-                branch_code: branchCode,
-                branch_name: branchName,
-                region_code: regionCode,
-                province_code: provinceCode,
-                city_municipality_code: cityCode,
-                barangay_code: barangayCode,
-                street_address: streetAddress,
-                landmark: landmark,
-                zip_code: zipCode,
-                contact_number: contactNumber,
-                email: email,
-                status: status
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const result = await response.json();
@@ -348,7 +450,7 @@ async function saveBranch() {
             addBranchModal.hide();
             location.reload();
         } else {
-            showToast('error', 'Error', result.message || 'Failed to create branch');
+            showToast('error', 'Error', result.message || result.error || 'Failed to create branch');
         }
     } catch (error) {
         console.error('Error saving branch:', error);
@@ -392,6 +494,58 @@ async function editBranch(branchId) {
             document.getElementById('editEmail').value = branch.email || '';
             document.getElementById('editStatus').checked = branch.status === 'active';
             updateEditStatusLabel(branch.status === 'active');
+            
+            // Operating hours - only populate if elements exist
+            if (document.getElementById('editMondayOpen')) {
+                document.getElementById('editMondayOpen').value = branch.monday_open ? branch.monday_open.substring(0, 5) : '08:00';
+                document.getElementById('editMondayClose').value = branch.monday_close ? branch.monday_close.substring(0, 5) : '18:00';
+                document.getElementById('editMondayClosed').checked = branch.monday_closed === 1;
+                document.getElementById('editMondayBreakStart').value = branch.monday_break_start ? branch.monday_break_start.substring(0, 5) : '';
+                document.getElementById('editMondayBreakEnd').value = branch.monday_break_end ? branch.monday_break_end.substring(0, 5) : '';
+                document.getElementById('editTuesdayOpen').value = branch.tuesday_open ? branch.tuesday_open.substring(0, 5) : '08:00';
+                document.getElementById('editTuesdayClose').value = branch.tuesday_close ? branch.tuesday_close.substring(0, 5) : '18:00';
+                document.getElementById('editTuesdayClosed').checked = branch.tuesday_closed === 1;
+                document.getElementById('editTuesdayBreakStart').value = branch.tuesday_break_start ? branch.tuesday_break_start.substring(0, 5) : '';
+                document.getElementById('editTuesdayBreakEnd').value = branch.tuesday_break_end ? branch.tuesday_break_end.substring(0, 5) : '';
+                document.getElementById('editWednesdayOpen').value = branch.wednesday_open ? branch.wednesday_open.substring(0, 5) : '08:00';
+                document.getElementById('editWednesdayClose').value = branch.wednesday_close ? branch.wednesday_close.substring(0, 5) : '18:00';
+                document.getElementById('editWednesdayClosed').checked = branch.wednesday_closed === 1;
+                document.getElementById('editWednesdayBreakStart').value = branch.wednesday_break_start ? branch.wednesday_break_start.substring(0, 5) : '';
+                document.getElementById('editWednesdayBreakEnd').value = branch.wednesday_break_end ? branch.wednesday_break_end.substring(0, 5) : '';
+                document.getElementById('editThursdayOpen').value = branch.thursday_open ? branch.thursday_open.substring(0, 5) : '08:00';
+                document.getElementById('editThursdayClose').value = branch.thursday_close ? branch.thursday_close.substring(0, 5) : '18:00';
+                document.getElementById('editThursdayClosed').checked = branch.thursday_closed === 1;
+                document.getElementById('editThursdayBreakStart').value = branch.thursday_break_start ? branch.thursday_break_start.substring(0, 5) : '';
+                document.getElementById('editThursdayBreakEnd').value = branch.thursday_break_end ? branch.thursday_break_end.substring(0, 5) : '';
+                document.getElementById('editFridayOpen').value = branch.friday_open ? branch.friday_open.substring(0, 5) : '08:00';
+                document.getElementById('editFridayClose').value = branch.friday_close ? branch.friday_close.substring(0, 5) : '18:00';
+                document.getElementById('editFridayClosed').checked = branch.friday_closed === 1;
+                document.getElementById('editFridayBreakStart').value = branch.friday_break_start ? branch.friday_break_start.substring(0, 5) : '';
+                document.getElementById('editFridayBreakEnd').value = branch.friday_break_end ? branch.friday_break_end.substring(0, 5) : '';
+                document.getElementById('editSaturdayOpen').value = branch.saturday_open ? branch.saturday_open.substring(0, 5) : '08:00';
+                document.getElementById('editSaturdayClose').value = branch.saturday_close ? branch.saturday_close.substring(0, 5) : '18:00';
+                document.getElementById('editSaturdayClosed').checked = branch.saturday_closed === 1;
+                document.getElementById('editSaturdayBreakStart').value = branch.saturday_break_start ? branch.saturday_break_start.substring(0, 5) : '';
+                document.getElementById('editSaturdayBreakEnd').value = branch.saturday_break_end ? branch.saturday_break_end.substring(0, 5) : '';
+                document.getElementById('editSundayOpen').value = branch.sunday_open ? branch.sunday_open.substring(0, 5) : '08:00';
+                document.getElementById('editSundayClose').value = branch.sunday_close ? branch.sunday_close.substring(0, 5) : '18:00';
+                document.getElementById('editSundayClosed').checked = branch.sunday_closed === 1;
+                document.getElementById('editSundayBreakStart').value = branch.sunday_break_start ? branch.sunday_break_start.substring(0, 5) : '';
+                document.getElementById('editSundayBreakEnd').value = branch.sunday_break_end ? branch.sunday_break_end.substring(0, 5) : '';
+                document.getElementById('editIs24Hours').checked = branch.is_24_hours === 1;
+                
+                // Additional settings
+                document.getElementById('editMaxCapacity').value = branch.max_capacity || 100;
+                document.getElementById('editManagerName').value = branch.manager_name || '';
+                document.getElementById('editManagerContact').value = branch.manager_contact || '';
+                document.getElementById('editNotes').value = branch.notes || '';
+                
+                // Toggle operating hours visibility based on 24/7 setting
+                toggleEditOperatingHours();
+            }
+            
+            // Reset wizard to step 1
+            goToEditStep(1);
             editBranchModal.show();
         } else {
             showToast('error', 'Error', result.message || 'Failed to load branch');
@@ -439,6 +593,60 @@ async function updateBranch() {
     const statusCheckbox = document.getElementById('editStatus');
     const status = statusCheckbox.checked ? 'active' : 'inactive';
     
+    // Operating hours - with fallback for missing elements
+    const getElementValue = (id, defaultValue) => {
+        const el = document.getElementById(id);
+        return el ? el.value : defaultValue;
+    };
+    
+    const getElementChecked = (id, defaultValue) => {
+        const el = document.getElementById(id);
+        return el ? (el.checked ? 1 : 0) : defaultValue;
+    };
+    
+    const mondayOpen = getElementValue('editMondayOpen', '08:00');
+    const mondayClose = getElementValue('editMondayClose', '18:00');
+    const mondayClosed = getElementChecked('editMondayClosed', 0);
+    const mondayBreakStart = getElementValue('editMondayBreakStart', '');
+    const mondayBreakEnd = getElementValue('editMondayBreakEnd', '');
+    const tuesdayOpen = getElementValue('editTuesdayOpen', '08:00');
+    const tuesdayClose = getElementValue('editTuesdayClose', '18:00');
+    const tuesdayClosed = getElementChecked('editTuesdayClosed', 0);
+    const tuesdayBreakStart = getElementValue('editTuesdayBreakStart', '');
+    const tuesdayBreakEnd = getElementValue('editTuesdayBreakEnd', '');
+    const wednesdayOpen = getElementValue('editWednesdayOpen', '08:00');
+    const wednesdayClose = getElementValue('editWednesdayClose', '18:00');
+    const wednesdayClosed = getElementChecked('editWednesdayClosed', 0);
+    const wednesdayBreakStart = getElementValue('editWednesdayBreakStart', '');
+    const wednesdayBreakEnd = getElementValue('editWednesdayBreakEnd', '');
+    const thursdayOpen = getElementValue('editThursdayOpen', '08:00');
+    const thursdayClose = getElementValue('editThursdayClose', '18:00');
+    const thursdayClosed = getElementChecked('editThursdayClosed', 0);
+    const thursdayBreakStart = getElementValue('editThursdayBreakStart', '');
+    const thursdayBreakEnd = getElementValue('editThursdayBreakEnd', '');
+    const fridayOpen = getElementValue('editFridayOpen', '08:00');
+    const fridayClose = getElementValue('editFridayClose', '18:00');
+    const fridayClosed = getElementChecked('editFridayClosed', 0);
+    const fridayBreakStart = getElementValue('editFridayBreakStart', '');
+    const fridayBreakEnd = getElementValue('editFridayBreakEnd', '');
+    const saturdayOpen = getElementValue('editSaturdayOpen', '08:00');
+    const saturdayClose = getElementValue('editSaturdayClose', '18:00');
+    const saturdayClosed = getElementChecked('editSaturdayClosed', 0);
+    const saturdayBreakStart = getElementValue('editSaturdayBreakStart', '');
+    const saturdayBreakEnd = getElementValue('editSaturdayBreakEnd', '');
+    const sundayOpen = getElementValue('editSundayOpen', '08:00');
+    const sundayClose = getElementValue('editSundayClose', '18:00');
+    const sundayClosed = getElementChecked('editSundayClosed', 0);
+    const sundayBreakStart = getElementValue('editSundayBreakStart', '');
+    const sundayBreakEnd = getElementValue('editSundayBreakEnd', '');
+    const is24Hours = getElementChecked('editIs24Hours', 0);
+    
+    // Additional settings - with fallback
+    const maxCapacity = getElementValue('editMaxCapacity', 100);
+    const managerName = getElementValue('editManagerName', '');
+    const managerContact = getElementValue('editManagerContact', '');
+    const notes = getElementValue('editNotes', '');
+    
     if (!branchCode || !branchName) {
         showToast('warning', 'Warning', 'Please fill in required fields');
         return;
@@ -455,24 +663,70 @@ async function updateBranch() {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
         
+        const requestBody = {
+            branch_id: branchId,
+            branch_code: branchCode,
+            branch_name: branchName,
+            region_code: regionCode,
+            province_code: provinceCode,
+            city_municipality_code: cityCode,
+            barangay_code: barangayCode,
+            street_address: streetAddress,
+            landmark: landmark,
+            zip_code: zipCode,
+            contact_number: contactNumber,
+            email: email,
+            status: status
+        };
+        
+        // Only add operating hours if the elements exist
+        if (document.getElementById('editMondayOpen')) {
+            requestBody.monday_open = mondayOpen + ':00';
+            requestBody.monday_close = mondayClose + ':00';
+            requestBody.monday_closed = mondayClosed;
+            requestBody.monday_break_start = mondayBreakStart ? mondayBreakStart + ':00' : null;
+            requestBody.monday_break_end = mondayBreakEnd ? mondayBreakEnd + ':00' : null;
+            requestBody.tuesday_open = tuesdayOpen + ':00';
+            requestBody.tuesday_close = tuesdayClose + ':00';
+            requestBody.tuesday_closed = tuesdayClosed;
+            requestBody.tuesday_break_start = tuesdayBreakStart ? tuesdayBreakStart + ':00' : null;
+            requestBody.tuesday_break_end = tuesdayBreakEnd ? tuesdayBreakEnd + ':00' : null;
+            requestBody.wednesday_open = wednesdayOpen + ':00';
+            requestBody.wednesday_close = wednesdayClose + ':00';
+            requestBody.wednesday_closed = wednesdayClosed;
+            requestBody.wednesday_break_start = wednesdayBreakStart ? wednesdayBreakStart + ':00' : null;
+            requestBody.wednesday_break_end = wednesdayBreakEnd ? wednesdayBreakEnd + ':00' : null;
+            requestBody.thursday_open = thursdayOpen + ':00';
+            requestBody.thursday_close = thursdayClose + ':00';
+            requestBody.thursday_closed = thursdayClosed;
+            requestBody.thursday_break_start = thursdayBreakStart ? thursdayBreakStart + ':00' : null;
+            requestBody.thursday_break_end = thursdayBreakEnd ? thursdayBreakEnd + ':00' : null;
+            requestBody.friday_open = fridayOpen + ':00';
+            requestBody.friday_close = fridayClose + ':00';
+            requestBody.friday_closed = fridayClosed;
+            requestBody.friday_break_start = fridayBreakStart ? fridayBreakStart + ':00' : null;
+            requestBody.friday_break_end = fridayBreakEnd ? fridayBreakEnd + ':00' : null;
+            requestBody.saturday_open = saturdayOpen + ':00';
+            requestBody.saturday_close = saturdayClose + ':00';
+            requestBody.saturday_closed = saturdayClosed;
+            requestBody.saturday_break_start = saturdayBreakStart ? saturdayBreakStart + ':00' : null;
+            requestBody.saturday_break_end = saturdayBreakEnd ? saturdayBreakEnd + ':00' : null;
+            requestBody.sunday_open = sundayOpen + ':00';
+            requestBody.sunday_close = sundayClose + ':00';
+            requestBody.sunday_closed = sundayClosed;
+            requestBody.sunday_break_start = sundayBreakStart ? sundayBreakStart + ':00' : null;
+            requestBody.sunday_break_end = sundayBreakEnd ? sundayBreakEnd + ':00' : null;
+            requestBody.is_24_hours = is24Hours;
+            requestBody.max_capacity = maxCapacity;
+            requestBody.manager_name = managerName;
+            requestBody.manager_contact = managerContact;
+            requestBody.notes = notes;
+        }
+        
         const response = await fetch(`${window.BASE_URL}/api/business-branches`, {
             method: 'PUT',
             headers: headers,
-            body: JSON.stringify({
-                branch_id: branchId,
-                branch_code: branchCode,
-                branch_name: branchName,
-                region_code: regionCode,
-                province_code: provinceCode,
-                city_municipality_code: cityCode,
-                barangay_code: barangayCode,
-                street_address: streetAddress,
-                landmark: landmark,
-                zip_code: zipCode,
-                contact_number: contactNumber,
-                email: email,
-                status: status
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const result = await response.json();
@@ -646,4 +900,238 @@ function showToast(type, title, message) {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 150);
     }, 4000);
+}
+
+// Add Branch Wizard Functions
+let addCurrentStep = 1;
+const totalAddSteps = 3;
+
+function goToAddStep(step) {
+    // Update step indicators
+    document.querySelectorAll('#addBranchModal .step-item').forEach(item => {
+        const stepNum = parseInt(item.dataset.step);
+        item.classList.remove('active', 'completed');
+        if (stepNum < step) {
+            item.classList.add('completed');
+        } else if (stepNum === step) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Update step content
+    document.querySelectorAll('#addBranchModal .wizard-step').forEach(stepContent => {
+        stepContent.classList.remove('active');
+        if (parseInt(stepContent.dataset.step) === step) {
+            stepContent.classList.add('active');
+        }
+    });
+    
+    // Update buttons
+    const prevBtn = document.getElementById('addPrevStepBtn');
+    const nextBtn = document.getElementById('addNextStepBtn');
+    const saveBtn = document.getElementById('addSaveBranchBtn');
+    
+    if (step === 1) {
+        prevBtn.style.display = 'none';
+        nextBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'none';
+    } else if (step === totalAddSteps) {
+        prevBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'none';
+        saveBtn.style.display = 'inline-block';
+    } else {
+        prevBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'none';
+    }
+    
+    addCurrentStep = step;
+}
+
+function addNextStep() {
+    if (addCurrentStep < totalAddSteps) {
+        goToAddStep(addCurrentStep + 1);
+    }
+}
+
+function addPrevStep() {
+    if (addCurrentStep > 1) {
+        goToAddStep(addCurrentStep - 1);
+    }
+}
+
+function toggleAddOperatingHours() {
+    const is24Hours = document.getElementById('addIs24Hours').checked;
+    const container = document.getElementById('addOperatingHoursContainer');
+    if (container) {
+        container.style.display = is24Hours ? 'none' : 'block';
+    }
+}
+
+function updateAddStatusLabel(checked) {
+    const label = document.getElementById('addStatusLabel');
+    if (label) {
+        label.innerHTML = checked ? '<span class="text-success">Active</span>' : '<span class="text-danger">Inactive</span>';
+    }
+}
+
+function copyAddMondayToAll() {
+    const mondayOpen = document.getElementById('addMondayOpen').value;
+    const mondayClose = document.getElementById('addMondayClose').value;
+    const mondayClosed = document.getElementById('addMondayClosed').checked;
+    const mondayBreakStart = document.getElementById('addMondayBreakStart').value;
+    const mondayBreakEnd = document.getElementById('addMondayBreakEnd').value;
+    
+    const days = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    days.forEach(day => {
+        const openEl = document.getElementById(`add${day}Open`);
+        const closeEl = document.getElementById(`add${day}Close`);
+        const closedEl = document.getElementById(`add${day}Closed`);
+        const breakStartEl = document.getElementById(`add${day}BreakStart`);
+        const breakEndEl = document.getElementById(`add${day}BreakEnd`);
+        
+        if (openEl) openEl.value = mondayOpen;
+        if (closeEl) closeEl.value = mondayClose;
+        if (closedEl) closedEl.checked = mondayClosed;
+        if (breakStartEl) breakStartEl.value = mondayBreakStart;
+        if (breakEndEl) breakEndEl.value = mondayBreakEnd;
+    });
+    
+    showToast('success', 'Copied', 'Monday hours copied to all days');
+}
+
+// Edit Branch Wizard Functions
+let editCurrentStep = 1;
+const totalEditSteps = 3;
+
+function goToEditStep(step) {
+    // Update step indicators
+    document.querySelectorAll('#editBranchModal .step-item').forEach(item => {
+        const stepNum = parseInt(item.dataset.step);
+        item.classList.remove('active', 'completed');
+        if (stepNum < step) {
+            item.classList.add('completed');
+        } else if (stepNum === step) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Update step content
+    document.querySelectorAll('#editBranchModal .wizard-step').forEach(stepContent => {
+        stepContent.classList.remove('active');
+        if (parseInt(stepContent.dataset.step) === step) {
+            stepContent.classList.add('active');
+        }
+    });
+    
+    // Update buttons
+    const prevBtn = document.getElementById('editPrevStepBtn');
+    const nextBtn = document.getElementById('editNextStepBtn');
+    const saveBtn = document.getElementById('editSaveBranchBtn');
+    
+    if (step === 1) {
+        prevBtn.style.display = 'none';
+        nextBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'none';
+    } else if (step === totalEditSteps) {
+        prevBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'none';
+        saveBtn.style.display = 'inline-block';
+    } else {
+        prevBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'none';
+    }
+    
+    editCurrentStep = step;
+}
+
+function editNextStep() {
+    if (editCurrentStep < totalEditSteps) {
+        goToEditStep(editCurrentStep + 1);
+    }
+}
+
+function editPrevStep() {
+    if (editCurrentStep > 1) {
+        goToEditStep(editCurrentStep - 1);
+    }
+}
+
+function toggleEditOperatingHours() {
+    const is24Hours = document.getElementById('editIs24Hours').checked;
+    const container = document.getElementById('editOperatingHoursContainer');
+    if (container) {
+        container.style.display = is24Hours ? 'none' : 'block';
+    }
+}
+
+function updateEditStatusLabel(checked) {
+    const label = document.getElementById('editStatusLabel');
+    if (label) {
+        label.innerHTML = checked ? '<span class="text-success">Active</span>' : '<span class="text-danger">Inactive</span>';
+    }
+}
+
+function copyEditMondayToAll() {
+    const mondayOpen = document.getElementById('editMondayOpen').value;
+    const mondayClose = document.getElementById('editMondayClose').value;
+    const mondayClosed = document.getElementById('editMondayClosed').checked;
+    const mondayBreakStart = document.getElementById('editMondayBreakStart').value;
+    const mondayBreakEnd = document.getElementById('editMondayBreakEnd').value;
+    
+    const days = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    days.forEach(day => {
+        const openEl = document.getElementById(`edit${day}Open`);
+        const closeEl = document.getElementById(`edit${day}Close`);
+        const closedEl = document.getElementById(`edit${day}Closed`);
+        const breakStartEl = document.getElementById(`edit${day}BreakStart`);
+        const breakEndEl = document.getElementById(`edit${day}BreakEnd`);
+        
+        if (openEl) openEl.value = mondayOpen;
+        if (closeEl) closeEl.value = mondayClose;
+        if (closedEl) closedEl.checked = mondayClosed;
+        if (breakStartEl) breakStartEl.value = mondayBreakStart;
+        if (breakEndEl) breakEndEl.value = mondayBreakEnd;
+    });
+    
+    showToast('success', 'Copied', 'Monday hours copied to all days');
+}
+
+// Toggle operating hours visibility for edit modal
+function toggleEditOperatingHours() {
+    const is24Hours = document.getElementById('editIs24Hours').checked;
+    const container = document.getElementById('editOperatingHoursContainer');
+    if (container) {
+        container.style.display = is24Hours ? 'none' : 'block';
+    }
+}
+
+// Copy Monday hours to all days for edit modal
+function copyEditMondayToAll() {
+    const mondayOpen = document.getElementById('editMondayOpen').value;
+    const mondayClose = document.getElementById('editMondayClose').value;
+    const mondayClosed = document.getElementById('editMondayClosed').checked;
+    const mondayBreakStart = document.getElementById('editMondayBreakStart').value;
+    const mondayBreakEnd = document.getElementById('editMondayBreakEnd').value;
+    
+    const days = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    days.forEach(day => {
+        const openEl = document.getElementById(`edit${day}Open`);
+        const closeEl = document.getElementById(`edit${day}Close`);
+        const closedEl = document.getElementById(`edit${day}Closed`);
+        const breakStartEl = document.getElementById(`edit${day}BreakStart`);
+        const breakEndEl = document.getElementById(`edit${day}BreakEnd`);
+        
+        if (openEl) openEl.value = mondayOpen;
+        if (closeEl) closeEl.value = mondayClose;
+        if (closedEl) closedEl.checked = mondayClosed;
+        if (breakStartEl) breakStartEl.value = mondayBreakStart;
+        if (breakEndEl) breakEndEl.value = mondayBreakEnd;
+    });
+    
+    showToast('success', 'Copied', 'Monday hours copied to all days');
 }

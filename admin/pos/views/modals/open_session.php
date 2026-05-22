@@ -32,7 +32,7 @@
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold" for="sessionOpeningCash">Opening Cash Balance (₱)</label>
-            <input type="number" class="form-control" id="sessionOpeningCash" name="sessionOpeningCash" value="0.00" min="0" step="0.01">
+            <input type="text" class="form-control text-end fw-bold" id="sessionOpeningCash" name="sessionOpeningCash" placeholder="0.00" oninput="formatNumberInput(this)" autofocus>
             <div class="form-text">Count your starting cash and enter here.</div>
           </div>
           <div class="col-12">

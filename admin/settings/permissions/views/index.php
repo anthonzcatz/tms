@@ -205,7 +205,7 @@ if (!defined('NAVBAR_POSITION')) {
                                   <td><span class="badge bg-primary"><?php echo htmlspecialchars($role['role_code']); ?></span></td>
                                   <td><?php echo htmlspecialchars($role['role_name']); ?></td>
                                   <td><?php echo htmlspecialchars($role['role_description'] ?? '-'); ?></td>
-                                  <td><?php echo date('M d, Y', strtotime($role['created_at'])); ?></td>
+                                  <td><?php echo Auth::formatTimestamp($role['created_at'], 'M d, Y'); ?></td>
                                   <td class="text-center">
                                     <button class="btn btn-sm btn-outline-primary me-1" onclick="editRole(<?php echo $role['role_id']; ?>)">
                                       <span class="fas fa-edit"></span>

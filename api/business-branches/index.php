@@ -14,11 +14,12 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId,
             'device_id' => $deviceId,
@@ -27,7 +28,8 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
             'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -184,6 +186,48 @@ function handlePost() {
     $email = $input['email'] ?? null;
     $status = $input['status'] ?? 'active';
     
+    // Operating hours
+    $mondayOpen = $input['monday_open'] ?? '08:00:00';
+    $mondayClose = $input['monday_close'] ?? '18:00:00';
+    $mondayClosed = $input['monday_closed'] ?? 0;
+    $mondayBreakStart = $input['monday_break_start'] ?? null;
+    $mondayBreakEnd = $input['monday_break_end'] ?? null;
+    $tuesdayOpen = $input['tuesday_open'] ?? '08:00:00';
+    $tuesdayClose = $input['tuesday_close'] ?? '18:00:00';
+    $tuesdayClosed = $input['tuesday_closed'] ?? 0;
+    $tuesdayBreakStart = $input['tuesday_break_start'] ?? null;
+    $tuesdayBreakEnd = $input['tuesday_break_end'] ?? null;
+    $wednesdayOpen = $input['wednesday_open'] ?? '08:00:00';
+    $wednesdayClose = $input['wednesday_close'] ?? '18:00:00';
+    $wednesdayClosed = $input['wednesday_closed'] ?? 0;
+    $wednesdayBreakStart = $input['wednesday_break_start'] ?? null;
+    $wednesdayBreakEnd = $input['wednesday_break_end'] ?? null;
+    $thursdayOpen = $input['thursday_open'] ?? '08:00:00';
+    $thursdayClose = $input['thursday_close'] ?? '18:00:00';
+    $thursdayClosed = $input['thursday_closed'] ?? 0;
+    $thursdayBreakStart = $input['thursday_break_start'] ?? null;
+    $thursdayBreakEnd = $input['thursday_break_end'] ?? null;
+    $fridayOpen = $input['friday_open'] ?? '08:00:00';
+    $fridayClose = $input['friday_close'] ?? '18:00:00';
+    $fridayClosed = $input['friday_closed'] ?? 0;
+    $fridayBreakStart = $input['friday_break_start'] ?? null;
+    $fridayBreakEnd = $input['friday_break_end'] ?? null;
+    $saturdayOpen = $input['saturday_open'] ?? '08:00:00';
+    $saturdayClose = $input['saturday_close'] ?? '18:00:00';
+    $saturdayClosed = $input['saturday_closed'] ?? 0;
+    $saturdayBreakStart = $input['saturday_break_start'] ?? null;
+    $saturdayBreakEnd = $input['saturday_break_end'] ?? null;
+    $sundayOpen = $input['sunday_open'] ?? '08:00:00';
+    $sundayClose = $input['sunday_close'] ?? '18:00:00';
+    $sundayClosed = $input['sunday_closed'] ?? 0;
+    $sundayBreakStart = $input['sunday_break_start'] ?? null;
+    $sundayBreakEnd = $input['sunday_break_end'] ?? null;
+    $is24Hours = $input['is_24_hours'] ?? 0;
+    $maxCapacity = $input['max_capacity'] ?? 100;
+    $managerName = $input['manager_name'] ?? null;
+    $managerContact = $input['manager_contact'] ?? null;
+    $notes = $input['notes'] ?? null;
+    
     // Validate required fields
     if (!$branchCode || !$branchName) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
@@ -202,8 +246,8 @@ function handlePost() {
     }
     
     // Insert new branch
-    $sql = "INSERT INTO business_branches (branch_code, branch_name, region_code, province_code, city_municipality_code, barangay_code, street_address, landmark, zip_code, contact_number, email, status, created_at)
-            VALUES (:branch_code, :branch_name, :region_code, :province_code, :city_municipality_code, :barangay_code, :street_address, :landmark, :zip_code, :contact_number, :email, :status, NOW())";
+    $sql = "INSERT INTO business_branches (branch_code, branch_name, region_code, province_code, city_municipality_code, barangay_code, street_address, landmark, zip_code, contact_number, email, status, monday_open, monday_close, monday_closed, monday_break_start, monday_break_end, tuesday_open, tuesday_close, tuesday_closed, tuesday_break_start, tuesday_break_end, wednesday_open, wednesday_close, wednesday_closed, wednesday_break_start, wednesday_break_end, thursday_open, thursday_close, thursday_closed, thursday_break_start, thursday_break_end, friday_open, friday_close, friday_closed, friday_break_start, friday_break_end, saturday_open, saturday_close, saturday_closed, saturday_break_start, saturday_break_end, sunday_open, sunday_close, sunday_closed, sunday_break_start, sunday_break_end, is_24_hours, max_capacity, manager_name, manager_contact, notes, created_at)
+            VALUES (:branch_code, :branch_name, :region_code, :province_code, :city_municipality_code, :barangay_code, :street_address, :landmark, :zip_code, :contact_number, :email, :status, :monday_open, :monday_close, :monday_closed, :monday_break_start, :monday_break_end, :tuesday_open, :tuesday_close, :tuesday_closed, :tuesday_break_start, :tuesday_break_end, :wednesday_open, :wednesday_close, :wednesday_closed, :wednesday_break_start, :wednesday_break_end, :thursday_open, :thursday_close, :thursday_closed, :thursday_break_start, :thursday_break_end, :friday_open, :friday_close, :friday_closed, :friday_break_start, :friday_break_end, :saturday_open, :saturday_close, :saturday_closed, :saturday_break_start, :saturday_break_end, :sunday_open, :sunday_close, :sunday_closed, :sunday_break_start, :sunday_break_end, :is_24_hours, :max_capacity, :manager_name, :manager_contact, :notes, NOW())";
     
     Database::execute($sql, [
         'branch_code' => $branchCode,
@@ -217,7 +261,47 @@ function handlePost() {
         'zip_code' => $zipCode ?: null,
         'contact_number' => $contactNumber ?: null,
         'email' => $email ?: null,
-        'status' => $status
+        'status' => $status,
+        'monday_open' => $mondayOpen,
+        'monday_close' => $mondayClose,
+        'monday_closed' => $mondayClosed,
+        'monday_break_start' => $mondayBreakStart,
+        'monday_break_end' => $mondayBreakEnd,
+        'tuesday_open' => $tuesdayOpen,
+        'tuesday_close' => $tuesdayClose,
+        'tuesday_closed' => $tuesdayClosed,
+        'tuesday_break_start' => $tuesdayBreakStart,
+        'tuesday_break_end' => $tuesdayBreakEnd,
+        'wednesday_open' => $wednesdayOpen,
+        'wednesday_close' => $wednesdayClose,
+        'wednesday_closed' => $wednesdayClosed,
+        'wednesday_break_start' => $wednesdayBreakStart,
+        'wednesday_break_end' => $wednesdayBreakEnd,
+        'thursday_open' => $thursdayOpen,
+        'thursday_close' => $thursdayClose,
+        'thursday_closed' => $thursdayClosed,
+        'thursday_break_start' => $thursdayBreakStart,
+        'thursday_break_end' => $thursdayBreakEnd,
+        'friday_open' => $fridayOpen,
+        'friday_close' => $fridayClose,
+        'friday_closed' => $fridayClosed,
+        'friday_break_start' => $fridayBreakStart,
+        'friday_break_end' => $fridayBreakEnd,
+        'saturday_open' => $saturdayOpen,
+        'saturday_close' => $saturdayClose,
+        'saturday_closed' => $saturdayClosed,
+        'saturday_break_start' => $saturdayBreakStart,
+        'saturday_break_end' => $saturdayBreakEnd,
+        'sunday_open' => $sundayOpen,
+        'sunday_close' => $sundayClose,
+        'sunday_closed' => $sundayClosed,
+        'sunday_break_start' => $sundayBreakStart,
+        'sunday_break_end' => $sundayBreakEnd,
+        'is_24_hours' => $is24Hours,
+        'max_capacity' => $maxCapacity,
+        'manager_name' => $managerName,
+        'manager_contact' => $managerContact,
+        'notes' => $notes
     ]);
     
     $branchId = Database::connection()->lastInsertId();
@@ -330,13 +414,176 @@ function handlePut() {
         $params['status'] = $input['status'];
     }
     
+    // Operating hours
+    if (isset($input['monday_open'])) {
+        $updateFields[] = "monday_open = :monday_open";
+        $params['monday_open'] = $input['monday_open'];
+    }
+    if (isset($input['monday_close'])) {
+        $updateFields[] = "monday_close = :monday_close";
+        $params['monday_close'] = $input['monday_close'];
+    }
+    if (isset($input['monday_closed'])) {
+        $updateFields[] = "monday_closed = :monday_closed";
+        $params['monday_closed'] = $input['monday_closed'];
+    }
+    if (isset($input['monday_break_start'])) {
+        $updateFields[] = "monday_break_start = :monday_break_start";
+        $params['monday_break_start'] = $input['monday_break_start'];
+    }
+    if (isset($input['monday_break_end'])) {
+        $updateFields[] = "monday_break_end = :monday_break_end";
+        $params['monday_break_end'] = $input['monday_break_end'];
+    }
+    if (isset($input['tuesday_open'])) {
+        $updateFields[] = "tuesday_open = :tuesday_open";
+        $params['tuesday_open'] = $input['tuesday_open'];
+    }
+    if (isset($input['tuesday_close'])) {
+        $updateFields[] = "tuesday_close = :tuesday_close";
+        $params['tuesday_close'] = $input['tuesday_close'];
+    }
+    if (isset($input['tuesday_closed'])) {
+        $updateFields[] = "tuesday_closed = :tuesday_closed";
+        $params['tuesday_closed'] = $input['tuesday_closed'];
+    }
+    if (isset($input['tuesday_break_start'])) {
+        $updateFields[] = "tuesday_break_start = :tuesday_break_start";
+        $params['tuesday_break_start'] = $input['tuesday_break_start'];
+    }
+    if (isset($input['tuesday_break_end'])) {
+        $updateFields[] = "tuesday_break_end = :tuesday_break_end";
+        $params['tuesday_break_end'] = $input['tuesday_break_end'];
+    }
+    if (isset($input['wednesday_open'])) {
+        $updateFields[] = "wednesday_open = :wednesday_open";
+        $params['wednesday_open'] = $input['wednesday_open'];
+    }
+    if (isset($input['wednesday_close'])) {
+        $updateFields[] = "wednesday_close = :wednesday_close";
+        $params['wednesday_close'] = $input['wednesday_close'];
+    }
+    if (isset($input['wednesday_closed'])) {
+        $updateFields[] = "wednesday_closed = :wednesday_closed";
+        $params['wednesday_closed'] = $input['wednesday_closed'];
+    }
+    if (isset($input['wednesday_break_start'])) {
+        $updateFields[] = "wednesday_break_start = :wednesday_break_start";
+        $params['wednesday_break_start'] = $input['wednesday_break_start'];
+    }
+    if (isset($input['wednesday_break_end'])) {
+        $updateFields[] = "wednesday_break_end = :wednesday_break_end";
+        $params['wednesday_break_end'] = $input['wednesday_break_end'];
+    }
+    if (isset($input['thursday_open'])) {
+        $updateFields[] = "thursday_open = :thursday_open";
+        $params['thursday_open'] = $input['thursday_open'];
+    }
+    if (isset($input['thursday_close'])) {
+        $updateFields[] = "thursday_close = :thursday_close";
+        $params['thursday_close'] = $input['thursday_close'];
+    }
+    if (isset($input['thursday_closed'])) {
+        $updateFields[] = "thursday_closed = :thursday_closed";
+        $params['thursday_closed'] = $input['thursday_closed'];
+    }
+    if (isset($input['thursday_break_start'])) {
+        $updateFields[] = "thursday_break_start = :thursday_break_start";
+        $params['thursday_break_start'] = $input['thursday_break_start'];
+    }
+    if (isset($input['thursday_break_end'])) {
+        $updateFields[] = "thursday_break_end = :thursday_break_end";
+        $params['thursday_break_end'] = $input['thursday_break_end'];
+    }
+    if (isset($input['friday_open'])) {
+        $updateFields[] = "friday_open = :friday_open";
+        $params['friday_open'] = $input['friday_open'];
+    }
+    if (isset($input['friday_close'])) {
+        $updateFields[] = "friday_close = :friday_close";
+        $params['friday_close'] = $input['friday_close'];
+    }
+    if (isset($input['friday_closed'])) {
+        $updateFields[] = "friday_closed = :friday_closed";
+        $params['friday_closed'] = $input['friday_closed'];
+    }
+    if (isset($input['friday_break_start'])) {
+        $updateFields[] = "friday_break_start = :friday_break_start";
+        $params['friday_break_start'] = $input['friday_break_start'];
+    }
+    if (isset($input['friday_break_end'])) {
+        $updateFields[] = "friday_break_end = :friday_break_end";
+        $params['friday_break_end'] = $input['friday_break_end'];
+    }
+    if (isset($input['saturday_open'])) {
+        $updateFields[] = "saturday_open = :saturday_open";
+        $params['saturday_open'] = $input['saturday_open'];
+    }
+    if (isset($input['saturday_close'])) {
+        $updateFields[] = "saturday_close = :saturday_close";
+        $params['saturday_close'] = $input['saturday_close'];
+    }
+    if (isset($input['saturday_closed'])) {
+        $updateFields[] = "saturday_closed = :saturday_closed";
+        $params['saturday_closed'] = $input['saturday_closed'];
+    }
+    if (isset($input['saturday_break_start'])) {
+        $updateFields[] = "saturday_break_start = :saturday_break_start";
+        $params['saturday_break_start'] = $input['saturday_break_start'];
+    }
+    if (isset($input['saturday_break_end'])) {
+        $updateFields[] = "saturday_break_end = :saturday_break_end";
+        $params['saturday_break_end'] = $input['saturday_break_end'];
+    }
+    if (isset($input['sunday_open'])) {
+        $updateFields[] = "sunday_open = :sunday_open";
+        $params['sunday_open'] = $input['sunday_open'];
+    }
+    if (isset($input['sunday_close'])) {
+        $updateFields[] = "sunday_close = :sunday_close";
+        $params['sunday_close'] = $input['sunday_close'];
+    }
+    if (isset($input['sunday_closed'])) {
+        $updateFields[] = "sunday_closed = :sunday_closed";
+        $params['sunday_closed'] = $input['sunday_closed'];
+    }
+    if (isset($input['sunday_break_start'])) {
+        $updateFields[] = "sunday_break_start = :sunday_break_start";
+        $params['sunday_break_start'] = $input['sunday_break_start'];
+    }
+    if (isset($input['sunday_break_end'])) {
+        $updateFields[] = "sunday_break_end = :sunday_break_end";
+        $params['sunday_break_end'] = $input['sunday_break_end'];
+    }
+    if (isset($input['is_24_hours'])) {
+        $updateFields[] = "is_24_hours = :is_24_hours";
+        $params['is_24_hours'] = $input['is_24_hours'];
+    }
+    if (isset($input['max_capacity'])) {
+        $updateFields[] = "max_capacity = :max_capacity";
+        $params['max_capacity'] = $input['max_capacity'];
+    }
+    if (isset($input['manager_name'])) {
+        $updateFields[] = "manager_name = :manager_name";
+        $params['manager_name'] = $input['manager_name'];
+    }
+    if (isset($input['manager_contact'])) {
+        $updateFields[] = "manager_contact = :manager_contact";
+        $params['manager_contact'] = $input['manager_contact'];
+    }
+    if (isset($input['notes'])) {
+        $updateFields[] = "notes = :notes";
+        $params['notes'] = $input['notes'];
+    }
+    
     if (empty($updateFields)) {
         echo json_encode(['success' => false, 'error' => 'No fields to update']);
         return;
     }
     
     // Update branch
-    $updateFields[] = "updated_at = NOW()";
+    $updateFields[] = "updated_at = :updated_at";
+    $params['updated_at'] = date('Y-m-d H:i:s');
     $sql = "UPDATE business_branches SET " . implode(', ', $updateFields) . " WHERE branch_id = :branch_id";
     Database::execute($sql, $params);
     
@@ -413,8 +660,8 @@ function handleDelete() {
     
     // Delete branch (soft delete)
     Database::execute(
-        "UPDATE business_branches SET deleted_at = NOW() WHERE branch_id = :branch_id",
-        ['branch_id' => (int)$branchId]
+        "UPDATE business_branches SET deleted_at = :deleted_at WHERE branch_id = :branch_id",
+        ['branch_id' => (int)$branchId, 'deleted_at' => date('Y-m-d H:i:s')]
     );
     
     // Log activity

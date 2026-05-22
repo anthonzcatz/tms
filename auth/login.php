@@ -5,8 +5,11 @@ require_once __DIR__ . '/../app/helpers/SecurityHelper.php';
 $csrf_token = SecurityHelper::generateCSRFToken();
 
 // Collect and clear session messages once
-$sessionError   = $_SESSION['error']   ?? null; unset($_SESSION['error']);
-$sessionSuccess = $_SESSION['success'] ?? null; unset($_SESSION['success']);
+$sessionError      = $_SESSION['error']       ?? null; unset($_SESSION['error']);
+$sessionSuccess    = $_SESSION['success']     ?? null; unset($_SESSION['success']);
+$loginError        = $_SESSION['login_error'] ?? null; unset($_SESSION['login_error']);
+$terminatedMessage = $_SESSION['session_terminated_message'] ?? null;
+// Don't clear terminatedMessage yet — we need it to suppress the session_expired modal
 
 // Preserve form input values on error
 $submittedUsername = $_SESSION['login_username'] ?? '';
@@ -75,7 +78,7 @@ unset($_SESSION['login_username']);
                         </div>
                       <?php endif; ?>
                       
-                      <?php if (isset($_GET['error'])): ?>
+                      <?php if (isset($_GET['error']) && !isset($_GET['success'])): ?>
                         <div class="alert alert-warning alert-dismissible fade show" role="alert">
                           <span class="fas fa-exclamation-triangle me-2"></span>
                           <?php 
@@ -92,7 +95,57 @@ unset($_SESSION['login_username']);
                         </div>
                       <?php endif; ?>
 
-                      <?php if ($sessionError): ?>
+                      <?php if ($loginError === 'device_pending'): ?>
+                        <?php
+                        // DEBUG: Show device detection info
+                        $debugIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+                        $debugUa = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+                        $debugType = 'desktop';
+                        if (preg_match('/Mobile|Android|iPhone|iPad/i', $debugUa)) {
+                            $debugType = preg_match('/iPad/i', $debugUa) ? 'tablet' : 'mobile';
+                        }
+                        // Check existing devices for this IP
+                        $existingDevices = Database::fetchAll(
+                            "SELECT device_id, device_type, status FROM system_devices WHERE ip_address = :ip ORDER BY last_used_at DESC",
+                            ['ip' => $debugIp]
+                        );
+                        ?>
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                          <span class="fas fa-clock me-2"></span>
+                          <strong>Device Pending Approval</strong><br>
+                          Your device has been registered and is awaiting approval by an administrator. You will be able to log in once approved.
+                          <hr class="my-2">
+                          <small class="text-muted">Debug: IP=<?php echo $debugIp; ?>, Type=<?php echo $debugType; ?></small>
+                          <?php if (!empty($existingDevices)): ?>
+                            <hr class="my-1">
+                            <small class="text-muted">Existing devices for this IP:<br>
+                            <?php foreach ($existingDevices as $dev): ?>
+                              • ID=<?php echo $dev['device_id']; ?>, Type=<?php echo $dev['device_type']; ?>, Status=<?php echo $dev['status']; ?><br>
+                            <?php endforeach; ?>
+                            </small>
+                          <?php endif; ?>
+                          <div class="mt-2">
+                            <a href="<?php echo BASE_URL; ?>/auth/auto-approve-device.php?ip=<?php echo urlencode($debugIp); ?>&type=<?php echo urlencode($debugType); ?>" class="btn btn-sm btn-outline-warning">Emergency: Auto-Approve This Device</a>
+                          </div>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                      <?php elseif ($loginError === 'device_blocked'): ?>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                          <span class="fas fa-ban me-2"></span>
+                          <strong>Device Blocked</strong><br>
+                          Your device has been blocked by an administrator. Please contact support if you believe this is a mistake.
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                      <?php elseif ($loginError === 'session_create_failed'): ?>
+                        <?php $errorDetails = $_SESSION['session_error_details'] ?? 'Unknown error'; unset($_SESSION['session_error_details']); ?>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                          <span class="fas fa-exclamation-circle me-2"></span>
+                          <strong>Session Error</strong><br>
+                          Unable to create session.<br>
+                          <small class="text-muted">Error: <?php echo htmlspecialchars($errorDetails); ?></small>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                      <?php elseif ($sessionError): ?>
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                           <span class="fas fa-exclamation-circle me-2"></span>
                           <?php echo htmlspecialchars($sessionError); ?>
@@ -100,16 +153,18 @@ unset($_SESSION['login_username']);
                         </div>
                       <?php endif; ?>
 
-                      <?php if ($sessionSuccess): ?>
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                          <span class="fas fa-check-circle me-2"></span>
-                          <?php echo htmlspecialchars($sessionSuccess); ?>
+                      <?php if ($terminatedMessage): ?>
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                          <span class="fas fa-info-circle me-2"></span>
+                          <?php echo htmlspecialchars($terminatedMessage); ?>
                           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
-                      <?php endif; ?>
+                      <?php endif ?>
 
                       <form method="POST" action="<?php echo BASE_URL; ?>/auth/login-handler.php" id="loginForm">
                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                        <input type="hidden" name="browser_latitude" id="browser_latitude">
+                        <input type="hidden" name="browser_longitude" id="browser_longitude">
                         <div class="mb-3">
                           <label class="form-label" for="card-username">Username</label>
                           <input class="form-control" id="card-username" name="username" type="text" required value="<?php echo htmlspecialchars($submittedUsername); ?>" />
@@ -163,21 +218,81 @@ unset($_SESSION['login_username']);
     <!-- ===============================================-->
 
 <?php include __DIR__ . '/auth-scripts.php'; ?>
-    <?php if (isset($_SESSION['session_expired']) && $_SESSION['session_expired']): ?>
+    <?php
+    // Check session flags and set them to be cleared after showing modal
+    $showSessionExpiredModal = isset($_SESSION['session_expired']) && $_SESSION['session_expired'];
+    $showSessionInvalidModal = isset($_SESSION['session_invalid']) && $_SESSION['session_invalid'];
+    $showAuthRequiredModal = isset($_SESSION['authentication_required']) && $_SESSION['authentication_required'];
+
+    // Suppress auth_required modal on explicit logout or when a login_error was just handled
+    if ((isset($_GET['success']) && $_GET['success'] === 'logout_success') || $loginError !== null) {
+        $showAuthRequiredModal = false;
+    }
+
+    // Clear the session flags after reading them
+    if ($showSessionExpiredModal) {
+        unset($_SESSION['session_expired']);
+    }
+    if ($showSessionInvalidModal) {
+        unset($_SESSION['session_invalid']);
+    }
+    if ($showAuthRequiredModal) {
+        unset($_SESSION['authentication_required']);
+    }
+    ?>
+
+    <?php if ($showSessionExpiredModal && !$terminatedMessage): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Show session expiration alert using Bootstrap modal
             const alertHtml = `
                 <div class="modal fade" id="sessionExpiredModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog modal-dialog-centered">
                         <div class="modal-content">
-                            <div class="modal-header bg-warning bg-opacity-10">
+                            <div class="modal-header bg-warning bg-opacity-10 border-0 pb-0">
                                 <h5 class="modal-title text-warning">
                                     <span class="fas fa-exclamation-triangle me-2"></span>Session Expired
                                 </h5>
                             </div>
+                            <div class="modal-body pt-2">
+                                <p class="mb-0">Your session has expired due to inactivity. Please log in again to continue.</p>
+                            </div>
+                            <div class="modal-footer border-0">
+                                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                                    <span class="fas fa-check me-1"></span>OK, Log In Again
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            new bootstrap.Modal(document.getElementById('sessionExpiredModal')).show();
+        });
+    </script>
+    <?php endif; ?>
+
+    <?php
+    // Clear terminatedMessage after modal check so it doesn't persist
+    if ($terminatedMessage !== null) {
+        unset($_SESSION['session_terminated_message']);
+    }
+    ?>
+
+    <?php if ($showSessionInvalidModal): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show session invalid alert using Bootstrap modal
+            const alertHtml = `
+                <div class="modal fade" id="sessionInvalidModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger bg-opacity-10">
+                                <h5 class="modal-title text-danger">
+                                    <span class="fas fa-times-circle me-2"></span>Session Invalid
+                                </h5>
+                            </div>
                             <div class="modal-body">
-                                <p>Your session has expired due to inactivity. Please log in again to continue.</p>
+                                <p>Your session is invalid. This may be due to a security issue or session corruption. Please log in again.</p>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-primary" onclick="window.location.href = window.location.pathname">
@@ -189,16 +304,13 @@ unset($_SESSION['login_username']);
                 </div>
             `;
             document.body.insertAdjacentHTML('beforeend', alertHtml);
-            const modal = new bootstrap.Modal(document.getElementById('sessionExpiredModal'));
+            const modal = new bootstrap.Modal(document.getElementById('sessionInvalidModal'));
             modal.show();
-
-            // Clear the session flag
-            <?php unset($_SESSION['session_expired']); ?>
         });
     </script>
     <?php endif; ?>
 
-    <?php if (isset($_SESSION['authentication_required']) && $_SESSION['authentication_required']): ?>
+    <?php if ($showAuthRequiredModal): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Show authentication required alert using Bootstrap modal
@@ -226,9 +338,6 @@ unset($_SESSION['login_username']);
             document.body.insertAdjacentHTML('beforeend', alertHtml);
             const modal = new bootstrap.Modal(document.getElementById('authRequiredModal'));
             modal.show();
-
-            // Clear the session flag
-            <?php unset($_SESSION['authentication_required']); ?>
         });
     </script>
     <?php endif; ?>
@@ -242,6 +351,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnSpinner = document.getElementById('btnSpinner');
     const togglePassword = document.getElementById('togglePassword');
     const togglePasswordIcon = document.getElementById('togglePasswordIcon');
+
+    // Request geolocation on page load
+    if (navigator.geolocation) {
+        console.log('Requesting browser geolocation...');
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const coords = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                };
+                console.log('Geolocation success:', coords);
+                document.getElementById('browser_latitude').value = coords.latitude;
+                document.getElementById('browser_longitude').value = coords.longitude;
+            },
+            (error) => {
+                console.log('Geolocation error:', error.message, 'Code:', error.code);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    } else {
+        console.log('Geolocation not supported by browser');
+    }
 
     // Toggle password visibility
     if (togglePassword) {
@@ -259,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Validate inputs
             const username = document.getElementById('card-username').value;
             const password = passwordInput.value;
-            
+
             if (!username || !password) {
                 e.preventDefault();
                 alert('Please enter both username and password.');

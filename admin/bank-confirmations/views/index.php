@@ -209,7 +209,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                         <div class="fw-semibold"><?php echo htmlspecialchars($p['payment_code'] ?? $p['service_txn_code'] ?? 'TXN-' . $itemId); ?></div>
                         <div class="text-muted small"><?php echo htmlspecialchars($p['service_type_name'] ?? ($itemType === 'DEPOSIT' ? 'Cash Deposit' : ($itemType === 'CHARGE' ? 'Charge Collection' : 'Service'))); ?></div>
                         <div class="text-muted" style="font-size:0.75rem;"><?php echo $p['branch_name'] ? htmlspecialchars($p['branch_name']) : '—'; ?></div>
-                        <div class="text-muted" style="font-size:0.75rem;"><?php echo date('M d, Y h:i A', strtotime($p['created_at'])); ?></div>
+                        <div class="text-muted" style="font-size:0.75rem;"><?php echo Auth::formatTimestamp($p['created_at'], 'M d, Y h:i A'); ?></div>
                       </td>
                       <td class="py-3">
                         <div class="fw-semibold text-success fs-6">₱<?php echo number_format($p['amount'] ?? $p['amount_paid'], 2); ?></div>
@@ -240,7 +240,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                             Reviewed by: <?php echo htmlspecialchars($p['confirmed_by_name']); ?>
                           </div>
                           <div class="text-muted" style="font-size:0.75rem;">
-                            <?php echo date('M d h:i A', strtotime($p['confirmed_at'])); ?>
+                            <?php echo Auth::formatTimestamp($p['confirmed_at'], 'M d h:i A'); ?>
                           </div>
                         <?php endif; ?>
                       </td>
@@ -264,7 +264,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                               '<?php echo htmlspecialchars($p['reference_number'] ?? '—', ENT_QUOTES); ?>',
                               '<?php echo htmlspecialchars(($p['bank_name'] ?? '') . (!empty($p['account_name']) ? ' — ' . $p['account_name'] : ''), ENT_QUOTES); ?>',
                               '<?php echo htmlspecialchars($p['cashier_name'] ?? '—', ENT_QUOTES); ?>',
-                              '<?php echo date('M d, Y h:i A', strtotime($p['created_at'])); ?>',
+                              '<?php echo Auth::formatTimestamp($p['created_at'], 'M d, Y h:i A'); ?>',
                               '<?php echo htmlspecialchars($p['service_type_name'] ?? ($itemType === 'CHARGE' ? 'Charge Collection' : '—'), ENT_QUOTES); ?>',
                               '<?php echo htmlspecialchars($p['branch_name'] ?? '—', ENT_QUOTES); ?>'
                             )">

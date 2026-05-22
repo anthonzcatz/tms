@@ -71,6 +71,9 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </div>
                   </div>
                   <div class="col-auto d-flex gap-2">
+                    <a href="<?php echo BASE_URL; ?>/admin/pos/printer-setup" class="btn btn-outline-info btn-sm rounded-2">
+                      <span class="fas fa-print me-1"></span>Printer Setup
+                    </a>
                     <?php if ($activeSession): ?>
                       <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-2 bg-success bg-opacity-10 border border-success" style="cursor: pointer;" onclick="toggleSessionBanner()">
                         <span class="fas fa-circle text-success session-active-pulse" style="font-size: 8px;"></span>
@@ -125,7 +128,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   <strong>Active Session</strong>
                   <span class="text-muted ms-2">
                     <?php echo htmlspecialchars($activeSession['branch_name'] ?? '—'); ?> •
-                    Started <?php echo date('M j, Y h:i A', strtotime($activeSession['started_at'])); ?> •
+                    Started <?php echo Auth::formatTimestamp($activeSession['started_at'], 'M j, Y h:i A'); ?> •
                     Opening Cash: <strong>₱<?php echo number_format($activeSession['starting_cash'], 2); ?></strong>
                   </span>
                 </div>
@@ -466,6 +469,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     <?php include __DIR__ . '/modals/item_entry.php'; ?>
     <?php include __DIR__ . '/modals/clear_cart.php'; ?>
     <?php include __DIR__ . '/modals/cancel_ticket.php'; ?>
+    <?php include __DIR__ . '/modals/reprint_receipt.php'; ?>
 
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
@@ -501,7 +505,44 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     window.POS_USER_ROLE = '<?php echo $userRoleCode; ?>';
     window.POS_CAN_OPEN = (window.POS_USER_ROLE === 'SUPER_ADMIN' || window.POS_USER_ROLE === 'MANAGER') ? window.POS_SETTINGS.manager_can_open : window.POS_SETTINGS.cashier_can_open;
     window.POS_CAN_CLOSE = (window.POS_USER_ROLE === 'SUPER_ADMIN' || window.POS_USER_ROLE === 'MANAGER') ? window.POS_SETTINGS.manager_can_close : window.POS_SETTINGS.cashier_can_close;
+
+    // Printer Settings
+    window.PRINTER_SETTINGS = {
+        enabled: <?php echo ($printerSettings['receipt_printing_enabled'] ?? 1) ? 'true' : 'false'; ?>,
+        paperWidth: '<?php echo $printerSettings['receipt_paper_width'] ?? '80mm'; ?>',
+        autoPrint: <?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'true' : 'false'; ?>,
+        showPreview: <?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'true' : 'false'; ?>,
+        copies: <?php echo intval($printerSettings['receipt_copies'] ?? 1); ?>,
+        autoCut: <?php echo ($printerSettings['receipt_auto_cut'] ?? 1) ? 'true' : 'false'; ?>,
+        openCashDrawer: <?php echo ($printerSettings['receipt_open_cash_drawer'] ?? 0) ? 'true' : 'false'; ?>,
+        showCashier: <?php echo ($printerSettings['receipt_show_cashier'] ?? 1) ? 'true' : 'false'; ?>,
+        showPaymentMethod: <?php echo ($printerSettings['receipt_show_payment_method'] ?? 1) ? 'true' : 'false'; ?>,
+        showBranch: <?php echo ($printerSettings['receipt_show_branch'] ?? 1) ? 'true' : 'false'; ?>,
+        showTin: <?php echo ($printerSettings['receipt_show_tin'] ?? 1) ? 'true' : 'false'; ?>,
+        showServiceFee: <?php echo ($printerSettings['receipt_show_service_fee'] ?? 1) ? 'true' : 'false'; ?>,
+        showBaseAmount: <?php echo ($printerSettings['receipt_show_base_amount'] ?? 1) ? 'true' : 'false'; ?>,
+        showDiscount: <?php echo ($printerSettings['receipt_show_discount'] ?? 1) ? 'true' : 'false'; ?>,
+        qrEnabled: <?php echo ($printerSettings['receipt_qr_code_enabled'] ?? 0) ? 'true' : 'false'; ?>,
+        qrFormat: '<?php echo $printerSettings['receipt_qr_format'] ?? 'TRANSACTION_ID'; ?>',
+        logoEnabled: <?php echo ($printerSettings['receipt_logo_enabled'] ?? 0) ? 'true' : 'false'; ?>,
+        printerType: '<?php echo $printerSettings['printer_type'] ?? 'THERMAL'; ?>',
+        headerText: '<?php echo htmlspecialchars($printerSettings['receipt_header_text'] ?? ''); ?>',
+        footerText: '<?php echo htmlspecialchars($printerSettings['receipt_footer'] ?? 'Thank you for your business!'); ?>',
+        customFooter: '<?php echo htmlspecialchars($printerSettings['receipt_custom_footer'] ?? ''); ?>'
+    };
+
+    // Company Info for Receipts
+    window.COMPANY_INFO = {
+        name: '<?php echo htmlspecialchars($printerSettings['company_name'] ?? ''); ?>',
+        address: '<?php echo htmlspecialchars($printerSettings['company_address'] ?? ''); ?>',
+        contact: '<?php echo htmlspecialchars($printerSettings['company_contact_number'] ?? ''); ?>',
+        email: '<?php echo htmlspecialchars($printerSettings['company_email'] ?? ''); ?>',
+        tin: '<?php echo htmlspecialchars($printerSettings['company_tin'] ?? ''); ?>',
+        logo: '<?php echo !empty($printerSettings['system_logo']) ? BASE_URL . htmlspecialchars($printerSettings['system_logo']) : ''; ?>'
+    };
   </script>
+  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/qz-tray.min.js"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js"></script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js"></script>
 </body>
 </html>

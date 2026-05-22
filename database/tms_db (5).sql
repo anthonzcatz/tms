@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: May 15, 2026 at 02:38 AM
+-- Generation Time: May 22, 2026 at 03:12 AM
 -- Server version: 10.4.20-MariaDB
 -- PHP Version: 8.5.6
 
@@ -66,195 +66,144 @@ CREATE TABLE `activity_logs` (
 --
 
 INSERT INTO `activity_logs` (`log_id`, `user_id`, `device_id`, `action`, `module_name`, `reference_code`, `ip_address`, `old_value`, `new_value`, `created_at`) VALUES
-(1, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":1}', '2026-05-11 00:30:09'),
-(2, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":1}', '2026-05-11 01:39:37'),
-(3, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:39:46'),
-(4, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:39:51'),
-(5, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:39:58'),
-(6, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:40:02'),
-(7, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:41:10'),
-(8, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:49:53'),
-(9, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 01:49:58'),
-(10, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 02:51:21'),
-(11, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 02:56:51'),
-(12, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 04:59:15'),
-(13, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 05:36:27'),
-(14, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 05:36:40'),
-(15, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 05:37:20'),
-(16, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 05:37:20'),
-(17, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 05:37:23'),
-(18, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 06:14:17'),
-(19, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 06:14:22'),
-(20, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 07:18:10'),
-(21, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 07:45:31'),
-(22, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 07:45:37'),
-(23, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:06:33'),
-(24, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:06:37'),
-(25, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:06:50'),
-(26, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:06:54'),
-(27, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:08:54'),
-(28, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:08:58'),
-(29, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:18:44'),
-(30, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:18:49'),
-(31, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:19:48'),
-(32, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:19:52'),
-(33, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:26:38'),
-(34, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:26:41'),
-(35, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:27:07'),
-(36, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:27:10'),
-(37, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:27:49'),
-(38, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:27:52'),
-(39, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:28:56'),
-(40, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-11 08:29:32'),
-(41, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 00:14:27'),
-(42, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 00:29:15'),
-(43, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 00:29:19'),
-(44, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 01:49:43'),
-(45, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 01:52:29'),
-(46, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 02:38:03'),
-(47, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 02:51:51'),
-(48, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 03:48:54'),
-(49, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 03:49:09'),
-(50, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 03:51:16'),
-(51, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 03:51:21'),
-(52, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:01:07'),
-(53, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:28:51'),
-(54, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:28:55'),
-(55, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:32:00'),
-(56, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:32:04'),
-(57, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:32:52'),
-(58, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:32:55'),
-(59, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:35:44'),
-(60, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 05:35:47'),
-(61, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 07:36:05'),
-(62, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 09:17:34'),
-(63, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 09:20:24'),
-(64, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-12 23:36:46'),
-(65, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 00:15:30'),
-(66, 1, NULL, 'CREATE_TRANSACTION', 'WALLET_TRANSACTIONS', 'TP-20260513081623-21F9', '192.168.1.46', '{\"balance_before\":0}', '{\"wallet_id\":\"1\",\"txn_type\":\"TOPUP\",\"direction\":\"IN\",\"amount\":1000,\"balance_after\":1000,\"remarks\":\"to go test 1kyaw \"}', '2026-05-13 00:16:23'),
-(67, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 01:04:56'),
-(68, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:41'),
-(69, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:42'),
-(70, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:43'),
-(71, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:45'),
-(72, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:46'),
-(73, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:47'),
-(74, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:48'),
-(75, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 02:53:49'),
-(76, 1, NULL, 'CREATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-2', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"branch_code\":\"SANMGL_BRNCH\",\"branch_name\":\"SAN Miguel branch\",\"status\":\"active\"}', '2026-05-13 03:03:17'),
-(77, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 03:05:02'),
-(78, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-13 03:14:41'),
-(79, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 03:14:41'),
-(80, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 03:14:47'),
-(81, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-2', '192.168.1.46', '{\"branch_name\":\"SAN Miguel branch\"}', '{\"branch_name\":\"SAN Miguel branch\"}', '2026-05-13 03:25:20'),
-(82, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 05:15:47'),
-(83, 1, NULL, 'OPEN_SESSION', 'POS', 'SES-1', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"opening_cash\":1000}', '2026-05-13 05:34:01'),
-(84, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 05:52:37'),
-(85, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 05:52:40'),
-(86, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 05:54:12'),
-(87, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 05:54:15'),
-(88, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:01:45'),
-(89, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:01:48'),
-(90, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:06:37'),
-(91, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:06:40'),
-(92, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:17:18'),
-(93, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:17:21'),
-(94, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:17:44'),
-(95, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:18:39'),
-(96, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:18:43'),
-(97, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:19:41'),
-(98, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 06:19:45'),
-(99, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 07:15:08'),
-(100, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 07:15:12'),
-(101, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 07:15:18'),
-(102, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 07:15:20'),
-(103, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 07:55:49'),
-(104, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:00:43'),
-(105, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:00:48'),
-(106, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:03:59'),
-(107, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:05:52'),
-(108, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:25:31'),
-(109, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:28:04'),
-(110, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:29:06'),
-(111, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:29:09'),
-(112, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:32:03'),
-(113, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 08:32:06'),
-(114, 1, NULL, 'update', 'passenger_accounts', 'PAX-1', '192.168.1.46', '{\"passenger_id\":1,\"fullname\":\"Anthony Catalan\",\"mobile_number\":\"09343433333\",\"email\":\"catzanthonz@gmail.com\",\"region_code\":\"090000000\",\"province_code\":\"097300000\",\"city_municipality_code\":\"097319000\",\"barangay_code\":\"097319021\",\"street_address\":null,\"landmark\":null,\"zip_code\":null,\"gender\":\"female\",\"birth_date\":null,\"notes\":null,\"created_at\":\"2026-05-13 16:10:42\",\"updated_at\":null,\"deleted_at\":null}', '{\"passenger_id\":\"1\",\"fullname\":\"Anthony Catalan\",\"mobile_number\":\"09343433333\",\"email\":\"catzanthonz@gmail.com\",\"gender\":\"female\",\"region_code\":\"\",\"province_code\":\"\",\"city_municipality_code\":\"\",\"barangay_code\":\"\"}', '2026-05-13 08:59:51'),
-(115, 1, NULL, 'update', 'passenger_accounts', 'PAX-1', '192.168.1.46', '{\"passenger_id\":1,\"fullname\":\"Anthony Catalan\",\"mobile_number\":\"09343433333\",\"email\":\"catzanthonz@gmail.com\",\"region_code\":null,\"province_code\":null,\"city_municipality_code\":null,\"barangay_code\":null,\"street_address\":null,\"landmark\":null,\"zip_code\":null,\"gender\":\"female\",\"birth_date\":\"1993-02-13\",\"notes\":null,\"created_at\":\"2026-05-13 16:10:42\",\"updated_at\":\"2026-05-13 16:59:51\",\"deleted_at\":null}', '{\"passenger_id\":\"1\",\"fullname\":\"Anthony Catalan\",\"mobile_number\":\"09343433333\",\"email\":\"catzanthonz@gmail.com\",\"gender\":\"female\",\"region_code\":\"\",\"province_code\":\"\",\"city_municipality_code\":\"\",\"barangay_code\":\"\"}', '2026-05-13 09:00:06'),
-(116, 1, NULL, 'create', 'passenger_accounts', 'PAX-2', '192.168.1.46', NULL, '{\"passenger_id\":\"2\",\"fullname\":\"rutther ford pogi\",\"mobile_number\":\"09434353442\",\"email\":\"\",\"gender\":\"other\",\"region_code\":\"090000000\",\"province_code\":\"097300000\",\"city_municipality_code\":\"097318000\",\"barangay_code\":\"097318012\"}', '2026-05-13 09:02:34'),
-(117, 1, NULL, 'CREATE_TRANSACTION', 'WALLET_TRANSACTIONS', 'AD-20260513171803-0C0A', '192.168.1.46', '{\"balance_before\":0}', '{\"wallet_id\":\"2\",\"txn_type\":\"ADJUSTMENT\",\"direction\":\"IN\",\"amount\":500,\"balance_after\":500,\"remarks\":\"\"}', '2026-05-13 09:18:03'),
-(118, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 09:24:32'),
-(119, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 09:24:34'),
-(120, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 09:27:15'),
-(121, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 09:27:22'),
-(122, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-13 23:52:24'),
-(123, 1, NULL, 'update', 'passenger_accounts', 'PAX-1', '192.168.1.46', '{\"passenger_id\":1,\"fullname\":\"Anthony Catalan\",\"mobile_number\":\"09343433333\",\"email\":\"catzanthonz@gmail.com\",\"region_code\":null,\"province_code\":null,\"city_municipality_code\":null,\"barangay_code\":null,\"street_address\":null,\"landmark\":null,\"zip_code\":null,\"gender\":\"female\",\"birth_date\":\"1995-02-13\",\"notes\":null,\"created_at\":\"2026-05-13 16:10:42\",\"created_by\":null,\"updated_at\":\"2026-05-13 17:00:06\",\"deleted_at\":null}', '{\"passenger_id\":\"1\",\"fullname\":\"Anthony D. Catalan\",\"mobile_number\":\"09343433333\",\"email\":\"catzanthonz@gmail.com\",\"gender\":\"female\",\"region_code\":\"\",\"province_code\":\"\",\"city_municipality_code\":\"\",\"barangay_code\":\"\"}', '2026-05-14 00:23:16'),
-(124, 1, NULL, 'update', 'passenger_accounts', 'PAX-2', '192.168.1.46', '{\"passenger_id\":2,\"fullname\":\"rutther ford pogi\",\"mobile_number\":\"09434353442\",\"email\":null,\"region_code\":\"090000000\",\"province_code\":\"097300000\",\"city_municipality_code\":\"097318000\",\"barangay_code\":\"097318012\",\"street_address\":null,\"landmark\":null,\"zip_code\":null,\"gender\":\"other\",\"birth_date\":\"2001-06-26\",\"notes\":\"xxx\",\"created_at\":\"2026-05-13 17:02:34\",\"created_by\":1,\"updated_at\":null,\"deleted_at\":null}', '{\"passenger_id\":\"2\",\"fullname\":\"rutther ford pogi\",\"mobile_number\":\"09434353442\",\"email\":\"\",\"gender\":\"other\",\"region_code\":\"\",\"province_code\":\"\",\"city_municipality_code\":\"\",\"barangay_code\":\"\"}', '2026-05-14 00:32:36'),
-(125, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 00:37:31'),
-(126, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 00:37:35'),
-(127, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 00:42:41'),
-(128, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 00:42:45'),
-(129, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 01:05:04'),
-(130, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 01:05:06'),
-(131, 1, NULL, 'create', 'passenger_accounts', 'PAX-3', '192.168.1.46', NULL, '{\"passenger_id\":\"3\",\"fullname\":\"Henrty Pas\",\"mobile_number\":\"09954345344\",\"email\":\"\",\"gender\":\"female\",\"region_code\":\"040000000\",\"province_code\":\"043400000\",\"city_municipality_code\":\"043407000\",\"barangay_code\":\"043407002\"}', '2026-05-14 01:07:13'),
-(132, 1, NULL, 'update', 'passenger_accounts', 'PAX-3', '192.168.1.46', '{\"passenger_id\":3,\"fullname\":\"Henrty Pas\",\"mobile_number\":\"09954345344\",\"email\":null,\"region_code\":\"040000000\",\"province_code\":\"043400000\",\"city_municipality_code\":\"043407000\",\"barangay_code\":\"043407002\",\"street_address\":null,\"landmark\":null,\"zip_code\":null,\"gender\":\"female\",\"birth_date\":null,\"notes\":null,\"created_at\":\"2026-05-14 09:07:13\",\"created_by\":1,\"updated_at\":null,\"deleted_at\":null}', '{\"passenger_id\":\"3\",\"fullname\":\"Henrty Apas\",\"mobile_number\":\"09954345344\",\"email\":\"\",\"gender\":\"female\",\"region_code\":\"\",\"province_code\":\"\",\"city_municipality_code\":\"\",\"barangay_code\":\"\"}', '2026-05-14 01:07:39'),
-(133, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 01:09:37'),
-(134, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 01:10:19'),
-(135, 1, NULL, 'create', 'passenger_accounts', 'PAX-4', '192.168.1.46', NULL, '{\"passenger_id\":\"4\",\"fullname\":\"Ozzy Ace\",\"mobile_number\":\"\",\"email\":\"\",\"gender\":\"female\",\"region_code\":\"090000000\",\"province_code\":\"097300000\",\"city_municipality_code\":\"097338000\",\"barangay_code\":\"097338013\"}', '2026-05-14 01:10:38'),
-(136, 1, NULL, 'UPDATE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-2', '192.168.1.46', '{\"service_type_id\":2,\"code\":\"PRINT_FEE\",\"name\":\"Print Fee\",\"description\":\"Document printing service fee\",\"default_amount\":\"5.00\",\"allow_custom_amount\":1,\"requires_wallet\":0,\"is_active\":1,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":null}', '{\"code\":\"PRINT_FEE\",\"name\":\"Print Fee\"}', '2026-05-14 01:28:02'),
-(137, 1, NULL, 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-4', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 01:29:33'),
-(138, 1, NULL, 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-4', '192.168.1.46', '{\"is_active\":0}', '{\"is_active\":1}', '2026-05-14 01:29:41'),
-(139, 1, NULL, 'UPDATE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-1', '192.168.1.46', '{\"service_type_id\":1,\"code\":\"TICKET_SALE\",\"name\":\"Ticket Sale\",\"description\":\"Sale of bus\\/ferry\\/plane ticket\",\"default_amount\":\"0.00\",\"allow_custom_amount\":1,\"requires_wallet\":1,\"is_active\":1,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":null}', '{\"code\":\"TICKET_SALE\",\"name\":\"Ticket Sale\"}', '2026-05-14 01:30:13'),
-(140, 1, NULL, 'update', 'passenger_accounts', 'PAX-4', '192.168.1.46', '{\"passenger_id\":4,\"fullname\":\"Ozzy Ace\",\"mobile_number\":null,\"email\":null,\"region_code\":\"090000000\",\"province_code\":\"097300000\",\"city_municipality_code\":\"097338000\",\"barangay_code\":\"097338013\",\"street_address\":null,\"landmark\":null,\"zip_code\":null,\"gender\":\"female\",\"birth_date\":null,\"notes\":null,\"created_at\":\"2026-05-14 09:10:38\",\"created_by\":1,\"updated_at\":null,\"deleted_at\":null}', '{\"passenger_id\":\"4\",\"fullname\":\"Ozzy Ace\",\"mobile_number\":\"09443542334\",\"email\":\"\",\"gender\":\"female\",\"region_code\":\"\",\"province_code\":\"\",\"city_municipality_code\":\"\",\"barangay_code\":\"\"}', '2026-05-14 01:36:52'),
-(141, 1, NULL, 'TOGGLE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-4', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 01:44:10'),
-(142, 1, NULL, 'TOGGLE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-5', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 01:44:12'),
-(143, 1, NULL, 'TOGGLE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-6', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 01:44:14'),
-(144, 1, NULL, 'UPDATE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-3', '192.168.1.46', '{\"method_id\":3,\"method_code\":\"CHARGE\",\"method_name\":\"Charge (Utang)\",\"method_type\":\"CHARGE\",\"description\":null,\"icon\":null,\"requires_confirmation\":0,\"requires_customer\":1,\"requires_reference\":0,\"is_active\":1,\"sort_order\":3,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":null}', '{\"method_code\":\"CHARGE\",\"method_name\":\"Charge (Utang)\",\"method_type\":\"CHARGE\"}', '2026-05-14 01:47:58'),
-(145, 1, NULL, 'CREATE_BANK_ACCOUNT', 'BANK_ACCOUNTS', 'BA-1', '192.168.1.46', NULL, '{\"bank_name\":\"BPO\",\"account_name\":\"BPO ADV\"}', '2026-05-14 02:02:25'),
-(146, 1, NULL, 'UPDATE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-2', '192.168.1.46', '{\"method_id\":2,\"method_code\":\"BANK_TRANSFER\",\"method_name\":\"Bank Transfer\",\"method_type\":\"BANK_TRANSFER\",\"description\":null,\"icon\":null,\"requires_confirmation\":1,\"requires_customer\":0,\"requires_reference\":1,\"is_active\":1,\"sort_order\":2,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":null}', '{\"method_code\":\"BANK_TRANSFER\",\"method_name\":\"Bank Transfer\",\"method_type\":\"BANK_TRANSFER\"}', '2026-05-14 02:07:35'),
-(147, 1, NULL, 'UPDATE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-2', '192.168.1.46', '{\"method_id\":2,\"method_code\":\"BANK_TRANSFER\",\"method_name\":\"Bank Transfer\",\"method_type\":\"BANK_TRANSFER\",\"description\":null,\"icon\":null,\"requires_confirmation\":1,\"requires_customer\":0,\"requires_reference\":0,\"is_active\":1,\"sort_order\":2,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":\"2026-05-14 10:07:35\"}', '{\"method_code\":\"BANK_TRANSFER\",\"method_name\":\"Bank Transfer\",\"method_type\":\"BANK_TRANSFER\"}', '2026-05-14 02:08:01'),
-(148, 1, NULL, 'UPDATE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-3', '192.168.1.46', '{\"method_id\":3,\"method_code\":\"CHARGE\",\"method_name\":\"Charge (Utang)\",\"method_type\":\"CHARGE\",\"description\":null,\"icon\":null,\"requires_confirmation\":0,\"requires_customer\":0,\"requires_reference\":0,\"is_active\":1,\"sort_order\":3,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":\"2026-05-14 09:47:58\"}', '{\"method_code\":\"CHARGE\",\"method_name\":\"Charge (Utang)\",\"method_type\":\"CHARGE\"}', '2026-05-14 02:08:34'),
-(149, 1, NULL, 'UPDATE_PAYMENT_METHOD', 'PAYMENT_METHODS', 'PM-2', '192.168.1.46', '{\"method_id\":2,\"method_code\":\"BANK_TRANSFER\",\"method_name\":\"Bank Transfer\",\"method_type\":\"BANK_TRANSFER\",\"description\":null,\"icon\":null,\"requires_confirmation\":1,\"requires_customer\":0,\"requires_reference\":1,\"is_active\":1,\"sort_order\":2,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":\"2026-05-14 10:08:01\"}', '{\"method_code\":\"BANK_TRANSFER\",\"method_name\":\"Bank Transfer\",\"method_type\":\"BANK_TRANSFER\"}', '2026-05-14 02:18:31'),
-(150, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-21F838', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-21F838\",\"total\":322519,\"ticket_id\":\"19\",\"services_count\":0}', '2026-05-14 02:49:54'),
-(151, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 03:10:41'),
-(152, 1, NULL, 'CLOSE_SESSION', 'POS', 'SES-1', '192.168.1.46', NULL, '{\"closing_cash\":323000,\"variance\":-519}', '2026-05-14 03:12:13'),
-(153, 1, NULL, 'OPEN_SESSION', 'POS', 'SES-2', '192.168.1.46', NULL, '{\"branch_id\":\"1\",\"opening_cash\":500}', '2026-05-14 03:14:22'),
-(154, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260514-C7E4D6', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-C7E4D6\",\"ticket_id\":\"20\",\"wallet_id\":\"2\",\"passenger_id\":\"4\"}', '2026-05-14 03:16:44'),
-(155, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-C7E4D6', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-C7E4D6\",\"payment_method_id\":\"1\",\"amount\":100,\"reference\":null}', '2026-05-14 03:16:44'),
-(156, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-C7E4D6', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-C7E4D6\",\"payment_method_id\":\"2\",\"amount\":1000,\"reference\":null}', '2026-05-14 03:16:44'),
-(157, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-C7E4D6', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-C7E4D6\",\"total\":1100,\"ticket_id\":\"20\",\"services_count\":0}', '2026-05-14 03:16:44'),
-(158, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.30', NULL, '{\"session_id\":0}', '2026-05-14 03:27:00'),
-(159, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.30', NULL, '{\"session_id\":0}', '2026-05-14 03:28:11'),
-(160, 6, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.30', NULL, '{\"session_id\":0}', '2026-05-14 03:28:49'),
-(161, 6, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.30', NULL, '{\"session_id\":0}', '2026-05-14 03:32:39'),
-(162, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 05:01:10'),
-(163, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260514-2EC626', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-2EC626\",\"ticket_id\":\"21\",\"wallet_id\":\"2\",\"passenger_id\":\"4\"}', '2026-05-14 05:15:30'),
-(164, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-2EC626', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-2EC626\",\"payment_method_id\":\"1\",\"amount\":1000,\"reference\":null}', '2026-05-14 05:15:30'),
-(165, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-2EC626', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-2EC626\",\"payment_method_id\":\"2\",\"amount\":100,\"reference\":null}', '2026-05-14 05:15:30'),
-(166, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-2EC626', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-2EC626\",\"total\":1100,\"ticket_id\":\"21\",\"services_count\":0}', '2026-05-14 05:15:30'),
-(167, 1, NULL, 'CONFIRMED_BANK_TRANSFER', 'BANK_CONFIRMATIONS', 'PAY-5', '192.168.1.46', '{\"status\":\"PENDING\"}', '{\"status\":\"CONFIRMED\",\"notes\":\"confirm na\"}', '2026-05-14 05:16:45'),
-(168, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260514-A1C2CE', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-A1C2CE\",\"ticket_id\":\"22\",\"wallet_id\":\"2\",\"passenger_id\":\"4\"}', '2026-05-14 06:55:38'),
-(169, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-A1C2CE', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-A1C2CE\",\"payment_method_id\":\"1\",\"amount\":1100,\"reference\":null}', '2026-05-14 06:55:38'),
-(170, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-A1C2CE', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-A1C2CE\",\"total\":1100,\"ticket_id\":\"22\",\"services_count\":0}', '2026-05-14 06:55:38'),
-(171, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 07:01:32'),
-(172, 1, NULL, 'PROCESS_TRANSACTION', 'POS', 'SVC-20260514-154451-741-98', '192.168.1.46', NULL, '{\"transaction_code\":\"SVC-20260514-154451-741-98\",\"total\":100,\"items\":1}', '2026-05-14 07:44:51'),
-(173, 1, NULL, 'PROCESS_TRANSACTION', 'POS', 'SVC-20260514-154651-483-70', '192.168.1.46', NULL, '{\"transaction_code\":\"SVC-20260514-154651-483-70\",\"total\":2,\"items\":1}', '2026-05-14 07:46:51'),
-(174, 1, NULL, 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-2', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 07:57:08'),
-(175, 1, NULL, 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-5', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 07:57:13'),
-(176, 1, NULL, 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-1', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 07:57:15'),
-(177, 1, NULL, 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-6', '192.168.1.46', '{\"is_active\":1}', '{\"is_active\":0}', '2026-05-14 07:57:16'),
-(178, 1, NULL, 'UPDATE_SERVICE_TYPE', 'SERVICE_TYPES', 'ST-4', '192.168.1.46', '{\"service_type_id\":4,\"code\":\"SCAN_FEE\",\"name\":\"Scan Fee\",\"description\":\"Document scanning fee\",\"default_amount\":\"10.00\",\"allow_custom_amount\":1,\"requires_wallet\":0,\"is_active\":1,\"created_at\":\"2026-05-13 11:50:36\",\"updated_at\":\"2026-05-14 09:29:41\"}', '{\"code\":\"SCAN_FEE\",\"name\":\"Scan Fee\"}', '2026-05-14 07:57:49'),
-(179, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 09:02:44'),
-(180, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260514-171003-120-52', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171003-120-52\",\"ticket_id\":\"23\",\"wallet_id\":\"1\",\"passenger_id\":\"2\"}', '2026-05-14 09:10:03'),
-(181, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-171003-120-52', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171003-120-52\",\"payment_method_id\":\"1\",\"amount\":500,\"reference\":null}', '2026-05-14 09:10:03'),
-(182, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-171003-120-52', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171003-120-52\",\"total\":500,\"ticket_id\":\"23\",\"services_count\":0}', '2026-05-14 09:10:03'),
-(183, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260514-171107-131-47', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171107-131-47\",\"ticket_id\":\"24\",\"wallet_id\":\"1\",\"passenger_id\":\"2\"}', '2026-05-14 09:11:07'),
-(184, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-171107-131-47', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171107-131-47\",\"payment_method_id\":\"1\",\"amount\":500,\"reference\":null}', '2026-05-14 09:11:07'),
-(185, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-171107-131-47', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171107-131-47\",\"total\":500,\"ticket_id\":\"24\",\"services_count\":0}', '2026-05-14 09:11:07'),
-(186, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260514-171227-063-38', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171227-063-38\",\"ticket_id\":\"25\",\"wallet_id\":\"1\",\"passenger_id\":\"4\"}', '2026-05-14 09:12:27'),
-(187, 1, NULL, 'RECORD_PAYMENT', 'POS', 'TKT-20260514-171227-063-38', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171227-063-38\",\"payment_method_id\":\"1\",\"amount\":190,\"reference\":null}', '2026-05-14 09:12:27'),
-(188, 1, NULL, 'PROCESS_TICKET_TRANSACTION', 'POS', 'TKT-20260514-171227-063-38', '192.168.1.46', NULL, '{\"transaction_code\":\"TKT-20260514-171227-063-38\",\"total\":190,\"ticket_id\":\"25\",\"services_count\":0}', '2026-05-14 09:12:27'),
-(189, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-14 23:57:58');
+(1, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 01:50:31'),
+(2, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 02:24:10'),
+(3, 8, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:06:23'),
+(4, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:06:34'),
+(5, 8, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:15:55'),
+(6, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:16:02'),
+(7, 8, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:18:01'),
+(8, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:18:06'),
+(9, 8, NULL, 'OPEN_SESSION', 'POS', 'SES-1', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"opening_cash\":5000}', '2026-05-20 03:21:12'),
+(10, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-113742-467', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-113742-317\",\"ticket_id\":\"1\",\"wallet_id\":\"4\"}', '2026-05-20 03:37:42'),
+(11, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-113742-467', '192.168.1.46', NULL, '{\"wallet_id\":\"4\",\"amount\":300,\"balance_before\":\"4300.00\",\"balance_after\":4000}', '2026-05-20 03:37:42'),
+(12, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-113742-317', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-113742-317\",\"order_id\":\"1\",\"total\":411,\"tickets\":1,\"services\":0}', '2026-05-20 03:37:42'),
+(13, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-114749-844', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-114749-408\",\"ticket_id\":\"2\",\"wallet_id\":\"4\"}', '2026-05-20 03:47:49'),
+(14, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-114749-844', '192.168.1.46', NULL, '{\"wallet_id\":\"4\",\"amount\":1000,\"balance_before\":\"4000.00\",\"balance_after\":3000}', '2026-05-20 03:47:49'),
+(15, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-114749-408', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-114749-408\",\"order_id\":\"2\",\"total\":1111,\"tickets\":1,\"services\":0}', '2026-05-20 03:47:49'),
+(16, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 03:53:20'),
+(17, 1, NULL, 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', 'BANK-20260520-115402-DCFA6', '192.168.1.46', NULL, '{\"bank_account_id\":3,\"amount\":\"1000.00\",\"type\":\"RECEIPT\"}', '2026-05-20 03:54:02'),
+(18, 1, NULL, 'CONFIRMED_PAYMENT', 'Bank Confirmations', 'PAY-2', '192.168.1.46', NULL, '{\"status\":\"CONFIRMED\"}', '2026-05-20 03:54:02'),
+(19, 1, NULL, 'BANK_BALANCE_INCREASE', 'Bank Accounts', 'BPO - BPO ADV', '192.168.1.46', '{\"balance_before\":0}', '{\"balance_after\":500,\"adjustment_amount\":500,\"direction\":\"IN\",\"txn_code\":\"ADJ-20260520133020-3F1E83\"}', '2026-05-20 05:30:20'),
+(20, 1, NULL, 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', 'CP-20260520-1875E', '192.168.1.46', '{\"balance\":5}', '{\"balance\":0,\"amount_paid\":5}', '2026-05-20 05:33:48'),
+(21, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 05:37:29'),
+(22, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-133815-500', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-133815-844\",\"ticket_id\":\"3\",\"wallet_id\":\"4\"}', '2026-05-20 05:38:15'),
+(23, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-133815-500', '192.168.1.46', NULL, '{\"wallet_id\":\"4\",\"amount\":1000,\"balance_before\":\"3000.00\",\"balance_after\":2000}', '2026-05-20 05:38:15'),
+(24, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-133815-844', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-133815-844\",\"order_id\":\"3\",\"total\":1111,\"tickets\":1,\"services\":0}', '2026-05-20 05:38:15'),
+(25, 1, NULL, 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', 'CP-20260520-55A44', '192.168.1.46', '{\"balance\":1000}', '{\"balance\":500,\"amount_paid\":500}', '2026-05-20 05:48:22'),
+(26, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 05:57:15'),
+(27, 1, NULL, 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', 'CP-20260520-58630', '192.168.1.46', '{\"balance\":500}', '{\"balance\":400,\"amount_paid\":100}', '2026-05-20 06:01:43'),
+(28, 1, NULL, 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', 'CP-20260520-843D8', '192.168.1.46', '{\"balance\":400}', '{\"balance\":0,\"amount_paid\":400}', '2026-05-20 06:23:12'),
+(29, 1, NULL, 'REJECTED_PAYMENT', 'Bank Confirmations', 'PAY-5', '192.168.1.46', NULL, '{\"status\":\"REJECTED\"}', '2026-05-20 06:47:08'),
+(30, 1, NULL, 'REJECTED_PAYMENT', 'Bank Confirmations', 'PAY-5', '192.168.1.46', NULL, '{\"status\":\"REJECTED\"}', '2026-05-20 06:50:39'),
+(31, 1, NULL, 'REJECTED_PAYMENT', 'Bank Confirmations', 'PAY-5', '192.168.1.46', NULL, '{\"status\":\"REJECTED\"}', '2026-05-20 06:52:49'),
+(32, 1, NULL, 'REJECTED_CHARGE_PAYMENT', 'Bank Confirmations', 'CP-5', '192.168.1.46', NULL, '{\"status\":\"REJECTED\"}', '2026-05-20 06:58:06'),
+(33, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 07:08:39'),
+(34, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-150913-876', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-150913-370\",\"ticket_id\":\"4\",\"wallet_id\":\"4\"}', '2026-05-20 07:09:13'),
+(35, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-150913-876', '192.168.1.46', NULL, '{\"wallet_id\":\"4\",\"amount\":1000,\"balance_before\":\"2000.00\",\"balance_after\":1000}', '2026-05-20 07:09:13'),
+(36, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-150913-370', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-150913-370\",\"order_id\":\"4\",\"total\":1111,\"tickets\":1,\"services\":0}', '2026-05-20 07:09:13'),
+(37, 1, NULL, 'CONFIRMED_PAYMENT', 'Bank Confirmations', 'PAY-6', '192.168.1.46', NULL, '{\"status\":\"CONFIRMED\"}', '2026-05-20 07:11:32'),
+(38, 1, NULL, 'REJECTED_CHARGE_PAYMENT', 'Bank Confirmations', 'CP-4', '192.168.1.46', NULL, '{\"status\":\"REJECTED\"}', '2026-05-20 07:21:27'),
+(39, 1, NULL, 'COLLECT_CHARGE_PAYMENT', 'CUSTOMER_CHARGES', 'CP-20260520-7B6EF', '192.168.1.46', '{\"balance\":100}', '{\"balance\":50,\"amount_paid\":50}', '2026-05-20 07:23:57'),
+(40, 1, NULL, 'REJECTED_CHARGE_PAYMENT', 'Bank Confirmations', 'CP-6', '192.168.1.46', NULL, '{\"status\":\"REJECTED\"}', '2026-05-20 07:24:21'),
+(41, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-152606-283', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-152606-053\",\"ticket_id\":\"5\",\"wallet_id\":\"5\"}', '2026-05-20 07:26:06'),
+(42, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-152606-283', '192.168.1.46', NULL, '{\"wallet_id\":\"5\",\"amount\":500,\"balance_before\":\"10000.00\",\"balance_after\":9500}', '2026-05-20 07:26:06'),
+(43, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-152606-053', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-152606-053\",\"order_id\":\"5\",\"total\":500,\"tickets\":1,\"services\":0}', '2026-05-20 07:26:06'),
+(44, 1, NULL, 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', 'BANK-20260520-152700-E901E', '192.168.1.46', NULL, '{\"bank_account_id\":1,\"amount\":\"500.00\",\"type\":\"RECEIPT\"}', '2026-05-20 07:27:00'),
+(45, 1, NULL, 'CONFIRMED_PAYMENT', 'Bank Confirmations', 'PAY-7', '192.168.1.46', NULL, '{\"status\":\"CONFIRMED\"}', '2026-05-20 07:27:00'),
+(46, 1, NULL, 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', 'BANK-20260520-153106-907F0', '192.168.1.46', NULL, '{\"bank_account_id\":3,\"amount\":\"500.00\",\"type\":\"RECEIPT\"}', '2026-05-20 07:31:06'),
+(47, 1, NULL, 'CONFIRMED_CHARGE_PAYMENT', 'Bank Confirmations', 'CP-3', '192.168.1.46', NULL, '{\"status\":\"CONFIRMED\"}', '2026-05-20 07:31:06'),
+(48, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 08:12:40'),
+(49, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 08:17:29'),
+(50, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-152606-283', '192.168.1.46', NULL, '{\"cancellation_id\":\"1\",\"ticket_txn_id\":5,\"refund_amount\":400,\"status\":\"pending\"}', '2026-05-20 08:33:05'),
+(51, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-150913-876', '192.168.1.46', NULL, '{\"cancellation_id\":\"2\",\"ticket_txn_id\":4,\"refund_amount\":400,\"status\":\"pending\"}', '2026-05-20 08:47:52'),
+(52, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-133815-500', '192.168.1.46', NULL, '{\"cancellation_id\":\"3\",\"ticket_txn_id\":3,\"refund_amount\":500,\"status\":\"pending\"}', '2026-05-20 08:52:56'),
+(53, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-114749-844', '192.168.1.46', NULL, '{\"cancellation_id\":\"4\",\"ticket_txn_id\":2,\"refund_amount\":111,\"status\":\"pending\"}', '2026-05-20 08:57:05'),
+(54, 1, NULL, 'CANCELLATION_APPROVED', 'POS', 'TKT-20260520-114749-844', '192.168.1.46', '{\"status\":\"pending\"}', '{\"status\":\"approved\",\"cancellation_id\":4,\"ticket_txn_id\":2,\"refund_amount\":111,\"wallet_balance_before\":1000,\"wallet_balance_after\":1111,\"wallet_txn_code\":\"RF-20260520-165922-408\",\"remarks\":\"ok na\"}', '2026-05-20 08:59:22'),
+(55, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-113742-467', '192.168.1.46', NULL, '{\"cancellation_id\":\"5\",\"ticket_txn_id\":1,\"refund_amount\":300,\"status\":\"pending\"}', '2026-05-20 09:05:23'),
+(56, 1, NULL, 'CANCELLATION_APPROVED', 'POS', 'TKT-20260520-113742-467', '192.168.1.46', '{\"status\":\"pending\"}', '{\"status\":\"approved\",\"cancellation_id\":5,\"ticket_txn_id\":1,\"refund_amount\":300,\"wallet_balance_before\":1111,\"wallet_balance_after\":1411,\"wallet_txn_code\":\"RF-20260520-170602-926\",\"remarks\":\"xxx\"}', '2026-05-20 09:06:02'),
+(57, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-170907-915', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-170907-477\",\"ticket_id\":\"6\",\"wallet_id\":\"4\"}', '2026-05-20 09:09:08'),
+(58, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-170907-915', '192.168.1.46', NULL, '{\"wallet_id\":\"4\",\"amount\":1000,\"balance_before\":\"1411.00\",\"balance_after\":411}', '2026-05-20 09:09:08'),
+(59, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-170907-477', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-170907-477\",\"order_id\":\"6\",\"total\":1111,\"tickets\":1,\"services\":0}', '2026-05-20 09:09:08'),
+(60, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-171840-733', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-171840-591\",\"ticket_id\":\"7\",\"wallet_id\":\"5\"}', '2026-05-20 09:18:40'),
+(61, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-171840-733', '192.168.1.46', NULL, '{\"wallet_id\":\"5\",\"amount\":1000,\"balance_before\":\"9500.00\",\"balance_after\":8500}', '2026-05-20 09:18:40'),
+(62, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-171840-591', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-171840-591\",\"order_id\":\"7\",\"total\":1000,\"tickets\":1,\"services\":0}', '2026-05-20 09:18:40'),
+(63, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-171840-733', '192.168.1.46', NULL, '{\"cancellation_id\":\"6\",\"ticket_txn_id\":7,\"refund_amount\":500,\"status\":\"pending\"}', '2026-05-20 09:19:34'),
+(64, 1, NULL, 'CANCELLATION_APPROVED', 'POS', 'TKT-20260520-171840-733', '192.168.1.46', '{\"status\":\"pending\"}', '{\"status\":\"approved\",\"cancellation_id\":6,\"ticket_txn_id\":7,\"refund_amount\":500,\"wallet_balance_before\":8500,\"wallet_balance_after\":9000,\"wallet_txn_code\":\"RF-20260520-171949-949\",\"remarks\":\"fdsfsd\"}', '2026-05-20 09:19:49'),
+(65, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260520-172026-598', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-172026-057\",\"ticket_id\":\"8\",\"wallet_id\":\"5\"}', '2026-05-20 09:20:26'),
+(66, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260520-172026-598', '192.168.1.46', NULL, '{\"wallet_id\":\"5\",\"amount\":500,\"balance_before\":\"9000.00\",\"balance_after\":8500}', '2026-05-20 09:20:26'),
+(67, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260520-172026-057', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260520-172026-057\",\"order_id\":\"8\",\"total\":500,\"tickets\":1,\"services\":0}', '2026-05-20 09:20:26'),
+(68, 8, NULL, 'TICKET_CANCEL_REQUEST', 'POS', 'TKT-20260520-172026-598', '192.168.1.46', NULL, '{\"cancellation_id\":\"7\",\"ticket_txn_id\":8,\"refund_amount\":400,\"status\":\"pending\"}', '2026-05-20 09:20:50'),
+(69, 1, NULL, 'CANCELLATION_REJECTED', 'POS', 'TKT-20260520-172026-598', '192.168.1.46', '{\"status\":\"pending\"}', '{\"status\":\"rejected\",\"cancellation_id\":7,\"ticket_txn_id\":8,\"rejection_reason\":\"dwd\",\"remarks\":\"aa\"}', '2026-05-20 09:21:35'),
+(70, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 23:35:56'),
+(71, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-20 23:37:55'),
+(72, 1, NULL, 'CLOSE_SESSION', 'POS', 'SES-1', '192.168.1.46', NULL, '{\"closing_cash\":3500,\"variance\":-3744}', '2026-05-21 00:36:54'),
+(73, 8, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 00:45:07'),
+(74, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 00:45:16'),
+(75, 1, NULL, 'OPEN_SESSION', 'POS', 'SES-2', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"opening_cash\":0}', '2026-05-21 00:54:09'),
+(76, 1, NULL, 'OPEN_SESSION', 'POS', 'SES-3', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"opening_cash\":500,\"opened_by_manager\":1,\"cashier_user_id\":\"8\"}', '2026-05-21 01:00:51'),
+(77, 8, NULL, 'OPEN_SESSION', 'POS', 'SES-4', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"opening_cash\":555}', '2026-05-21 01:02:32'),
+(78, 8, NULL, 'OPEN_SESSION', 'POS', 'SES-5', '192.168.1.46', NULL, '{\"branch_id\":\"2\",\"opening_cash\":1111}', '2026-05-21 01:06:10'),
+(79, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 01:46:21'),
+(80, 1, NULL, 'CREATE_SERVICE_FEE', 'SERVICE_FEE_MANAGEMENT', 'FEE-4', '192.168.1.46', NULL, '{\"fee_id\":\"4\",\"provider_id\":\"2\",\"branch_id\":\"2\",\"fee_type\":\"Service fee\",\"fee_value\":120,\"status\":\"active\"}', '2026-05-21 01:48:07'),
+(81, 8, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260521-095822-210', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260521-095822-484\",\"ticket_id\":\"9\",\"wallet_id\":\"5\"}', '2026-05-21 01:58:22'),
+(82, 8, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260521-095822-210', '192.168.1.46', NULL, '{\"wallet_id\":\"5\",\"amount\":1000,\"balance_before\":\"8500.00\",\"balance_after\":7500}', '2026-05-21 01:58:22'),
+(83, 8, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260521-095822-484', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260521-095822-484\",\"order_id\":\"9\",\"total\":1000,\"tickets\":1,\"services\":0}', '2026-05-21 01:58:22'),
+(84, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-21 02:14:41'),
+(85, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-21 02:15:06'),
+(86, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-21 03:06:22'),
+(87, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-1', '192.168.1.46', '{\"branch_name\":\"Main Branch\"}', '{\"branch_name\":\"Main Branch\"}', '2026-05-21 03:06:37'),
+(88, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-2', '192.168.1.46', '{\"branch_name\":\"SAN Miguel branch\"}', '{\"branch_name\":\"SAN Miguel branch\"}', '2026-05-21 03:20:00'),
+(89, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-2', '192.168.1.46', '{\"branch_name\":\"SAN Miguel branch\"}', '{\"branch_name\":\"SAN Miguel branch\"}', '2026-05-21 03:20:39'),
+(90, 1, NULL, 'UPDATE_BRANCH', 'BRANCH_MANAGEMENT', 'BRANCH-2', '192.168.1.46', '{\"branch_name\":\"SAN Miguel branch\"}', '{\"branch_name\":\"SAN Miguel branch\"}', '2026-05-21 03:21:29'),
+(91, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 03:30:02'),
+(92, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 03:39:44'),
+(93, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 03:39:53'),
+(94, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":0}', '2026-05-21 05:09:04'),
+(95, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":158}', '2026-05-21 07:10:15'),
+(96, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":158}', '2026-05-21 07:14:25'),
+(97, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":159}', '2026-05-21 07:14:36'),
+(98, 1, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":159}', '2026-05-21 07:15:52'),
+(99, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":160}', '2026-05-21 07:16:02'),
+(100, 6, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.21', NULL, '{\"session_id\":161}', '2026-05-21 07:24:11'),
+(101, 6, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.21', NULL, '{\"session_id\":161}', '2026-05-21 07:24:32'),
+(102, 6, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.21', NULL, '{\"session_id\":162}', '2026-05-21 07:26:07'),
+(103, 6, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.21', NULL, '{\"session_id\":162}', '2026-05-21 07:26:22'),
+(104, 1, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":160}', '2026-05-21 07:34:07'),
+(105, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":163}', '2026-05-21 07:34:17'),
+(106, 1, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":163}', '2026-05-21 07:40:06'),
+(107, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":164}', '2026-05-21 07:41:32'),
+(108, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.66', NULL, '{\"session_id\":165}', '2026-05-21 07:47:20'),
+(109, 1, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":164}', '2026-05-21 07:51:40'),
+(110, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":166}', '2026-05-21 07:52:07'),
+(111, 1, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.83', NULL, '{\"session_id\":165}', '2026-05-21 07:52:11'),
+(112, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":166}', '2026-05-21 07:56:07'),
+(113, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":167}', '2026-05-21 07:56:11'),
+(114, 8, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":168}', '2026-05-21 08:15:51'),
+(115, 8, NULL, 'SESSION_TERMINATED', 'AUTH', NULL, '192.168.1.46', NULL, '{\"reason\":\"time_restriction\"}', '2026-05-21 08:22:19'),
+(116, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":169}', '2026-05-21 08:23:26'),
+(117, 1, NULL, 'SESSION_EXPIRED', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":167}', '2026-05-21 08:34:22'),
+(118, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":170}', '2026-05-21 08:34:27'),
+(119, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":170}', '2026-05-21 08:38:23'),
+(120, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":171}', '2026-05-21 08:38:26'),
+(121, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":171}', '2026-05-21 08:42:23'),
+(122, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":172}', '2026-05-21 08:42:26'),
+(123, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":172}', '2026-05-21 08:45:43'),
+(124, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":173}', '2026-05-21 08:45:47'),
+(125, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":173}', '2026-05-21 08:46:10'),
+(126, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":174}', '2026-05-21 08:46:19'),
+(127, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":174}', '2026-05-21 08:46:53'),
+(128, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":175}', '2026-05-21 08:46:58'),
+(129, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":175}', '2026-05-21 09:05:10'),
+(130, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":176}', '2026-05-21 09:06:43'),
+(131, 1, NULL, 'LOGIN', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":177}', '2026-05-22 00:01:50'),
+(132, 1, NULL, 'OPEN_SESSION', 'POS', 'SES-6', '192.168.1.46', NULL, '{\"branch_id\":\"1\",\"opening_cash\":555}', '2026-05-22 00:28:01'),
+(133, 1, NULL, 'CLOSE_SESSION', 'POS', 'SES-6', '192.168.1.46', NULL, '{\"closing_cash\":0,\"variance\":-555}', '2026-05-22 00:34:17'),
+(134, 1, NULL, 'OPEN_SESSION', 'POS', 'SES-7', '192.168.1.46', NULL, '{\"branch_id\":\"1\",\"opening_cash\":111}', '2026-05-22 00:34:31'),
+(135, 1, NULL, 'CREATE_TICKET_TRANSACTION', 'POS', 'TKT-20260522-084155-060', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260522-084155-536\",\"ticket_id\":\"10\",\"wallet_id\":\"1\"}', '2026-05-22 00:41:55'),
+(136, 1, NULL, 'WALLET_DEDUCTION', 'POS', 'TKT-20260522-084155-060', '192.168.1.46', NULL, '{\"wallet_id\":\"1\",\"amount\":10,\"balance_before\":\"30.00\",\"balance_after\":20}', '2026-05-22 00:41:55'),
+(137, 1, NULL, 'PROCESS_ORDER', 'POS', 'ORD-20260522-084155-536', '192.168.1.46', NULL, '{\"order_code\":\"ORD-20260522-084155-536\",\"order_id\":\"10\",\"total\":10,\"tickets\":1,\"services\":0}', '2026-05-22 00:41:55'),
+(138, 1, NULL, 'LOGOUT', 'AUTH', NULL, '192.168.1.46', NULL, '{\"session_id\":177}', '2026-05-22 00:48:15');
 
 -- --------------------------------------------------------
 
@@ -269,6 +218,7 @@ CREATE TABLE `bank_accounts` (
   `account_name` varchar(150) NOT NULL,
   `account_number` varchar(100) NOT NULL,
   `account_type` varchar(50) DEFAULT NULL,
+  `current_balance` decimal(12,2) DEFAULT 0.00,
   `payment_method_id` bigint(20) DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `notes` text DEFAULT NULL,
@@ -280,8 +230,44 @@ CREATE TABLE `bank_accounts` (
 -- Dumping data for table `bank_accounts`
 --
 
-INSERT INTO `bank_accounts` (`bank_account_id`, `branch_id`, `bank_name`, `account_name`, `account_number`, `account_type`, `payment_method_id`, `is_active`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 1, 'BPO', 'BPO ADV', '09343434343434', 'savings', 2, 1, 'xxx', '2026-05-14 02:02:25', NULL);
+INSERT INTO `bank_accounts` (`bank_account_id`, `branch_id`, `bank_name`, `account_name`, `account_number`, `account_type`, `current_balance`, `payment_method_id`, `is_active`, `notes`, `created_at`, `updated_at`) VALUES
+(1, 1, 'BPO', 'BPO ADV', '09343434343434', 'savings', 1000.00, 2, 1, 'xxx', '2026-05-14 02:02:25', NULL),
+(3, NULL, 'BPI', 'Anthonz Dumon', '09343434343434', 'savings', 6500.00, 2, 1, 'xxx', '2026-05-20 01:16:34', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `bank_transactions`
+--
+
+CREATE TABLE `bank_transactions` (
+  `bank_txn_id` bigint(20) NOT NULL,
+  `bank_account_id` bigint(20) NOT NULL,
+  `txn_code` varchar(100) DEFAULT NULL,
+  `confirmation_status` enum('PENDING','CONFIRMED','REJECTED') DEFAULT 'CONFIRMED',
+  `txn_type` enum('RECEIPT','DISBURSEMENT','TRANSFER_IN','TRANSFER_OUT','ADJUSTMENT','REFUND') DEFAULT NULL,
+  `direction` enum('IN','OUT') DEFAULT NULL,
+  `amount` decimal(12,2) DEFAULT NULL,
+  `balance_before` decimal(12,2) DEFAULT NULL,
+  `balance_after` decimal(12,2) DEFAULT NULL,
+  `reference_table` varchar(100) DEFAULT NULL,
+  `reference_id` bigint(20) DEFAULT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_by` bigint(20) DEFAULT NULL,
+  `confirmed_by` bigint(20) DEFAULT NULL,
+  `confirmed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `bank_transactions`
+--
+
+INSERT INTO `bank_transactions` (`bank_txn_id`, `bank_account_id`, `txn_code`, `confirmation_status`, `txn_type`, `direction`, `amount`, `balance_before`, `balance_after`, `reference_table`, `reference_id`, `remarks`, `created_by`, `confirmed_by`, `confirmed_at`, `created_at`) VALUES
+(1, 3, 'BANK-20260520-115402-DCFA6', 'CONFIRMED', 'RECEIPT', 'IN', 1000.00, 5000.00, 6000.00, 'transaction_payments', 2, 'Confirmed bank transfer payment', 1, NULL, NULL, '2026-05-20 03:54:02'),
+(2, 1, 'ADJ-20260520133020-3F1E83', 'CONFIRMED', 'ADJUSTMENT', 'IN', 500.00, 0.00, 500.00, NULL, NULL, 'bal adjstmnt 500', 1, NULL, NULL, '2026-05-20 05:30:20'),
+(3, 1, 'BANK-20260520-152700-E901E', 'CONFIRMED', 'RECEIPT', 'IN', 500.00, 500.00, 1000.00, 'transaction_payments', 7, 'Confirmed bank transfer payment', 1, NULL, NULL, '2026-05-20 07:27:00'),
+(4, 3, 'BANK-20260520-153106-907F0', 'CONFIRMED', 'RECEIPT', 'IN', 500.00, 6000.00, 6500.00, 'charge_payments', 3, 'Confirmed charge collection payment from passenger 2', 1, NULL, NULL, '2026-05-20 07:31:06');
 
 -- --------------------------------------------------------
 
@@ -302,6 +288,46 @@ CREATE TABLE `business_branches` (
   `zip_code` varchar(10) DEFAULT NULL,
   `contact_number` varchar(50) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
+  `monday_open` time DEFAULT '08:00:00' COMMENT 'Monday opening time',
+  `monday_close` time DEFAULT '18:00:00' COMMENT 'Monday closing time',
+  `monday_closed` tinyint(1) DEFAULT 0 COMMENT 'Monday is closed',
+  `monday_break_start` time DEFAULT NULL COMMENT 'Monday break start time',
+  `monday_break_end` time DEFAULT NULL COMMENT 'Monday break end time',
+  `tuesday_open` time DEFAULT '08:00:00' COMMENT 'Tuesday opening time',
+  `tuesday_close` time DEFAULT '18:00:00' COMMENT 'Tuesday closing time',
+  `tuesday_closed` tinyint(1) DEFAULT 0 COMMENT 'Tuesday is closed',
+  `tuesday_break_start` time DEFAULT NULL COMMENT 'Tuesday break start time',
+  `tuesday_break_end` time DEFAULT NULL COMMENT 'Tuesday break end time',
+  `wednesday_open` time DEFAULT '08:00:00' COMMENT 'Wednesday opening time',
+  `wednesday_close` time DEFAULT '18:00:00' COMMENT 'Wednesday closing time',
+  `wednesday_closed` tinyint(1) DEFAULT 0 COMMENT 'Wednesday is closed',
+  `wednesday_break_start` time DEFAULT NULL COMMENT 'Wednesday break start time',
+  `wednesday_break_end` time DEFAULT NULL COMMENT 'Wednesday break end time',
+  `thursday_open` time DEFAULT '08:00:00' COMMENT 'Thursday opening time',
+  `thursday_close` time DEFAULT '18:00:00' COMMENT 'Thursday closing time',
+  `thursday_closed` tinyint(1) DEFAULT 0 COMMENT 'Thursday is closed',
+  `thursday_break_start` time DEFAULT NULL COMMENT 'Thursday break start time',
+  `thursday_break_end` time DEFAULT NULL COMMENT 'Thursday break end time',
+  `friday_open` time DEFAULT '08:00:00' COMMENT 'Friday opening time',
+  `friday_close` time DEFAULT '18:00:00' COMMENT 'Friday closing time',
+  `friday_closed` tinyint(1) DEFAULT 0 COMMENT 'Friday is closed',
+  `friday_break_start` time DEFAULT NULL COMMENT 'Friday break start time',
+  `friday_break_end` time DEFAULT NULL COMMENT 'Friday break end time',
+  `saturday_open` time DEFAULT '08:00:00' COMMENT 'Saturday opening time',
+  `saturday_close` time DEFAULT '18:00:00' COMMENT 'Saturday closing time',
+  `saturday_closed` tinyint(1) DEFAULT 0 COMMENT 'Saturday is closed',
+  `saturday_break_start` time DEFAULT NULL COMMENT 'Saturday break start time',
+  `saturday_break_end` time DEFAULT NULL COMMENT 'Saturday break end time',
+  `sunday_open` time DEFAULT '08:00:00' COMMENT 'Sunday opening time',
+  `sunday_close` time DEFAULT '18:00:00' COMMENT 'Sunday closing time',
+  `sunday_closed` tinyint(1) DEFAULT 0 COMMENT 'Sunday is closed',
+  `sunday_break_start` time DEFAULT NULL COMMENT 'Sunday break start time',
+  `sunday_break_end` time DEFAULT NULL COMMENT 'Sunday break end time',
+  `is_24_hours` tinyint(1) DEFAULT 0 COMMENT 'If 1, branch is open 24/7 (overrides individual day hours)',
+  `max_capacity` int(11) DEFAULT 100 COMMENT 'Maximum customer capacity',
+  `manager_name` varchar(100) DEFAULT NULL COMMENT 'Branch manager name',
+  `manager_contact` varchar(50) DEFAULT NULL COMMENT 'Branch manager contact',
+  `notes` text DEFAULT NULL COMMENT 'Additional branch notes',
   `status` enum('active','inactive') DEFAULT 'active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -312,9 +338,9 @@ CREATE TABLE `business_branches` (
 -- Dumping data for table `business_branches`
 --
 
-INSERT INTO `business_branches` (`branch_id`, `branch_code`, `branch_name`, `region_code`, `province_code`, `city_municipality_code`, `barangay_code`, `street_address`, `landmark`, `zip_code`, `contact_number`, `email`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'MAIN_BRANCH', 'Main Branch', '030000000', '031400000', '031405000', NULL, '123 Main Street x', 'Near City Hall', '8000', '09171234567', 'mainbranch@example.com', 'active', '2026-05-09 01:29:12', '2026-05-13 03:14:41', NULL),
-(2, 'SANMGL_BRNCH', 'SAN Miguel branch', '090000000', '097300000', '097319000', '097319021', 'Molave Zamboangga del sur', NULL, '7032', '09234567890', 'catzanthonz@gmail.com', 'active', '2026-05-13 03:03:17', '2026-05-13 03:25:20', NULL);
+INSERT INTO `business_branches` (`branch_id`, `branch_code`, `branch_name`, `region_code`, `province_code`, `city_municipality_code`, `barangay_code`, `street_address`, `landmark`, `zip_code`, `contact_number`, `email`, `monday_open`, `monday_close`, `monday_closed`, `monday_break_start`, `monday_break_end`, `tuesday_open`, `tuesday_close`, `tuesday_closed`, `tuesday_break_start`, `tuesday_break_end`, `wednesday_open`, `wednesday_close`, `wednesday_closed`, `wednesday_break_start`, `wednesday_break_end`, `thursday_open`, `thursday_close`, `thursday_closed`, `thursday_break_start`, `thursday_break_end`, `friday_open`, `friday_close`, `friday_closed`, `friday_break_start`, `friday_break_end`, `saturday_open`, `saturday_close`, `saturday_closed`, `saturday_break_start`, `saturday_break_end`, `sunday_open`, `sunday_close`, `sunday_closed`, `sunday_break_start`, `sunday_break_end`, `is_24_hours`, `max_capacity`, `manager_name`, `manager_contact`, `notes`, `status`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, 'MAIN_BRANCH', 'Main Branch', '030000000', '031400000', '031405000', NULL, '123 Main Street ', 'Near City Hall', '8000', '09171234567', 'mainbranch@example.com', '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, 1, 100, '', '', 'xx', 'active', '2026-05-09 01:29:12', '2026-05-21 03:06:37', NULL),
+(2, 'SANMGL_BRNCH', 'SAN Miguel branch', '090000000', '097300000', '097319000', '097319020', 'mabini', 'xsdsdsd', '7032', '09234567890', 'catzanthonz@gmail.com', '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, '08:00:00', '18:00:00', 0, NULL, NULL, 0, 100, '', '', '', 'active', '2026-05-13 03:03:17', '2026-05-21 03:21:29', NULL);
 
 -- --------------------------------------------------------
 
@@ -342,16 +368,24 @@ CREATE TABLE `cashier_sessions` (
   `status` enum('OPEN','CLOSED','RECONCILED') DEFAULT 'OPEN',
   `reviewed_by` bigint(20) DEFAULT NULL,
   `reviewed_at` timestamp NULL DEFAULT NULL,
-  `notes` text DEFAULT NULL
+  `notes` text DEFAULT NULL,
+  `cash_deposit_bank_id` bigint(20) DEFAULT NULL,
+  `deposit_status` enum('PENDING','DEPOSITED','NOT_APPLICABLE') DEFAULT 'PENDING',
+  `deposited_at` timestamp NULL DEFAULT NULL,
+  `deposited_by` bigint(20) DEFAULT NULL,
+  `total_refunds` decimal(12,2) DEFAULT 0.00 COMMENT 'Total amount refunded to customers from cashier cash',
+  `total_refunds_wallet` decimal(12,2) DEFAULT 0.00 COMMENT 'Total amount refunded to wallet balance'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Dumping data for table `cashier_sessions`
 --
 
-INSERT INTO `cashier_sessions` (`session_id`, `session_code`, `cashier_user_id`, `branch_id`, `starting_cash`, `expected_cash`, `actual_cash`, `cash_variance`, `total_cash`, `total_bank_transfer`, `total_e_wallet`, `total_charge`, `total_other`, `total_sales`, `started_at`, `ended_at`, `status`, `reviewed_by`, `reviewed_at`, `notes`) VALUES
-(1, 'SES-20260513-05E92', 1, 2, 1000.00, 323519.00, 323000.00, -519.00, 0.00, 0.00, 0.00, 0.00, 0.00, 322519.00, '2026-05-13 05:34:01', '2026-05-14 03:12:13', 'CLOSED', NULL, NULL, '519 ang short'),
-(2, 'SES-20260514-1113E', 1, 1, 500.00, NULL, NULL, NULL, 102.00, 0.00, 0.00, 0.00, 0.00, 4592.00, '2026-05-14 03:14:22', NULL, 'OPEN', NULL, NULL, 'main b 500 opening');
+INSERT INTO `cashier_sessions` (`session_id`, `session_code`, `cashier_user_id`, `branch_id`, `starting_cash`, `expected_cash`, `actual_cash`, `cash_variance`, `total_cash`, `total_bank_transfer`, `total_e_wallet`, `total_charge`, `total_other`, `total_sales`, `started_at`, `ended_at`, `status`, `reviewed_by`, `reviewed_at`, `notes`, `cash_deposit_bank_id`, `deposit_status`, `deposited_at`, `deposited_by`, `total_refunds`, `total_refunds_wallet`) VALUES
+(1, 'SES-20260520-7BC26', 8, 2, 5000.00, 7244.00, 3500.00, -3744.00, 0.00, 0.00, 0.00, 0.00, 0.00, 6855.00, '2026-05-20 03:21:12', '2026-05-21 00:36:54', 'CLOSED', NULL, NULL, 'Variance\n-₱222.00\nShort', NULL, 'NOT_APPLICABLE', NULL, NULL, 0.00, 3522.00),
+(5, 'SES-20260521-2DB20', 8, 2, 1000.00, NULL, NULL, NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 1000.00, '2026-05-21 01:06:10', NULL, 'OPEN', NULL, NULL, 'san mig 1111 madula', NULL, 'PENDING', NULL, NULL, 0.00, 0.00),
+(6, 'SES-20260522-C78FB', 1, 1, 555.00, 555.00, 0.00, -555.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, '2026-05-22 00:28:01', '2026-05-22 00:34:17', 'CLOSED', NULL, NULL, '', NULL, 'NOT_APPLICABLE', NULL, NULL, 0.00, 0.00),
+(7, 'SES-20260522-6F93D', 1, 1, 111.00, NULL, NULL, NULL, 0.00, 0.00, 0.00, 0.00, 0.00, 10.00, '2026-05-22 00:34:31', NULL, 'OPEN', NULL, NULL, 'date test', NULL, 'PENDING', NULL, NULL, 0.00, 0.00);
 
 -- --------------------------------------------------------
 
@@ -369,6 +403,29 @@ CREATE TABLE `cashier_session_details` (
   `variance` decimal(12,2) DEFAULT 0.00,
   `notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cashier_transport_assignments`
+--
+
+CREATE TABLE `cashier_transport_assignments` (
+  `assignment_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL COMMENT 'User ID (cashier)',
+  `provider_id` bigint(20) DEFAULT NULL COMMENT 'Specific provider ID (NULL if using transport_type)',
+  `transport_type` enum('airline','shipping','bus','other') DEFAULT NULL COMMENT 'Transportation type (NULL if using specific provider_id)',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` bigint(20) DEFAULT NULL COMMENT 'User who created this assignment'
+) ;
+
+--
+-- Dumping data for table `cashier_transport_assignments`
+--
+
+INSERT INTO `cashier_transport_assignments` (`assignment_id`, `user_id`, `provider_id`, `transport_type`, `created_at`, `created_by`) VALUES
+(20, 8, NULL, 'airline', '2026-05-21 06:38:51', 8),
+(21, 8, NULL, 'shipping', '2026-05-21 06:38:51', 8);
 
 -- --------------------------------------------------------
 
@@ -396,6 +453,18 @@ CREATE TABLE `charge_payments` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `charge_payments`
+--
+
+INSERT INTO `charge_payments` (`charge_payment_id`, `payment_code`, `passenger_id`, `branch_id`, `payment_method_id`, `amount_paid`, `balance_before`, `balance_after`, `reference_number`, `bank_account_id`, `confirmation_status`, `confirmed_by`, `confirmed_at`, `cashier_session_id`, `notes`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'CP-20260520-6FA8E', 2, 1, 1, 5.00, 10.00, 5.00, NULL, NULL, 'NOT_REQUIRED', NULL, NULL, NULL, 'dfdfd', 1, '2026-05-20 00:12:57', NULL),
+(2, 'CP-20260520-1875E', 2, 2, 2, 5.00, 5.00, 0.00, NULL, 3, 'PENDING', NULL, NULL, NULL, '5 pesos to BPI', 1, '2026-05-20 05:33:48', NULL),
+(3, 'CP-20260520-55A44', 2, 2, 2, 500.00, 1000.00, 500.00, NULL, 3, 'CONFIRMED', 1, '2026-05-20 07:31:06', NULL, '500 to bpi and need confirmation', 1, '2026-05-20 05:48:22', NULL),
+(4, 'CP-20260520-58630', 2, 2, 2, 100.00, 500.00, 400.00, NULL, 3, 'REJECTED', 1, '2026-05-20 07:21:27', NULL, '100 to bpi', 1, '2026-05-20 06:01:43', NULL),
+(5, 'CP-20260520-843D8', 2, 2, 2, 400.00, 400.00, 0.00, NULL, 3, 'REJECTED', 1, '2026-05-20 06:58:06', NULL, '50', 1, '2026-05-20 06:23:12', NULL),
+(6, 'CP-20260520-7B6EF', 2, 2, 2, 50.00, 100.00, 50.00, NULL, 1, 'REJECTED', 1, '2026-05-20 07:24:21', NULL, '50 to bpo', 1, '2026-05-20 07:23:57', NULL);
 
 -- --------------------------------------------------------
 
@@ -430,6 +499,13 @@ CREATE TABLE `customer_charges` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `customer_charges`
+--
+
+INSERT INTO `customer_charges` (`charge_id`, `passenger_id`, `total_charged`, `total_paid`, `balance`, `last_charge_date`, `last_payment_date`, `status`, `notes`, `created_at`, `updated_at`) VALUES
+(10, 2, 1010.00, 910.00, 100.00, '2026-05-20 05:38:15', '2026-05-20 07:23:57', 'OUTSTANDING', NULL, '2026-05-19 09:29:08', '2026-05-20 07:24:21');
 
 -- --------------------------------------------------------
 
@@ -473,6 +549,8 @@ CREATE TABLE `discount_types` (
   `code` varchar(50) DEFAULT NULL,
   `name` varchar(100) DEFAULT NULL,
   `description` text DEFAULT NULL,
+  `discount_percentage` decimal(5,2) DEFAULT 0.00 COMMENT 'Discount percentage (e.g., 20.00 for 20%)',
+  `is_default` tinyint(1) DEFAULT 0 COMMENT 'Mark as default discount for dropdown selection',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -480,12 +558,62 @@ CREATE TABLE `discount_types` (
 -- Dumping data for table `discount_types`
 --
 
-INSERT INTO `discount_types` (`discount_id`, `code`, `name`, `description`, `created_at`) VALUES
-(1, 'REGULAR', 'Regular', 'Regular passenger', '2026-05-09 01:29:12'),
-(2, 'STUDENT', 'Student', 'Student discounted fare', '2026-05-09 01:29:12'),
-(3, 'SENIOR', 'Senior Citizen', 'Senior citizen discounted fare', '2026-05-09 01:29:12'),
-(4, 'PWD', 'PWD', 'Person with disability discounted fare', '2026-05-09 01:29:12'),
-(5, 'MINOR', 'Minor', 'Minor passenger discounted fare', '2026-05-09 01:29:12');
+INSERT INTO `discount_types` (`discount_id`, `code`, `name`, `description`, `discount_percentage`, `is_default`, `created_at`) VALUES
+(1, 'REGULAR', 'Regular', 'Regular passenger', 0.00, 1, '2026-05-09 01:29:12'),
+(2, 'STUDENT', 'Student', 'Student discounted fare', 10.00, 0, '2026-05-09 01:29:12'),
+(3, 'SENIOR', 'Senior Citizen', 'Senior citizen discounted fare', 20.00, 0, '2026-05-09 01:29:12'),
+(4, 'PWD', 'PWD', 'Person with disability discounted fare', 20.00, 0, '2026-05-09 01:29:12'),
+(5, 'MINOR', 'Minor', 'Minor passenger discounted fare', 20.00, 0, '2026-05-09 01:29:12');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `email_settings`
+--
+
+CREATE TABLE `email_settings` (
+  `setting_id` bigint(20) NOT NULL,
+  `email_method` enum('smtp','gmail_api') DEFAULT 'smtp',
+  `smtp_host` varchar(255) DEFAULT NULL,
+  `smtp_port` int(11) DEFAULT 587,
+  `smtp_username` varchar(255) DEFAULT NULL,
+  `smtp_password` text DEFAULT NULL,
+  `smtp_encryption` enum('tls','ssl','none') DEFAULT 'tls',
+  `sender_name` varchar(255) DEFAULT NULL,
+  `sender_email` varchar(255) DEFAULT NULL,
+  `gmail_client_id` varchar(255) DEFAULT NULL,
+  `gmail_client_secret` text DEFAULT NULL,
+  `gmail_refresh_token` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `email_settings`
+--
+
+INSERT INTO `email_settings` (`setting_id`, `email_method`, `smtp_host`, `smtp_port`, `smtp_username`, `smtp_password`, `smtp_encryption`, `sender_name`, `sender_email`, `gmail_client_id`, `gmail_client_secret`, `gmail_refresh_token`, `created_at`, `updated_at`) VALUES
+(1, 'smtp', 'smtp.gmail.com', 587, 'acatalan947@gmail.com', 'REDACTED_APP_PASSWORD', 'tls', 'Ticketing Management System', 'acatalan947@gmail.com', 'REDACTED_CLIENT_ID', 'REDACTED_CLIENT_SECRET', '', '2026-05-16 03:23:31', '2026-05-18 01:48:48'),
+(2, 'smtp', 'smtp.gmail.com', 587, 'acatalan947@gmail.com', 'YOUR_APP_PASSWORD', 'tls', 'Ticketing Management System', 'acatalan947@gmail.com', NULL, NULL, NULL, '2026-05-16 06:53:31', '2026-05-16 06:53:31');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `email_verification_tokens`
+--
+
+CREATE TABLE `email_verification_tokens` (
+  `token_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `token_type` enum('recovery_email','email_change') NOT NULL DEFAULT 'recovery_email',
+  `expires_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `used_at` timestamp NULL DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
 
@@ -764,8 +892,27 @@ CREATE TABLE `passenger_accounts` (
 INSERT INTO `passenger_accounts` (`passenger_id`, `fullname`, `mobile_number`, `email`, `region_code`, `province_code`, `city_municipality_code`, `barangay_code`, `street_address`, `landmark`, `zip_code`, `gender`, `birth_date`, `notes`, `created_at`, `created_by`, `updated_at`, `deleted_at`) VALUES
 (1, 'Anthony D. Catalan', '09343433333', 'catzanthonz@gmail.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'female', '1995-02-13', NULL, '2026-05-13 08:10:42', NULL, '2026-05-14 00:23:16', NULL),
 (2, 'rutther ford pogi', '09434353442', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'other', '2001-06-26', 'xxx', '2026-05-13 09:02:34', 1, '2026-05-14 00:32:36', NULL),
-(3, 'Henrty Apas', '09954345344', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'female', NULL, NULL, '2026-05-14 01:07:13', 1, '2026-05-14 01:07:39', NULL),
-(4, 'Ozzy Ace', '09443542334', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'female', NULL, NULL, '2026-05-14 01:10:38', 1, '2026-05-14 01:36:52', NULL);
+(3, 'Henry Apas', '09954345344', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'female', NULL, NULL, '2026-05-14 01:07:13', 1, '2026-05-19 03:28:09', NULL),
+(4, 'Ozzy Ace Lagata', '09443542334', NULL, '120000000', '128000000', '128003000', '128003016', NULL, NULL, NULL, 'female', NULL, NULL, '2026-05-14 01:10:38', 1, '2026-05-19 07:12:43', NULL),
+(5, 'Maymay', '', NULL, '120000000', '124700000', '124711000', '124711019', NULL, NULL, NULL, 'female', NULL, NULL, '2026-05-18 05:21:14', 1, '2026-05-18 05:25:15', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `password_reset_tokens`
+--
+
+CREATE TABLE `password_reset_tokens` (
+  `token_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `expires_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `used_at` timestamp NULL DEFAULT NULL,
+  `ip_address` varchar(100) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
 
@@ -783,6 +930,7 @@ CREATE TABLE `payment_methods` (
   `requires_confirmation` tinyint(1) DEFAULT 0,
   `requires_customer` tinyint(1) DEFAULT 0,
   `requires_reference` tinyint(1) DEFAULT 0,
+  `tracks_credit` tinyint(1) DEFAULT 0 COMMENT 'Whether this payment method tracks customer credit/billing (e.g., CHARGE/utang)',
   `include_in_expected_cash` tinyint(1) DEFAULT 0,
   `is_active` tinyint(1) DEFAULT 1,
   `sort_order` int(11) DEFAULT 0,
@@ -794,13 +942,13 @@ CREATE TABLE `payment_methods` (
 -- Dumping data for table `payment_methods`
 --
 
-INSERT INTO `payment_methods` (`method_id`, `method_code`, `method_name`, `method_type`, `description`, `icon`, `requires_confirmation`, `requires_customer`, `requires_reference`, `include_in_expected_cash`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES
-(1, 'CASH', 'Cash', 'CASH', NULL, NULL, 0, 0, 0, 1, 1, 1, '2026-05-13 03:50:36', NULL),
-(2, 'BANK_TRANSFER', 'Bank Transfer', 'BANK_TRANSFER', NULL, NULL, 1, 0, 0, 0, 1, 2, '2026-05-13 03:50:36', '2026-05-14 02:18:31'),
-(3, 'CHARGE', 'Charge (Utang)', 'CHARGE', NULL, NULL, 0, 0, 0, 0, 1, 3, '2026-05-13 03:50:36', '2026-05-14 02:08:34'),
-(4, 'GCASH', 'GCash', 'E_WALLET', NULL, NULL, 1, 0, 1, 0, 0, 4, '2026-05-13 03:50:36', '2026-05-14 01:44:10'),
-(5, 'PAYMAYA', 'PayMaya', 'E_WALLET', NULL, NULL, 1, 0, 1, 0, 0, 5, '2026-05-13 03:50:36', '2026-05-14 01:44:12'),
-(6, 'CHECK', 'Check', 'OTHER', NULL, NULL, 1, 0, 1, 0, 0, 6, '2026-05-13 03:50:36', '2026-05-14 01:44:14');
+INSERT INTO `payment_methods` (`method_id`, `method_code`, `method_name`, `method_type`, `description`, `icon`, `requires_confirmation`, `requires_customer`, `requires_reference`, `tracks_credit`, `include_in_expected_cash`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES
+(1, 'CASH', 'Cash', 'CASH', NULL, NULL, 0, 0, 0, 0, 1, 1, 1, '2026-05-13 03:50:36', '2026-05-18 08:25:46'),
+(2, 'BANK_TRANSFER', 'Bank Transfer', 'BANK_TRANSFER', NULL, NULL, 1, 0, 0, 0, 0, 1, 2, '2026-05-13 03:50:36', '2026-05-14 02:18:31'),
+(3, 'CHARGE', 'Charge', 'CHARGE', NULL, NULL, 0, 0, 0, 1, 0, 1, 3, '2026-05-13 03:50:36', '2026-05-20 00:29:59'),
+(4, 'GCASH', 'GCash', 'E_WALLET', NULL, NULL, 1, 0, 1, 0, 0, 0, 4, '2026-05-13 03:50:36', '2026-05-14 01:44:10'),
+(5, 'PAYMAYA', 'PayMaya', 'E_WALLET', NULL, NULL, 1, 0, 1, 0, 0, 0, 5, '2026-05-13 03:50:36', '2026-05-14 01:44:12'),
+(6, 'CHECK', 'Check', 'OTHER', NULL, NULL, 1, 0, 1, 0, 0, 0, 6, '2026-05-13 03:50:36', '2026-05-14 01:44:14');
 
 -- --------------------------------------------------------
 
@@ -831,34 +979,34 @@ INSERT INTO `permissions` (`permission_id`, `permission_code`, `permission_name`
 (2, 'VIEW_USERS', 'USERS', 'USERS', NULL, 2, 'fas fa-users', 'admin/users', 1, 1, '2026-05-11 04:34:38'),
 (3, 'CREATE_USERS', 'Create Users', 'USERS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (4, 'UPDATE_USERS', 'Update Users', 'USERS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
-(5, 'VIEW_BRANCHES', 'BRANCHES', 'BRANCHES', NULL, 3, 'fas fa-building', 'admin/settings/branches', 1, 1, '2026-05-11 04:34:38'),
+(5, 'VIEW_BRANCHES', 'BRANCHES', 'SETTINGS', NULL, 3, 'fas fa-building', 'admin/settings/branches', 1, 1, '2026-05-11 04:34:38'),
 (6, 'CREATE_BRANCHES', 'Create Branches', 'BRANCHES', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (7, 'UPDATE_BRANCHES', 'Update Branches', 'BRANCHES', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
-(8, 'CONFIRMATIONS', 'CONFIRMATIONS', 'CONFIRMATIONS', NULL, 4, 'fas fa-wallet', 'admin/bank-confirmations/', 1, 1, '2026-05-11 04:34:38'),
+(8, 'CONFIRMATIONS', 'CONFIRMATIONS', 'CONFIRMATIONS', NULL, 2, 'fas fa-wallet', 'admin/bank-confirmations/', 1, 1, '2026-05-11 04:34:38'),
 (9, 'CREATE_PROVIDERS', 'Create Providers', 'PROVIDERS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (10, 'UPDATE_PROVIDERS', 'Update Providers', 'PROVIDERS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (12, 'TOPUP_WALLETS', 'Topup Wallets', 'WALLETS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
-(13, 'VIEW_WALLET_TRANSACTIONS', 'VIEW WALLET TRANSACTIONS', 'WALLETS', NULL, 0, NULL, NULL, 2, 1, '2026-05-11 04:34:38'),
+(13, 'VIEW_WALLET_TRANSACTIONS', 'VIEW WALLET TRANSACTIONS', 'WALLETS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (14, 'VIEW_TICKETS', 'Tickets', 'TICKETS', NULL, 6, 'fas fa-ticket-alt', 'admin/tickets', 1, 1, '2026-05-11 04:34:38'),
 (15, 'CREATE_TICKETS', 'Create Tickets', 'TICKETS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (16, 'CANCEL_TICKETS', 'Cancel Tickets', 'TICKETS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (17, 'REFUND_TICKETS', 'Refund Tickets', 'TICKETS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (18, 'VIEW_REPORTS', 'Reports', 'REPORTS', NULL, 7, 'fas fa-chart-bar', 'admin/reports', 1, 1, '2026-05-11 04:34:38'),
-(19, 'VIEW_SETTINGS', 'Settings', 'SETTINGS', NULL, 8, 'fas fa-cog', 'admin/settings', 1, 1, '2026-05-11 04:34:38'),
+(19, 'VIEW_SETTINGS', 'SETTINGS', 'SETTINGS', NULL, 8, 'fas fa-cog', 'admin/settings', 1, 1, '2026-05-11 04:34:38'),
 (20, 'UPDATE_SETTINGS', 'Update Settings', 'SETTINGS', NULL, 0, NULL, NULL, 2, 0, '2026-05-11 04:34:38'),
 (21, 'ENABLE_MAINTENANCE', 'Maintenance', 'MAINTENANCE', NULL, 9, 'fas fa-tools', 'admin/maintenance', 1, 1, '2026-05-11 04:34:38'),
 (22, 'MANAGE_PERMISSIONS', 'Permissions', 'PERMISSIONS', NULL, 10, 'fas fa-shield-alt', 'admin/settings/permissions', 1, 1, '2026-05-11 04:34:38'),
 (23, 'CRM', 'crm', 'CRM', 1, 0, NULL, 'admin/dashboard/crm', 2, 1, '2026-05-11 06:14:16'),
-(24, 'E_COMMERCE', 'E-commerce', 'E-COMMERCE', 23, 0, NULL, 'admin/dashboard/e-commerce', 3, 1, '2026-05-11 06:43:32'),
+(24, 'E_COMMERCE', 'E-COMMERCE', 'E-COMMERCE', 1, 0, NULL, 'admin/dashboard/e-commerce', 2, 1, '2026-05-11 06:43:32'),
 (25, 'MANAGE_USERS', 'USER MANAGEMENT', 'SETTINGS', 19, 2, 'fas fa-user-cog', 'admin/settings/users', 2, 1, '2026-05-11 07:42:32'),
 (26, 'CREATE_USER', 'CREATE USER', 'SETTINGS', 25, 0, NULL, NULL, 3, 0, '2026-05-11 07:42:32'),
 (27, 'UPDATE_USER', 'UPDATE USER', 'SETTINGS', 25, 0, NULL, NULL, 3, 0, '2026-05-11 07:42:32'),
 (28, 'DELETE_USER', 'DELETE USER', 'SETTINGS', 25, 0, NULL, NULL, 3, 0, '2026-05-11 07:42:32'),
-(29, 'CREATE_WALLET_TRANSACTION', 'CREATE WALLET TRANSACTION', 'ADMIN', 13, 0, NULL, NULL, 2, 1, '2026-05-12 09:03:25'),
+(29, 'CREATE_WALLET_TRANSACTION', 'CREATE WALLET TRANSACTION', 'ADMIN', 13, 0, NULL, NULL, 2, 0, '2026-05-12 09:03:25'),
 (30, 'UPDATE_WALLET_TRANSACTION', 'UPDATE WALLET TRANSACTION', 'ADMIN', 13, 0, NULL, NULL, 2, 0, '2026-05-12 09:03:25'),
 (31, 'DELETE_WALLET_TRANSACTION', 'DELETE WALLET TRANSACTION', 'ADMIN', 13, 0, NULL, NULL, 2, 0, '2026-05-12 09:03:25'),
 (32, 'WALLET_TRANSACTIONS', 'WALLET TRANSACTIONS', 'WALLET TRANSACTIONS', 33, 0, NULL, 'admin/wallet/wallet-transactions', 2, 1, '2026-05-12 09:21:41'),
-(33, 'VIEW_WALLET', 'WALLET', 'ADMIN', NULL, 10, 'fas fa-wallet', 'admin/wallet', 1, 1, '2026-05-13 00:41:54'),
+(33, 'VIEW_WALLET', 'WALLET', 'WALLET', NULL, 10, 'fas fa-wallet', 'admin/wallet', 1, 1, '2026-05-13 00:41:54'),
 (34, 'VIEW_WALLET_MANAGEMENT', 'PROVIDER WALLETS', 'WALLET', 33, 2, 'fas fa-wallet', 'admin/wallet/provider-wallets', 2, 1, '2026-05-13 00:41:54'),
 (35, 'VIEW_SERVICE_FEES', 'SERVICE FEES', 'WALLET', 33, 3, 'fas fa-percent', 'admin/wallet/provider-service-fees', 2, 1, '2026-05-13 00:41:54'),
 (36, 'VIEW_PROVIDER_WALLETS', 'Provider Wallets', 'WALLET_MANAGEMENT', 34, 2, 'fas fa-wallet', 'admin/wallet/provider-wallets', 1, 1, '2026-05-13 02:37:05'),
@@ -870,9 +1018,20 @@ INSERT INTO `permissions` (`permission_id`, `permission_code`, `permission_name`
 (42, 'UPDATE_BRANCH', 'Update Branch', 'SETTINGS', 19, 4, NULL, NULL, 1, 0, '2026-05-13 02:50:50'),
 (43, 'DELETE_BRANCH', 'Delete Branch', 'SETTINGS', 19, 5, NULL, NULL, 1, 0, '2026-05-13 02:50:50'),
 (44, 'PAYMENT METHOD', 'PAYMENT_METHOD', 'PAYMENT METHOD', 19, 0, NULL, 'admin/settings/payment-methods', 2, 1, '2026-05-13 05:20:07'),
-(45, 'BANK-ACCOUNTS', 'BANK_ACCOUNTS', 'BANK ACCOUNT', 19, 0, NULL, 'admin/settings/bank-accounts/', 2, 1, '2026-05-13 05:21:10'),
-(46, 'SERVICE-TYPES', 'SERVICE-TYPES', 'SERVICE_TYPES', 19, 0, NULL, 'admin/settings/service-types/', 2, 1, '2026-05-13 05:29:36'),
-(47, 'POS', 'POS', 'POS', NULL, 0, 'fas fa-wallet', 'admin/pos/', 1, 1, '2026-05-14 03:32:11');
+(45, 'BANK-ACCOUNTS', 'BANK_ACCOUNTS', 'SETTINGS', NULL, 0, 'fas fa-cog', 'admin/settings/bank-accounts/', 1, 1, '2026-05-13 05:21:10'),
+(46, 'SERVICE-TYPES', 'SERVICE-TYPES', 'WALLET', 33, 0, NULL, 'admin/settings/service-types/', 2, 1, '2026-05-13 05:29:36'),
+(47, 'POS', 'POS', 'POS', NULL, 0, 'fas fa-wallet', 'admin/pos/', 1, 1, '2026-05-14 03:32:11'),
+(48, 'REFUND_CONFIRMATIONS', 'REFUND CONFIRMATION', 'CONFIRMATIONS', 8, 0, NULL, 'admin/refund-confirmations/', 2, 1, '2026-05-15 07:16:03'),
+(49, 'BANK_CONFIRMATION', 'BANK CONFIRMATION', 'CONFIRMATIONS', 8, 0, NULL, 'admin/bank-confirmations/', 2, 1, '2026-05-15 07:17:48'),
+(50, 'SYSTEM_SETTINGS', 'SYSTEM-SETTINGS', 'SETTINGS', NULL, 0, 'fas fa-cog', 'admin/system-settings/', 1, 1, '2026-05-15 07:38:15'),
+(51, 'MANAGE_EMAIL_SETTINGS', 'Email Settings', 'SETTINGS', 19, 6, 'fas fa-envelope', 'admin/settings/email-settings', 2, 1, '2026-05-16 03:24:59'),
+(52, 'SHIFTS', 'SHIFTS', 'CONFIRMATIONS', 8, 0, NULL, 'admin/shifts/', 2, 1, '2026-05-18 08:49:18'),
+(53, 'CREATE_WALLET', 'CREATE WALLET', 'ADMIN', 34, 0, NULL, NULL, 2, 0, '2026-05-19 00:48:17'),
+(54, 'UPDATE_WALLET', 'UPDATE WALLET', 'ADMIN', 34, 0, NULL, NULL, 2, 0, '2026-05-19 00:48:17'),
+(55, 'DELETE_WALLET', 'DELETE WALLET', 'ADMIN', 34, 0, NULL, NULL, 2, 0, '2026-05-19 00:48:17'),
+(56, 'ANALYTICS', 'ANALYTICS', 'ANALYTICS', 1, 0, NULL, 'admin/dashboard/analytics', 2, 1, '2026-05-19 06:18:23'),
+(57, 'LMS', 'LMS', 'LMS', 1, 0, NULL, 'admin/dashboard/lms', 2, 1, '2026-05-19 06:21:28'),
+(58, 'ACCOUNTS RECEIVABLE', 'ACCOUNTS RECEIVABLE', 'ACCOUNTS RECEIVABLE', NULL, 0, 'fas fa-wallet', 'admin/charges/', 1, 1, '2026-05-19 08:43:20');
 
 -- --------------------------------------------------------
 
@@ -945,6 +1104,90 @@ INSERT INTO `position` (`pos_id`, `position_name`, `pos_code`, `pos_addedby`, `p
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `pos_orders`
+--
+
+CREATE TABLE `pos_orders` (
+  `order_id` bigint(20) NOT NULL,
+  `order_code` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'e.g. ORD-20260519-093012-123-45',
+  `branch_id` bigint(20) DEFAULT NULL,
+  `cashier_session_id` bigint(20) DEFAULT NULL,
+  `created_by` bigint(20) NOT NULL,
+  `subtotal` decimal(12,2) DEFAULT 0.00 COMMENT 'Pre-discount sum of all items',
+  `discount_total` decimal(12,2) DEFAULT 0.00,
+  `grand_total` decimal(12,2) DEFAULT 0.00 COMMENT 'Amount due after discounts',
+  `original_grand_total` decimal(12,2) DEFAULT 0.00 COMMENT 'Original amount before cancellations',
+  `total_refunded_amount` decimal(12,2) DEFAULT 0.00 COMMENT 'Total amount refunded from cancellations',
+  `amount_paid` decimal(12,2) DEFAULT 0.00,
+  `change_amount` decimal(12,2) DEFAULT 0.00,
+  `status` enum('completed','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'completed',
+  `remarks` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `pos_orders`
+--
+
+INSERT INTO `pos_orders` (`order_id`, `order_code`, `branch_id`, `cashier_session_id`, `created_by`, `subtotal`, `discount_total`, `grand_total`, `original_grand_total`, `total_refunded_amount`, `amount_paid`, `change_amount`, `status`, `remarks`, `created_at`, `updated_at`) VALUES
+(1, 'ORD-20260520-113742-317', 2, 1, 8, 411.00, 0.00, 411.00, 411.00, 300.00, 411.00, 0.00, 'completed', NULL, '2026-05-20 03:37:42', '2026-05-20 09:06:02'),
+(2, 'ORD-20260520-114749-408', 2, 1, 8, 1111.00, 0.00, 1111.00, 1111.00, 111.00, 1111.00, 0.00, 'completed', NULL, '2026-05-20 03:47:49', '2026-05-20 09:13:40'),
+(3, 'ORD-20260520-133815-844', 2, 1, 8, 0.00, 0.00, 0.00, 0.00, 0.00, 1111.00, 0.00, 'completed', NULL, '2026-05-20 05:38:15', '2026-05-20 08:52:56'),
+(4, 'ORD-20260520-150913-370', 2, 1, 8, 0.00, 0.00, 0.00, 0.00, 0.00, 1111.00, 0.00, 'completed', NULL, '2026-05-20 07:09:13', '2026-05-20 08:47:52'),
+(5, 'ORD-20260520-152606-053', 2, 1, 8, 0.00, 0.00, 0.00, 0.00, 0.00, 500.00, 0.00, 'completed', NULL, '2026-05-20 07:26:06', '2026-05-20 08:33:05'),
+(6, 'ORD-20260520-170907-477', 2, 1, 8, 1111.00, 0.00, 1111.00, 1111.00, 0.00, 1211.00, 100.00, 'completed', NULL, '2026-05-20 09:09:07', '2026-05-20 09:10:38'),
+(7, 'ORD-20260520-171840-591', 2, 1, 8, 1000.00, 0.00, 1000.00, 1000.00, 500.00, 1000.00, 0.00, 'completed', NULL, '2026-05-20 09:18:40', '2026-05-20 09:19:49'),
+(8, 'ORD-20260520-172026-057', 2, 1, 8, 500.00, 0.00, 500.00, 500.00, 0.00, 500.00, 0.00, 'completed', NULL, '2026-05-20 09:20:26', '2026-05-20 09:29:32'),
+(9, 'ORD-20260521-095822-484', 2, 5, 8, 1000.00, 0.00, 1000.00, 1000.00, 0.00, 1000.00, 0.00, 'completed', NULL, '2026-05-21 01:58:22', NULL),
+(10, 'ORD-20260522-084155-536', 1, 7, 1, 10.00, 0.00, 10.00, 10.00, 0.00, 10.00, 0.00, 'completed', NULL, '2026-05-22 00:41:55', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pos_order_items`
+--
+
+CREATE TABLE `pos_order_items` (
+  `item_id` bigint(20) NOT NULL,
+  `order_id` bigint(20) NOT NULL,
+  `item_type` enum('TICKET','SERVICE') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reference_id` bigint(20) DEFAULT NULL COMMENT 'ticket_transactions.transaction_id or service_transactions.service_txn_id',
+  `transaction_code` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Denormalized for quick lookup (TKT-... or SVC-...)',
+  `service_type_id` bigint(20) DEFAULT NULL COMMENT 'For SERVICE items',
+  `wallet_id` bigint(20) DEFAULT NULL COMMENT 'For TICKET items',
+  `passenger_id` bigint(20) DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `quantity` int(11) DEFAULT 1,
+  `unit_price` decimal(12,2) DEFAULT 0.00,
+  `service_fee` decimal(12,2) DEFAULT 0.00,
+  `discount_amount` decimal(12,2) DEFAULT 0.00,
+  `total_amount` decimal(12,2) NOT NULL,
+  `origin` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `destination` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `travel_date` date DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `pos_order_items`
+--
+
+INSERT INTO `pos_order_items` (`item_id`, `order_id`, `item_type`, `reference_id`, `transaction_code`, `service_type_id`, `wallet_id`, `passenger_id`, `description`, `quantity`, `unit_price`, `service_fee`, `discount_amount`, `total_amount`, `origin`, `destination`, `travel_date`, `created_at`) VALUES
+(1, 1, 'TICKET', 1, 'TKT-20260520-113742-467', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 03:37:42'),
+(2, 2, 'TICKET', 2, 'TKT-20260520-114749-844', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 03:47:49'),
+(3, 3, 'TICKET', 3, 'TKT-20260520-133815-500', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 05:38:15'),
+(4, 4, 'TICKET', 4, 'TKT-20260520-150913-876', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 07:09:13'),
+(5, 5, 'TICKET', 5, 'TKT-20260520-152606-283', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 07:26:06'),
+(6, 6, 'TICKET', 6, 'TKT-20260520-170907-915', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 1111.00, NULL, NULL, NULL, '2026-05-20 09:09:08'),
+(7, 7, 'TICKET', 7, 'TKT-20260520-171840-733', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 09:18:40'),
+(8, 8, 'TICKET', 8, 'TKT-20260520-172026-598', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 0.00, NULL, NULL, NULL, '2026-05-20 09:20:26'),
+(9, 9, 'TICKET', 9, 'TKT-20260521-095822-210', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 1000.00, NULL, NULL, NULL, '2026-05-21 01:58:22'),
+(10, 10, 'TICKET', 10, 'TKT-20260522-084155-060', NULL, NULL, NULL, NULL, 1, 0.00, 0.00, 0.00, 10.00, NULL, NULL, NULL, '2026-05-22 00:41:55');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `provider_service_fees`
 --
 
@@ -966,9 +1209,10 @@ CREATE TABLE `provider_service_fees` (
 --
 
 INSERT INTO `provider_service_fees` (`fee_id`, `provider_id`, `branch_id`, `fee_type`, `fee_value`, `effective_start_date`, `effective_end_date`, `is_active`, `created_by`, `created_at`) VALUES
-(1, 3, NULL, 'FIXED', 100.00, NULL, NULL, 1, NULL, '2026-05-09 01:29:12'),
-(2, 2, 1, 'FIXED', 100.00, NULL, NULL, 1, NULL, '2026-05-09 01:29:12'),
-(3, 1, NULL, 'FIXED', 100.00, NULL, NULL, 1, NULL, '2026-05-09 01:29:12');
+(1, 3, 2, 'FIXED', 111.00, NULL, NULL, 1, NULL, '2026-05-09 01:29:12'),
+(2, 2, 1, 'FIXED', 200.00, NULL, NULL, 1, NULL, '2026-05-09 01:29:12'),
+(3, 1, 1, 'FIXED', 300.00, NULL, NULL, 1, NULL, '2026-05-09 01:29:12'),
+(4, 2, 2, '', 120.00, NULL, NULL, 1, 1, '2026-05-21 01:48:07');
 
 -- --------------------------------------------------------
 
@@ -982,17 +1226,20 @@ CREATE TABLE `provider_wallets` (
   `branch_id` bigint(20) NOT NULL,
   `current_balance` decimal(12,2) DEFAULT 0.00,
   `status` enum('active','inactive') DEFAULT 'active',
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Dumping data for table `provider_wallets`
 --
 
-INSERT INTO `provider_wallets` (`wallet_id`, `provider_id`, `branch_id`, `current_balance`, `status`, `updated_at`) VALUES
-(1, 3, 1, 1000.00, 'active', '2026-05-09 01:29:12'),
-(2, 2, 1, 500.00, 'active', '2026-05-09 01:29:12'),
-(3, 1, 1, 0.00, 'active', '2026-05-09 01:29:12');
+INSERT INTO `provider_wallets` (`wallet_id`, `provider_id`, `branch_id`, `current_balance`, `status`, `created_at`, `updated_at`) VALUES
+(1, 3, 1, 20.00, 'active', '2026-05-19 00:52:57', '2026-05-22 00:41:55'),
+(2, 2, 1, 0.00, 'active', '2026-05-19 00:52:57', '2026-05-19 07:53:43'),
+(3, 1, 1, 0.00, 'active', '2026-05-19 00:52:57', '2026-05-09 01:29:12'),
+(4, 3, 2, 411.00, 'active', '2026-05-19 00:54:19', '2026-05-20 09:09:08'),
+(5, 2, 2, 7500.00, 'active', '2026-05-19 01:54:56', '2026-05-21 01:58:22');
 
 -- --------------------------------------------------------
 
@@ -44923,6 +45170,10 @@ INSERT INTO `role_permissions` (`role_permission_id`, `role_id`, `permission_id`
 (127, 1, 45),
 (125, 1, 46),
 (124, 1, 47),
+(129, 1, 51),
+(136, 1, 53),
+(138, 1, 54),
+(137, 1, 55),
 (33, 2, 1),
 (32, 2, 5),
 (34, 2, 8),
@@ -44944,12 +45195,10 @@ INSERT INTO `role_permissions` (`role_permission_id`, `role_id`, `permission_id`
 (95, 3, 33),
 (102, 3, 34),
 (101, 3, 35),
-(55, 4, 1),
-(56, 4, 8),
-(57, 4, 14),
-(54, 4, 15),
-(118, 4, 24),
-(117, 4, 47),
+(131, 4, 13),
+(130, 4, 33),
+(132, 4, 34),
+(128, 4, 47),
 (61, 5, 1),
 (66, 5, 6),
 (71, 5, 7),
@@ -44981,20 +45230,6 @@ CREATE TABLE `service_transactions` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
---
--- Dumping data for table `service_transactions`
---
-
-INSERT INTO `service_transactions` (`service_txn_id`, `transaction_code`, `branch_id`, `service_type_id`, `passenger_id`, `description`, `quantity`, `unit_price`, `total_amount`, `status`, `remarks`, `cashier_session_id`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'SVC-20260513-CEDFA9', 2, 1, NULL, NULL, 1, 0.00, 0.00, 'completed', NULL, 1, 1, '2026-05-13 06:14:52', NULL, NULL),
-(3, 'SVC-20260513-63D5BC', 2, 1, NULL, NULL, 1, 0.00, 0.00, 'completed', NULL, 1, 1, '2026-05-13 06:15:18', NULL, NULL),
-(5, 'SVC-20260514-A5493A', 1, 2, NULL, NULL, 1, 5.00, 5.00, 'completed', NULL, 2, 1, '2026-05-14 07:13:46', NULL, NULL),
-(7, 'SVC-20260514-969C56', 1, 2, NULL, NULL, 1, 5.00, 5.00, 'completed', NULL, 2, 1, '2026-05-14 07:14:01', NULL, NULL),
-(9, 'SVC-20260514-40090991be8a', 1, 2, NULL, NULL, 1, 5.00, 5.00, 'completed', NULL, 2, 1, '2026-05-14 07:14:07', NULL, NULL),
-(11, 'SVC-20260514-80051798712a', 1, 2, NULL, NULL, 1, 5.00, 5.00, 'completed', NULL, 2, 1, '2026-05-14 07:14:13', NULL, NULL),
-(244, 'SVC-20260514-154451-741-98', 1, 6, NULL, NULL, 1, 100.00, 100.00, 'completed', NULL, 2, 1, '2026-05-14 07:44:51', NULL, NULL),
-(245, 'SVC-20260514-154651-483-70', 1, 3, NULL, NULL, 1, 2.00, 2.00, 'completed', NULL, 2, 1, '2026-05-14 07:46:51', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -45082,18 +45317,29 @@ CREATE TABLE `system_devices` (
   `approved_by` bigint(20) DEFAULT NULL,
   `approved_at` timestamp NULL DEFAULT NULL,
   `last_used_at` timestamp NULL DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `last_user_id` int(11) DEFAULT NULL COMMENT 'ID of the last user who attempted login from this device',
+  `last_user_username` varchar(50) DEFAULT NULL COMMENT 'Username of the last user who attempted login from this device',
+  `last_user_fullname` varchar(255) DEFAULT NULL COMMENT 'Full name of the last user who attempted login from this device',
+  `city` varchar(100) DEFAULT NULL COMMENT 'City from IP geolocation',
+  `country` varchar(100) DEFAULT NULL COMMENT 'Country from IP geolocation',
+  `latitude` decimal(10,7) DEFAULT NULL COMMENT 'Latitude from IP geolocation',
+  `longitude` decimal(10,7) DEFAULT NULL COMMENT 'Longitude from IP geolocation'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Dumping data for table `system_devices`
 --
 
-INSERT INTO `system_devices` (`device_id`, `device_code`, `device_name`, `device_type`, `branch_id`, `ip_address`, `location_name`, `device_remark`, `status`, `approved_by`, `approved_at`, `last_used_at`, `created_at`) VALUES
-(1, 'MAIN-POS-001', 'Main POS Terminal', 'desktop', NULL, NULL, 'Main Branch Front Desk', 'Primary cashier terminal', 'approved', NULL, NULL, NULL, '2026-05-09 01:29:12'),
-(2, 'DEV-C8A4244B', 'Chrome Browser', 'desktop', NULL, '192.168.1.46', 'Auto-detected', 'Auto-created during login', 'approved', NULL, NULL, '2026-05-14 23:57:58', '2026-05-11 01:39:46'),
-(3, 'DEV-565DB068', 'Safari Browser', 'mobile', NULL, '192.168.1.46', 'Auto-detected', 'Auto-created during login', 'approved', NULL, NULL, '2026-05-14 01:05:06', '2026-05-11 05:36:40'),
-(4, 'DEV-3F1F5F92', 'Chrome Browser', 'desktop', NULL, '192.168.1.30', 'Auto-detected', 'Auto-created during login', 'approved', NULL, NULL, '2026-05-14 03:32:39', '2026-05-14 03:27:00');
+INSERT INTO `system_devices` (`device_id`, `device_code`, `device_name`, `device_type`, `branch_id`, `ip_address`, `location_name`, `device_remark`, `status`, `approved_by`, `approved_at`, `last_used_at`, `created_at`, `last_user_id`, `last_user_username`, `last_user_fullname`, `city`, `country`, `latitude`, `longitude`) VALUES
+(1, 'MAIN-POS-001', 'Main POS Terminal', 'desktop', NULL, NULL, 'Main Branch Front Desk', 'Primary cashier terminal', 'approved', NULL, NULL, NULL, '2026-05-09 01:29:12', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(2, 'DEV-C8A4244B', 'Chrome Browser', 'desktop', NULL, '192.168.1.46', 'Auto-detected', 'Auto-created during login', 'approved', NULL, NULL, '2026-05-22 01:11:12', '2026-05-11 01:39:46', 1, 'admin', 'Anthony D. Catalan', NULL, NULL, NULL, NULL),
+(3, 'DEV-565DB068', 'Safari Browser', 'mobile', NULL, '192.168.1.46', 'Auto-detected', 'Auto-created during login', 'approved', NULL, NULL, '2026-05-22 01:02:45', '2026-05-11 05:36:40', 1, 'admin', 'Anthony D. Catalan', NULL, NULL, NULL, NULL),
+(4, 'DEV-3F1F5F92', 'Chrome Browser', 'desktop', NULL, '192.168.1.30', 'Auto-detected', 'Auto-created during login', 'approved', NULL, NULL, '2026-05-14 03:32:39', '2026-05-14 03:27:00', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(5, 'DEV-8A9F42FB', 'Chrome Browser', 'desktop', NULL, '192.168.1.32', 'Auto-detected', 'Auto-created during login', 'approved', 1, '2026-05-21 07:04:51', '2026-05-15 08:25:36', '2026-05-15 08:25:36', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(7, 'DEV-4AA4CC87', 'Chrome on Windows', 'desktop', NULL, '192.168.1.21', 'Auto-detected', 'Auto-registered on login', 'approved', 1, '2026-05-21 07:24:02', '2026-05-21 07:26:07', '2026-05-21 07:22:52', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(9, 'DEV-A7751A9F', 'Chrome on Android', 'mobile', NULL, '192.168.1.81', '192.168.1.81', 'Auto-registered on login', 'approved', 1, '2026-05-21 07:46:06', '2026-05-21 07:39:33', '2026-05-21 07:39:33', 1, 'admin', 'Anthony D. Catalan', NULL, NULL, NULL, NULL),
+(10, 'DEV-72322C0D', 'Chrome on Android', 'mobile', NULL, '192.168.1.66', '192.168.1.66', 'Auto-registered on login', 'approved', 1, '2026-05-21 07:46:51', '2026-05-21 07:47:20', '2026-05-21 07:46:25', 1, 'admin', 'Anthony D. Catalan', NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -45124,6 +45370,11 @@ CREATE TABLE `system_settings` (
   `company_contact_number` varchar(100) DEFAULT NULL,
   `company_email` varchar(100) DEFAULT NULL,
   `company_tagline` varchar(255) DEFAULT NULL,
+  `system_name` varchar(100) DEFAULT 'Falcon',
+  `system_logo` varchar(255) DEFAULT NULL,
+  `developer_name` varchar(255) DEFAULT NULL,
+  `developer_details` text DEFAULT NULL,
+  `footer_copyright` text DEFAULT NULL,
   `receipt_footer` text DEFAULT NULL,
   `report_footer` text DEFAULT NULL,
   `system_timezone` varchar(100) DEFAULT 'Asia/Manila',
@@ -45134,15 +45385,29 @@ CREATE TABLE `system_settings` (
   `maintenance_end` timestamp NULL DEFAULT NULL,
   `allow_admin_during_maintenance` tinyint(1) DEFAULT 1,
   `updated_by` bigint(20) DEFAULT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `cancellation_requires_confirmation` tinyint(1) DEFAULT 1 COMMENT 'Whether ticket cancellation requires confirmation before processing',
+  `cancellation_refund_processing_days` int(11) DEFAULT 3 COMMENT 'Number of days to process refunds',
+  `cancellation_allow_partial` tinyint(1) DEFAULT 0 COMMENT 'Whether partial cancellation is allowed',
+  `pos_cashier_can_open_session` tinyint(1) DEFAULT 1 COMMENT 'Whether cashiers can open their own sessions',
+  `pos_cashier_can_close_session` tinyint(1) DEFAULT 1 COMMENT 'Whether cashiers can close their own sessions',
+  `pos_manager_can_open_for_cashier` tinyint(1) DEFAULT 1 COMMENT 'Whether managers can open sessions for cashiers',
+  `pos_manager_can_close_for_cashier` tinyint(1) DEFAULT 1 COMMENT 'Whether managers can close sessions for cashiers',
+  `bank_pos_payments_require_confirmation` tinyint(1) DEFAULT 1,
+  `bank_charge_payments_require_confirmation` tinyint(1) DEFAULT 0,
+  `bank_deposits_require_confirmation` tinyint(1) DEFAULT 1,
+  `session_warning_timeout` int(11) DEFAULT 120 COMMENT 'Session warning timeout in minutes before expiry (default: 120 = 2 hours)',
+  `session_lifetime_minutes` int(11) NOT NULL DEFAULT 120 COMMENT 'How long a session stays alive in minutes (default 120 = 2 hours)',
+  `device_approval_required` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = new devices must be manually approved before login is allowed',
+  `max_concurrent_sessions` int(11) NOT NULL DEFAULT 1 COMMENT 'Maximum number of concurrent active sessions per user (1 = single-session)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Dumping data for table `system_settings`
 --
 
-INSERT INTO `system_settings` (`setting_id`, `company_name`, `company_abbreviation`, `company_address`, `company_contact_number`, `company_email`, `company_tagline`, `receipt_footer`, `report_footer`, `system_timezone`, `system_currency`, `maintenance_mode`, `maintenance_message`, `maintenance_start`, `maintenance_end`, `allow_admin_during_maintenance`, `updated_by`, `updated_at`) VALUES
-(1, 'Sample Ticketing Services Inc.', 'STSI', '123 Main Street, Philippines', '09171234567', 'support@example.com', 'Fast, Reliable & Secure Ticketing', 'Thank you for choosing our services.', 'System Generated Report', 'Asia/Manila', 'PHP', 0, 'System is under maintenance.', NULL, NULL, 1, NULL, '2026-05-09 01:29:12');
+INSERT INTO `system_settings` (`setting_id`, `company_name`, `company_abbreviation`, `company_address`, `company_contact_number`, `company_email`, `company_tagline`, `system_name`, `system_logo`, `developer_name`, `developer_details`, `footer_copyright`, `receipt_footer`, `report_footer`, `system_timezone`, `system_currency`, `maintenance_mode`, `maintenance_message`, `maintenance_start`, `maintenance_end`, `allow_admin_during_maintenance`, `updated_by`, `updated_at`, `cancellation_requires_confirmation`, `cancellation_refund_processing_days`, `cancellation_allow_partial`, `pos_cashier_can_open_session`, `pos_cashier_can_close_session`, `pos_manager_can_open_for_cashier`, `pos_manager_can_close_for_cashier`, `bank_pos_payments_require_confirmation`, `bank_charge_payments_require_confirmation`, `bank_deposits_require_confirmation`, `session_warning_timeout`, `session_lifetime_minutes`, `device_approval_required`, `max_concurrent_sessions`) VALUES
+(1, 'Ticketing Services Inc.', 'TMS', '123 Main Street, Philippines', '09171234567', 'support@example.com', 'Fast, Reliable & Secure Ticketing - Your Gateway to Seamless Travel.', 'TMS', '/api/images/logo/AYAM_AD_LOGO.png', 'TechFuxion', 'Designed and developed by @nthonz, Hoza & Fordie', '© 2026 Your Company. All rights reserved.', 'Thank you for choosing our services.', 'System Generated Report', 'Asia/Manila', 'PHP', 0, '', NULL, NULL, 1, 1, '2026-05-21 08:01:25', 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 15, 15, 0, 1);
 
 -- --------------------------------------------------------
 
@@ -45162,6 +45427,44 @@ CREATE TABLE `ticket_adjustments` (
   `created_by` bigint(20) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ticket_cancellations`
+--
+
+CREATE TABLE `ticket_cancellations` (
+  `cancellation_id` bigint(20) NOT NULL,
+  `transaction_id` bigint(20) NOT NULL,
+  `transaction_code` varchar(50) NOT NULL,
+  `passenger_id` bigint(20) DEFAULT NULL,
+  `reason` text DEFAULT NULL,
+  `cancellation_type` enum('full','partial') DEFAULT 'full',
+  `refund_amount` decimal(12,2) DEFAULT 0.00,
+  `status` enum('pending','approved','rejected','completed') DEFAULT 'pending',
+  `requested_by` bigint(20) NOT NULL,
+  `cashier_session_id` bigint(20) DEFAULT NULL,
+  `requested_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `approved_by` bigint(20) DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL,
+  `processed_at` timestamp NULL DEFAULT NULL,
+  `remarks` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `ticket_cancellations`
+--
+
+INSERT INTO `ticket_cancellations` (`cancellation_id`, `transaction_id`, `transaction_code`, `passenger_id`, `reason`, `cancellation_type`, `refund_amount`, `status`, `requested_by`, `cashier_session_id`, `requested_at`, `approved_by`, `approved_at`, `rejection_reason`, `processed_at`, `remarks`) VALUES
+(1, 5, 'TKT-20260520-152606-283', 3, '', 'partial', 400.00, 'pending', 8, 1, '2026-05-20 08:33:05', NULL, NULL, NULL, NULL, NULL),
+(2, 4, 'TKT-20260520-150913-876', 4, 'wa gi dayun', 'partial', 400.00, 'pending', 8, 1, '2026-05-20 08:47:52', NULL, NULL, NULL, NULL, NULL),
+(3, 3, 'TKT-20260520-133815-500', 2, 'xxx', 'partial', 500.00, 'pending', 8, 1, '2026-05-20 08:52:56', NULL, NULL, NULL, NULL, NULL),
+(4, 2, 'TKT-20260520-114749-844', 2, 'sss', 'partial', 111.00, 'approved', 8, 1, '2026-05-20 08:57:05', 1, '2026-05-20 08:59:22', NULL, NULL, 'ok na'),
+(5, 1, 'TKT-20260520-113742-467', 4, 'sss', 'partial', 300.00, 'approved', 8, 1, '2026-05-20 09:05:23', 1, '2026-05-20 09:06:02', NULL, NULL, 'xxx'),
+(6, 7, 'TKT-20260520-171840-733', 2, 'xxx', 'partial', 500.00, 'approved', 8, 1, '2026-05-20 09:19:34', 1, '2026-05-20 09:19:49', NULL, NULL, 'fdsfsd'),
+(7, 8, 'TKT-20260520-172026-598', 2, 'sdsd', 'partial', 400.00, 'rejected', 8, 1, '2026-05-20 09:20:50', 1, '2026-05-20 09:21:35', 'dwd', NULL, 'aa');
 
 -- --------------------------------------------------------
 
@@ -45190,6 +45493,40 @@ INSERT INTO `ticket_providers` (`provider_id`, `provider_code`, `provider_name`,
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `ticket_refunds`
+--
+
+CREATE TABLE `ticket_refunds` (
+  `refund_id` bigint(20) NOT NULL,
+  `transaction_id` bigint(20) NOT NULL,
+  `transaction_code` varchar(50) NOT NULL,
+  `cancellation_id` bigint(20) DEFAULT NULL,
+  `passenger_id` bigint(20) DEFAULT NULL,
+  `refund_amount` decimal(12,2) NOT NULL,
+  `refund_method` varchar(50) DEFAULT NULL COMMENT 'cash, bank_transfer, wallet, etc.',
+  `refund_reference` varchar(100) DEFAULT NULL COMMENT 'Reference number for the refund',
+  `status` enum('pending','processing','completed','failed') DEFAULT 'pending',
+  `requested_by` bigint(20) NOT NULL,
+  `cashier_session_id` bigint(20) DEFAULT NULL,
+  `requested_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `processed_by` bigint(20) DEFAULT NULL,
+  `processed_at` timestamp NULL DEFAULT NULL,
+  `failure_reason` text DEFAULT NULL,
+  `remarks` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `ticket_refunds`
+--
+
+INSERT INTO `ticket_refunds` (`refund_id`, `transaction_id`, `transaction_code`, `cancellation_id`, `passenger_id`, `refund_amount`, `refund_method`, `refund_reference`, `status`, `requested_by`, `cashier_session_id`, `requested_at`, `processed_by`, `processed_at`, `failure_reason`, `remarks`) VALUES
+(1, 2, 'TKT-20260520-114749-844', 4, 2, 111.00, 'cash', NULL, 'completed', 8, 1, '2026-05-20 08:57:05', 1, '2026-05-20 08:59:22', NULL, NULL),
+(2, 1, 'TKT-20260520-113742-467', 5, 4, 300.00, 'cash', NULL, 'completed', 8, 1, '2026-05-20 09:05:23', 1, '2026-05-20 09:06:02', NULL, NULL),
+(3, 7, 'TKT-20260520-171840-733', 6, 2, 500.00, 'cash', NULL, 'completed', 8, 1, '2026-05-20 09:19:34', 1, '2026-05-20 09:19:49', NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `ticket_transactions`
 --
 
@@ -45204,6 +45541,7 @@ CREATE TABLE `ticket_transactions` (
   `origin` varchar(100) DEFAULT NULL,
   `destination` varchar(100) DEFAULT NULL,
   `travel_date` date DEFAULT NULL,
+  `ticket_number` varchar(50) DEFAULT NULL,
   `base_amount` decimal(12,2) DEFAULT NULL,
   `service_fee` decimal(12,2) DEFAULT NULL,
   `discount_amount` decimal(12,2) DEFAULT NULL,
@@ -45221,23 +45559,44 @@ CREATE TABLE `ticket_transactions` (
 -- Dumping data for table `ticket_transactions`
 --
 
-INSERT INTO `ticket_transactions` (`transaction_id`, `transaction_code`, `wallet_id`, `branch_id`, `passenger_id`, `accommodation_id`, `discount_id`, `origin`, `destination`, `travel_date`, `base_amount`, `service_fee`, `discount_amount`, `total_amount`, `status`, `remarks`, `created_by`, `cashier_session_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(10, 'TKT-20260514-1301E3', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 1000.00, 100.00, 4.00, 1096.00, 'booked', NULL, 1, 1, '2026-05-14 02:41:53', NULL, NULL),
-(11, 'TKT-20260514-AC688B', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 1000.00, 100.00, 4.00, 1096.00, 'booked', NULL, 1, 1, '2026-05-14 02:42:02', NULL, NULL),
-(12, 'TKT-20260514-847005', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 1000.00, 100.00, 4.00, 1096.00, 'booked', NULL, 1, 1, '2026-05-14 02:42:16', NULL, NULL),
-(13, 'TKT-20260514-17CC7E', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 1000.00, 100.00, 4.00, 1096.00, 'booked', NULL, 1, NULL, '2026-05-14 02:43:29', NULL, NULL),
-(14, 'TKT-20260514-885113', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 1000.00, 100.00, 4.00, 1096.00, 'booked', NULL, 1, NULL, '2026-05-14 02:43:36', NULL, NULL),
-(15, 'TKT-20260514-E62C5A', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 322423.00, 100.00, 4.00, 322519.00, 'booked', NULL, 1, NULL, '2026-05-14 02:44:14', NULL, NULL),
-(16, 'TKT-20260514-527765', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 322423.00, 100.00, 4.00, 322519.00, 'booked', NULL, 1, NULL, '2026-05-14 02:44:21', NULL, NULL),
-(17, 'TKT-20260514-B28B7B', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 322423.00, 100.00, 4.00, 322519.00, 'booked', NULL, 1, 1, '2026-05-14 02:46:51', NULL, NULL),
-(18, 'TKT-20260514-1E6855', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 322423.00, 100.00, 4.00, 322519.00, 'booked', NULL, 1, 1, '2026-05-14 02:46:57', NULL, NULL),
-(19, 'TKT-20260514-21F838', 2, 2, 4, NULL, NULL, NULL, NULL, '2026-05-15', 322423.00, 100.00, 4.00, 322519.00, 'booked', NULL, 1, 1, '2026-05-14 02:49:54', NULL, NULL),
-(20, 'TKT-20260514-C7E4D6', 2, 1, 4, NULL, NULL, NULL, NULL, '2026-05-16', 1000.00, 100.00, 0.00, 1100.00, 'booked', NULL, 1, 2, '2026-05-14 03:16:44', NULL, NULL),
-(21, 'TKT-20260514-2EC626', 2, 1, 4, NULL, NULL, NULL, NULL, '2026-05-16', 1000.00, 100.00, 0.00, 1100.00, 'booked', NULL, 1, 2, '2026-05-14 05:15:30', NULL, NULL),
-(22, 'TKT-20260514-A1C2CE', 2, 1, 4, NULL, NULL, NULL, NULL, '2026-05-15', 1000.00, 100.00, 0.00, 1100.00, 'booked', NULL, 1, 2, '2026-05-14 06:55:38', NULL, NULL),
-(23, 'TKT-20260514-171003-120-52', 1, 1, 2, NULL, NULL, NULL, NULL, '2026-05-09', 500.00, 0.00, 0.00, 500.00, 'booked', NULL, 1, 2, '2026-05-14 09:10:03', NULL, NULL),
-(24, 'TKT-20260514-171107-131-47', 1, 1, 2, NULL, NULL, NULL, NULL, '2026-05-09', 500.00, 0.00, 0.00, 500.00, 'booked', NULL, 1, 2, '2026-05-14 09:11:07', NULL, NULL),
-(25, 'TKT-20260514-171227-063-38', 1, 1, 4, NULL, NULL, NULL, NULL, '2026-05-14', 190.00, 0.00, 0.00, 190.00, 'booked', NULL, 1, 2, '2026-05-14 09:12:27', NULL, NULL);
+INSERT INTO `ticket_transactions` (`transaction_id`, `transaction_code`, `wallet_id`, `branch_id`, `passenger_id`, `accommodation_id`, `discount_id`, `origin`, `destination`, `travel_date`, `ticket_number`, `base_amount`, `service_fee`, `discount_amount`, `total_amount`, `status`, `remarks`, `created_by`, `cashier_session_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, 'TKT-20260520-113742-467', 4, NULL, 4, NULL, NULL, NULL, NULL, NULL, NULL, 300.00, 111.00, 0.00, 411.00, 'cancelled', NULL, 8, 1, '2026-05-20 03:37:42', NULL, NULL),
+(2, 'TKT-20260520-114749-844', 4, NULL, 2, NULL, NULL, NULL, NULL, NULL, NULL, 1000.00, 111.00, 0.00, 1111.00, 'cancelled', NULL, 8, 1, '2026-05-20 03:47:49', NULL, NULL),
+(3, 'TKT-20260520-133815-500', 4, NULL, 2, NULL, NULL, NULL, NULL, NULL, NULL, 1000.00, 111.00, 0.00, 1111.00, 'booked', NULL, 8, 1, '2026-05-20 05:38:15', NULL, NULL),
+(4, 'TKT-20260520-150913-876', 4, NULL, 4, NULL, NULL, NULL, NULL, NULL, NULL, 1000.00, 111.00, 0.00, 1111.00, 'booked', NULL, 8, 1, '2026-05-20 07:09:13', NULL, NULL),
+(5, 'TKT-20260520-152606-283', 5, NULL, 3, NULL, NULL, NULL, NULL, NULL, NULL, 500.00, 0.00, 0.00, 500.00, 'booked', NULL, 8, 1, '2026-05-20 07:26:06', NULL, NULL),
+(6, 'TKT-20260520-170907-915', 4, NULL, 2, NULL, NULL, NULL, NULL, NULL, NULL, 1000.00, 111.00, 0.00, 1111.00, 'booked', NULL, 8, 1, '2026-05-20 09:09:07', NULL, NULL),
+(7, 'TKT-20260520-171840-733', 5, NULL, 2, NULL, NULL, NULL, NULL, NULL, NULL, 1000.00, 0.00, 0.00, 1000.00, 'cancelled', NULL, 8, 1, '2026-05-20 09:18:40', NULL, NULL),
+(8, 'TKT-20260520-172026-598', 5, NULL, 2, NULL, NULL, NULL, NULL, NULL, NULL, 500.00, 0.00, 0.00, 500.00, 'booked', NULL, 8, 1, '2026-05-20 09:20:26', NULL, NULL),
+(9, 'TKT-20260521-095822-210', 5, NULL, 4, NULL, NULL, NULL, NULL, NULL, NULL, 1000.00, 0.00, 0.00, 1000.00, 'booked', NULL, 8, 5, '2026-05-21 01:58:22', NULL, NULL),
+(10, 'TKT-20260522-084155-060', 1, NULL, 2, NULL, NULL, NULL, NULL, NULL, NULL, 10.00, 0.00, 0.00, 10.00, 'booked', NULL, 1, 7, '2026-05-22 00:41:55', NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `time_restriction_logs`
+--
+
+CREATE TABLE `time_restriction_logs` (
+  `log_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `attempted_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `denial_reason` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit log: login attempts blocked by time restrictions';
+
+--
+-- Dumping data for table `time_restriction_logs`
+--
+
+INSERT INTO `time_restriction_logs` (`log_id`, `user_id`, `attempted_at`, `ip_address`, `denial_reason`) VALUES
+(1, 8, '2026-05-21 08:02:22', '192.168.1.46', 'Login is not allowed today. Permitted days: Monday, Tuesday, Wednesday, Friday.'),
+(2, 8, '2026-05-21 08:09:52', '192.168.1.46', 'Login is not permitted today. Permitted login days: Monday, Tuesday, Wednesday, Friday.'),
+(3, 8, '2026-05-21 08:13:06', '192.168.1.46', 'You cannot log in today. Login is only allowed on Monday, Tuesday, Wednesday, Friday.'),
+(4, 8, '2026-05-21 08:14:39', '192.168.1.46', 'You cannot log in today. Login is only allowed on Monday, Tuesday, Wednesday, Friday.'),
+(5, 8, '2026-05-21 08:15:14', '192.168.1.46', 'Login is only allowed between 2:38 PM and 4:13 PM.'),
+(6, 8, '2026-05-21 08:22:19', '192.168.1.46', 'Login is only allowed between 2:38 PM and 4:17 PM.'),
+(7, 8, '2026-05-21 08:22:41', '192.168.1.46', 'Login is only allowed between 2:38 PM and 4:17 PM.');
 
 -- --------------------------------------------------------
 
@@ -45273,17 +45632,19 @@ CREATE TABLE `transaction_payments` (
 --
 
 INSERT INTO `transaction_payments` (`payment_id`, `source_type`, `source_id`, `payment_method_id`, `bank_account_id`, `amount`, `reference_number`, `payment_date`, `confirmation_status`, `confirmed_by`, `confirmed_at`, `confirmation_notes`, `charged_to_passenger_id`, `cashier_session_id`, `charge_settled`, `charge_settled_at`, `notes`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 'TICKET_TRANSACTION', 19, 1, NULL, 322519.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 02:49:54', NULL),
-(2, 'TICKET_TRANSACTION', 20, 1, NULL, 100.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 03:16:44', NULL),
-(3, 'TICKET_TRANSACTION', 20, 2, NULL, 1000.00, NULL, '2026-05-14', 'PENDING', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 03:16:44', NULL),
-(4, 'TICKET_TRANSACTION', 21, 1, NULL, 1000.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 05:15:30', NULL),
-(5, 'TICKET_TRANSACTION', 21, 2, 1, 100.00, NULL, '2026-05-14', 'CONFIRMED', 1, '2026-05-14 05:16:45', 'confirm na', NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 05:15:30', NULL),
-(6, 'TICKET_TRANSACTION', 22, 1, NULL, 1100.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 06:55:38', NULL),
-(7, 'SERVICE_TRANSACTION', 244, 1, NULL, 100.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, 2, 0, NULL, NULL, 1, '2026-05-14 07:44:51', NULL),
-(8, 'SERVICE_TRANSACTION', 245, 1, NULL, 2.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, 2, 0, NULL, NULL, 1, '2026-05-14 07:46:51', NULL),
-(9, 'TICKET_TRANSACTION', 23, 1, NULL, 500.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 09:10:03', NULL),
-(10, 'TICKET_TRANSACTION', 24, 1, NULL, 500.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 09:11:07', NULL),
-(11, 'TICKET_TRANSACTION', 25, 1, NULL, 190.00, NULL, '2026-05-14', 'NOT_REQUIRED', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 1, '2026-05-14 09:12:27', NULL);
+(1, 'TICKET_TRANSACTION', 1, 1, NULL, 411.00, NULL, '2026-05-20', 'NOT_REQUIRED', NULL, NULL, NULL, 4, 1, 0, NULL, NULL, 8, '2026-05-20 03:37:42', NULL),
+(2, 'TICKET_TRANSACTION', 2, 2, 3, 1000.00, NULL, '2026-05-20', 'CONFIRMED', 1, '2026-05-20 03:54:02', NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 03:47:49', NULL),
+(3, 'TICKET_TRANSACTION', 2, 1, NULL, 111.00, NULL, '2026-05-20', 'NOT_REQUIRED', NULL, NULL, NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 03:47:49', NULL),
+(4, 'TICKET_TRANSACTION', 3, 3, NULL, 1000.00, NULL, '2026-05-20', 'NOT_REQUIRED', NULL, NULL, NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 05:38:15', NULL),
+(5, 'TICKET_TRANSACTION', 3, 1, NULL, 111.00, NULL, '2026-05-20', 'REJECTED', 1, '2026-05-20 06:52:49', NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 05:38:15', NULL),
+(6, 'TICKET_TRANSACTION', 4, 2, NULL, 1111.00, NULL, '2026-05-20', 'CONFIRMED', 1, '2026-05-20 07:11:32', NULL, 4, 1, 0, NULL, NULL, 8, '2026-05-20 07:09:13', NULL),
+(7, 'TICKET_TRANSACTION', 5, 2, 1, 500.00, NULL, '2026-05-20', 'CONFIRMED', 1, '2026-05-20 07:27:00', NULL, 3, 1, 0, NULL, NULL, 8, '2026-05-20 07:26:06', NULL),
+(8, 'TICKET_TRANSACTION', 6, 1, NULL, 111.00, NULL, '2026-05-20', 'NOT_REQUIRED', NULL, NULL, NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 09:09:08', NULL),
+(9, 'TICKET_TRANSACTION', 6, 2, NULL, 1100.00, NULL, '2026-05-20', 'PENDING', NULL, NULL, NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 09:09:08', NULL),
+(10, 'TICKET_TRANSACTION', 7, 1, NULL, 1000.00, NULL, '2026-05-20', 'NOT_REQUIRED', NULL, NULL, NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 09:18:40', NULL),
+(11, 'TICKET_TRANSACTION', 8, 1, NULL, 500.00, NULL, '2026-05-20', 'NOT_REQUIRED', NULL, NULL, NULL, 2, 1, 0, NULL, NULL, 8, '2026-05-20 09:20:26', NULL),
+(12, 'TICKET_TRANSACTION', 9, 1, NULL, 1000.00, NULL, '2026-05-21', 'NOT_REQUIRED', NULL, NULL, NULL, 4, 5, 0, NULL, NULL, 8, '2026-05-21 01:58:22', NULL),
+(13, 'TICKET_TRANSACTION', 10, 1, NULL, 10.00, NULL, '2026-05-22', 'NOT_REQUIRED', NULL, NULL, NULL, 2, 7, 0, NULL, NULL, 1, '2026-05-22 00:41:55', NULL);
 
 -- --------------------------------------------------------
 
@@ -45294,10 +45655,15 @@ INSERT INTO `transaction_payments` (`payment_id`, `source_type`, `source_id`, `p
 CREATE TABLE `user_accounts` (
   `user_id` bigint(20) NOT NULL,
   `user_code` varchar(50) DEFAULT NULL,
-  `branch_id` bigint(20) DEFAULT NULL,
+  `branch_id` varchar(255) DEFAULT NULL,
   `role_id` bigint(20) NOT NULL,
+  `has_restricted_transport` tinyint(1) DEFAULT 0 COMMENT 'Whether cashier is restricted to specific transport types/providers',
   `username` varchar(50) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
+  `recovery_email` varchar(255) DEFAULT NULL,
+  `recovery_email_verified_at` timestamp NULL DEFAULT NULL,
+  `recovery_email_verification_token` varchar(255) DEFAULT NULL,
+  `recovery_email_verification_expires_at` timestamp NULL DEFAULT NULL,
   `password_hash` text DEFAULT NULL,
   `profile_image` varchar(255) DEFAULT NULL,
   `emp_id` int(11) DEFAULT NULL,
@@ -45320,12 +45686,13 @@ CREATE TABLE `user_accounts` (
 -- Dumping data for table `user_accounts`
 --
 
-INSERT INTO `user_accounts` (`user_id`, `user_code`, `branch_id`, `role_id`, `username`, `email`, `password_hash`, `profile_image`, `emp_id`, `status`, `failed_login_attempts`, `locked_until`, `is_time_restricted`, `allowed_login_start`, `allowed_login_end`, `allowed_days`, `password_changed_at`, `require_password_change`, `last_login_at`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'USR-0001', NULL, 1, 'admin', 'admin@example.com', '$argon2id$v=19$m=65536,t=4,p=1$TGN4Lkh6aU1iSWF1QkpMYw$M/fX4dmIYbb2Y9254gcEQDUwUjKV6qJLqZ1z4E5L1b8', '/api/images/users/USR-0001_1778564557.png', 20, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 1, '2026-05-14 23:57:58', '2026-05-09 01:29:12', '2026-05-12 05:42:37', NULL),
-(3, 'USR-0002', 1, 5, 'admin1', 'catzanthonz@gmail.com', '$2y$12$NNwSEkAZ/2hD4iafBnRdR.zKpp5E8oWuMqnBeWwWGiwjT1JAi0yaa', NULL, 2, 'active', 1, NULL, 1, '08:30:00', '17:30:00', 'Monday,Wednesday,Friday', NULL, 0, NULL, '2026-05-11 09:17:56', '2026-05-11 09:17:56', NULL),
-(4, 'USR-0003', 1, 3, 'admin2', 'catzanthonzx@gmail.com', '$2y$12$i5xNthRnXafMz0ajCBYrUeq7duKrkXIDEXTcMUBkii8yEzTFdvcrW', '/api/images/users/USR-0003_1778562170.png', 180, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 0, NULL, '2026-05-11 09:29:32', '2026-05-12 05:02:50', NULL),
-(5, 'USR-0004', NULL, 5, 'azzy123', 'ozzy@gmail.com', '$2y$12$Im/04tRAwF9Rz6n/6CvHuuegc/yW.EAnf3TNlN2ElYtmqUX1k2ZEe', '/api/images/users/USR-0004_1778562277.png', 25, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 0, NULL, '2026-05-12 05:04:37', '2026-05-12 05:04:37', NULL),
-(6, 'USR-0005', 1, 4, 'cashier1', 'rutherf97@gmail.com', '$argon2id$v=19$m=65536,t=4,p=1$WWhkcWpKQlJlS3I3OWVQNg$YQhuXfMCQLqPEBlV4MtYuEFXtXmutuRxNFhwc6shAp8', '/api/images/users/USR-0005_1778638567.png', 180, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 0, '2026-05-14 03:32:39', '2026-05-13 02:16:07', '2026-05-14 03:28:35', NULL);
+INSERT INTO `user_accounts` (`user_id`, `user_code`, `branch_id`, `role_id`, `has_restricted_transport`, `username`, `email`, `recovery_email`, `recovery_email_verified_at`, `recovery_email_verification_token`, `recovery_email_verification_expires_at`, `password_hash`, `profile_image`, `emp_id`, `status`, `failed_login_attempts`, `locked_until`, `is_time_restricted`, `allowed_login_start`, `allowed_login_end`, `allowed_days`, `password_changed_at`, `require_password_change`, `last_login_at`, `created_at`, `updated_at`, `deleted_at`) VALUES
+(1, 'USR-0001', NULL, 1, 0, 'admin', 'catzanthonz@gmail.com', NULL, NULL, NULL, NULL, '$argon2id$v=19$m=65536,t=4,p=1$b2dNQmxXQTczZUtKeDlYWg$H2+Fq3KyfHzWTGml48Lb6TySzL8z147nSg4TuSow1lQ', '/api/images/users/USR-0001_1778564557.png', 20, 'active', 0, NULL, 0, NULL, NULL, NULL, '2026-05-18 01:42:14', 0, '2026-05-22 01:11:12', '2026-05-09 01:29:12', '2026-05-12 05:42:37', NULL),
+(3, 'USR-0002', '1', 5, 0, 'admin1', 'hnry@gmail.com', NULL, NULL, NULL, NULL, '$2y$12$NNwSEkAZ/2hD4iafBnRdR.zKpp5E8oWuMqnBeWwWGiwjT1JAi0yaa', NULL, 2, 'active', 7, '2026-05-21 07:28:49', 1, '08:30:00', '17:30:00', 'Monday,Wednesday,Friday', NULL, 0, NULL, '2026-05-11 09:17:56', '2026-05-11 09:17:56', NULL),
+(4, 'USR-0003', '1', 3, 0, 'admin2', 'catzanthonzx@gmail.com', NULL, NULL, NULL, NULL, '$2y$12$i5xNthRnXafMz0ajCBYrUeq7duKrkXIDEXTcMUBkii8yEzTFdvcrW', '/api/images/users/USR-0003_1778562170.png', 180, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 0, NULL, '2026-05-11 09:29:32', '2026-05-12 05:02:50', NULL),
+(5, 'USR-0004', NULL, 5, 0, 'azzy123', 'ozzy@gmail.com', NULL, NULL, NULL, NULL, '$2y$12$Im/04tRAwF9Rz6n/6CvHuuegc/yW.EAnf3TNlN2ElYtmqUX1k2ZEe', '/api/images/users/USR-0004_1778562277.png', 25, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 0, NULL, '2026-05-12 05:04:37', '2026-05-12 05:04:37', NULL),
+(6, 'USR-0005', '2', 4, 0, 'cashier1', 'rutherf97@gmail.com', NULL, NULL, NULL, NULL, '$argon2id$v=19$m=65536,t=4,p=1$WWhkcWpKQlJlS3I3OWVQNg$YQhuXfMCQLqPEBlV4MtYuEFXtXmutuRxNFhwc6shAp8', '/api/images/users/USR-0005_1778638567.png', 180, 'active', 0, NULL, 0, NULL, NULL, NULL, NULL, 0, '2026-05-21 07:26:07', '2026-05-13 02:16:07', '2026-05-21 00:21:18', NULL),
+(8, 'USR-0006', '2', 4, 1, 'cashier2', 'allanmadula063@gmail.com', NULL, NULL, NULL, NULL, '$argon2id$v=19$m=65536,t=4,p=1$azRmQ3BRckRWN1FXSy9QUA$UHsa6W8+5tsdV6wa74weOoMMM0wKvJ0lxOb0ciU2tHQ', '/api/images/users/USR-0006_1779243734.png', 90, 'active', 0, NULL, 0, '14:38:00', '16:17:00', 'Monday,Tuesday,Wednesday,Thursday,Friday', NULL, 0, '2026-05-22 00:48:52', '2026-05-20 02:22:14', '2026-05-21 09:13:13', NULL);
 
 -- --------------------------------------------------------
 
@@ -45350,7 +45717,7 @@ INSERT INTO `user_roles` (`role_id`, `role_code`, `role_name`, `role_description
 (1, 'SUPER_ADMIN', 'Super Administrator', 'Full system access', '/admin/pos', '2026-05-09 01:29:12'),
 (2, 'CEO', 'Chief Executive Officer', 'Executive management access', '/admin/dashboard/analytics', '2026-05-09 01:29:12'),
 (3, 'MANAGER', 'Branch Manager', 'Branch management access', '/admin/dashboard/analytics', '2026-05-09 01:29:12'),
-(4, 'CASHIER', 'Cashier', 'Ticketing and wallet transaction access', '/admin/dashboard/crm', '2026-05-09 01:29:12'),
+(4, 'CASHIER', 'Cashier', 'Ticketing and wallet transaction access', '/admin/pos/', '2026-05-09 01:29:12'),
 (5, 'AUDITOR', 'Auditor', 'Audit and reporting access', '/admin/dashboard/analytics', '2026-05-09 01:29:12');
 
 -- --------------------------------------------------------
@@ -45369,90 +45736,192 @@ CREATE TABLE `user_sessions` (
   `logout_time` timestamp NULL DEFAULT NULL,
   `last_seen` timestamp NOT NULL DEFAULT current_timestamp(),
   `expires_at` timestamp NULL DEFAULT NULL,
-  `is_active` tinyint(1) DEFAULT 1
+  `is_active` tinyint(1) DEFAULT 1,
+  `termination_reason` varchar(255) DEFAULT NULL COMMENT 'Reason why session was terminated (e.g., max_concurrent_sessions, device_blocked, admin_terminated)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Dumping data for table `user_sessions`
 --
 
-INSERT INTO `user_sessions` (`session_id`, `user_id`, `device_id`, `session_token`, `ip_address`, `login_time`, `logout_time`, `last_seen`, `expires_at`, `is_active`) VALUES
-(1, 1, NULL, 'd0500f4970cc9de3d166431129c8bce33e8529349669e7fdcd57ca396be178a1', '192.168.1.46', '2026-05-11 00:30:09', '2026-05-11 01:39:37', '2026-05-11 01:39:37', '2026-05-11 02:30:09', 0),
-(2, 1, 2, 'dd415e4c0b4a90a07ccebf79eb92c6c088ac030bea7628ad789b606c1eb4c212', '192.168.1.46', '2026-05-11 01:39:46', '2026-05-11 03:39:46', '2026-05-11 01:39:46', '2026-05-11 03:39:46', 0),
-(3, 1, 2, '33814982918c7a427d6dd76e6f0f488f614dd95f3176dd6c001f4b7599c329f6', '192.168.1.46', '2026-05-11 01:39:58', '2026-05-11 03:39:58', '2026-05-11 01:39:58', '2026-05-11 03:39:58', 0),
-(4, 1, 2, 'fc6a52f86936ef2ada6428c900cc75e09893924da34138528a860407e1efaf67', '192.168.1.46', '2026-05-11 01:41:10', '2026-05-11 03:41:10', '2026-05-11 01:41:10', '2026-05-11 03:41:10', 0),
-(5, 1, 2, '2315a01baa0c7025fd605bcff47b954ce8f7a03f9ca3e21c4517f27ac3dcd95a', '192.168.1.46', '2026-05-11 01:49:58', '2026-05-11 03:49:58', '2026-05-11 01:49:58', '2026-05-11 03:49:58', 0),
-(6, 1, 2, '1688b1c4ca982248b0ed4ff886b486fcc4f2da4f34317fa5a1dd891846ab03ec', '192.168.1.46', '2026-05-11 02:51:21', '2026-05-11 04:51:21', '2026-05-11 02:51:21', '2026-05-11 04:51:21', 0),
-(7, 1, 2, 'e7c3fb5961b81f71b57d03018445baeaa35c0feb6500c12da8ecc23ee0ffd0bb', '192.168.1.46', '2026-05-11 02:56:51', '2026-05-11 04:56:51', '2026-05-11 02:56:51', '2026-05-11 04:56:51', 0),
-(8, 1, 2, '774896606b3608dd956d57b6216528c35c36f450ba62cb91ee828838665e62c6', '192.168.1.46', '2026-05-11 04:59:15', '2026-05-11 06:59:15', '2026-05-11 04:59:15', '2026-05-11 06:59:15', 0),
-(9, 1, 3, '0e8378fc2bb34939dbaccdcbda52f1f13f18e0ab1c3b6045b057d93364e512b6', '192.168.1.46', '2026-05-11 05:36:40', '2026-05-11 07:36:40', '2026-05-11 05:36:40', '2026-05-11 07:36:40', 0),
-(10, 1, 2, '1564467d289c2178d4f4ec565bb3efe6783c4449e77f0e955f4f052e1693df74', '192.168.1.46', '2026-05-11 05:37:23', '2026-05-11 07:37:23', '2026-05-11 05:37:23', '2026-05-11 07:37:23', 0),
-(11, 1, 2, 'e65c67fb3babb71a7e3c06b2c0335a1cd5f49d774de421feacb122677174ca99', '192.168.1.46', '2026-05-11 06:14:22', '2026-05-11 08:14:22', '2026-05-11 06:14:22', '2026-05-11 08:14:22', 0),
-(12, 1, 2, 'd9c72a751aa24d1090853f1e1f2dc2996fb82979f293f9c5a8ad83aa03a8f3c7', '192.168.1.46', '2026-05-11 07:18:10', '2026-05-11 09:18:10', '2026-05-11 07:18:10', '2026-05-11 09:18:10', 0),
-(13, 1, 3, 'a25ad18dea4af835bf997febb51543880e3d61de7337fb50620941b6b90eca28', '192.168.1.46', '2026-05-11 07:45:37', '2026-05-11 09:45:37', '2026-05-11 07:45:37', '2026-05-11 09:45:37', 0),
-(14, 1, 2, 'beabfc45196356049b754be94e219b5880f00dcd1ec362452bfd7ab2e7eee2ce', '192.168.1.46', '2026-05-11 08:06:37', '2026-05-11 10:06:37', '2026-05-11 08:06:37', '2026-05-11 10:06:37', 0),
-(15, 1, 3, '0798b4c46d0e5262cf3de3b1f6cd4df73d6f73c010526234f4e1ce7cd3dca328', '192.168.1.46', '2026-05-11 08:06:54', '2026-05-11 10:06:54', '2026-05-11 08:06:54', '2026-05-11 10:06:54', 0),
-(16, 1, 2, 'dd0d397691c6903054ea550fc35acffe93e9c07321d413d4a6ce8883f84211e2', '192.168.1.46', '2026-05-11 08:08:58', '2026-05-11 10:08:58', '2026-05-11 08:08:58', '2026-05-11 10:08:58', 0),
-(17, 1, 3, '35fb8a0be456cb256cb56df848baf2e64bd880650681597d7157f6086538d285', '192.168.1.46', '2026-05-11 08:18:49', '2026-05-11 10:18:49', '2026-05-11 08:18:49', '2026-05-11 10:18:49', 0),
-(18, 1, 2, '59f1ff785bc5dde4bf632381581989efb26a256c2c037948692dd7a50f9ce128', '192.168.1.46', '2026-05-11 08:19:52', '2026-05-11 10:19:52', '2026-05-11 08:19:52', '2026-05-11 10:19:52', 0),
-(19, 1, 3, 'b8963389fe323b42073e2c6d3904dd72efab249198a91228f1b59e44900f841e', '192.168.1.46', '2026-05-11 08:26:41', '2026-05-11 10:26:41', '2026-05-11 08:26:41', '2026-05-11 10:26:41', 0),
-(20, 1, 2, '16d593825e748758a0bc58c6a2b033658033583d28159a5d1fdcd00925c85151', '192.168.1.46', '2026-05-11 08:27:10', '2026-05-11 10:27:10', '2026-05-11 08:27:10', '2026-05-11 10:27:10', 0),
-(21, 1, 3, '7b7318d0e3b1a201a209fce51ed1eca6439efbc450a849fab30b77112b896765', '192.168.1.46', '2026-05-11 08:27:52', '2026-05-11 10:27:52', '2026-05-11 08:27:52', '2026-05-11 10:27:52', 0),
-(22, 1, 2, 'aaeeaf7ff801a53d6b662e2976f195952bc16e2789fd26b75fea89b972176a4d', '192.168.1.46', '2026-05-11 08:29:32', '2026-05-11 10:29:32', '2026-05-11 08:29:32', '2026-05-11 10:29:32', 0),
-(23, 1, 2, '8e2095b216dfc4a063e24ec942dcd6273da1b3e9a3ac7f1224d4039de72e1d4f', '192.168.1.46', '2026-05-12 00:14:27', '2026-05-12 02:14:27', '2026-05-12 00:14:27', '2026-05-12 02:14:27', 0),
-(24, 1, 2, 'daa89bc6921d1b77c3d77910ecb68bce9ac7b5aff8e5ea54d11befd57878711a', '192.168.1.46', '2026-05-12 00:29:19', '2026-05-12 02:29:19', '2026-05-12 00:29:19', '2026-05-12 02:29:19', 0),
-(25, 1, 2, 'fc20734f4ed4feab0d8158f79afb8e26263f4f1b47ef8b4548f9448edacdcca0', '192.168.1.46', '2026-05-12 01:49:43', '2026-05-12 03:49:43', '2026-05-12 01:49:43', '2026-05-12 03:49:43', 0),
-(26, 1, 2, 'b0635a825eb7e9084b45539604a9f06592a36937d32e1c170aa7a2415957c827', '192.168.1.46', '2026-05-12 01:52:29', '2026-05-12 03:52:29', '2026-05-12 01:52:29', '2026-05-12 03:52:29', 0),
-(27, 1, 2, '5ccefe99a367450e4db13e2b2d11c17e599b0f95a5b46738e4cc0e01a99b69d8', '192.168.1.46', '2026-05-12 02:38:03', '2026-05-12 04:38:03', '2026-05-12 02:38:03', '2026-05-12 04:38:03', 0),
-(28, 1, 2, 'bfbec678ced173dde089505ada78cfeec8ee1a81a38a1a9dd63e6413c1764115', '192.168.1.46', '2026-05-12 02:51:51', '2026-05-12 04:51:51', '2026-05-12 02:51:51', '2026-05-12 04:51:51', 0),
-(29, 1, 3, 'bfa194b1f7fdfc9c403ccc18f074499ba9616e52396f39e24a6711c7bba82ec7', '192.168.1.46', '2026-05-12 03:49:09', '2026-05-12 05:49:09', '2026-05-12 03:49:09', '2026-05-12 05:49:09', 0),
-(30, 1, 2, '8d58ad248419e6cdc7477c8153cacd2948d0d9ea1b7a7a3e6a7ee02f1fb63dc0', '192.168.1.46', '2026-05-12 03:51:21', '2026-05-12 05:51:21', '2026-05-12 03:51:21', '2026-05-12 05:51:21', 0),
-(31, 1, 2, '6c54a8057c13cd574cf8595820fd3940cc41d9957944a3ab74daf72f48e95ff5', '192.168.1.46', '2026-05-12 05:01:07', '2026-05-12 07:01:07', '2026-05-12 05:01:07', '2026-05-12 07:01:07', 0),
-(32, 1, 3, '13bb9bbfd35c061b9b3a52ff3426fbc508527915836ad096daa55ec66376105a', '192.168.1.46', '2026-05-12 05:28:55', '2026-05-12 07:28:55', '2026-05-12 05:28:55', '2026-05-12 07:28:55', 0),
-(33, 1, 2, '95637d034aee9f413dd7be59bdf2be64714b594cbd4229bc4ef903ca807923c3', '192.168.1.46', '2026-05-12 05:32:04', '2026-05-12 07:32:04', '2026-05-12 05:32:04', '2026-05-12 07:32:04', 0),
-(34, 1, 3, 'b6271482fc518e54545ceb69596d9015f4424a0929baff7dc0083dfb9b4b08e9', '192.168.1.46', '2026-05-12 05:32:55', '2026-05-12 07:32:55', '2026-05-12 05:32:55', '2026-05-12 07:32:55', 0),
-(35, 1, 2, '84be746d8497e96b22b54dc05ed40e38ab2169fa2da7ed146944137f0765642f', '192.168.1.46', '2026-05-12 05:35:47', '2026-05-12 07:35:47', '2026-05-12 05:35:47', '2026-05-12 07:35:47', 0),
-(36, 1, 2, '001b585d839d7a3b52b267884d851bac53a7a3c6890efca7aaf9173c50bcf7a5', '192.168.1.46', '2026-05-12 07:36:05', '2026-05-12 09:17:34', '2026-05-12 09:17:34', '2026-05-12 09:36:05', 0),
-(37, 1, 2, '5db21cfdcf6e5c6ebc76767ac0f02bed4f95f05dd637fbe0ba7a4726fda08ab4', '192.168.1.46', '2026-05-12 09:17:34', '2026-05-12 09:20:24', '2026-05-12 09:20:24', '2026-05-12 11:17:34', 0),
-(38, 1, 2, '9739d97fd428df4912716be7bcf9331385008ca120755dc7da36f355a9e271b8', '192.168.1.46', '2026-05-12 09:20:24', '2026-05-12 11:20:24', '2026-05-12 09:20:24', '2026-05-12 11:20:24', 0),
-(39, 1, 2, '7d4a2d82a64700bb24a094fbe215e793a8a3bfe00812ab8542c7fb2443333067', '192.168.1.46', '2026-05-12 23:36:46', '2026-05-13 00:15:30', '2026-05-13 00:15:30', '2026-05-13 01:36:46', 0),
-(40, 1, 2, '5cbdb8c73fb4392e53ff852ea5611f3415bf7881693284f4477af2b18f4f51ea', '192.168.1.46', '2026-05-13 00:15:30', '2026-05-13 01:04:56', '2026-05-13 01:04:56', '2026-05-13 02:15:30', 0),
-(41, 1, 2, 'e7adf7e821156b8cbf34efedfc517bf491c6d298f305fe21b701921081ebdbda', '192.168.1.46', '2026-05-13 01:04:56', '2026-05-13 03:04:56', '2026-05-13 01:04:56', '2026-05-13 03:04:56', 0),
-(42, 1, 2, '7698704a4e1a68ec962a776eeea5c8e7a45535d5d46154501f7becf1eee16c16', '192.168.1.46', '2026-05-13 03:05:02', '2026-05-13 03:14:47', '2026-05-13 03:14:47', '2026-05-13 05:05:02', 0),
-(43, 1, 2, '081368762abe41745abb0b56a106047e5c79ca21e27faff2e28f90ca52a0f2ce', '192.168.1.46', '2026-05-13 03:14:47', '2026-05-13 05:14:47', '2026-05-13 03:14:47', '2026-05-13 05:14:47', 0),
-(44, 1, 2, '422f50e019fd272cf52c6eece7c4a843928be3ed7075afee605dc4e3e1fddb10', '192.168.1.46', '2026-05-13 05:15:47', '2026-05-13 05:52:40', '2026-05-13 05:52:40', '2026-05-13 07:15:47', 0),
-(45, 1, 3, '549783123df5e21107e98f0a3a1a95bc586ef520274617cf5f42271d7ef5180a', '192.168.1.46', '2026-05-13 05:52:40', '2026-05-13 05:54:15', '2026-05-13 05:54:15', '2026-05-13 07:52:40', 0),
-(46, 1, 2, '667ba6b1bfb4c28a2b60c91e2849f3c55253ada079804f01a53e756407dab46d', '192.168.1.46', '2026-05-13 05:54:15', '2026-05-13 06:01:48', '2026-05-13 06:01:48', '2026-05-13 07:54:15', 0),
-(47, 1, 3, '476cfd78e8ea3bae8d8a8eac0542c1808704ac7640c282dcbdcb9e42b93cd2e2', '192.168.1.46', '2026-05-13 06:01:48', '2026-05-13 06:06:40', '2026-05-13 06:06:40', '2026-05-13 08:01:48', 0),
-(48, 1, 2, 'acff49f3520894ae8ef70796284c75be03ee23b1363aa135c51c3ec97ef4201a', '192.168.1.46', '2026-05-13 06:06:40', '2026-05-13 06:17:21', '2026-05-13 06:17:21', '2026-05-13 08:06:40', 0),
-(49, 1, 3, '7fa1e4ad8e0d384493674851f338e29d09140f9d35daefa0b28a0e00b5a0dee0', '192.168.1.46', '2026-05-13 06:17:21', '2026-05-13 06:17:44', '2026-05-13 06:17:44', '2026-05-13 08:17:21', 0),
-(50, 1, 2, '4fe73b61aaf2239c33855c17d3cf0f9097ddb380b066932bb3dc0525e9bed37d', '192.168.1.46', '2026-05-13 06:17:44', '2026-05-13 06:18:43', '2026-05-13 06:18:43', '2026-05-13 08:17:44', 0),
-(51, 1, 3, '2c972c095b1e0931fd53ffa80fb06c0e6ac19b9867bd1be74883d1e58be3ed46', '192.168.1.46', '2026-05-13 06:18:43', '2026-05-13 06:19:45', '2026-05-13 06:19:45', '2026-05-13 08:18:43', 0),
-(52, 1, 2, 'e651af857d3b34db5c70eaf860a6d3605e6c6658f17e568102dcdb9a8565bd9d', '192.168.1.46', '2026-05-13 06:19:45', '2026-05-13 07:15:12', '2026-05-13 07:15:12', '2026-05-13 08:19:45', 0),
-(53, 1, 3, '8bf8121e7f21ebbe1e37a13d658f3bba616ace96547fed9a71011788d133c1dc', '192.168.1.46', '2026-05-13 07:15:12', '2026-05-13 07:15:20', '2026-05-13 07:15:20', '2026-05-13 09:15:12', 0),
-(54, 1, 2, '69a421f1e018a3e933da9926e18edd2d2986f5383cff8dabee40883f279469ee', '192.168.1.46', '2026-05-13 07:15:20', '2026-05-13 07:55:49', '2026-05-13 07:55:49', '2026-05-13 09:15:20', 0),
-(55, 1, 2, '9b0ad577dfc3fd4bbf89d1f73afb20cd5e4f3f5a752e60f2afbffc6f62b33bf1', '192.168.1.46', '2026-05-13 07:55:49', '2026-05-13 08:00:48', '2026-05-13 08:00:48', '2026-05-13 09:55:49', 0),
-(56, 1, 3, '4bd1c40fab8ca30ec07411bb13c2a4c5cae75ab982bb78dc7148bba765cccb8b', '192.168.1.46', '2026-05-13 08:00:48', '2026-05-13 08:05:52', '2026-05-13 08:05:52', '2026-05-13 10:00:48', 0),
-(57, 1, 2, '3b5c35759342341d5ffa76cca8d5f7db5637c75f746ea31fed62807ef70ac28d', '192.168.1.46', '2026-05-13 08:05:52', '2026-05-13 08:28:04', '2026-05-13 08:28:04', '2026-05-13 10:05:52', 0),
-(58, 1, 2, '1959ec774c00a69d5c10197756cba5233263796ac3b915a03181ac5b2f7ca166', '192.168.1.46', '2026-05-13 08:28:04', '2026-05-13 08:29:09', '2026-05-13 08:29:09', '2026-05-13 10:28:04', 0),
-(59, 1, 3, 'bc01a1b2f464fcff3e67aa17e213dd927622991e7f873f075da02a061a5ec174', '192.168.1.46', '2026-05-13 08:29:09', '2026-05-13 08:32:06', '2026-05-13 08:32:06', '2026-05-13 10:29:09', 0),
-(60, 1, 2, 'e28b8c67a1c089e8ae75726d368eee1781e8d42fdbe7c40050064942f1fbb742', '192.168.1.46', '2026-05-13 08:32:06', '2026-05-13 09:24:34', '2026-05-13 09:24:34', '2026-05-13 10:32:06', 0),
-(61, 1, 3, 'b7d0e1cf3f5969926eeb1b9a821244cd232904950ced5c095e769a8319678a2b', '192.168.1.46', '2026-05-13 09:24:34', '2026-05-13 09:27:22', '2026-05-13 09:27:22', '2026-05-13 11:24:34', 0),
-(62, 1, 2, '8f313bff87e31c9d0115087eb675f8c041d2934017c7c8fbda94b9f6608d56e3', '192.168.1.46', '2026-05-13 09:27:22', '2026-05-13 11:27:22', '2026-05-13 09:27:22', '2026-05-13 11:27:22', 0),
-(63, 1, 2, 'cb336563e6da23969317c2523b5f9d3ef913444bd193245f938549e9cb532b15', '192.168.1.46', '2026-05-13 23:52:24', '2026-05-14 00:37:35', '2026-05-14 00:37:35', '2026-05-14 01:52:24', 0),
-(64, 1, 3, 'd5c57dc6b581d54f15e12fde91d7210ca74235239db823bb520d8c8cb8eb5b94', '192.168.1.46', '2026-05-14 00:37:35', '2026-05-14 00:42:45', '2026-05-14 00:42:45', '2026-05-14 02:37:35', 0),
-(65, 1, 2, '56c5b9a9575b629cdd33fbbbaf5fcc1678e37d735c1eb7541aa7ab6a11c6943e', '192.168.1.46', '2026-05-14 00:42:45', '2026-05-14 01:05:06', '2026-05-14 01:05:06', '2026-05-14 02:42:45', 0),
-(66, 1, 3, '4082608dc7704aba269079b322e675ced83f01493b6af4fbc9cada3b5f6e6c4b', '192.168.1.46', '2026-05-14 01:05:06', '2026-05-14 01:10:19', '2026-05-14 01:10:19', '2026-05-14 03:05:06', 0),
-(67, 1, 2, '40de904f94f996798d0abce758e6783ed59c9221e54ba39edbd822be61806e35', '192.168.1.46', '2026-05-14 01:10:19', '2026-05-14 03:10:19', '2026-05-14 01:10:19', '2026-05-14 03:10:19', 0),
-(68, 1, 2, '7b7ab4202a40e14eef8504889b1a00df13519e51be25ccec14abe7729d30e1c0', '192.168.1.46', '2026-05-14 03:10:41', '2026-05-14 03:27:00', '2026-05-14 03:27:00', '2026-05-14 05:10:41', 0),
-(69, 1, 4, '414b0037bbc105c85a1f1d787a0102c6dcd71ca447930381da5e88405bef8c10', '192.168.1.30', '2026-05-14 03:27:00', '2026-05-14 03:28:11', '2026-05-14 03:28:11', '2026-05-14 05:27:00', 0),
-(70, 1, 4, 'f9fc5b7cd0ed3e6b8258dca984a2a5429f524942636c3d5ee5b38d92e178d94a', '192.168.1.30', '2026-05-14 03:28:11', '2026-05-14 05:01:10', '2026-05-14 05:01:10', '2026-05-14 05:28:11', 0),
-(71, 6, 4, 'b58eed544633f7024267bb81d7967f14046218536479b317ea9b7d40deac0254', '192.168.1.30', '2026-05-14 03:28:49', '2026-05-14 03:32:39', '2026-05-14 03:32:39', '2026-05-14 05:28:49', 0),
-(72, 6, 4, 'e01f729c397cb151e29060752392c66d27f34ede205e5ee49aec904234785061', '192.168.1.30', '2026-05-14 03:32:39', '2026-05-14 05:32:39', '2026-05-14 03:32:39', '2026-05-14 05:32:39', 0),
-(73, 1, 2, '107c4d896e78cfe070c9a93197d6dceab3ae27b909eeb3c25d77bcf020681cba', '192.168.1.46', '2026-05-14 05:01:10', '2026-05-14 07:01:10', '2026-05-14 05:01:10', '2026-05-14 07:01:10', 0),
-(74, 1, 2, 'edfe7945fd5033031b6362cdd590e792103a3ef571f2ccd970154fa8469d507c', '192.168.1.46', '2026-05-14 07:01:32', '2026-05-14 09:01:32', '2026-05-14 07:01:32', '2026-05-14 09:01:32', 0),
-(75, 1, 2, '2f7c01e234f3d21541f9889b95617f2314782f6cf9721239eeab20a7e3b955b3', '192.168.1.46', '2026-05-14 09:02:44', '2026-05-14 11:02:44', '2026-05-14 09:02:44', '2026-05-14 11:02:44', 0),
-(76, 1, 2, 'ce6755a3bc388a1efffe0349845c2feeaea5192a1377b504833f572c9ef0716f', '192.168.1.46', '2026-05-14 23:57:58', NULL, '2026-05-14 23:57:58', '2026-05-15 01:57:58', 1);
+INSERT INTO `user_sessions` (`session_id`, `user_id`, `device_id`, `session_token`, `ip_address`, `login_time`, `logout_time`, `last_seen`, `expires_at`, `is_active`, `termination_reason`) VALUES
+(1, 1, NULL, 'd0500f4970cc9de3d166431129c8bce33e8529349669e7fdcd57ca396be178a1', '192.168.1.46', '2026-05-11 00:30:09', '2026-05-11 01:39:37', '2026-05-11 01:39:37', '2026-05-11 02:30:09', 0, NULL),
+(2, 1, 2, 'dd415e4c0b4a90a07ccebf79eb92c6c088ac030bea7628ad789b606c1eb4c212', '192.168.1.46', '2026-05-11 01:39:46', '2026-05-11 03:39:46', '2026-05-11 01:39:46', '2026-05-11 03:39:46', 0, NULL),
+(3, 1, 2, '33814982918c7a427d6dd76e6f0f488f614dd95f3176dd6c001f4b7599c329f6', '192.168.1.46', '2026-05-11 01:39:58', '2026-05-11 03:39:58', '2026-05-11 01:39:58', '2026-05-11 03:39:58', 0, NULL),
+(4, 1, 2, 'fc6a52f86936ef2ada6428c900cc75e09893924da34138528a860407e1efaf67', '192.168.1.46', '2026-05-11 01:41:10', '2026-05-11 03:41:10', '2026-05-11 01:41:10', '2026-05-11 03:41:10', 0, NULL),
+(5, 1, 2, '2315a01baa0c7025fd605bcff47b954ce8f7a03f9ca3e21c4517f27ac3dcd95a', '192.168.1.46', '2026-05-11 01:49:58', '2026-05-11 03:49:58', '2026-05-11 01:49:58', '2026-05-11 03:49:58', 0, NULL),
+(6, 1, 2, '1688b1c4ca982248b0ed4ff886b486fcc4f2da4f34317fa5a1dd891846ab03ec', '192.168.1.46', '2026-05-11 02:51:21', '2026-05-11 04:51:21', '2026-05-11 02:51:21', '2026-05-11 04:51:21', 0, NULL),
+(7, 1, 2, 'e7c3fb5961b81f71b57d03018445baeaa35c0feb6500c12da8ecc23ee0ffd0bb', '192.168.1.46', '2026-05-11 02:56:51', '2026-05-11 04:56:51', '2026-05-11 02:56:51', '2026-05-11 04:56:51', 0, NULL),
+(8, 1, 2, '774896606b3608dd956d57b6216528c35c36f450ba62cb91ee828838665e62c6', '192.168.1.46', '2026-05-11 04:59:15', '2026-05-11 06:59:15', '2026-05-11 04:59:15', '2026-05-11 06:59:15', 0, NULL),
+(9, 1, 3, '0e8378fc2bb34939dbaccdcbda52f1f13f18e0ab1c3b6045b057d93364e512b6', '192.168.1.46', '2026-05-11 05:36:40', '2026-05-11 07:36:40', '2026-05-11 05:36:40', '2026-05-11 07:36:40', 0, NULL),
+(10, 1, 2, '1564467d289c2178d4f4ec565bb3efe6783c4449e77f0e955f4f052e1693df74', '192.168.1.46', '2026-05-11 05:37:23', '2026-05-11 07:37:23', '2026-05-11 05:37:23', '2026-05-11 07:37:23', 0, NULL),
+(11, 1, 2, 'e65c67fb3babb71a7e3c06b2c0335a1cd5f49d774de421feacb122677174ca99', '192.168.1.46', '2026-05-11 06:14:22', '2026-05-11 08:14:22', '2026-05-11 06:14:22', '2026-05-11 08:14:22', 0, NULL),
+(12, 1, 2, 'd9c72a751aa24d1090853f1e1f2dc2996fb82979f293f9c5a8ad83aa03a8f3c7', '192.168.1.46', '2026-05-11 07:18:10', '2026-05-11 09:18:10', '2026-05-11 07:18:10', '2026-05-11 09:18:10', 0, NULL),
+(13, 1, 3, 'a25ad18dea4af835bf997febb51543880e3d61de7337fb50620941b6b90eca28', '192.168.1.46', '2026-05-11 07:45:37', '2026-05-11 09:45:37', '2026-05-11 07:45:37', '2026-05-11 09:45:37', 0, NULL),
+(14, 1, 2, 'beabfc45196356049b754be94e219b5880f00dcd1ec362452bfd7ab2e7eee2ce', '192.168.1.46', '2026-05-11 08:06:37', '2026-05-11 10:06:37', '2026-05-11 08:06:37', '2026-05-11 10:06:37', 0, NULL),
+(15, 1, 3, '0798b4c46d0e5262cf3de3b1f6cd4df73d6f73c010526234f4e1ce7cd3dca328', '192.168.1.46', '2026-05-11 08:06:54', '2026-05-11 10:06:54', '2026-05-11 08:06:54', '2026-05-11 10:06:54', 0, NULL),
+(16, 1, 2, 'dd0d397691c6903054ea550fc35acffe93e9c07321d413d4a6ce8883f84211e2', '192.168.1.46', '2026-05-11 08:08:58', '2026-05-11 10:08:58', '2026-05-11 08:08:58', '2026-05-11 10:08:58', 0, NULL),
+(17, 1, 3, '35fb8a0be456cb256cb56df848baf2e64bd880650681597d7157f6086538d285', '192.168.1.46', '2026-05-11 08:18:49', '2026-05-11 10:18:49', '2026-05-11 08:18:49', '2026-05-11 10:18:49', 0, NULL),
+(18, 1, 2, '59f1ff785bc5dde4bf632381581989efb26a256c2c037948692dd7a50f9ce128', '192.168.1.46', '2026-05-11 08:19:52', '2026-05-11 10:19:52', '2026-05-11 08:19:52', '2026-05-11 10:19:52', 0, NULL),
+(19, 1, 3, 'b8963389fe323b42073e2c6d3904dd72efab249198a91228f1b59e44900f841e', '192.168.1.46', '2026-05-11 08:26:41', '2026-05-11 10:26:41', '2026-05-11 08:26:41', '2026-05-11 10:26:41', 0, NULL),
+(20, 1, 2, '16d593825e748758a0bc58c6a2b033658033583d28159a5d1fdcd00925c85151', '192.168.1.46', '2026-05-11 08:27:10', '2026-05-11 10:27:10', '2026-05-11 08:27:10', '2026-05-11 10:27:10', 0, NULL),
+(21, 1, 3, '7b7318d0e3b1a201a209fce51ed1eca6439efbc450a849fab30b77112b896765', '192.168.1.46', '2026-05-11 08:27:52', '2026-05-11 10:27:52', '2026-05-11 08:27:52', '2026-05-11 10:27:52', 0, NULL),
+(22, 1, 2, 'aaeeaf7ff801a53d6b662e2976f195952bc16e2789fd26b75fea89b972176a4d', '192.168.1.46', '2026-05-11 08:29:32', '2026-05-11 10:29:32', '2026-05-11 08:29:32', '2026-05-11 10:29:32', 0, NULL),
+(23, 1, 2, '8e2095b216dfc4a063e24ec942dcd6273da1b3e9a3ac7f1224d4039de72e1d4f', '192.168.1.46', '2026-05-12 00:14:27', '2026-05-12 02:14:27', '2026-05-12 00:14:27', '2026-05-12 02:14:27', 0, NULL),
+(24, 1, 2, 'daa89bc6921d1b77c3d77910ecb68bce9ac7b5aff8e5ea54d11befd57878711a', '192.168.1.46', '2026-05-12 00:29:19', '2026-05-12 02:29:19', '2026-05-12 00:29:19', '2026-05-12 02:29:19', 0, NULL),
+(25, 1, 2, 'fc20734f4ed4feab0d8158f79afb8e26263f4f1b47ef8b4548f9448edacdcca0', '192.168.1.46', '2026-05-12 01:49:43', '2026-05-12 03:49:43', '2026-05-12 01:49:43', '2026-05-12 03:49:43', 0, NULL),
+(26, 1, 2, 'b0635a825eb7e9084b45539604a9f06592a36937d32e1c170aa7a2415957c827', '192.168.1.46', '2026-05-12 01:52:29', '2026-05-12 03:52:29', '2026-05-12 01:52:29', '2026-05-12 03:52:29', 0, NULL),
+(27, 1, 2, '5ccefe99a367450e4db13e2b2d11c17e599b0f95a5b46738e4cc0e01a99b69d8', '192.168.1.46', '2026-05-12 02:38:03', '2026-05-12 04:38:03', '2026-05-12 02:38:03', '2026-05-12 04:38:03', 0, NULL),
+(28, 1, 2, 'bfbec678ced173dde089505ada78cfeec8ee1a81a38a1a9dd63e6413c1764115', '192.168.1.46', '2026-05-12 02:51:51', '2026-05-12 04:51:51', '2026-05-12 02:51:51', '2026-05-12 04:51:51', 0, NULL),
+(29, 1, 3, 'bfa194b1f7fdfc9c403ccc18f074499ba9616e52396f39e24a6711c7bba82ec7', '192.168.1.46', '2026-05-12 03:49:09', '2026-05-12 05:49:09', '2026-05-12 03:49:09', '2026-05-12 05:49:09', 0, NULL),
+(30, 1, 2, '8d58ad248419e6cdc7477c8153cacd2948d0d9ea1b7a7a3e6a7ee02f1fb63dc0', '192.168.1.46', '2026-05-12 03:51:21', '2026-05-12 05:51:21', '2026-05-12 03:51:21', '2026-05-12 05:51:21', 0, NULL),
+(31, 1, 2, '6c54a8057c13cd574cf8595820fd3940cc41d9957944a3ab74daf72f48e95ff5', '192.168.1.46', '2026-05-12 05:01:07', '2026-05-12 07:01:07', '2026-05-12 05:01:07', '2026-05-12 07:01:07', 0, NULL),
+(32, 1, 3, '13bb9bbfd35c061b9b3a52ff3426fbc508527915836ad096daa55ec66376105a', '192.168.1.46', '2026-05-12 05:28:55', '2026-05-12 07:28:55', '2026-05-12 05:28:55', '2026-05-12 07:28:55', 0, NULL),
+(33, 1, 2, '95637d034aee9f413dd7be59bdf2be64714b594cbd4229bc4ef903ca807923c3', '192.168.1.46', '2026-05-12 05:32:04', '2026-05-12 07:32:04', '2026-05-12 05:32:04', '2026-05-12 07:32:04', 0, NULL),
+(34, 1, 3, 'b6271482fc518e54545ceb69596d9015f4424a0929baff7dc0083dfb9b4b08e9', '192.168.1.46', '2026-05-12 05:32:55', '2026-05-12 07:32:55', '2026-05-12 05:32:55', '2026-05-12 07:32:55', 0, NULL),
+(35, 1, 2, '84be746d8497e96b22b54dc05ed40e38ab2169fa2da7ed146944137f0765642f', '192.168.1.46', '2026-05-12 05:35:47', '2026-05-12 07:35:47', '2026-05-12 05:35:47', '2026-05-12 07:35:47', 0, NULL),
+(36, 1, 2, '001b585d839d7a3b52b267884d851bac53a7a3c6890efca7aaf9173c50bcf7a5', '192.168.1.46', '2026-05-12 07:36:05', '2026-05-12 09:17:34', '2026-05-12 09:17:34', '2026-05-12 09:36:05', 0, NULL),
+(37, 1, 2, '5db21cfdcf6e5c6ebc76767ac0f02bed4f95f05dd637fbe0ba7a4726fda08ab4', '192.168.1.46', '2026-05-12 09:17:34', '2026-05-12 09:20:24', '2026-05-12 09:20:24', '2026-05-12 11:17:34', 0, NULL),
+(38, 1, 2, '9739d97fd428df4912716be7bcf9331385008ca120755dc7da36f355a9e271b8', '192.168.1.46', '2026-05-12 09:20:24', '2026-05-12 11:20:24', '2026-05-12 09:20:24', '2026-05-12 11:20:24', 0, NULL),
+(39, 1, 2, '7d4a2d82a64700bb24a094fbe215e793a8a3bfe00812ab8542c7fb2443333067', '192.168.1.46', '2026-05-12 23:36:46', '2026-05-13 00:15:30', '2026-05-13 00:15:30', '2026-05-13 01:36:46', 0, NULL),
+(40, 1, 2, '5cbdb8c73fb4392e53ff852ea5611f3415bf7881693284f4477af2b18f4f51ea', '192.168.1.46', '2026-05-13 00:15:30', '2026-05-13 01:04:56', '2026-05-13 01:04:56', '2026-05-13 02:15:30', 0, NULL),
+(41, 1, 2, 'e7adf7e821156b8cbf34efedfc517bf491c6d298f305fe21b701921081ebdbda', '192.168.1.46', '2026-05-13 01:04:56', '2026-05-13 03:04:56', '2026-05-13 01:04:56', '2026-05-13 03:04:56', 0, NULL),
+(42, 1, 2, '7698704a4e1a68ec962a776eeea5c8e7a45535d5d46154501f7becf1eee16c16', '192.168.1.46', '2026-05-13 03:05:02', '2026-05-13 03:14:47', '2026-05-13 03:14:47', '2026-05-13 05:05:02', 0, NULL),
+(43, 1, 2, '081368762abe41745abb0b56a106047e5c79ca21e27faff2e28f90ca52a0f2ce', '192.168.1.46', '2026-05-13 03:14:47', '2026-05-13 05:14:47', '2026-05-13 03:14:47', '2026-05-13 05:14:47', 0, NULL),
+(44, 1, 2, '422f50e019fd272cf52c6eece7c4a843928be3ed7075afee605dc4e3e1fddb10', '192.168.1.46', '2026-05-13 05:15:47', '2026-05-13 05:52:40', '2026-05-13 05:52:40', '2026-05-13 07:15:47', 0, NULL),
+(45, 1, 3, '549783123df5e21107e98f0a3a1a95bc586ef520274617cf5f42271d7ef5180a', '192.168.1.46', '2026-05-13 05:52:40', '2026-05-13 05:54:15', '2026-05-13 05:54:15', '2026-05-13 07:52:40', 0, NULL),
+(46, 1, 2, '667ba6b1bfb4c28a2b60c91e2849f3c55253ada079804f01a53e756407dab46d', '192.168.1.46', '2026-05-13 05:54:15', '2026-05-13 06:01:48', '2026-05-13 06:01:48', '2026-05-13 07:54:15', 0, NULL),
+(47, 1, 3, '476cfd78e8ea3bae8d8a8eac0542c1808704ac7640c282dcbdcb9e42b93cd2e2', '192.168.1.46', '2026-05-13 06:01:48', '2026-05-13 06:06:40', '2026-05-13 06:06:40', '2026-05-13 08:01:48', 0, NULL),
+(48, 1, 2, 'acff49f3520894ae8ef70796284c75be03ee23b1363aa135c51c3ec97ef4201a', '192.168.1.46', '2026-05-13 06:06:40', '2026-05-13 06:17:21', '2026-05-13 06:17:21', '2026-05-13 08:06:40', 0, NULL),
+(49, 1, 3, '7fa1e4ad8e0d384493674851f338e29d09140f9d35daefa0b28a0e00b5a0dee0', '192.168.1.46', '2026-05-13 06:17:21', '2026-05-13 06:17:44', '2026-05-13 06:17:44', '2026-05-13 08:17:21', 0, NULL),
+(50, 1, 2, '4fe73b61aaf2239c33855c17d3cf0f9097ddb380b066932bb3dc0525e9bed37d', '192.168.1.46', '2026-05-13 06:17:44', '2026-05-13 06:18:43', '2026-05-13 06:18:43', '2026-05-13 08:17:44', 0, NULL),
+(51, 1, 3, '2c972c095b1e0931fd53ffa80fb06c0e6ac19b9867bd1be74883d1e58be3ed46', '192.168.1.46', '2026-05-13 06:18:43', '2026-05-13 06:19:45', '2026-05-13 06:19:45', '2026-05-13 08:18:43', 0, NULL),
+(52, 1, 2, 'e651af857d3b34db5c70eaf860a6d3605e6c6658f17e568102dcdb9a8565bd9d', '192.168.1.46', '2026-05-13 06:19:45', '2026-05-13 07:15:12', '2026-05-13 07:15:12', '2026-05-13 08:19:45', 0, NULL),
+(53, 1, 3, '8bf8121e7f21ebbe1e37a13d658f3bba616ace96547fed9a71011788d133c1dc', '192.168.1.46', '2026-05-13 07:15:12', '2026-05-13 07:15:20', '2026-05-13 07:15:20', '2026-05-13 09:15:12', 0, NULL),
+(54, 1, 2, '69a421f1e018a3e933da9926e18edd2d2986f5383cff8dabee40883f279469ee', '192.168.1.46', '2026-05-13 07:15:20', '2026-05-13 07:55:49', '2026-05-13 07:55:49', '2026-05-13 09:15:20', 0, NULL),
+(55, 1, 2, '9b0ad577dfc3fd4bbf89d1f73afb20cd5e4f3f5a752e60f2afbffc6f62b33bf1', '192.168.1.46', '2026-05-13 07:55:49', '2026-05-13 08:00:48', '2026-05-13 08:00:48', '2026-05-13 09:55:49', 0, NULL),
+(56, 1, 3, '4bd1c40fab8ca30ec07411bb13c2a4c5cae75ab982bb78dc7148bba765cccb8b', '192.168.1.46', '2026-05-13 08:00:48', '2026-05-13 08:05:52', '2026-05-13 08:05:52', '2026-05-13 10:00:48', 0, NULL),
+(57, 1, 2, '3b5c35759342341d5ffa76cca8d5f7db5637c75f746ea31fed62807ef70ac28d', '192.168.1.46', '2026-05-13 08:05:52', '2026-05-13 08:28:04', '2026-05-13 08:28:04', '2026-05-13 10:05:52', 0, NULL),
+(58, 1, 2, '1959ec774c00a69d5c10197756cba5233263796ac3b915a03181ac5b2f7ca166', '192.168.1.46', '2026-05-13 08:28:04', '2026-05-13 08:29:09', '2026-05-13 08:29:09', '2026-05-13 10:28:04', 0, NULL),
+(59, 1, 3, 'bc01a1b2f464fcff3e67aa17e213dd927622991e7f873f075da02a061a5ec174', '192.168.1.46', '2026-05-13 08:29:09', '2026-05-13 08:32:06', '2026-05-13 08:32:06', '2026-05-13 10:29:09', 0, NULL),
+(60, 1, 2, 'e28b8c67a1c089e8ae75726d368eee1781e8d42fdbe7c40050064942f1fbb742', '192.168.1.46', '2026-05-13 08:32:06', '2026-05-13 09:24:34', '2026-05-13 09:24:34', '2026-05-13 10:32:06', 0, NULL),
+(61, 1, 3, 'b7d0e1cf3f5969926eeb1b9a821244cd232904950ced5c095e769a8319678a2b', '192.168.1.46', '2026-05-13 09:24:34', '2026-05-13 09:27:22', '2026-05-13 09:27:22', '2026-05-13 11:24:34', 0, NULL),
+(62, 1, 2, '8f313bff87e31c9d0115087eb675f8c041d2934017c7c8fbda94b9f6608d56e3', '192.168.1.46', '2026-05-13 09:27:22', '2026-05-13 11:27:22', '2026-05-13 09:27:22', '2026-05-13 11:27:22', 0, NULL),
+(63, 1, 2, 'cb336563e6da23969317c2523b5f9d3ef913444bd193245f938549e9cb532b15', '192.168.1.46', '2026-05-13 23:52:24', '2026-05-14 00:37:35', '2026-05-14 00:37:35', '2026-05-14 01:52:24', 0, NULL),
+(64, 1, 3, 'd5c57dc6b581d54f15e12fde91d7210ca74235239db823bb520d8c8cb8eb5b94', '192.168.1.46', '2026-05-14 00:37:35', '2026-05-14 00:42:45', '2026-05-14 00:42:45', '2026-05-14 02:37:35', 0, NULL),
+(65, 1, 2, '56c5b9a9575b629cdd33fbbbaf5fcc1678e37d735c1eb7541aa7ab6a11c6943e', '192.168.1.46', '2026-05-14 00:42:45', '2026-05-14 01:05:06', '2026-05-14 01:05:06', '2026-05-14 02:42:45', 0, NULL),
+(66, 1, 3, '4082608dc7704aba269079b322e675ced83f01493b6af4fbc9cada3b5f6e6c4b', '192.168.1.46', '2026-05-14 01:05:06', '2026-05-14 01:10:19', '2026-05-14 01:10:19', '2026-05-14 03:05:06', 0, NULL),
+(67, 1, 2, '40de904f94f996798d0abce758e6783ed59c9221e54ba39edbd822be61806e35', '192.168.1.46', '2026-05-14 01:10:19', '2026-05-14 03:10:19', '2026-05-14 01:10:19', '2026-05-14 03:10:19', 0, NULL),
+(68, 1, 2, '7b7ab4202a40e14eef8504889b1a00df13519e51be25ccec14abe7729d30e1c0', '192.168.1.46', '2026-05-14 03:10:41', '2026-05-14 03:27:00', '2026-05-14 03:27:00', '2026-05-14 05:10:41', 0, NULL),
+(69, 1, 4, '414b0037bbc105c85a1f1d787a0102c6dcd71ca447930381da5e88405bef8c10', '192.168.1.30', '2026-05-14 03:27:00', '2026-05-14 03:28:11', '2026-05-14 03:28:11', '2026-05-14 05:27:00', 0, NULL),
+(70, 1, 4, 'f9fc5b7cd0ed3e6b8258dca984a2a5429f524942636c3d5ee5b38d92e178d94a', '192.168.1.30', '2026-05-14 03:28:11', '2026-05-14 05:01:10', '2026-05-14 05:01:10', '2026-05-14 05:28:11', 0, NULL),
+(71, 6, 4, 'b58eed544633f7024267bb81d7967f14046218536479b317ea9b7d40deac0254', '192.168.1.30', '2026-05-14 03:28:49', '2026-05-14 03:32:39', '2026-05-14 03:32:39', '2026-05-14 05:28:49', 0, NULL),
+(72, 6, 4, 'e01f729c397cb151e29060752392c66d27f34ede205e5ee49aec904234785061', '192.168.1.30', '2026-05-14 03:32:39', '2026-05-14 05:32:39', '2026-05-14 03:32:39', '2026-05-14 05:32:39', 0, NULL),
+(73, 1, 2, '107c4d896e78cfe070c9a93197d6dceab3ae27b909eeb3c25d77bcf020681cba', '192.168.1.46', '2026-05-14 05:01:10', '2026-05-14 07:01:10', '2026-05-14 05:01:10', '2026-05-14 07:01:10', 0, NULL),
+(74, 1, 2, 'edfe7945fd5033031b6362cdd590e792103a3ef571f2ccd970154fa8469d507c', '192.168.1.46', '2026-05-14 07:01:32', '2026-05-14 09:01:32', '2026-05-14 07:01:32', '2026-05-14 09:01:32', 0, NULL),
+(75, 1, 2, '2f7c01e234f3d21541f9889b95617f2314782f6cf9721239eeab20a7e3b955b3', '192.168.1.46', '2026-05-14 09:02:44', '2026-05-14 11:02:44', '2026-05-14 09:02:44', '2026-05-14 11:02:44', 0, NULL),
+(76, 1, 2, 'ce6755a3bc388a1efffe0349845c2feeaea5192a1377b504833f572c9ef0716f', '192.168.1.46', '2026-05-14 23:57:58', '2026-05-15 01:57:58', '2026-05-14 23:57:58', '2026-05-15 01:57:58', 0, NULL),
+(77, 1, 2, 'cbf21d697710f6640401eb7a43bc9828b3924ff020ba1a4fac00f087a0bd9815', '192.168.1.46', '2026-05-15 01:59:32', '2026-05-15 03:59:32', '2026-05-15 01:59:32', '2026-05-15 03:59:32', 0, NULL),
+(78, 1, 2, 'd502d8e635abd0ebaacb31a544782360497cdd7e37fe10e17b5898bf524e24af', '192.168.1.46', '2026-05-15 05:12:39', '2026-05-15 07:12:39', '2026-05-15 05:12:39', '2026-05-15 07:12:39', 0, NULL),
+(79, 1, 2, '7da0b91a1c8a119ff832bd6fcbdc00ccd67c438fbfaa9919f3c86bc47ee8051b', '192.168.1.46', '2026-05-15 07:12:49', '2026-05-15 08:02:58', '2026-05-15 08:02:58', '2026-05-15 09:12:49', 0, NULL),
+(80, 6, 2, '35feaf2c07468c53772dc7b3832198ee92b2d8213bb5b65e0638f493af99ace8', '192.168.1.46', '2026-05-15 08:00:17', '2026-05-15 08:25:36', '2026-05-15 08:25:36', '2026-05-15 10:00:17', 0, NULL),
+(81, 1, 2, '15a99d38a5417b942fddbaa81349487d510ee8d54fd73397c7156b0132c2c01d', '192.168.1.46', '2026-05-15 08:02:58', '2026-05-15 09:04:59', '2026-05-15 09:04:59', '2026-05-15 10:02:58', 0, NULL),
+(82, 6, 5, 'fc95a447d6c8ba1299f23a519649df0da58280c5c35e7557fd9b4a9e08884626', '192.168.1.32', '2026-05-15 08:25:36', '2026-05-15 10:25:36', '2026-05-15 08:25:36', '2026-05-15 10:25:36', 0, NULL),
+(83, 1, 2, '71ab23c18705394e0eab67a37ab6c2a4e16e7a6e70190559407f9020a1488876', '192.168.1.46', '2026-05-15 09:04:59', '2026-05-15 09:09:13', '2026-05-15 09:09:13', '2026-05-15 11:04:59', 0, NULL),
+(84, 1, 2, '411e0549643d3715f5f2c6d661ec06230208a5e09f6125c00ec1427b7d997675', '192.168.1.46', '2026-05-15 09:09:13', '2026-05-15 09:16:53', '2026-05-15 09:16:53', '2026-05-15 11:09:13', 0, NULL),
+(85, 1, 2, '082a713e45c1f3b8062520d2becf7222eb59d6726f497c48e5631bc9fb16aa15', '192.168.1.46', '2026-05-15 09:16:53', '2026-05-15 09:20:09', '2026-05-15 09:20:09', '2026-05-15 11:16:53', 0, NULL),
+(86, 1, 2, '58a023a5c4f834404f1912527db126c106afde4edc99c2d3864b63c2960dea55', '192.168.1.46', '2026-05-15 09:20:09', '2026-05-15 09:23:36', '2026-05-15 09:23:36', '2026-05-15 11:20:09', 0, NULL),
+(87, 1, 2, 'b7e76555b9866b5c451bc1cd06058effffddb4ef067d79921968ace708186e01', '192.168.1.46', '2026-05-15 09:23:36', '2026-05-15 09:25:51', '2026-05-15 09:25:51', '2026-05-15 11:23:36', 0, NULL),
+(88, 1, 2, '766da1aeab937e5aa3b3ea61018a34f38c80a1b2da901a2227d40bb82c7e257d', '192.168.1.46', '2026-05-15 09:25:51', '2026-05-15 09:28:21', '2026-05-15 09:28:21', '2026-05-15 11:25:51', 0, NULL),
+(89, 1, 2, '96f7f835bb549f94f6b6e130240464a6e6ea0ebfd964258776ab0615efbfa1b8', '192.168.1.46', '2026-05-15 09:28:21', '2026-05-15 11:28:21', '2026-05-15 09:28:21', '2026-05-15 11:28:21', 0, NULL),
+(90, 1, 2, 'abba181614cc09165c119ab3f87edd396a39d4989f64ed2a7b000761102901de', '192.168.1.46', '2026-05-15 23:54:03', '2026-05-16 00:10:14', '2026-05-16 00:10:14', '2026-05-16 01:54:03', 0, NULL),
+(91, 1, 2, '14ad4a635d554dc3b67ca0c36a6aa104825399bd185044e1f2635b88b0d3eebf', '192.168.1.46', '2026-05-16 00:10:14', '2026-05-16 02:10:14', '2026-05-16 00:10:14', '2026-05-16 02:10:14', 0, NULL),
+(92, 1, 2, 'c4189b85e43f11f0b698fb10d9a39fb08bc47d40a3242b48c33d6931be1a8522', '192.168.1.46', '2026-05-16 02:10:35', '2026-05-16 02:39:07', '2026-05-16 02:39:07', '2026-05-16 04:10:35', 0, NULL),
+(93, 1, 2, '5e25c0c590724e06c2a5655b80acbb45dbbcc6062b33f88303181ff0cab2348c', '192.168.1.46', '2026-05-16 02:39:07', '2026-05-16 03:09:49', '2026-05-16 03:09:49', '2026-05-16 04:39:07', 0, NULL),
+(94, 1, 2, '40d7c7fd0208f5f5528d326fd902909e628d278c81d0a33ff63210089d2f56c9', '192.168.1.46', '2026-05-16 03:09:49', '2026-05-16 03:17:40', '2026-05-16 03:17:40', '2026-05-16 05:09:49', 0, NULL),
+(95, 1, 2, 'a201c5836a1b85b71a23d52530aa9060e6e5337f54b07bd8a7a302e58e7bd61d', '192.168.1.46', '2026-05-16 03:17:40', '2026-05-16 05:17:40', '2026-05-16 03:17:40', '2026-05-16 05:17:40', 0, NULL),
+(96, 1, 2, '1d1bb422469f68e2e9903bc2e33552a080da362ed105d43ab5dc9c6573ec64bb', '192.168.1.46', '2026-05-16 05:18:54', '2026-05-16 06:02:23', '2026-05-16 06:02:23', '2026-05-16 07:18:54', 0, NULL),
+(97, 1, 2, '757772aa657d74bf075448dd36aa52f9bf3e273a56faf502d1c951ac0323d875', '192.168.1.46', '2026-05-16 06:02:23', '2026-05-16 07:11:02', '2026-05-16 07:11:02', '2026-05-16 08:02:23', 0, NULL),
+(98, 1, 2, 'fc5410f7c492b2fcc299bde814fd0ef5d15b4d05b4273f32a0879c3d090e94c7', '192.168.1.46', '2026-05-16 07:11:02', '2026-05-16 07:30:41', '2026-05-16 07:30:41', '2026-05-16 09:11:02', 0, NULL),
+(99, 1, 2, '63a1908cd3cfd5514bfc8da913db122c9fff5313a7e948016993be7b9446aa83', '192.168.1.46', '2026-05-16 07:30:41', '2026-05-16 08:53:12', '2026-05-16 08:53:12', '2026-05-16 09:30:41', 0, NULL),
+(100, 1, 2, '476b2138d1026738e1b5ee304fe96249695b6d1013a6155596a23a5fcc80f7f2', '192.168.1.46', '2026-05-16 08:53:12', '2026-05-16 08:56:40', '2026-05-16 08:56:40', '2026-05-16 10:53:12', 0, NULL),
+(101, 1, 2, '213c25a85655f833aa3d134f4a557979b22d21d047e12df3a7d5de59d6f593c9', '192.168.1.46', '2026-05-16 08:56:40', '2026-05-16 10:56:40', '2026-05-16 08:56:40', '2026-05-16 10:56:40', 0, NULL),
+(102, 1, 2, '41dad99b893c392502e27debe6d93eb505e7102768bb5359c51c80dcd443242f', '192.168.1.46', '2026-05-18 00:02:24', '2026-05-18 01:27:54', '2026-05-18 01:27:54', '2026-05-18 02:02:24', 0, NULL),
+(103, 1, 2, '64779372942e04d67b47c3ebee78d4723d6a5feb17f14bedd7da5598e9af6219', '192.168.1.46', '2026-05-18 01:27:54', '2026-05-18 01:43:11', '2026-05-18 01:43:11', '2026-05-18 03:27:54', 0, NULL),
+(104, 1, 2, 'c74da18f250f8a22dffe71fe81a08da10445d3b3c750822a8aff65295b44e533', '192.168.1.46', '2026-05-18 01:43:11', '2026-05-18 01:46:27', '2026-05-18 01:46:27', '2026-05-18 03:43:11', 0, NULL),
+(105, 1, 2, 'd8585eaf22216fd9f9928f81fa13594d0cc140b78b6624a05b8677441d123633', '192.168.1.46', '2026-05-18 01:46:27', '2026-05-18 02:01:06', '2026-05-18 02:01:06', '2026-05-18 03:46:27', 0, NULL),
+(106, 1, 2, '3137689e01c81346c69e4d3963331cefdca50ed847e4a33569a918d876d67b71', '192.168.1.46', '2026-05-18 02:01:06', '2026-05-18 02:06:49', '2026-05-18 02:06:49', '2026-05-18 04:01:06', 0, NULL),
+(107, 1, 2, '993f6a7e709e9b1217d20bec403cf5c305a03e65df218fc6c64f5f4ef1242d7a', '192.168.1.46', '2026-05-18 02:06:49', '2026-05-18 04:06:49', '2026-05-18 02:06:49', '2026-05-18 04:06:49', 0, NULL),
+(108, 1, 2, '25e3bcad04580747ed52aef3167c9f4f20cf1bf0330322f742033807f5314cc8', '192.168.1.46', '2026-05-18 05:07:26', '2026-05-18 06:30:07', '2026-05-18 06:30:07', '2026-05-18 07:07:26', 0, NULL),
+(109, 6, 2, '9fbb391416e4dd4c5140f94d028aa08789f005e1c9ab9ab9611b263c99a26322', '192.168.1.46', '2026-05-18 06:26:44', '2026-05-18 06:30:58', '2026-05-18 06:30:58', '2026-05-18 08:26:44', 0, NULL),
+(110, 1, 2, '20c1577a0ad82709ff4bde6fc4fe4c2adb8ed84de14a2c8c046afbc107050858', '192.168.1.46', '2026-05-18 06:30:07', '2026-05-18 06:36:21', '2026-05-18 06:36:21', '2026-05-18 08:30:07', 0, NULL),
+(111, 6, 2, 'e177dfac4f507d2fc530e1d2a4fe5fd9c5b5d26214a32f8d235757be95dc62bd', '192.168.1.46', '2026-05-18 06:30:58', '2026-05-18 06:38:58', '2026-05-18 06:38:58', '2026-05-18 08:30:58', 0, NULL),
+(112, 1, 2, '943a0052cdc820026bc395f4ba0b4d39cefa1542a82235e0ff803aab1207e814', '192.168.1.46', '2026-05-18 06:36:21', '2026-05-18 06:37:09', '2026-05-18 06:37:09', '2026-05-18 08:36:21', 0, NULL),
+(113, 1, 2, 'c72c0c75636370c8e79938cd6a8475d4735500afe0bd493e90d643baddd3c1d6', '192.168.1.46', '2026-05-18 06:37:09', '2026-05-18 06:39:44', '2026-05-18 06:39:44', '2026-05-18 08:37:09', 0, NULL),
+(114, 6, 2, '98e30f6ee487fe607d0f7f8f2b14bc3875bba61117bc39878796aefdcbc322d7', '192.168.1.46', '2026-05-18 06:38:58', '2026-05-18 06:40:26', '2026-05-18 06:40:26', '2026-05-18 08:38:58', 0, NULL),
+(115, 1, 2, '72f45c9ab255d76efb6d4c0cc374bebe3d3f0ef35261bc52b600505468c7ef21', '192.168.1.46', '2026-05-18 06:39:44', '2026-05-18 06:41:02', '2026-05-18 06:41:02', '2026-05-18 08:39:44', 0, NULL),
+(116, 6, 2, '9ec02761221bf707ba51e1297de648fd2c6a30b840a3d74a5764635b5d5d3fdf', '192.168.1.46', '2026-05-18 06:40:26', '2026-05-18 06:43:38', '2026-05-18 06:43:38', '2026-05-18 08:40:26', 0, NULL),
+(117, 1, 2, 'ed868cc6d5cf6a9e59a1fd4b703349f9ed568f406c41bcf0790e94f74d69460d', '192.168.1.46', '2026-05-18 06:41:02', '2026-05-18 07:07:52', '2026-05-18 07:07:52', '2026-05-18 08:41:02', 0, NULL),
+(118, 6, 2, '0f607908df4ae4e009932a0a258a82189a2e987b940b3163ca3eef1296edfa3a', '192.168.1.46', '2026-05-18 06:43:38', '2026-05-18 07:14:24', '2026-05-18 07:14:24', '2026-05-18 08:43:38', 0, NULL),
+(119, 1, 2, '5a7f9b2efa422cebd79d82823e09b60e3db782cd0ffb5a7c7130cd91fdf98019', '192.168.1.46', '2026-05-18 07:07:52', '2026-05-18 07:16:45', '2026-05-18 07:16:45', '2026-05-18 09:07:52', 0, NULL),
+(120, 6, 2, '8b2a8a54b02b90e1ae746811cc01933cd227408018227a311f8330ba0d4d95db', '192.168.1.46', '2026-05-18 07:14:24', '2026-05-18 07:28:50', '2026-05-18 07:28:50', '2026-05-18 09:14:24', 0, NULL),
+(121, 1, 2, '957fac8bfe669f2d586ed1cfff56627d741b87cdfba87a7ba18fdce96dd1eeaf', '192.168.1.46', '2026-05-18 07:16:45', '2026-05-18 08:48:22', '2026-05-18 08:48:22', '2026-05-18 09:16:45', 0, NULL),
+(122, 6, 2, '4c12f60c820f22a59319ad00cfa649179f75c55385654c5ad4b26b67ec31b50b', '192.168.1.46', '2026-05-18 07:28:50', '2026-05-18 08:56:20', '2026-05-18 08:56:20', '2026-05-18 09:28:50', 0, NULL),
+(123, 1, 2, '8cc55100aa692b9a397d2ef9ff1ce44522481c8bfa64007c3335c983defe09c4', '192.168.1.46', '2026-05-18 08:48:22', '2026-05-18 09:01:00', '2026-05-18 09:01:00', '2026-05-18 10:48:22', 0, NULL),
+(124, 6, 2, 'f739ca898e6e7e318d01d32a0f02d6519806fc35a9009eb3e3688b97a2ce88f1', '192.168.1.46', '2026-05-18 08:56:20', '2026-05-18 10:56:20', '2026-05-18 08:56:20', '2026-05-18 10:56:20', 0, NULL),
+(125, 1, 2, 'bad84a0f8c86180be40b9b5f3d80e3899cc84d249031a6fd9df1a013490649a7', '192.168.1.46', '2026-05-18 09:01:00', '2026-05-18 11:01:00', '2026-05-18 09:01:00', '2026-05-18 11:01:00', 0, NULL),
+(126, 1, 2, '035abc3b7dba0443bfc7abe633bc4345b2ba4acf458a74d54e61f49578c6a1b3', '192.168.1.46', '2026-05-19 00:13:47', '2026-05-19 02:13:47', '2026-05-19 00:13:47', '2026-05-19 02:13:47', 0, NULL),
+(127, 1, 2, 'a8fa0ec8f778104e3d7b7b34bf51f28fadd391231e810e6e763406043408aec4', '192.168.1.46', '2026-05-19 02:17:50', '2026-05-19 04:17:50', '2026-05-19 02:17:50', '2026-05-19 04:17:50', 0, NULL),
+(128, 6, 2, 'bd3fffb72e63bf93256e46885c9acb43c20988011199d771ac94726f4b8dd4f2', '192.168.1.46', '2026-05-19 03:45:01', '2026-05-19 04:00:03', '2026-05-19 04:00:03', '2026-05-19 05:45:01', 0, NULL),
+(129, 6, 2, 'c728a781e0faf9f4b6d52aa87d244d857f3e095fcf79c31873468370f32438e4', '192.168.1.46', '2026-05-19 04:00:03', '2026-05-19 05:06:12', '2026-05-19 05:06:12', '2026-05-19 06:00:03', 0, NULL),
+(130, 6, 2, '610bf07c996d68ea5f1c6322e6cb740109b34dc0f08815738bce4e7155a75aea', '192.168.1.46', '2026-05-19 05:06:12', '2026-05-19 05:07:33', '2026-05-19 05:07:33', '2026-05-19 07:06:12', 0, NULL),
+(131, 1, 2, '175bb6ba58fa1ce12d5191664df6f5f0c9f09bef269c2b55599d87f426e81b9a', '192.168.1.46', '2026-05-19 05:06:24', '2026-05-19 07:06:24', '2026-05-19 05:06:24', '2026-05-19 07:06:24', 0, NULL),
+(132, 6, 2, '19012dc267df5ae69ba24a0e2313d63f431ad040775e3c4497fe024fff2b2283', '192.168.1.46', '2026-05-19 05:07:33', '2026-05-19 07:06:16', '2026-05-19 07:06:16', '2026-05-19 07:07:33', 0, NULL),
+(133, 6, 2, '019b5cda3a2c630525c57b124a6e92cc0408ea74b6b2f1bcc45f22ec25a8c7e7', '192.168.1.46', '2026-05-19 07:06:16', '2026-05-19 09:06:16', '2026-05-19 07:06:16', '2026-05-19 09:06:16', 0, NULL),
+(134, 1, 2, '72231fba060c0b81ff7cf2d2a79f47e91de78315b1f2ae2945080986b78f7c1a', '192.168.1.46', '2026-05-19 07:33:35', '2026-05-19 08:42:35', '2026-05-19 08:42:35', '2026-05-19 09:33:35', 0, NULL),
+(135, 1, 2, '9bd7f7757c979feb638f7a7321bb5ad7c86c41c5d3da4ffd31d4acd094b18070', '192.168.1.46', '2026-05-19 08:42:35', '2026-05-19 09:07:55', '2026-05-19 09:07:55', '2026-05-19 10:42:35', 0, NULL),
+(136, 1, 2, '649bf9d2d6af019ef956b0e420689bb2c2e9dfbb6a7a16362e0fd35bb35fb8b5', '192.168.1.46', '2026-05-19 09:07:55', '2026-05-19 09:31:06', '2026-05-19 09:31:06', '2026-05-19 11:07:55', 0, NULL),
+(137, 6, 2, '2d5382ff1743bc2579cdab19db3c115564c9f7622c637496d2a28f1e779ff3ed', '192.168.1.46', '2026-05-19 09:08:29', '2026-05-19 11:08:29', '2026-05-19 09:08:29', '2026-05-19 11:08:29', 0, NULL),
+(138, 1, 2, '70575740774e21b46d1c01dc62ea61d6b5f6780f892ff98df1d67f46483d2fef', '192.168.1.46', '2026-05-19 09:31:06', '2026-05-19 11:31:06', '2026-05-19 09:31:06', '2026-05-19 11:31:06', 0, NULL),
+(139, 1, 2, '80162bffe306ec8b5058fead47d8665cf92e7148a4fa9008e9ed4b660d426e2c', '192.168.1.46', '2026-05-19 23:50:22', '2026-05-20 01:50:22', '2026-05-19 23:50:22', '2026-05-20 01:50:22', 0, NULL),
+(140, 1, 2, '6ce7f9ddbf8ce3a6f4680795b3f4534f55bce6c453e9dab0e2c0447d281ae055', '192.168.1.46', '2026-05-20 01:50:31', '2026-05-20 03:50:31', '2026-05-20 01:50:31', '2026-05-20 03:50:31', 0, NULL),
+(141, 8, 2, '150dde530b18c2b42764c9ebfac357c37059dea45638127887b41738dc48de9c', '192.168.1.46', '2026-05-20 02:24:10', '2026-05-20 03:06:34', '2026-05-20 03:06:34', '2026-05-20 04:24:10', 0, NULL),
+(142, 8, 2, '90e62ca3daa95893ab3be9c56bedf012f25cfd34730ca78569f7fcb872592b2d', '192.168.1.46', '2026-05-20 03:06:34', '2026-05-20 03:16:02', '2026-05-20 03:16:02', '2026-05-20 05:06:34', 0, NULL),
+(143, 8, 2, '92d7d5a88ab4158290bd42601f02b0a29fe055c58b3bb3bcc91534b6ce125480', '192.168.1.46', '2026-05-20 03:16:02', '2026-05-20 03:18:06', '2026-05-20 03:18:06', '2026-05-20 05:16:02', 0, NULL),
+(144, 8, 2, '5f0158182d9b930714533a05219faca95b4bb054a850eea97bdd5d114aac9045', '192.168.1.46', '2026-05-20 03:18:06', '2026-05-20 05:18:06', '2026-05-20 03:18:06', '2026-05-20 05:18:06', 0, NULL),
+(145, 1, 2, '64fec317efd28e000288a6ca0b31dde2a15b325af84ac99c0838ad2d10624c1a', '192.168.1.46', '2026-05-20 03:53:20', '2026-05-20 05:53:20', '2026-05-20 03:53:20', '2026-05-20 05:53:20', 0, NULL),
+(146, 8, 2, '2ffac5bb9e5f3d4559a3db30054f99d4d0cb22f37b34eb3084de70a286fed806', '192.168.1.46', '2026-05-20 05:37:29', '2026-05-20 07:08:39', '2026-05-20 07:08:39', '2026-05-20 07:37:29', 0, NULL),
+(147, 1, 2, '20ef371be1946e44ab95ebd26bfdece481b5473058bdefc6f3139524aa5d24d8', '192.168.1.46', '2026-05-20 05:57:15', '2026-05-20 07:57:15', '2026-05-20 05:57:15', '2026-05-20 07:57:15', 0, NULL),
+(148, 8, 2, 'e6c500135eae3ddb85c66137f34b7a5bc70ad50fdda039c2917b54bd9dffd68a', '192.168.1.46', '2026-05-20 07:08:39', '2026-05-20 08:17:29', '2026-05-20 08:17:29', '2026-05-20 09:08:39', 0, NULL),
+(149, 1, 2, '7a1f77c7ea2466bca3d27f72c5392a0748937a76ef4c923064389a87db264f49', '192.168.1.46', '2026-05-20 08:12:40', '2026-05-20 10:12:40', '2026-05-20 08:12:40', '2026-05-20 10:12:40', 0, NULL),
+(150, 8, 2, 'e291ac052eef4119377da7fdf1247b12cf066ac2ca7297908cfe4322c86ba552', '192.168.1.46', '2026-05-20 08:17:29', '2026-05-20 10:17:29', '2026-05-20 08:17:29', '2026-05-20 10:17:29', 0, NULL),
+(151, 1, 2, '151c4f731b244bf229d80f20ec17285805188ae564d3da4cc209352b84b1cb1f', '192.168.1.46', '2026-05-20 23:35:56', '2026-05-21 01:35:56', '2026-05-20 23:35:56', '2026-05-21 01:35:56', 0, NULL),
+(152, 8, 2, 'b5556cd5745e67a19a31ab131d32b499ace35920f47c2390d344834fe80095fa', '192.168.1.46', '2026-05-20 23:37:55', '2026-05-21 00:45:16', '2026-05-21 00:45:16', '2026-05-21 01:37:55', 0, NULL),
+(153, 8, 2, '76d837c01ead4a749e56389f5b9c0b6ebabd2a0adefc11a6ed5de3e42735b814', '192.168.1.46', '2026-05-21 00:45:16', '2026-05-21 02:45:16', '2026-05-21 00:45:16', '2026-05-21 02:45:16', 0, NULL),
+(154, 1, 2, '3478a1850bb2d3f8fa5dbfd6d6f02b27ef20a029f4810bb58b9be7e4f570f90b', '192.168.1.46', '2026-05-21 01:46:21', '2026-05-21 03:30:02', '2026-05-21 03:30:02', '2026-05-21 03:46:21', 0, NULL),
+(155, 1, 2, 'b8f064f27bf7aae9d0447f56558d343d466a9bf80f44f3caa69a59cba3ed5525', '192.168.1.46', '2026-05-21 03:30:02', '2026-05-21 05:09:04', '2026-05-21 05:09:04', '2026-05-21 05:30:02', 0, NULL),
+(156, 8, 2, '8c6bf3bfbe06e6920016c2c7b40324ba885df815e9feef66dee28305a05ecd9e', '192.168.1.46', '2026-05-21 03:39:53', '2026-05-21 05:39:53', '2026-05-21 03:39:53', '2026-05-21 05:39:53', 0, NULL),
+(157, 1, 2, '11494abdc3d8ded51cf4f3812b823389602cb08c793cea27357093529750f10d', '192.168.1.46', '2026-05-21 05:09:04', '2026-05-21 07:09:04', '2026-05-21 05:09:04', '2026-05-21 07:09:04', 0, NULL),
+(158, 1, 2, '8721825d28b3c8b2077e8847137f40174c1ececdf8c23bab38ce83c95e1e576a', '192.168.1.46', '2026-05-21 07:10:15', '2026-05-21 07:14:25', '2026-05-21 07:13:42', '2026-05-21 09:13:42', 0, NULL),
+(159, 1, 2, '98870793097b3871f830ab95694ee45e1009c6adc333c8e35e7a9b80c0ac4f36', '192.168.1.46', '2026-05-21 07:14:36', '2026-05-21 07:15:52', '2026-05-21 07:14:57', '2026-05-21 09:14:41', 0, 'max_concurrent_sessions'),
+(160, 1, 2, 'd8b9cafaa2fe48575d5d30f5bc40c5368cf974b2463ae0fe1985da23944e98ef', '192.168.1.46', '2026-05-21 07:16:02', '2026-05-21 07:34:07', '2026-05-21 07:33:13', '2026-05-21 09:32:52', 0, 'max_concurrent_sessions'),
+(161, 6, 7, 'eba62741ac2f21a8ab1f515c020c301ee7545e1e72de4b90726e57fbb9b15ab1', '192.168.1.21', '2026-05-21 07:24:11', '2026-05-21 07:24:32', '2026-05-21 07:24:22', '2026-05-21 09:24:22', 0, 'admin_terminated'),
+(162, 6, 7, '322fc369cdabf3f0effaa87eaac4f0b094f0b740df34f757394df8d53571e511', '192.168.1.21', '2026-05-21 07:26:07', '2026-05-21 07:26:22', '2026-05-21 07:26:07', '2026-05-21 09:26:07', 0, 'admin_terminated'),
+(163, 1, 2, 'b67e2fb984d34ede9a55f2570ec07c9444fd5e4d90b6bbecd5bd3acda8341291', '192.168.1.46', '2026-05-21 07:34:17', '2026-05-21 07:40:06', '2026-05-21 07:39:29', '2026-05-21 09:36:17', 0, 'max_concurrent_sessions'),
+(164, 1, 2, '8bea8d25a457395620ef8d4b4115a4e7c4ebafa447b9d5f94480817a3d5f07d3', '192.168.1.46', '2026-05-21 07:41:32', '2026-05-21 07:51:40', '2026-05-21 07:47:20', '2026-05-21 09:46:57', 0, 'max_concurrent_sessions'),
+(165, 1, 10, 'a88d3f729659922d35bbda09dac8651f9164589b0a1a01222575e7121dfcad7d', '192.168.1.66', '2026-05-21 07:47:20', '2026-05-21 07:52:11', '2026-05-21 07:52:07', '2026-05-21 09:49:23', 0, 'max_concurrent_sessions'),
+(166, 1, 2, '74ba4758b311d1f06bc0f014e06b00f4c2de6b92a6e9c69f1ab6c6bb448c2d44', '192.168.1.46', '2026-05-21 07:52:07', '2026-05-21 07:56:07', '2026-05-21 07:56:01', '2026-05-21 09:56:01', 0, NULL),
+(167, 1, 2, 'ba59e0839f8143d478a212e19ddb044968854cdda6b7d2ba3d446000cae5ccdc', '192.168.1.46', '2026-05-21 07:56:11', '2026-05-21 08:34:22', '2026-05-21 08:23:26', '2026-05-21 10:17:50', 0, 'max_concurrent_sessions'),
+(168, 8, 2, '46cebbbc690f2cdb6d5dbbdde95303e086de9fabe1ea0b2bdf3cbf8e9822586b', '192.168.1.46', '2026-05-21 08:15:51', '2026-05-21 08:22:19', '2026-05-21 08:17:13', '2026-05-21 10:17:13', 0, 'time_restriction'),
+(169, 1, 2, '1afdeb182a1f0477a943b220ba37c958dc0c84a0b513838fa08d41ea91710290', '192.168.1.46', '2026-05-21 08:23:26', '2026-05-21 08:34:27', '2026-05-21 08:34:27', '2026-05-21 10:25:09', 0, 'max_concurrent_sessions'),
+(170, 1, 2, '8e6de2f4a30ef553c39998edf6c50bc94175a9812d660daa518114ec6af14198', '192.168.1.46', '2026-05-21 08:34:27', '2026-05-21 08:38:23', '2026-05-21 08:36:10', '2026-05-21 10:36:10', 0, NULL),
+(171, 1, 2, '6dddce713de87d9754e3ce5a3b910340129c67d22729c04b6835b4538d17211a', '192.168.1.46', '2026-05-21 08:38:26', '2026-05-21 08:42:23', '2026-05-21 08:38:31', '2026-05-21 10:38:31', 0, NULL),
+(172, 1, 2, '08a86f4a5ccb6ae31e9265181f50200b3ece07a9f0b755882f6467ab8caf83eb', '192.168.1.46', '2026-05-21 08:42:26', '2026-05-21 08:45:43', '2026-05-21 08:42:34', '2026-05-21 10:42:34', 0, NULL),
+(173, 1, 2, 'b9452c6f881b31a2512b29ec2ca5e634f1902e41e5a2a6d853b5956254677a9e', '192.168.1.46', '2026-05-21 08:45:47', '2026-05-21 08:46:10', '2026-05-21 08:45:54', '2026-05-21 10:45:54', 0, NULL),
+(174, 1, 3, '7f599ca5e2cbdb406beda6870fccae34f597aa07fb7753425305590798010897', '192.168.1.46', '2026-05-21 08:46:19', '2026-05-21 08:46:53', '2026-05-21 08:46:51', '2026-05-21 10:46:51', 0, NULL),
+(175, 1, 3, '0687cb75a604085a059319d8423ac014dca7592bfe8c05fbcaf19619fdc2df3b', '192.168.1.46', '2026-05-21 08:46:58', '2026-05-21 09:05:10', '2026-05-21 08:47:10', '2026-05-21 10:47:10', 0, NULL),
+(176, 1, 2, '3a0cc182c53b27657cc798ba19c838396867dade1363d6289a67f7b01cd8f27e', '192.168.1.46', '2026-05-21 09:06:43', '2026-05-21 11:30:58', '2026-05-21 09:30:58', '2026-05-21 11:30:58', 0, NULL),
+(177, 1, 2, '88c4a100276653b59f6da73a677830c5fb39bc8562133087ac02f9bc26ff609d', '192.168.1.46', '2026-05-22 00:01:50', '2026-05-22 00:48:15', '2026-05-22 00:42:04', '2026-05-22 02:42:04', 0, NULL);
 
 -- --------------------------------------------------------
 
@@ -45464,7 +45933,7 @@ CREATE TABLE `wallet_transactions` (
   `wallet_txn_id` bigint(20) NOT NULL,
   `wallet_id` bigint(20) NOT NULL,
   `txn_code` varchar(100) DEFAULT NULL,
-  `txn_type` enum('TOPUP','SALE','REFUND','ADJUSTMENT') DEFAULT NULL,
+  `txn_type` enum('TOPUP','REFUND','ADJUSTMENT') DEFAULT NULL,
   `direction` enum('IN','OUT') DEFAULT NULL,
   `amount` decimal(12,2) DEFAULT NULL,
   `balance_before` decimal(12,2) DEFAULT NULL,
@@ -45481,8 +45950,19 @@ CREATE TABLE `wallet_transactions` (
 --
 
 INSERT INTO `wallet_transactions` (`wallet_txn_id`, `wallet_id`, `txn_code`, `txn_type`, `direction`, `amount`, `balance_before`, `balance_after`, `reference_table`, `reference_id`, `remarks`, `created_by`, `created_at`) VALUES
-(1, 1, 'TP-20260513081623-21F9', 'TOPUP', 'IN', 1000.00, 0.00, 1000.00, NULL, NULL, 'to go test 1kyaw ', 1, '2026-05-13 00:16:23'),
-(2, 2, 'AD-20260513171803-0C0A', 'ADJUSTMENT', 'IN', 500.00, 0.00, 500.00, NULL, NULL, '', 1, '2026-05-13 09:18:03');
+(1, 4, 'ADJ-20260520-113742-622', 'ADJUSTMENT', 'OUT', 300.00, 4300.00, 4000.00, 'ticket_transactions', 1, 'Ticket sale - Base Amount only. Order: ORD-20260520-113742-317, Txn: TKT-20260520-113742-467', 8, '2026-05-20 03:37:42'),
+(2, 4, 'ADJ-20260520-114749-739', 'ADJUSTMENT', 'OUT', 1000.00, 4000.00, 3000.00, 'ticket_transactions', 2, 'Ticket sale - Base Amount only. Order: ORD-20260520-114749-408, Txn: TKT-20260520-114749-844', 8, '2026-05-20 03:47:49'),
+(3, 4, 'ADJ-20260520-133815-520', 'ADJUSTMENT', 'OUT', 1000.00, 3000.00, 2000.00, 'ticket_transactions', 3, 'Ticket sale - Base Amount only. Order: ORD-20260520-133815-844, Txn: TKT-20260520-133815-500', 8, '2026-05-20 05:38:15'),
+(4, 4, 'ADJ-20260520-150913-594', 'ADJUSTMENT', 'OUT', 1000.00, 2000.00, 1000.00, 'ticket_transactions', 4, 'Ticket sale - Base Amount only. Order: ORD-20260520-150913-370, Txn: TKT-20260520-150913-876', 8, '2026-05-20 07:09:13'),
+(5, 5, 'ADJ-20260520-152606-383', 'ADJUSTMENT', 'OUT', 500.00, 10000.00, 9500.00, 'ticket_transactions', 5, 'Ticket sale - Base Amount only. Order: ORD-20260520-152606-053, Txn: TKT-20260520-152606-283', 8, '2026-05-20 07:26:06'),
+(6, 4, 'RF-20260520-165922-408', 'REFUND', 'IN', 111.00, 1000.00, 1111.00, 'ticket_transactions', 2, 'Refund: TKT-20260520-114749-844 | Cancellation #4 | ok na', 1, '2026-05-20 08:59:22'),
+(7, 4, 'RF-20260520-170602-926', 'REFUND', 'IN', 300.00, 1111.00, 1411.00, 'ticket_transactions', 1, 'Refund: TKT-20260520-113742-467 | Cancellation #5 | xxx', 1, '2026-05-20 09:06:02'),
+(8, 4, 'ADJ-20260520-170908-371', 'ADJUSTMENT', 'OUT', 1000.00, 1411.00, 411.00, 'ticket_transactions', 6, 'Ticket sale - Base Amount only. Order: ORD-20260520-170907-477, Txn: TKT-20260520-170907-915', 8, '2026-05-20 09:09:08'),
+(9, 5, 'ADJ-20260520-171840-757', 'ADJUSTMENT', 'OUT', 1000.00, 9500.00, 8500.00, 'ticket_transactions', 7, 'Ticket sale - Base Amount only. Order: ORD-20260520-171840-591, Txn: TKT-20260520-171840-733', 8, '2026-05-20 09:18:40'),
+(10, 5, 'RF-20260520-171949-949', 'REFUND', 'IN', 500.00, 8500.00, 9000.00, 'ticket_transactions', 7, 'Refund: TKT-20260520-171840-733 | Cancellation #6 | fdsfsd', 1, '2026-05-20 09:19:49'),
+(11, 5, 'ADJ-20260520-172026-739', 'ADJUSTMENT', 'OUT', 500.00, 9000.00, 8500.00, 'ticket_transactions', 8, 'Ticket sale - Base Amount only. Order: ORD-20260520-172026-057, Txn: TKT-20260520-172026-598', 8, '2026-05-20 09:20:26'),
+(12, 5, 'ADJ-20260521-095822-455', 'ADJUSTMENT', 'OUT', 1000.00, 8500.00, 7500.00, 'ticket_transactions', 9, 'Ticket sale - Base Amount only. Order: ORD-20260521-095822-484, Txn: TKT-20260521-095822-210', 8, '2026-05-21 01:58:22'),
+(13, 1, 'ADJ-20260522-084155-572', 'ADJUSTMENT', 'OUT', 10.00, 30.00, 20.00, 'ticket_transactions', 10, 'Ticket sale - Base Amount only. Order: ORD-20260522-084155-536, Txn: TKT-20260522-084155-060', 1, '2026-05-22 00:41:55');
 
 --
 -- Indexes for dumped tables
@@ -45513,6 +45993,15 @@ ALTER TABLE `bank_accounts`
   ADD KEY `idx_is_active` (`is_active`);
 
 --
+-- Indexes for table `bank_transactions`
+--
+ALTER TABLE `bank_transactions`
+  ADD PRIMARY KEY (`bank_txn_id`),
+  ADD UNIQUE KEY `txn_code` (`txn_code`),
+  ADD KEY `bank_account_id` (`bank_account_id`),
+  ADD KEY `created_by` (`created_by`);
+
+--
 -- Indexes for table `business_branches`
 --
 ALTER TABLE `business_branches`
@@ -45538,7 +46027,8 @@ ALTER TABLE `cashier_sessions`
   ADD KEY `idx_cashier_user_id` (`cashier_user_id`),
   ADD KEY `idx_branch_id` (`branch_id`),
   ADD KEY `idx_status` (`status`),
-  ADD KEY `idx_started_at` (`started_at`);
+  ADD KEY `idx_started_at` (`started_at`),
+  ADD KEY `fk_cash_deposit_bank` (`cash_deposit_bank_id`);
 
 --
 -- Indexes for table `cashier_session_details`
@@ -45548,6 +46038,16 @@ ALTER TABLE `cashier_session_details`
   ADD UNIQUE KEY `uq_session_method` (`session_id`,`payment_method_id`),
   ADD KEY `payment_method_id` (`payment_method_id`),
   ADD KEY `idx_session_id` (`session_id`);
+
+--
+-- Indexes for table `cashier_transport_assignments`
+--
+ALTER TABLE `cashier_transport_assignments`
+  ADD PRIMARY KEY (`assignment_id`),
+  ADD UNIQUE KEY `uk_user_provider` (`user_id`,`provider_id`,`transport_type`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_provider_id` (`provider_id`),
+  ADD KEY `idx_transport_type` (`transport_type`);
 
 --
 -- Indexes for table `charge_payments`
@@ -45597,6 +46097,21 @@ ALTER TABLE `discount_types`
   ADD UNIQUE KEY `code` (`code`);
 
 --
+-- Indexes for table `email_settings`
+--
+ALTER TABLE `email_settings`
+  ADD PRIMARY KEY (`setting_id`);
+
+--
+-- Indexes for table `email_verification_tokens`
+--
+ALTER TABLE `email_verification_tokens`
+  ADD PRIMARY KEY (`token_id`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_token` (`token`),
+  ADD KEY `idx_email` (`email`);
+
+--
 -- Indexes for table `employees`
 --
 ALTER TABLE `employees`
@@ -45634,13 +46149,24 @@ ALTER TABLE `passenger_accounts`
   ADD KEY `idx_created_by` (`created_by`);
 
 --
+-- Indexes for table `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD PRIMARY KEY (`token_id`),
+  ADD UNIQUE KEY `token` (`token`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_expires_at` (`expires_at`),
+  ADD KEY `idx_email` (`email`);
+
+--
 -- Indexes for table `payment_methods`
 --
 ALTER TABLE `payment_methods`
   ADD PRIMARY KEY (`method_id`),
   ADD UNIQUE KEY `method_code` (`method_code`),
   ADD KEY `idx_method_type` (`method_type`),
-  ADD KEY `idx_is_active` (`is_active`);
+  ADD KEY `idx_is_active` (`is_active`),
+  ADD KEY `idx_tracks_credit` (`tracks_credit`);
 
 --
 -- Indexes for table `permissions`
@@ -45658,6 +46184,27 @@ ALTER TABLE `permissions`
 ALTER TABLE `position`
   ADD PRIMARY KEY (`pos_id`),
   ADD KEY `pos_addedby` (`pos_addedby`);
+
+--
+-- Indexes for table `pos_orders`
+--
+ALTER TABLE `pos_orders`
+  ADD PRIMARY KEY (`order_id`),
+  ADD UNIQUE KEY `uq_order_code` (`order_code`),
+  ADD KEY `idx_branch_id` (`branch_id`),
+  ADD KEY `idx_cashier_session_id` (`cashier_session_id`),
+  ADD KEY `idx_created_by` (`created_by`),
+  ADD KEY `idx_created_at` (`created_at`);
+
+--
+-- Indexes for table `pos_order_items`
+--
+ALTER TABLE `pos_order_items`
+  ADD PRIMARY KEY (`item_id`),
+  ADD KEY `idx_order_id` (`order_id`),
+  ADD KEY `idx_reference_id` (`reference_id`),
+  ADD KEY `idx_item_type` (`item_type`),
+  ADD KEY `idx_passenger_id` (`passenger_id`);
 
 --
 -- Indexes for table `provider_service_fees`
@@ -45755,7 +46302,8 @@ ALTER TABLE `system_devices`
   ADD PRIMARY KEY (`device_id`),
   ADD UNIQUE KEY `device_code` (`device_code`),
   ADD KEY `branch_id` (`branch_id`),
-  ADD KEY `approved_by` (`approved_by`);
+  ADD KEY `approved_by` (`approved_by`),
+  ADD KEY `idx_last_user_id` (`last_user_id`);
 
 --
 -- Indexes for table `system_maintenance_logs`
@@ -45781,11 +46329,32 @@ ALTER TABLE `ticket_adjustments`
   ADD KEY `created_by` (`created_by`);
 
 --
+-- Indexes for table `ticket_cancellations`
+--
+ALTER TABLE `ticket_cancellations`
+  ADD PRIMARY KEY (`cancellation_id`),
+  ADD KEY `idx_transaction_id` (`transaction_id`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_requested_by` (`requested_by`),
+  ADD KEY `idx_cashier_session_id` (`cashier_session_id`);
+
+--
 -- Indexes for table `ticket_providers`
 --
 ALTER TABLE `ticket_providers`
   ADD PRIMARY KEY (`provider_id`),
   ADD UNIQUE KEY `provider_code` (`provider_code`);
+
+--
+-- Indexes for table `ticket_refunds`
+--
+ALTER TABLE `ticket_refunds`
+  ADD PRIMARY KEY (`refund_id`),
+  ADD KEY `idx_transaction_id` (`transaction_id`),
+  ADD KEY `idx_cancellation_id` (`cancellation_id`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_requested_by` (`requested_by`),
+  ADD KEY `idx_cashier_session_id` (`cashier_session_id`);
 
 --
 -- Indexes for table `ticket_transactions`
@@ -45799,7 +46368,16 @@ ALTER TABLE `ticket_transactions`
   ADD KEY `discount_id` (`discount_id`),
   ADD KEY `created_by` (`created_by`),
   ADD KEY `idx_cashier_session_id` (`cashier_session_id`),
-  ADD KEY `idx_branch_id` (`branch_id`);
+  ADD KEY `idx_branch_id` (`branch_id`),
+  ADD KEY `idx_ticket_number` (`ticket_number`);
+
+--
+-- Indexes for table `time_restriction_logs`
+--
+ALTER TABLE `time_restriction_logs`
+  ADD PRIMARY KEY (`log_id`),
+  ADD KEY `idx_trl_user_id` (`user_id`),
+  ADD KEY `idx_trl_attempted_at` (`attempted_at`);
 
 --
 -- Indexes for table `transaction_payments`
@@ -45827,8 +46405,8 @@ ALTER TABLE `user_accounts`
   ADD UNIQUE KEY `email` (`email`),
   ADD KEY `idx_username` (`username`),
   ADD KEY `idx_role_id` (`role_id`),
-  ADD KEY `idx_branch_id` (`branch_id`),
-  ADD KEY `idx_emp_id` (`emp_id`);
+  ADD KEY `idx_emp_id` (`emp_id`),
+  ADD KEY `idx_recovery_email` (`recovery_email`);
 
 --
 -- Indexes for table `user_roles`
@@ -45871,13 +46449,19 @@ ALTER TABLE `accommodation_types`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `log_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=190;
+  MODIFY `log_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=139;
 
 --
 -- AUTO_INCREMENT for table `bank_accounts`
 --
 ALTER TABLE `bank_accounts`
-  MODIFY `bank_account_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `bank_account_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `bank_transactions`
+--
+ALTER TABLE `bank_transactions`
+  MODIFY `bank_txn_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `business_branches`
@@ -45889,7 +46473,7 @@ ALTER TABLE `business_branches`
 -- AUTO_INCREMENT for table `cashier_sessions`
 --
 ALTER TABLE `cashier_sessions`
-  MODIFY `session_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `session_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `cashier_session_details`
@@ -45898,10 +46482,16 @@ ALTER TABLE `cashier_session_details`
   MODIFY `detail_id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `cashier_transport_assignments`
+--
+ALTER TABLE `cashier_transport_assignments`
+  MODIFY `assignment_id` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `charge_payments`
 --
 ALTER TABLE `charge_payments`
-  MODIFY `charge_payment_id` bigint(20) NOT NULL AUTO_INCREMENT;
+  MODIFY `charge_payment_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `charge_payment_allocations`
@@ -45913,7 +46503,7 @@ ALTER TABLE `charge_payment_allocations`
 -- AUTO_INCREMENT for table `customer_charges`
 --
 ALTER TABLE `customer_charges`
-  MODIFY `charge_id` bigint(20) NOT NULL AUTO_INCREMENT;
+  MODIFY `charge_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `department`
@@ -45926,6 +46516,18 @@ ALTER TABLE `department`
 --
 ALTER TABLE `discount_types`
   MODIFY `discount_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `email_settings`
+--
+ALTER TABLE `email_settings`
+  MODIFY `setting_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `email_verification_tokens`
+--
+ALTER TABLE `email_verification_tokens`
+  MODIFY `token_id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `employees`
@@ -45943,7 +46545,13 @@ ALTER TABLE `employment_status`
 -- AUTO_INCREMENT for table `passenger_accounts`
 --
 ALTER TABLE `passenger_accounts`
-  MODIFY `passenger_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `passenger_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  MODIFY `token_id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `payment_methods`
@@ -45955,7 +46563,7 @@ ALTER TABLE `payment_methods`
 -- AUTO_INCREMENT for table `permissions`
 --
 ALTER TABLE `permissions`
-  MODIFY `permission_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=48;
+  MODIFY `permission_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=59;
 
 --
 -- AUTO_INCREMENT for table `position`
@@ -45964,16 +46572,28 @@ ALTER TABLE `position`
   MODIFY `pos_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
+-- AUTO_INCREMENT for table `pos_orders`
+--
+ALTER TABLE `pos_orders`
+  MODIFY `order_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- AUTO_INCREMENT for table `pos_order_items`
+--
+ALTER TABLE `pos_order_items`
+  MODIFY `item_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
 -- AUTO_INCREMENT for table `provider_service_fees`
 --
 ALTER TABLE `provider_service_fees`
-  MODIFY `fee_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `fee_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `provider_wallets`
 --
 ALTER TABLE `provider_wallets`
-  MODIFY `wallet_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `wallet_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `psgc_barangays`
@@ -46003,13 +46623,13 @@ ALTER TABLE `psgc_regions`
 -- AUTO_INCREMENT for table `role_permissions`
 --
 ALTER TABLE `role_permissions`
-  MODIFY `role_permission_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=128;
+  MODIFY `role_permission_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=140;
 
 --
 -- AUTO_INCREMENT for table `service_transactions`
 --
 ALTER TABLE `service_transactions`
-  MODIFY `service_txn_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=246;
+  MODIFY `service_txn_id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `service_types`
@@ -46027,7 +46647,7 @@ ALTER TABLE `sub_department`
 -- AUTO_INCREMENT for table `system_devices`
 --
 ALTER TABLE `system_devices`
-  MODIFY `device_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `device_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `system_maintenance_logs`
@@ -46048,28 +46668,46 @@ ALTER TABLE `ticket_adjustments`
   MODIFY `adjustment_id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `ticket_cancellations`
+--
+ALTER TABLE `ticket_cancellations`
+  MODIFY `cancellation_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
 -- AUTO_INCREMENT for table `ticket_providers`
 --
 ALTER TABLE `ticket_providers`
   MODIFY `provider_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `ticket_refunds`
+--
+ALTER TABLE `ticket_refunds`
+  MODIFY `refund_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
 -- AUTO_INCREMENT for table `ticket_transactions`
 --
 ALTER TABLE `ticket_transactions`
-  MODIFY `transaction_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `transaction_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- AUTO_INCREMENT for table `time_restriction_logs`
+--
+ALTER TABLE `time_restriction_logs`
+  MODIFY `log_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `transaction_payments`
 --
 ALTER TABLE `transaction_payments`
-  MODIFY `payment_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `payment_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `user_accounts`
 --
 ALTER TABLE `user_accounts`
-  MODIFY `user_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `user_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `user_roles`
@@ -46081,13 +46719,13 @@ ALTER TABLE `user_roles`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `session_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=77;
+  MODIFY `session_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=178;
 
 --
 -- AUTO_INCREMENT for table `wallet_transactions`
 --
 ALTER TABLE `wallet_transactions`
-  MODIFY `wallet_txn_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `wallet_txn_id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- Constraints for dumped tables
@@ -46108,6 +46746,13 @@ ALTER TABLE `bank_accounts`
   ADD CONSTRAINT `bank_accounts_ibfk_2` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods` (`method_id`);
 
 --
+-- Constraints for table `bank_transactions`
+--
+ALTER TABLE `bank_transactions`
+  ADD CONSTRAINT `bank_transactions_ibfk_1` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`bank_account_id`),
+  ADD CONSTRAINT `bank_transactions_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `user_accounts` (`user_id`);
+
+--
 -- Constraints for table `business_branches`
 --
 ALTER TABLE `business_branches`
@@ -46122,7 +46767,8 @@ ALTER TABLE `business_branches`
 ALTER TABLE `cashier_sessions`
   ADD CONSTRAINT `cashier_sessions_ibfk_1` FOREIGN KEY (`cashier_user_id`) REFERENCES `user_accounts` (`user_id`),
   ADD CONSTRAINT `cashier_sessions_ibfk_2` FOREIGN KEY (`branch_id`) REFERENCES `business_branches` (`branch_id`),
-  ADD CONSTRAINT `cashier_sessions_ibfk_3` FOREIGN KEY (`reviewed_by`) REFERENCES `user_accounts` (`user_id`);
+  ADD CONSTRAINT `cashier_sessions_ibfk_3` FOREIGN KEY (`reviewed_by`) REFERENCES `user_accounts` (`user_id`),
+  ADD CONSTRAINT `fk_cash_deposit_bank` FOREIGN KEY (`cash_deposit_bank_id`) REFERENCES `bank_accounts` (`bank_account_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `cashier_session_details`
@@ -46130,6 +46776,13 @@ ALTER TABLE `cashier_sessions`
 ALTER TABLE `cashier_session_details`
   ADD CONSTRAINT `cashier_session_details_ibfk_1` FOREIGN KEY (`session_id`) REFERENCES `cashier_sessions` (`session_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `cashier_session_details_ibfk_2` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods` (`method_id`);
+
+--
+-- Constraints for table `cashier_transport_assignments`
+--
+ALTER TABLE `cashier_transport_assignments`
+  ADD CONSTRAINT `cashier_transport_assignments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user_accounts` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `cashier_transport_assignments_ibfk_2` FOREIGN KEY (`provider_id`) REFERENCES `ticket_providers` (`provider_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `charge_payments`
@@ -46157,6 +46810,12 @@ ALTER TABLE `customer_charges`
   ADD CONSTRAINT `customer_charges_ibfk_1` FOREIGN KEY (`passenger_id`) REFERENCES `passenger_accounts` (`passenger_id`);
 
 --
+-- Constraints for table `email_verification_tokens`
+--
+ALTER TABLE `email_verification_tokens`
+  ADD CONSTRAINT `email_verification_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user_accounts` (`user_id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `employees`
 --
 ALTER TABLE `employees`
@@ -46172,10 +46831,29 @@ ALTER TABLE `passenger_accounts`
   ADD CONSTRAINT `passenger_accounts_ibfk_4` FOREIGN KEY (`barangay_code`) REFERENCES `psgc_barangays` (`barangay_code`);
 
 --
+-- Constraints for table `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD CONSTRAINT `fk_password_reset_user` FOREIGN KEY (`user_id`) REFERENCES `user_accounts` (`user_id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `permissions`
 --
 ALTER TABLE `permissions`
   ADD CONSTRAINT `permissions_ibfk_1` FOREIGN KEY (`parent_permission_id`) REFERENCES `permissions` (`permission_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `pos_orders`
+--
+ALTER TABLE `pos_orders`
+  ADD CONSTRAINT `fk_pos_orders_branch` FOREIGN KEY (`branch_id`) REFERENCES `business_branches` (`branch_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_pos_orders_session` FOREIGN KEY (`cashier_session_id`) REFERENCES `cashier_sessions` (`session_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `pos_order_items`
+--
+ALTER TABLE `pos_order_items`
+  ADD CONSTRAINT `fk_pos_order_items_order` FOREIGN KEY (`order_id`) REFERENCES `pos_orders` (`order_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `provider_service_fees`
@@ -46266,6 +46944,12 @@ ALTER TABLE `ticket_transactions`
   ADD CONSTRAINT `ticket_transactions_ibfk_5` FOREIGN KEY (`created_by`) REFERENCES `user_accounts` (`user_id`);
 
 --
+-- Constraints for table `time_restriction_logs`
+--
+ALTER TABLE `time_restriction_logs`
+  ADD CONSTRAINT `fk_trl_user` FOREIGN KEY (`user_id`) REFERENCES `user_accounts` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `transaction_payments`
 --
 ALTER TABLE `transaction_payments`
@@ -46281,7 +46965,6 @@ ALTER TABLE `transaction_payments`
 --
 ALTER TABLE `user_accounts`
   ADD CONSTRAINT `fk_user_accounts_employee` FOREIGN KEY (`emp_id`) REFERENCES `employees` (`emp_id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `user_accounts_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `business_branches` (`branch_id`),
   ADD CONSTRAINT `user_accounts_ibfk_2` FOREIGN KEY (`role_id`) REFERENCES `user_roles` (`role_id`);
 
 --

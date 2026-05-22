@@ -50,9 +50,9 @@ $resetToken = Database::fetch(
      JOIN user_accounts ua ON prt.user_id = ua.user_id
      WHERE prt.token = :token 
      AND prt.used_at IS NULL 
-     AND prt.expires_at > NOW()
+     AND prt.expires_at > :now
      LIMIT 1",
-    ['token' => $token]
+    ['token' => $token, 'now' => date('Y-m-d H:i:s')]
 );
 
 if (!$resetToken) {
@@ -69,21 +69,22 @@ $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
 Database::execute(
     "UPDATE user_accounts SET 
         password_hash = :hash,
-        password_changed_at = NOW(),
+        password_changed_at = :changed_at,
         require_password_change = 0,
         failed_login_attempts = 0,
         locked_until = NULL
      WHERE user_id = :user_id",
     [
         'hash' => $passwordHash,
+        'changed_at' => date('Y-m-d H:i:s'),
         'user_id' => $resetToken['user_id']
     ]
 );
 
 // Mark token as used
 Database::execute(
-    "UPDATE password_reset_tokens SET used_at = NOW() WHERE token_id = :token_id",
-    ['token_id' => $resetToken['token_id']]
+    "UPDATE password_reset_tokens SET used_at = :used_at WHERE token_id = :token_id",
+    ['used_at' => date('Y-m-d H:i:s'), 'token_id' => $resetToken['token_id']]
 );
 
 // Log the password reset to activity_logs

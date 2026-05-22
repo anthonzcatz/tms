@@ -143,12 +143,32 @@
 <!-- Session Expiry Detection -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Session expiry check interval (check every 60 seconds)
-    const SESSION_CHECK_INTERVAL = 60000;
+    // Session expiry check interval (check every 30 seconds for better real-time response)
+    const SESSION_CHECK_INTERVAL = 30000;
     let sessionCheckCount = 0;
     const MAX_RETRIES = 3;
     let lastActivityTime = Date.now();
-    const ACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours of inactivity (for cashiers)
+    
+    // Read session lifetime from env (defaults to 7200 seconds = 2 hours)
+    const SESSION_LIFETIME_MS = <?php echo intval(env('SESSION_LIFETIME', 7200)); ?> * 1000;
+    const ACTIVITY_TIMEOUT = SESSION_LIFETIME_MS; // Session expires after this much inactivity
+    
+    // Read warning timeout from database settings (minutes before expiry to show warning)
+    // e.g., if set to 15, warning shows 15 minutes before session expires
+    // Cap at 15 minutes max to prevent showing warning too early
+    const WARNING_BEFORE_EXPIRY_MINUTES = <?php 
+        $warningTimeout = Database::fetch("SELECT session_warning_timeout FROM system_settings WHERE setting_id = 1");
+        $warningMins = intval($warningTimeout['session_warning_timeout'] ?? 15);
+        // Cap between 1 and 15 minutes
+        echo max(1, min($warningMins, 15));
+    ?>;
+    // Clamp warning minutes so it never exceeds session lifetime (leave at least 1 min of session)
+    const SESSION_LIFETIME_MINUTES = SESSION_LIFETIME_MS / 60000;
+    const EFFECTIVE_WARNING_MINUTES = Math.min(WARNING_BEFORE_EXPIRY_MINUTES, Math.max(SESSION_LIFETIME_MINUTES - 1, 1));
+    // Calculate when to show warning: ACTIVITY_TIMEOUT minus warning minutes
+    // Minimum 1 minute warning, maximum 15 minutes before expiry
+    const WARNING_TIMEOUT = Math.max(ACTIVITY_TIMEOUT - (EFFECTIVE_WARNING_MINUTES * 60 * 1000), 60000);
+    let warningShown = false;
 
     // Detect user activity
     const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
@@ -246,25 +266,94 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 
-    function redirectToLogin() {
-        window.location.href = window.BASE_URL + '/auth/login.php?error=session_expired';
+    function showSessionWarningAlert() {
+        // Remove existing warning modal if present
+        const existingModal = document.getElementById('sessionWarningModal');
+        if (existingModal) {
+            return; // Don't show duplicate modals
+        }
+
+        // Calculate actual remaining minutes
+        const timeSinceLastActivity = Date.now() - lastActivityTime;
+        const remainingMs = Math.max(ACTIVITY_TIMEOUT - timeSinceLastActivity, 0);
+        const remainingMinutes = Math.ceil(remainingMs / 60000);
+
+        // Create warning modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="sessionWarningModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-info bg-opacity-10">
+                            <h5 class="modal-title text-info">
+                                <span class="fas fa-clock me-2"></span>Session Expiring Soon
+                            </h5>
+                        </div>
+                        <div class="modal-body">
+                            <p>Your session will expire in approximately <strong>${remainingMinutes} minutes</strong> due to inactivity.</p>
+                            <p>Would you like to extend your session?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <span class="fas fa-times me-2"></span>Ignore
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="extendSessionFromWarning()">
+                                <span class="fas fa-redo me-2"></span>Extend Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('sessionWarningModal'));
+        modal.show();
     }
 
-    // Check for inactivity and refresh session if user is active
+    window.extendSessionFromWarning = function() {
+        // Close the warning modal
+        const warningModal = document.getElementById('sessionWarningModal');
+        if (warningModal) {
+            const modal = bootstrap.Modal.getInstance(warningModal);
+            if (modal) {
+                modal.hide();
+            }
+            warningModal.remove();
+        }
+
+        // Refresh session
+        refreshSession();
+        lastActivityTime = Date.now(); // Reset activity timer
+        warningShown = false; // Reset warning flag
+    };
+
+    window.redirectToLogin = function() {
+        window.location.href = window.BASE_URL + '/auth/login.php?error=session_expired';
+    };
+
+    // Combined session management: refresh if active, check if inactive
     setInterval(function() {
         const timeSinceLastActivity = Date.now() - lastActivityTime;
+        
         if (timeSinceLastActivity < ACTIVITY_TIMEOUT) {
             // User is active, refresh session
             refreshSession();
-        }
-    }, SESSION_CHECK_INTERVAL);
-
-    // Session validity check (only if inactive for too long)
-    setInterval(function() {
-        const timeSinceLastActivity = Date.now() - lastActivityTime;
-        if (timeSinceLastActivity >= ACTIVITY_TIMEOUT) {
+            
+            // Reset warning flag when user is active
+            if (timeSinceLastActivity < WARNING_TIMEOUT) {
+                warningShown = false;
+            }
+        } else {
             // User has been inactive, check if session expired
             checkSession();
+        }
+        
+        // Show warning before session expires (15 min before expiry)
+        if (timeSinceLastActivity >= WARNING_TIMEOUT && 
+            timeSinceLastActivity < ACTIVITY_TIMEOUT && 
+            !warningShown) {
+            showSessionWarningAlert();
+            warningShown = true;
         }
     }, SESSION_CHECK_INTERVAL);
 });

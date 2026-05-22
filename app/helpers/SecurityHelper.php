@@ -20,12 +20,15 @@ class SecurityHelper {
             return false;
         }
         
-        // Check if token is not expired (1 hour)
-        if (time() - $_SESSION['csrf_token_time'] > 3600) {
+        // Check if token is not expired (8 hours)
+        if (time() - $_SESSION['csrf_token_time'] > 28800) {
             self::regenerateCSRFToken();
             return false;
         }
-        
+
+        // Rolling refresh: regenerate token after each successful validation
+        self::regenerateCSRFToken();
+
         return true;
     }
     

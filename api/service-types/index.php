@@ -12,17 +12,19 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null;
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId, 'device_id' => $deviceId, 'action' => $action,
             'module_name' => $moduleName, 'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -80,7 +82,7 @@ function handlePost() {
 
     Database::execute(
         "INSERT INTO service_types (code, name, description, default_amount, allow_custom_amount, requires_wallet, is_active, created_at)
-         VALUES (:code, :name, :description, :default_amount, :allow_custom_amount, :requires_wallet, :is_active, NOW())",
+         VALUES (:code, :name, :description, :default_amount, :allow_custom_amount, :requires_wallet, :is_active, :created_at)",
         [
             'code' => $code, 'name' => $name,
             'description' => $input['description'] ?? null,
@@ -88,6 +90,7 @@ function handlePost() {
             'allow_custom_amount' => $input['allow_custom_amount'] ?? 1,
             'requires_wallet' => $input['requires_wallet'] ?? 0,
             'is_active' => $input['is_active'] ?? 1,
+            'created_at' => date('Y-m-d H:i:s'),
         ]
     );
     $newId = Database::connection()->lastInsertId();
@@ -113,8 +116,8 @@ function handlePut() {
 
     // Status-only toggle
     if (count($input) === 2 && isset($input['is_active'])) {
-        Database::execute("UPDATE service_types SET is_active = :is_active, updated_at = NOW() WHERE service_type_id = :id",
-            ['is_active' => $input['is_active'], 'id' => $id]);
+        Database::execute("UPDATE service_types SET is_active = :is_active, updated_at = :updated_at WHERE service_type_id = :id",
+            ['is_active' => $input['is_active'], 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]);
         logActivity($user['user_id'], 'TOGGLE_SERVICE_TYPE', 'SERVICE_TYPES', "ST-{$id}",
             ['is_active' => $existing['is_active']], ['is_active' => $input['is_active']]);
         echo json_encode(['success' => true, 'message' => 'Status updated.']); return;
@@ -133,7 +136,7 @@ function handlePut() {
     Database::execute(
         "UPDATE service_types SET code = :code, name = :name, description = :description,
             default_amount = :default_amount, allow_custom_amount = :allow_custom_amount,
-            requires_wallet = :requires_wallet, is_active = :is_active, updated_at = NOW()
+            requires_wallet = :requires_wallet, is_active = :is_active, updated_at = :updated_at
          WHERE service_type_id = :id",
         [
             'code' => $code, 'name' => $name,
@@ -142,6 +145,7 @@ function handlePut() {
             'allow_custom_amount' => $input['allow_custom_amount'] ?? 1,
             'requires_wallet' => $input['requires_wallet'] ?? 0,
             'is_active' => $input['is_active'] ?? 1,
+            'updated_at' => date('Y-m-d H:i:s'),
             'id' => $id
         ]
     );

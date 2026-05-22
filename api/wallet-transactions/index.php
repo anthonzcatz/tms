@@ -387,7 +387,7 @@ function handlePost() {
             ]
         );
 
-        echo json_encode(['success' => true, 'message' => 'Transaction created successfully']);
+        echo json_encode(['success' => true, 'message' => 'Transaction created successfully', 'csrf_token' => SecurityHelper::generateCSRFToken()]);
     } catch (Exception $e) {
         Database::connection()->rollBack();
         throw $e;

@@ -19,7 +19,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     try {
         $discounts = Database::fetchAll(
-            "SELECT discount_id, code, name, description FROM discount_types ORDER BY name ASC"
+            "SELECT discount_id, code, name, description, discount_percentage, is_default FROM discount_types ORDER BY is_default DESC, name ASC"
         );
         echo json_encode(['success' => true, 'data' => $discounts]);
     } catch (Exception $e) {

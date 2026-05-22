@@ -9,12 +9,14 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
-         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, NOW())",
+         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, :created_at)",
         ['uid' => $userId, 'action' => $action, 'mod' => $module, 'ref' => $ref,
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
+         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null,
+         'created_at' => $now]
     );
 }
 
@@ -70,7 +72,7 @@ try {
         Database::execute(
             "INSERT INTO pos_orders
                 (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, original_grand_total, amount_paid, change_amount, status, created_at)
-             VALUES (:code, :branch, :session, :uid, :subtotal, 0, :grand, :original, :paid, :change, 'completed', NOW())",
+             VALUES (:code, :branch, :session, :uid, :subtotal, 0, :grand, :original, :paid, :change, 'completed', :created_at)",
             [
                 'code'    => $orderCode,
                 'branch'  => $branchId,
@@ -81,6 +83,7 @@ try {
                 'original'=> $orderTotal,
                 'paid'    => $totalPaid,
                 'change'  => $totalPaid - $orderTotal,
+                'created_at' => date('Y-m-d H:i:s'),
             ]
         );
         $orderId = Database::connection()->lastInsertId();
@@ -120,7 +123,7 @@ try {
                 "INSERT INTO service_transactions
                     (transaction_code, branch_id, service_type_id, passenger_id, description, quantity, unit_price, total_amount,
                      status, cashier_session_id, created_by, created_at)
-                 VALUES (:code, :branch, :stype, :passenger, :desc, :qty, :price, :total, 'completed', :session, :uid, NOW())",
+                 VALUES (:code, :branch, :stype, :passenger, :desc, :qty, :price, :total, 'completed', :session, :uid, :created_at)",
                 [
                     'code'      => $itemCode,
                     'branch'    => $branchId,
@@ -132,6 +135,7 @@ try {
                     'total'     => $totalAmt,
                     'session'   => $sessionId,
                     'uid'       => $user['user_id'],
+                    'created_at' => date('Y-m-d H:i:s'),
                 ]
             );
             $serviceTxnId    = Database::connection()->lastInsertId();
@@ -141,12 +145,13 @@ try {
             Database::execute(
                 "INSERT INTO pos_order_items
                     (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
-                 VALUES (:oid, 'SERVICE', :ref, :code, :total, NOW())",
+                 VALUES (:oid, 'SERVICE', :ref, :code, :total, :created_at)",
                 [
                     'oid'   => $orderId,
                     'ref'   => $serviceTxnId,
                     'code'  => $itemCode,
                     'total' => $totalAmt,
+                    'created_at' => date('Y-m-d H:i:s'),
                 ]
             );
         }
@@ -183,8 +188,8 @@ try {
                 if (!$existingCharge) {
                     Database::execute(
                         "INSERT INTO customer_charges (passenger_id, total_charged, total_paid, balance, status, last_charge_date)
-                         VALUES (:pid, 0, 0, 0, 'CLEAR', NOW())",
-                        ['pid' => $passengerId]
+                         VALUES (:pid, 0, 0, 0, 'CLEAR', :last_charge_date)",
+                        ['pid' => $passengerId, 'last_charge_date' => date('Y-m-d H:i:s')]
                     );
                 }
                 // Update customer_charges — fixed CASE WHEN END
@@ -193,10 +198,10 @@ try {
                      SET total_charged = total_charged + :amt,
                          balance = balance + :amt,
                          status = CASE WHEN (balance + :amt) > 0 THEN 'OUTSTANDING' ELSE 'CLEAR' END,
-                         last_charge_date = NOW(),
-                         updated_at = NOW()
+                         last_charge_date = :last_charge_date,
+                         updated_at = :updated_at
                      WHERE passenger_id = :pid",
-                    ['pid' => $passengerId, 'amt' => $amount]
+                    ['pid' => $passengerId, 'amt' => $amount, 'last_charge_date' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]
                 );
             }
 
@@ -204,7 +209,7 @@ try {
                 "INSERT INTO transaction_payments
                     (source_type, source_id, payment_method_id, bank_account_id, amount, reference_number,
                      payment_date, confirmation_status, charged_to_passenger_id, cashier_session_id, created_by, created_at)
-                 VALUES ('SERVICE_TRANSACTION', :src, :method, :bank, :amount, :ref, CURDATE(), :confirm, :passenger, :session, :uid, NOW())",
+                 VALUES ('SERVICE_TRANSACTION', :src, :method, :bank, :amount, :ref, CURDATE(), :confirm, :passenger, :session, :uid, :created_at)",
                 [
                     'src'       => $primaryTxnId,
                     'method'    => $methodId,
@@ -215,6 +220,7 @@ try {
                     'passenger' => $passengerId ?: null,
                     'session'   => $sessionId,
                     'uid'       => $user['user_id'],
+                    'created_at' => date('Y-m-d H:i:s'),
                 ]
             );
 

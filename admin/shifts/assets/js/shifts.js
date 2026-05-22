@@ -492,26 +492,23 @@ function renderSessionOptions(sessions) {
 
 function filterCashierOptions() {
     const branchFilter = document.getElementById('managerOpenBranchFilter').value;
-    const searchTerm = document.getElementById('managerOpenCashierSearch').value.toLowerCase();
     const select = document.getElementById('managerOpenCashierSelect');
     
     // Filter available cashiers (no open session)
     let filteredAvailable = availableCashiers.filter(c => {
-        const matchesBranch = !branchFilter || String(c.branch_id) === branchFilter;
-        const matchesSearch = !searchTerm || 
-            (c.fullname || c.username || '').toLowerCase().includes(searchTerm) ||
-            (c.branch_name || '').toLowerCase().includes(searchTerm);
-        return matchesBranch && matchesSearch;
+        // Handle multiple branch IDs (comma-separated) - check if branch_id contains the filter
+        const cashierBranchIds = String(c.branch_id || '').split(',').map(id => id.trim());
+        const matchesBranch = !branchFilter || cashierBranchIds.includes(branchFilter);
+        return matchesBranch;
     });
     
     // Filter unavailable cashiers (with open sessions) for the optgroup
     let filteredUnavailable = (allCashiers || []).filter(c => {
         const hasOpenSession = cashiersWithOpenSessions.has(String(c.user_id));
-        const matchesBranch = !branchFilter || String(c.branch_id) === branchFilter;
-        const matchesSearch = !searchTerm || 
-            (c.fullname || c.username || '').toLowerCase().includes(searchTerm) ||
-            (c.branch_name || '').toLowerCase().includes(searchTerm);
-        return hasOpenSession && matchesBranch && matchesSearch;
+        // Handle multiple branch IDs (comma-separated) - check if branch_id contains the filter
+        const cashierBranchIds = String(c.branch_id || '').split(',').map(id => id.trim());
+        const matchesBranch = !branchFilter || cashierBranchIds.includes(branchFilter);
+        return hasOpenSession && matchesBranch;
     });
     
     let cashierOptions = '<option value="">Select Cashier</option>';
@@ -536,14 +533,12 @@ function filterCashierOptions() {
 
 function filterCloseSessionOptions() {
     const branchFilter = document.getElementById('managerCloseBranchFilter').value;
-    const searchTerm = document.getElementById('managerCloseCashierSearch').value.toLowerCase();
     
     let filteredSessions = allOpenSessions.filter(s => {
-        const matchesBranch = !branchFilter || String(s.branch_id) === branchFilter;
-        const matchesSearch = !searchTerm || 
-            (s.cashier_name || '').toLowerCase().includes(searchTerm) ||
-            (s.branch_name || '').toLowerCase().includes(searchTerm);
-        return matchesBranch && matchesSearch;
+        // Handle multiple branch IDs (comma-separated) - check if branch_id contains the filter
+        const sessionBranchIds = String(s.branch_id || '').split(',').map(id => id.trim());
+        const matchesBranch = !branchFilter || sessionBranchIds.includes(branchFilter);
+        return matchesBranch;
     });
     
     renderSessionOptions(filteredSessions);
@@ -677,6 +672,21 @@ function renderPaymentBreakdown(payments, session) {
     container.innerHTML = html;
 }
 
+function formatNumberInput(input) {
+    let value = input.value;
+
+    // Remove all non-numeric characters except commas and decimal point
+    value = value.replace(/[^0-9.,]/g, '');
+
+    // Remove commas for calculation
+    const numericValue = value.replace(/,/g, '');
+    if (numericValue === '') return;
+
+    // Format with commas for display
+    const formatted = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    input.value = formatted;
+}
+
 function computeManagerCloseVariance() {
     if (!currentSessionDetails) return;
     
@@ -777,7 +787,7 @@ function onCashierSelect(select) {
 async function submitManagerOpenSession() {
     const cashierId = document.getElementById('managerSessionCashierId').value;
     const branchId = document.getElementById('managerOpenBranch').value;
-    const startingCash = document.getElementById('managerOpenStartingCash').value;
+    const startingCash = parseFloat(document.getElementById('managerOpenStartingCash').value.replace(/,/g, '')) || 0;
     const notes = document.getElementById('managerOpenNotes').value;
 
     if (!cashierId) {

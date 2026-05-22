@@ -14,6 +14,6 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow access
 } elseif (!Auth::canAccessModule('admin/wallet/provider-service-fees/')) {
     $message = 'You do not have permission to access the Service Fees module.';
-    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }

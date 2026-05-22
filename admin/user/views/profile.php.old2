@@ -1,42 +1,77 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-require_once dirname(dirname(__DIR__)) . '/config/config.php';
-require_once __DIR__ . '/../_guard.php';
+require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 ?>
-<!DOCTYPE html>
-<html data-bs-theme="light" lang="en-US" dir="ltr">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/user/assets/css/user.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/user.css'); ?>">
 
-  <?php include __DIR__ . '/../includes/head.php'; ?>
-  <body>
+<body>
+  <main class="main" id="top">
+    <div class="container" data-layout="container">
+      <script>
+        var isFluid = JSON.parse(localStorage.getItem('isFluid'));
+        if (isFluid) {
+          var container = document.querySelector('[data-layout]');
+          container.classList.remove('container');
+          container.classList.add('container-fluid');
+        }
+      </script>
 
+      <?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
+      <?php if (NAVBAR_POSITION === 'top'): ?>
+        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?>
+      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
+        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?>
+      <?php endif; ?>
 
-  <body>
+      <div class="content">
+        <?php
+        switch (NAVBAR_POSITION) {
+            case 'combo':
+                include dirname(dirname(__DIR__)) . '/includes/navbar-top.php';
+                break;
+            case 'vertical':
+                include dirname(dirname(__DIR__)) . '/includes/navbar.php';
+                break;
+            case 'top':
+            case 'double-top':
+            default:
+                break;
+        }
+        ?>
 
-    <!-- ===============================================-->
-    <!--    Main Content-->
-    <!-- ===============================================-->
-    <main class="main" id="top">
-      <div class="container" data-layout="container">
-        <script>
-          var isFluid = JSON.parse(localStorage.getItem('isFluid'));
-          if (isFluid) {
-            var container = document.querySelector('[data-layout]');
-            container.classList.remove('container');
-            container.classList.add('container-fluid');
-          }
-        </script>
-        <nav class="navbar navbar-light navbar-vertical navbar-expand-xl">
-          <script>
-            var navbarStyle = localStorage.getItem("navbarStyle");
-            if (navbarStyle && navbarStyle !== 'transparent') {
-              document.querySelector('.navbar-vertical').classList.add(`navbar-${navbarStyle}`);
-            }
-          </script>
-          <div class="d-flex align-items-center">
-            <div class="toggle-icon-wrapper">
+        <!-- Header Card -->
+        <div class="row g-4 mb-4">
+          <div class="col-12">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="bg-holder bg-card d-none d-md-block" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-bg.png);"></div>
+              <div class="card-header z-1">
+                <div class="row flex-between-center gx-0">
+                  <div class="col-lg-auto d-flex align-items-center">
+                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <div class="ms-x1">
+                      <h4 class="mb-0 text-primary fw-bold">User <span class="text-info fw-medium">Profile</span></h4>
+                      <h6 class="mb-1 text-primary">
+                        <nav aria-label="breadcrumb">
+                          <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard/analytics.php">Home</a></li>
+                            <li class="breadcrumb-item active">Profile</li>
+                          </ol>
+                        </nav>
+                      </h6>
+                    </div>
+                  </div>
+                  <div class="col-lg-auto d-flex gap-2">
+                    <a href="<?php echo BASE_URL; ?>/admin/user/?view=settings" class="btn btn-outline-primary btn-sm">
+                      <span class="fas fa-cog me-1"></span>Settings
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              <button class="btn navbar-toggler-humburger-icon navbar-vertical-toggle" data-bs-toggle="tooltip" data-bs-placement="left" title="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
+        <!-- Profile Content (Original content preserved below) -->
+        <div class="row g-3">
 
             </div><a class="navbar-brand" href="<?php echo BASE_URL; ?>/admin/dashboard/analytics.php">
               <div class="d-flex align-items-center py-3"><img class="me-2" src="<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/falcon.png" alt="" width="40" /><span class="font-sans-serif text-primary">falcon</span>

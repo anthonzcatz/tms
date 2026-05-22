@@ -14,11 +14,12 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId,
             'device_id' => $deviceId,
@@ -27,7 +28,8 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
             'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -327,13 +329,14 @@ function handlePost() {
     
     // Insert new wallet with initial balance
     $sql = "INSERT INTO provider_wallets (provider_id, branch_id, current_balance, status, created_at)
-            VALUES (:provider_id, :branch_id, :initial_balance, :status, NOW())";
+            VALUES (:provider_id, :branch_id, :initial_balance, :status, :created_at)";
     
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
         'branch_id' => (int)$branchId,
         'initial_balance' => $initialBalance,
-        'status' => $status
+        'status' => $status,
+        'created_at' => date('Y-m-d H:i:s')
     ]);
     
     $walletId = Database::connection()->lastInsertId();
@@ -397,8 +400,8 @@ function handlePut() {
     
     // Update wallet status
     Database::execute(
-        "UPDATE provider_wallets SET status = :status, updated_at = NOW() WHERE wallet_id = :wallet_id",
-        ['status' => $status, 'wallet_id' => (int)$walletId]
+        "UPDATE provider_wallets SET status = :status, updated_at = :updated_at WHERE wallet_id = :wallet_id",
+        ['status' => $status, 'updated_at' => date('Y-m-d H:i:s'), 'wallet_id' => (int)$walletId]
     );
     
     // Log activity

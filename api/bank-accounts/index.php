@@ -12,17 +12,19 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null;
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId, 'device_id' => $deviceId, 'action' => $action,
             'module_name' => $moduleName, 'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -85,7 +87,7 @@ function handlePost() {
         "INSERT INTO bank_accounts
             (branch_id, bank_name, account_name, account_number, account_type, payment_method_id, current_balance, is_active, notes, created_at)
          VALUES
-            (:branch_id, :bank_name, :account_name, :account_number, :account_type, :payment_method_id, :current_balance, :is_active, :notes, NOW())",
+            (:branch_id, :bank_name, :account_name, :account_number, :account_type, :payment_method_id, :current_balance, :is_active, :notes, :created_at)",
         [
             'branch_id' => $input['branch_id'] ?: null,
             'bank_name' => $bankName,
@@ -96,6 +98,7 @@ function handlePost() {
             'current_balance' => $input['current_balance'] ?? 0,
             'is_active' => $input['is_active'] ?? 1,
             'notes' => $input['notes'] ?? null,
+            'created_at' => date('Y-m-d H:i:s'),
         ]
     );
     $newId = Database::connection()->lastInsertId();
@@ -121,8 +124,8 @@ function handlePut() {
 
     // Status-only toggle
     if (count($input) === 2 && isset($input['is_active'])) {
-        Database::execute("UPDATE bank_accounts SET is_active = :is_active, updated_at = NOW() WHERE bank_account_id = :id",
-            ['is_active' => $input['is_active'], 'id' => $accountId]);
+        Database::execute("UPDATE bank_accounts SET is_active = :is_active, updated_at = :updated_at WHERE bank_account_id = :id",
+            ['is_active' => $input['is_active'], 'updated_at' => date('Y-m-d H:i:s'), 'id' => $accountId]);
         logActivity($user['user_id'], 'TOGGLE_BANK_ACCOUNT', 'BANK_ACCOUNTS', "BA-{$accountId}",
             ['is_active' => $existing['is_active']], ['is_active' => $input['is_active']]);
         echo json_encode(['success' => true, 'message' => 'Status updated.']); return;
@@ -141,7 +144,7 @@ function handlePut() {
             branch_id = :branch_id, bank_name = :bank_name, account_name = :account_name,
             account_number = :account_number, account_type = :account_type,
             payment_method_id = :payment_method_id,
-            is_active = :is_active, notes = :notes, updated_at = NOW()
+            is_active = :is_active, notes = :notes, updated_at = :updated_at
          WHERE bank_account_id = :id",
         [
             'branch_id' => $input['branch_id'] ?: null,
@@ -152,6 +155,7 @@ function handlePut() {
             'payment_method_id' => $input['payment_method_id'] ?: null,
             'is_active' => $input['is_active'] ?? 1,
             'notes' => $input['notes'] ?? null,
+            'updated_at' => date('Y-m-d H:i:s'),
             'id' => $accountId
         ]
     );

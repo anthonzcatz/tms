@@ -226,7 +226,7 @@ class EmailService {
     
     /**
      * Send password reset email
-     * 
+     *
      * @param string $to Recipient email
      * @param string $token Reset token
      * @param string $name Employee name (formatted as "First M. Last")
@@ -234,11 +234,29 @@ class EmailService {
      */
     public function sendPasswordResetEmail($to, $token, $name = '') {
         $resetLink = BASE_URL . '/reset-password?token=' . $token;
-        
+
         $subject = 'Password Reset Request';
-        
+
         $body = $this->getPasswordResetTemplate($name, $resetLink);
-        
+
+        return $this->send($to, $subject, $body);
+    }
+
+    /**
+     * Send recovery email verification
+     *
+     * @param string $to Recipient email
+     * @param string $token Verification token
+     * @param string $name Employee name
+     * @return bool Success status
+     */
+    public function sendRecoveryEmailVerification($to, $token, $name = '') {
+        $verifyLink = BASE_URL . '/api/user/recovery-email.php?action=verify&token=' . $token;
+
+        $subject = 'Verify Your Recovery Email';
+
+        $body = $this->getRecoveryEmailVerificationTemplate($name, $verifyLink);
+
         return $this->send($to, $subject, $body);
     }
     
@@ -248,7 +266,7 @@ class EmailService {
     private function getPasswordResetTemplate($name, $resetLink) {
         $companyName = $this->settings['sender_name'] ?? 'Ticketing Services Inc.';
         $companyAbbreviation = defined('COMPANY_ABBREVIATION') ? COMPANY_ABBREVIATION : 'TMS';
-        
+
         return "
         <!DOCTYPE html>
         <html>
@@ -311,19 +329,89 @@ class EmailService {
         </html>
         ";
     }
-    
+
+    /**
+     * Get recovery email verification template
+     */
+    private function getRecoveryEmailVerificationTemplate($name, $verifyLink) {
+        $companyName = $this->settings['sender_name'] ?? 'Ticketing Services Inc.';
+        $companyAbbreviation = defined('COMPANY_ABBREVIATION') ? COMPANY_ABBREVIATION : 'TMS';
+
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>Verify Recovery Email</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; padding: 20px; }
+                .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .header { background: #0d6efd; color: white; padding: 40px 30px; text-align: center; }
+                .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 10px; }
+                .header p { font-size: 14px; opacity: 0.9; }
+                .body { padding: 40px 30px; }
+                .body p { margin-bottom: 16px; font-size: 15px; color: #555; }
+                .body .highlight { color: #0d6efd; font-weight: 600; }
+                .button { display: inline-block; padding: 14px 32px; background: #0d6efd; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; margin: 24px 0; transition: all 0.3s ease; }
+                .button:hover { background: #0b5ed7; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(13, 110, 253, 0.4); }
+                .link-box { background: #f8f9fa; border-left: 4px solid #0d6efd; padding: 15px; margin: 20px 0; border-radius: 4px; }
+                .link-box p { margin: 0; font-size: 13px; color: #666; word-break: break-all; }
+                .info { background: #d1ecf1; border-left: 4px solid #0dcaf0; padding: 15px; margin: 20px 0; border-radius: 4px; }
+                .info p { margin: 0; font-size: 14px; color: #055160; }
+                .footer { background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e9ecef; }
+                .footer p { margin: 5px 0; font-size: 13px; color: #6c757d; }
+                .footer a { color: #0d6efd; text-decoration: none; }
+                .footer a:hover { text-decoration: underline; }
+                .logo { font-size: 24px; font-weight: 700; margin-bottom: 5px; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <div class='logo'>" . htmlspecialchars($companyAbbreviation) . "</div>
+                    <h1>Verify Recovery Email</h1>
+                    <p>Secure Account Setup</p>
+                </div>
+                <div class='body'>
+                    <p>Dear <span class='highlight'>" . htmlspecialchars($name ?: 'User') . "</span>,</p>
+                    <p>We received a request to set up a recovery email for your <strong>" . htmlspecialchars($companyName) . "</strong> account.</p>
+                    <p>A recovery email helps you regain access to your account if you forget your password. Please verify this email address by clicking the button below:</p>
+                    <p style='text-align: center;'>
+                        <a href='" . htmlspecialchars($verifyLink) . "' class='button' style='color: white !important; text-decoration: none;'>Verify Recovery Email</a>
+                    </p>
+                    <div class='link-box'>
+                        <p><strong>Alternative:</strong> Copy and paste this link into your browser:</p>
+                        <p>" . htmlspecialchars($verifyLink) . "</p>
+                    </div>
+                    <div class='info'>
+                        <p><strong>ℹ️ Information:</strong> This link will expire in 24 hours for security reasons.</p>
+                    </div>
+                    <p>If you did not request this change, please ignore this email or contact support if you have concerns about your account security.</p>
+                </div>
+                <div class='footer'>
+                    <p>&copy; " . date('Y') . " " . htmlspecialchars($companyName) . ". All rights reserved.</p>
+                    <p>This is an automated email. Please do not reply directly to this message.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+    }
+
     /**
      * Test email configuration
-     * 
+     *
      * @return array Result with success status and message
      */
     public function testConfiguration() {
         $testEmail = $this->settings['sender_email'] ?? 'test@example.com';
         $subject = 'Email Configuration Test';
         $body = '<h1>Test Email</h1><p>If you received this email, your email configuration is working correctly.</p>';
-        
+
         $result = $this->send($testEmail, $subject, $body);
-        
+
         if ($result) {
             return [
                 'success' => true,

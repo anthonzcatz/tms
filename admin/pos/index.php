@@ -99,6 +99,40 @@ $posSettings = Database::fetch(
      WHERE setting_id = 1"
 );
 
+// Fetch printer settings
+$printerSettings = Database::fetch(
+    "SELECT receipt_printing_enabled,
+            receipt_paper_width,
+            receipt_auto_print,
+            receipt_show_preview,
+            receipt_copies,
+            receipt_auto_cut,
+            receipt_open_cash_drawer,
+            receipt_show_cashier,
+            receipt_show_payment_method,
+            receipt_show_branch,
+            receipt_show_tin,
+            receipt_show_service_fee,
+            receipt_show_base_amount,
+            receipt_show_discount,
+            receipt_qr_code_enabled,
+            receipt_qr_format,
+            receipt_logo_enabled,
+            receipt_header_text,
+            receipt_footer_text,
+            receipt_footer,
+            receipt_custom_footer,
+            printer_type,
+            company_name,
+            company_address,
+            company_contact_number,
+            company_email,
+            company_tin,
+            system_logo
+     FROM system_settings
+     WHERE setting_id = 1"
+);
+
 // Pass user to view
 $viewData = [
     'userBranchId' => $userBranchId,
@@ -109,6 +143,7 @@ $viewData = [
     'passengers' => $passengers,
     'cancellationSettings' => $cancellationSettings,
     'posSettings' => $posSettings,
+    'printerSettings' => $printerSettings,
     'userRoleCode' => $userRoleCode,
     'depositBankAccounts' => Database::fetchAll(
         "SELECT bank_account_id, bank_name, account_name, account_number

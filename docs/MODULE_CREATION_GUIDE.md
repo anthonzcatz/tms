@@ -97,6 +97,8 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 ```
 
 > **Critical:** `require_once dirname(__DIR__) . '/_guard.php';` ensures `NAVBAR_POSITION` is defined.
+> 
+> **⚠️ IMPORTANT:** Always use `include dirname(__DIR__) . '/includes/access-denied.php';` for the access-denied page. Do NOT use `dirname(dirname(__DIR__)) . '/includes/access-denied.php'` as this will cause a "file not found" error.
 
 ---
 
@@ -252,7 +254,46 @@ View includes navbar-top.php instead of sidebar.php
 
 ---
 
-## 8. Maintenance Mode
+## 6. Common Pitfalls to Avoid
+
+### ❌ Wrong access-denied.php path
+
+**Wrong:**
+```php
+include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+// This resolves to: c:\xampp\htdocs\TMS\includes/access-denied.php (WRONG - file doesn't exist)
+```
+
+**Correct:**
+```php
+include dirname(__DIR__) . '/includes/access-denied.php';
+// This resolves to: c:\xampp\htdocs\TMS\admin\includes/access-denied.php (CORRECT)
+```
+
+### ❌ Missing index.php in directory
+
+If you create a directory like `admin/user/` without an `index.php`, Apache will return a 403 Forbidden error. Always create an `index.php` file that either:
+- Contains the page content, or
+- Redirects to the appropriate page (e.g., `header('Location: ' . BASE_URL . '/admin/user/profile.php');`)
+
+### ❌ Filtering transactions by cashier_id instead of session_id
+
+When displaying transactions in Close Cashier Session modal or Shifts reports:
+- **Wrong:** Filter by `created_by` (cashier user ID) - this shows transactions from all sessions of that cashier
+- **Correct:** Filter by `cashier_session_id` (session ID) - this shows only transactions from the specific session
+
+**Example:**
+```php
+// ❌ WRONG - shows all transactions from this cashier
+WHERE tp.created_by = :uid
+
+// ✅ CORRECT - shows only transactions from this session
+WHERE tp.cashier_session_id = :sid
+```
+
+---
+
+## 7. Maintenance Mode
 
 The system has a global maintenance mode feature that can be configured in `admin/system-settings/`. When maintenance mode is active, non-admin users see a maintenance page instead of accessing admin pages.
 
@@ -308,7 +349,7 @@ Maintenance settings are cached in session for 5 minutes to avoid database queri
 
 ---
 
-## 9. Checklist for New Modules
+## 8. Checklist for New Modules
 
 Before finishing a new module, verify:
 
@@ -318,6 +359,9 @@ Before finishing a new module, verify:
 - [ ] View includes `sidebar.php`, `navbar-top.php`, `navbar-double-top.php`, `navbar.php` based on `NAVBAR_POSITION`
 - [ ] View includes `footer.php` and `scripts.php` at the bottom
 - [ ] Settings panel styles are applied (optional but recommended)
+- [ ] **Access-denied path is correct:** `dirname(__DIR__) . '/includes/access-denied.php'` NOT `dirname(dirname(__DIR__)) . '/includes/access-denied.php'`
+- [ ] **Directory has index.php** to avoid Apache 403 Forbidden errors
+- [ ] **Transaction filters use session_id** (not cashier_id) if displaying session-specific data
 - [ ] Test: change Navigation Position to "Top" → page reloads → top navbar shows
 - [ ] Test: change back to "Vertical" → page reloads → sidebar shows
 

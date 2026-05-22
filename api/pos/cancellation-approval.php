@@ -142,14 +142,6 @@ try {
             ]
         );
 
-        // Track refund in cashier session (cash out from drawer)
-        if ($cancellation['cashier_session_id']) {
-            Database::execute(
-                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-                ['ramount' => $refundAmount, 'csid' => $cancellation['cashier_session_id']]
-            );
-        }
-
         // Update pos_orders - set order item total to 0 (mark as cancelled) and update total_refunded_amount
         $orderItem = Database::fetch(
             "SELECT oi.item_id, oi.order_id FROM pos_order_items oi WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET' LIMIT 1",
@@ -217,6 +209,15 @@ try {
         }
         $updateSql .= " WHERE cancellation_id = :cid";
         Database::execute($updateSql, $updateParams);
+
+        // Subtract from cashier session since refund was rejected (reverse the pending refund)
+        if ($cancellation['cashier_session_id']) {
+            $refundAmount = floatval($cancellation['refund_amount']);
+            Database::execute(
+                "UPDATE cashier_sessions SET total_refunds_wallet = GREATEST(0, total_refunds_wallet - :ramount) WHERE session_id = :csid",
+                ['ramount' => $refundAmount, 'csid' => $cancellation['cashier_session_id']]
+            );
+        }
 
         // Decrement total_refunded_amount in pos_orders since refund was rejected
         $orderItem = Database::fetch(

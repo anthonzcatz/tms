@@ -8,12 +8,14 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
-         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, NOW())",
+         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, :created_at)",
         ['uid' => $userId, 'action' => $action, 'mod' => $module, 'ref' => $ref,
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
+         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null,
+         'created_at' => $now]
     );
 }
 
@@ -105,8 +107,8 @@ if ($method === 'PUT') {
                 }
 
                 Database::execute(
-                    "UPDATE transaction_payments SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = NOW() WHERE payment_id = :id",
-                    ['status' => $action, 'uid' => $user['user_id'], 'id' => $payId]
+                    "UPDATE transaction_payments SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = :confirmed_at WHERE payment_id = :id",
+                    ['status' => $action, 'uid' => $user['user_id'], 'confirmed_at' => date('Y-m-d H:i:s'), 'id' => $payId]
                 );
 
                 // Create bank transaction when confirming bank/e-wallet payments
@@ -121,7 +123,7 @@ if ($method === 'PUT') {
                             "INSERT INTO bank_transactions
                                 (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
                                  reference_table, reference_id, remarks, created_by, created_at)
-                             VALUES (:bank_id, :code, 'CONFIRMED', 'RECEIPT', 'IN', :amount, :before, :after, 'transaction_payments', :ref_id, :remarks, :uid, NOW())",
+                             VALUES (:bank_id, :code, 'CONFIRMED', 'RECEIPT', 'IN', :amount, :before, :after, 'transaction_payments', :ref_id, :remarks, :uid, :created_at)",
                             [
                                 'bank_id' => $existing['bank_account_id'],
                                 'code' => $bankTxnCode,
@@ -130,7 +132,8 @@ if ($method === 'PUT') {
                                 'after' => $balAfterBank,
                                 'ref_id' => $payId,
                                 'remarks' => "Confirmed bank transfer payment",
-                                'uid' => $user['user_id']
+                                'uid' => $user['user_id'],
+                                'created_at' => date('Y-m-d H:i:s')
                             ]
                         );
                         
@@ -163,8 +166,8 @@ if ($method === 'PUT') {
                 }
 
                 Database::execute(
-                    "UPDATE bank_transactions SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = NOW() WHERE bank_txn_id = :id",
-                    ['status' => $action, 'uid' => $user['user_id'], 'id' => $depositId]
+                    "UPDATE bank_transactions SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = :confirmed_at WHERE bank_txn_id = :id",
+                    ['status' => $action, 'uid' => $user['user_id'], 'confirmed_at' => date('Y-m-d H:i:s'), 'id' => $depositId]
                 );
 
                 // Update bank account balance when confirming a deposit
@@ -207,8 +210,8 @@ if ($method === 'PUT') {
                 }
 
                 Database::execute(
-                    "UPDATE charge_payments SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = NOW() WHERE charge_payment_id = :id",
-                    ['status' => $action, 'uid' => $user['user_id'], 'id' => $chargePaymentId]
+                    "UPDATE charge_payments SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = :confirmed_at WHERE charge_payment_id = :id",
+                    ['status' => $action, 'uid' => $user['user_id'], 'confirmed_at' => date('Y-m-d H:i:s'), 'id' => $chargePaymentId]
                 );
 
                 // Create bank transaction when confirming bank/e-wallet charge payments
@@ -223,7 +226,7 @@ if ($method === 'PUT') {
                             "INSERT INTO bank_transactions
                                 (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
                                  reference_table, reference_id, remarks, created_by, created_at)
-                             VALUES (:bank_id, :code, 'CONFIRMED', 'RECEIPT', 'IN', :amount, :before, :after, 'charge_payments', :ref_id, :remarks, :uid, NOW())",
+                             VALUES (:bank_id, :code, 'CONFIRMED', 'RECEIPT', 'IN', :amount, :before, :after, 'charge_payments', :ref_id, :remarks, :uid, :created_at)",
                             [
                                 'bank_id' => $existing['bank_account_id'],
                                 'code' => $bankTxnCode,
@@ -232,7 +235,8 @@ if ($method === 'PUT') {
                                 'after' => $balAfterBank,
                                 'ref_id' => $chargePaymentId,
                                 'remarks' => "Confirmed charge collection payment from passenger {$existing['passenger_id']}",
-                                'uid' => $user['user_id']
+                                'uid' => $user['user_id'],
+                                'created_at' => date('Y-m-d H:i:s')
                             ]
                         );
                         
@@ -255,9 +259,9 @@ if ($method === 'PUT') {
                             total_paid = total_paid - :paid1,
                             balance = balance + :paid2,
                             status = 'OUTSTANDING',
-                            updated_at = NOW()
+                            updated_at = :updated_at
                          WHERE passenger_id = :pid",
-                        ['paid1' => $existing['amount_paid'], 'paid2' => $existing['amount_paid'], 'pid' => $existing['passenger_id']]
+                        ['paid1' => $existing['amount_paid'], 'paid2' => $existing['amount_paid'], 'pid' => $existing['passenger_id'], 'updated_at' => date('Y-m-d H:i:s')]
                     );
                 }
 

@@ -11,8 +11,9 @@ let cart = [];            // Array of cart items
 let paymentLines = [];    // Array of payment method entries
 let activeServiceType = null;
 let activePaymentMethod = null;
-let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal, cancelTicketModal;
+let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal, cancelTicketModal, reprintReceiptModal;
 let selectedCustomerId = null;
+let currentReprintTransaction = null;
 let transactionType = localStorage.getItem('posTransactionType') || 'ticket'; // 'ticket' or 'service'
 let ticketInCart = null; // Store the ticket object if in cart
 let currentPassengerStep = 1;
@@ -71,6 +72,23 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.error('cancelTicketModal element not found');
     }
+    reprintReceiptModal = new bootstrap.Modal(document.getElementById('reprintReceiptModal'));
+
+    // Reprint reason dropdown handler
+    const reprintReasonSelect = document.getElementById('reprintReason');
+    const reprintReasonOtherContainer = document.getElementById('reprintReasonOtherContainer');
+    const confirmReprintBtn = document.getElementById('confirmReprintBtn');
+
+    if (reprintReasonSelect) {
+        reprintReasonSelect.addEventListener('change', function() {
+            if (this.value === 'Other') {
+                reprintReasonOtherContainer.style.display = 'block';
+            } else {
+                reprintReasonOtherContainer.style.display = 'none';
+            }
+            confirmReprintBtn.disabled = !this.value;
+        });
+    }
 
     // Toggle order summary collapse icon
     const orderSummaryCollapse = document.getElementById('paymentCartItemsCollapse');
@@ -116,7 +134,23 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize transaction type UI
     updateTransactionTypeUI();
-    
+
+    // Initialize PosPrinter module if enabled
+    if (window.PRINTER_SETTINGS && window.PRINTER_SETTINGS.enabled && window.PosPrinter) {
+        console.log('[POS] Initializing PosPrinter with settings:', window.PRINTER_SETTINGS);
+        window.PosPrinter.init({
+            config: window.PRINTER_SETTINGS,
+            companyInfo: window.COMPANY_INFO
+        });
+        // Auto-connect to QZ Tray if previously connected
+        window.PosPrinter.autoConnect();
+        console.log('[POS] PosPrinter initialized, status:', window.PosPrinter.getStatus());
+    } else {
+        console.log('[POS] Printer not enabled or PosPrinter not available');
+        console.log('[POS] PRINTER_SETTINGS:', window.PRINTER_SETTINGS);
+        console.log('[POS] PosPrinter:', window.PosPrinter);
+    }
+
     // Add input event listeners for real-time validation
     const fullname = document.getElementById('newPassengerFullname');
     const mobile = document.getElementById('newPassengerMobile');
@@ -931,10 +965,22 @@ function loadDiscountTypes() {
                 data.data.forEach(d => {
                     const option = document.createElement('option');
                     option.value = d.discount_id;
-                    option.textContent = `${d.name} (${d.code})`;
-                    option.dataset.discountAmount = 0; // Will be updated if discount has amount
+                    const discountText = d.discount_percentage > 0 ? ` (${d.discount_percentage}%)` : '';
+                    option.textContent = `${d.name}${discountText}`;
+                    option.dataset.discountPercentage = d.discount_percentage || 0;
+                    // Mark as default if is_default is set to 1
+                    if (d.is_default === 1) {
+                        option.dataset.isDefault = 'true';
+                    }
                     select.appendChild(option);
                 });
+                // Select default discount if available
+                const defaultOption = select.querySelector('[data-is-default="true"]');
+                if (defaultOption) {
+                    select.value = defaultOption.value;
+                    // Trigger recalculation
+                    computeTicketTotal();
+                }
             } else if (data.error && data.error.includes('Permission denied')) {
                 showAlert('error', data.error);
             }
@@ -1021,7 +1067,7 @@ function loadWallets(providerId = null, branchId = null) {
                     option.dataset.providerType = w.provider_type;
                     
                     const typeLabel = w.provider_type ? w.provider_type.toUpperCase() : 'OTHER';
-                    option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${parseFloat(w.current_balance).toFixed(2)} • [${typeLabel}]`;
+                    option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${fmt(parseFloat(w.current_balance))} • [${typeLabel}]`;
                     select.appendChild(option);
                 });
                 
@@ -1305,7 +1351,7 @@ function confirmCustomerSelection() {
 
 async function submitOpenSession() {
     const branchId = document.getElementById('sessionBranchId').value;
-    const openingCash = parseFloat(document.getElementById('sessionOpeningCash').value) || 0;
+    const openingCash = parseFloat(document.getElementById('sessionOpeningCash').value.replace(/,/g, '')) || 0;
     const notes = document.getElementById('sessionNotes').value.trim();
 
     if (!branchId) { showToast('danger', 'Error', 'Branch is required.'); return; }
@@ -1508,6 +1554,21 @@ async function openCloseSession() {
     });
 }
 
+function formatNumberInput(input) {
+    let value = input.value;
+
+    // Remove all non-numeric characters except commas and decimal point
+    value = value.replace(/[^0-9.,]/g, '');
+
+    // Remove commas for calculation
+    const numericValue = value.replace(/,/g, '');
+    if (numericValue === '') return;
+
+    // Format with commas for display
+    const formatted = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    input.value = formatted;
+}
+
 function computeVariance() {
     const input = document.getElementById('closingCash');
     let value = input.value;
@@ -1673,10 +1734,13 @@ function openAddPassengerModal() {
     populateRegionSelect();
     addPassengerModal.show();
     
-    // Auto focus Full Name field after modal is shown
-    setTimeout(() => {
-        document.getElementById('newPassengerFullname').focus();
-    }, 300);
+    // Focus on Full Name field after modal is fully shown using Bootstrap event
+    const modalElement = document.getElementById('addPassengerModal');
+    modalElement.addEventListener('shown.bs.modal', function focusFullname() {
+        const fullnameField = document.getElementById('newPassengerFullname');
+        fullnameField.focus();
+        modalElement.removeEventListener('shown.bs.modal', focusFullname);
+    });
     
     // Refresh passenger lists after adding
     renderCustomers();
@@ -2151,8 +2215,9 @@ function computeTicketTotal() {
     const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
     const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
     const discountSelect = document.getElementById('ticketDiscount');
-    const discountValue = discountSelect.value === '0' ? 0 : parseFloat(discountSelect.value) || 0;
-    const total = baseAmount + serviceFee - discountValue;
+    const discountPercentage = discountSelect.value === '0' ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
+    const discountAmount = (baseAmount * discountPercentage) / 100;
+    const total = baseAmount + serviceFee - discountAmount;
     
     // Update displays
     document.getElementById('ticketBaseAmountDisplay').textContent = `₱${baseAmount.toFixed(2)}`;
@@ -2176,8 +2241,10 @@ function addTicketToCart() {
     // const destination = document.getElementById('ticketDestination').value.trim();
     const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
     const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
-    const discount = parseFloat(document.getElementById('ticketDiscount').value) || 0;
-    const total = baseAmount + serviceFee - discount;
+    const discountSelect = document.getElementById('ticketDiscount');
+    const discountPercentage = discountSelect.value === '0' ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
+    const discountAmount = (baseAmount * discountPercentage) / 100;
+    const total = baseAmount + serviceFee - discountAmount;
     
     // Get wallet and branch info
     const walletSelect = document.getElementById('ticketWallet');
@@ -2205,7 +2272,9 @@ function addTicketToCart() {
         destination: null,
         baseAmount,
         serviceFee,
-        discount,
+        discountId: discountSelect.value === '0' ? null : discountSelect.value,
+        discountPercentage,
+        discountAmount,
         total,
         walletId,
         branchId: walletBranchId,
@@ -2484,7 +2553,7 @@ function populatePaymentModalCart() {
                             <span class="fas fa-ticket-alt me-2"></span>${item.passengerName}
                         </div>
                         <div class="text-muted small">
-                            Ticket #: ${item.ticketNumber} • Cost: ₱${fmt(item.baseAmount)}${item.serviceFee > 0 ? ' + Fee: ₱' + fmt(item.serviceFee) : ''}${item.discount > 0 ? ' - Discount: ₱' + fmt(item.discount) : ''}
+                            Ticket #: ${item.ticketNumber} • Cost: ₱${fmt(item.baseAmount)}${item.serviceFee > 0 ? ' + Fee: ₱' + fmt(item.serviceFee) : ''}${item.discountAmount > 0 ? ' - Discount: ₱' + fmt(item.discountAmount) : ''}
                         </div>
                     </div>
                     <div class="fw-bold">₱${fmt(item.total)}</div>
@@ -2726,7 +2795,8 @@ async function confirmOrder() {
                 ticket_number: ticket.ticketNumber,
                 base_amount: ticket.baseAmount,
                 service_fee: ticket.serviceFee,
-                discount_amount: ticket.discount,
+                discount_id: ticket.discountId,
+                discount_amount: ticket.discountAmount,
                 total_amount: ticket.total,
                 wallet_id: ticket.walletId
             }],
@@ -2778,6 +2848,60 @@ async function confirmOrder() {
         if (result.success) {
             showToast('success', 'Transaction Complete!',
                 `Receipt #${result.transaction_code} processed. Change: ₱${fmt(paid - total)}`);
+
+            // Print receipt if enabled
+            console.log('[POS] Checking printer settings for receipt print...');
+            console.log('[POS] PRINTER_SETTINGS:', window.PRINTER_SETTINGS);
+            console.log('[POS] PosPrinter available:', !!window.PosPrinter);
+
+            if (window.PRINTER_SETTINGS && window.PRINTER_SETTINGS.enabled && window.PosPrinter) {
+                try {
+                    const printerStatus = window.PosPrinter.getStatus();
+                    console.log('[POS] Printer status:', printerStatus);
+
+                    if (printerStatus.ready) {
+                        // Build transaction data for receipt
+                        const transactionData = {
+                            id: result.transaction_id || result.id,
+                            transaction_code: result.transaction_code,
+                            branch_name: window.POS_BRANCH_NAME || '',
+                            cashier_name: window.POS_USER_NAME || '',
+                            payment_method: paymentLines.length > 0 ? paymentLines[0].methodName : '',
+                            subtotal: total,
+                            discount: cart.reduce((s, i) => s + parseFloat(i.discountAmount || 0), 0),
+                            tax: 0,
+                            total: total,
+                            amount_tendered: paid,
+                            change_amount: paid - total,
+                            items: cart.map(item => ({
+                                name: item.description || item.passengerName || item.serviceName || item.type,
+                                quantity: item.qty || 1,
+                                price: item.unitPrice || item.total || 0,
+                                base_amount: parseFloat(item.baseAmount || item.unitPrice || item.total || 0),
+                                service_fee: parseFloat(item.serviceFee || 0),
+                                discount_amount: parseFloat(item.discountAmount || 0),
+                                total: item.total
+                            }))
+                        };
+
+                        // Print based on settings
+                        if (window.PRINTER_SETTINGS.showPreview) {
+                            const shouldPrint = await window.PosPrinter.showPreview(transactionData);
+                            if (shouldPrint) {
+                                await window.PosPrinter.printReceipt(transactionData);
+                            }
+                        } else if (window.PRINTER_SETTINGS.autoPrint) {
+                            await window.PosPrinter.printReceipt(transactionData);
+                        }
+                    } else {
+                        console.warn('Printer not ready:', printerStatus);
+                    }
+                } catch (printError) {
+                    console.error('Receipt printing error:', printError);
+                    // Don't show error toast to avoid blocking transaction
+                }
+            }
+
             cart = [];
             paymentLines = [];
             ticketInCart = null;
@@ -3126,6 +3250,17 @@ function renderTransactionsTable(transactions) {
             ? `<button class="btn btn-xs btn-outline-secondary p-1 ms-1" style="font-size:0.7rem;" onclick="toggleOrderItems('order-items-${txn.order_id}', this)" title="View items"><i class="fas fa-list"></i></button>`
             : '';
 
+        // Reprint receipt button - only if printing is enabled
+        let reprintButton = '';
+        if (window.PRINTER_SETTINGS && window.PRINTER_SETTINGS.enabled && window.PosPrinter) {
+            reprintButton = `<button class="btn btn-sm btn-outline-info me-1"
+                    data-txn-id="${txn.id || txn.order_id}"
+                    data-txn-code="${txn.transaction_code}"
+                    onclick="reprintTransactionReceipt(this)">
+                <span class="fas fa-print"></span>
+            </button>`;
+        }
+
         // Display amount - show original amount and pending/refunded amount if applicable
         const amountDisplay = hasPendingCancellation && txn.pending_refund_amount
             ? `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.pending_refund_amount)} refund pending)</span>`
@@ -3151,7 +3286,7 @@ function renderTransactionsTable(transactions) {
                     <div>${createdAt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
                     <div class="text-muted" style="font-size:0.85em;">${createdAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
                 </td>
-                <td class="text-end">${cancelButton}</td>
+                <td class="text-end">${reprintButton}${cancelButton}</td>
             </tr>
             ${itemsBreakdown}
         `;
@@ -3165,6 +3300,122 @@ function toggleOrderItems(rowId, btn) {
     const hidden = row.style.display === 'none';
     row.style.display = hidden ? '' : 'none';
     btn.innerHTML = hidden ? '<i class="fas fa-chevron-up"></i>' : '<i class="fas fa-list"></i>';
+}
+
+async function reprintTransactionReceipt(btn) {
+    if (!window.PRINTER_SETTINGS || !window.PRINTER_SETTINGS.enabled || !window.PosPrinter) {
+        showToast('warning', 'Printing Disabled', 'Receipt printing is not enabled in system settings.');
+        return;
+    }
+
+    const txnId = btn.dataset.txnId;
+    const txnCode = btn.dataset.txnCode;
+
+    if (!txnId && !txnCode) {
+        showToast('error', 'Error', 'Transaction ID not found.');
+        return;
+    }
+
+    // Check printer status
+    const printerStatus = window.PosPrinter.getStatus();
+    if (!printerStatus.ready) {
+        showToast('warning', 'Printer Not Ready', 'Please configure the printer via Printer Setup page.');
+        return;
+    }
+
+    // Store transaction data for confirmation
+    currentReprintTransaction = { txnId, txnCode };
+
+    // Show confirmation modal
+    document.getElementById('reprintTxnCode').textContent = txnCode || txnId;
+    document.getElementById('reprintReason').value = '';
+    document.getElementById('reprintReasonOther').value = '';
+    document.getElementById('reprintReasonOtherContainer').style.display = 'none';
+    document.getElementById('confirmReprintBtn').disabled = true;
+
+    reprintReceiptModal.show();
+}
+
+async function confirmReprintReceipt() {
+    const reasonSelect = document.getElementById('reprintReason');
+    const reasonOther = document.getElementById('reprintReasonOther').value;
+    let reason = reasonSelect.value;
+
+    if (reason === 'Other') {
+        reason = reasonOther || 'Other';
+    }
+
+    if (!reason) {
+        showToast('warning', 'Required', 'Please select a reason for reprint.');
+        return;
+    }
+
+    const { txnId, txnCode } = currentReprintTransaction;
+
+    try {
+        // Fetch transaction details
+        const apiUrl = txnId
+            ? `${window.BASE_URL}/api/pos/transaction/${txnId}`
+            : `${window.BASE_URL}/api/pos/transaction?code=${txnCode}`;
+
+        const res = await fetch(apiUrl);
+        const result = await res.json();
+
+        if (!result.success || !result.data) {
+            showToast('error', 'Error', 'Failed to fetch transaction details.');
+            reprintReceiptModal.hide();
+            return;
+        }
+
+        const txn = result.data;
+
+        // Build transaction data for receipt
+        const transactionData = {
+            id: txn.id || txn.order_id,
+            transaction_code: txn.transaction_code,
+            branch_name: txn.branch_name || '',
+            cashier_name: txn.cashier_name || '',
+            payment_method: txn.payment_method || '',
+            subtotal: parseFloat(txn.subtotal || txn.total_amount || 0),
+            discount: parseFloat(txn.discount_amount || 0),
+            tax: parseFloat(txn.tax || 0),
+            total: parseFloat(txn.total_amount || 0),
+            amount_tendered: parseFloat(txn.total_amount || 0),
+            change_amount: parseFloat(txn.change_amount || 0),
+            items: txn.items || []
+        };
+
+        // If order-based, build items from order_items
+        if (txn.order_items && txn.order_items.length > 0) {
+            transactionData.items = txn.order_items.map(item => ({
+                name: item.item_type === 'TICKET' ? (item.passenger_name || 'Ticket') : (item.service_type_name || 'Service'),
+                quantity: 1,
+                price: parseFloat(item.total_amount || 0),
+                base_amount: parseFloat(item.unit_price || item.total_amount || 0),
+                service_fee: parseFloat(item.service_fee || 0),
+                discount_amount: parseFloat(item.discount_amount || 0),
+                total: parseFloat(item.total_amount || 0)
+            }));
+        }
+
+        // Print with preview if enabled
+        if (window.PRINTER_SETTINGS.showPreview) {
+            const shouldPrint = await window.PosPrinter.showPreview(transactionData);
+            if (shouldPrint) {
+                await window.PosPrinter.reprint(transactionData, reason);
+                showToast('success', 'Receipt Reprinted', `Receipt #${txnCode} has been reprinted.`);
+            }
+        } else {
+            await window.PosPrinter.reprint(transactionData, reason);
+            showToast('success', 'Receipt Reprinted', `Receipt #${txnCode} has been reprinted.`);
+        }
+
+        reprintReceiptModal.hide();
+
+    } catch (error) {
+        console.error('Reprint error:', error);
+        showToast('error', 'Reprint Failed', 'An error occurred while reprinting the receipt.');
+    }
 }
 
 function updatePaginationUI() {

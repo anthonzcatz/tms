@@ -14,11 +14,12 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId,
             'device_id' => $deviceId,
@@ -27,7 +28,8 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
             'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -180,13 +182,14 @@ function handlePost() {
     
     // Insert new provider
     $sql = "INSERT INTO ticket_providers (provider_code, provider_name, provider_type, status, created_at)
-            VALUES (:provider_code, :provider_name, :provider_type, :status, NOW())";
+            VALUES (:provider_code, :provider_name, :provider_type, :status, :created_at)";
     
     Database::execute($sql, [
         'provider_code' => $providerCode,
         'provider_name' => $providerName,
         'provider_type' => $providerType,
-        'status' => $status
+        'status' => $status,
+        'created_at' => date('Y-m-d H:i:s')
     ]);
     
     $providerId = Database::connection()->lastInsertId();

@@ -228,7 +228,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                             </label>
                           </div>
                         </td>
-                        <td><?php echo date('M d, Y', strtotime($provider['created_at'])); ?></td>
+                        <td><?php echo Auth::formatTimestamp($provider['created_at'], 'M d, Y'); ?></td>
                         <td class="text-end">
                           <div class="btn-group">
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="editProvider(<?php echo $provider['provider_id']; ?>)">

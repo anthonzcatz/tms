@@ -262,8 +262,14 @@ if ($navbarPosition === 'combo') {
           <div class="scrollbar-overlay nine-dots-dropdown">
             <div class="card-body px-3">
               <div class="row text-center gx-0 gy-0">
-                <div class="col-4"><a class="d-block hover-bg-200 px-2 py-3 rounded-3 text-center text-decoration-none" href="../pages/user/profile.html" target="_blank">
-                    <div class="avatar avatar-2xl"> <img class="rounded-circle" src="<?php echo BASE_URL; ?>/resources/assets/img/team/3.jpg" alt="" /></div>
+                <div class="col-4"><a class="d-block hover-bg-200 px-2 py-3 rounded-3 text-center text-decoration-none" href="<?php echo BASE_URL; ?>/admin/user/">
+                    <div class="avatar avatar-2xl">
+                      <?php if ($profileImage): ?>
+                        <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="" />
+                      <?php else: ?>
+                        <div class="avatar-name rounded-circle"><span><?php echo $initials; ?></span></div>
+                      <?php endif; ?>
+                    </div>
                     <p class="mb-0 fw-medium text-800 text-truncate fs-11">Account</p>
                   </a></div>
                 <div class="col-4"><a class="d-block hover-bg-200 px-2 py-3 rounded-3 text-center text-decoration-none" href="https://themewagon.com/" target="_blank"><img class="rounded" src="<?php echo BASE_URL; ?>/resources/assets/img/nav-icons/themewagon.png" alt="" width="40" height="40" />
@@ -336,7 +342,10 @@ if ($navbarPosition === 'combo') {
     <li class="nav-item dropdown"><a class="nav-link pe-0 ps-2" id="navbarDropdownUserTop" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
         <div class="avatar avatar-xl">
           <?php if ($profileImage): ?>
-            <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" />
+            <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <div class="avatar-name rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold" style="display:none;">
+              <?php echo $initials; ?>
+            </div>
           <?php else: ?>
             <div class="avatar-name rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold">
               <?php echo $initials; ?>
@@ -347,7 +356,7 @@ if ($navbarPosition === 'combo') {
       <div class="dropdown-menu dropdown-caret dropdown-menu-end py-0" aria-labelledby="navbarDropdownUserTop">
         <div class="bg-white dark__bg-1000 rounded-2 py-2">
           <div class="dropdown-divider"></div>
-          <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/user/profile">Profile &amp; account</a>
+          <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/user/">Profile &amp; account</a>
           <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/permissions">Permission Management</a>
           <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/users">User Management</a>
           <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/role-dashboards">Role Dashboards</a>

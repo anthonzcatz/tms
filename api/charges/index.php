@@ -8,12 +8,14 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
-         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, NOW())",
+         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, :created_at)",
         ['uid' => $userId, 'action' => $action, 'mod' => $module, 'ref' => $ref,
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
+         'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null,
+         'created_at' => $now]
     );
 }
 
@@ -114,10 +116,11 @@ if ($method === 'POST') {
             "INSERT INTO charge_payments
                 (payment_code, passenger_id, branch_id, payment_method_id, bank_account_id, amount_paid, balance_before, balance_after,
                  reference_number, confirmation_status, notes, created_by, created_at)
-             VALUES (:code, :pid, :branch, :method, :bank, :amount, :before, :after, :ref, :confirm, :notes, :uid, NOW())",
+             VALUES (:code, :pid, :branch, :method, :bank, :amount, :before, :after, :ref, :confirm, :notes, :uid, :created_at)",
             ['code' => $payCode, 'pid' => $passengerId, 'branch' => $branchId, 'method' => $methodId,
              'bank' => $bankAcctId, 'amount' => $applied, 'before' => $balBefore, 'after' => $balAfter,
-             'ref' => $refNum, 'confirm' => $confirmStatus, 'notes' => $notes, 'uid' => $user['user_id']]
+             'ref' => $refNum, 'confirm' => $confirmStatus, 'notes' => $notes, 'uid' => $user['user_id'],
+             'created_at' => date('Y-m-d H:i:s')]
         );
 
         // Create bank transaction if payment method is bank/e-wallet and bank_account_id is provided
@@ -133,7 +136,7 @@ if ($method === 'POST') {
                     "INSERT INTO bank_transactions
                         (bank_account_id, txn_code, txn_type, direction, amount, balance_before, balance_after,
                          reference_table, reference_id, remarks, confirmation_status, created_by, created_at)
-                     VALUES (:bank_id, :code, 'RECEIPT', 'IN', :amount, :before, :after, 'charge_payments', :ref_id, :remarks, 'CONFIRMED', :uid, NOW())",
+                     VALUES (:bank_id, :code, 'RECEIPT', 'IN', :amount, :before, :after, 'charge_payments', :ref_id, :remarks, 'CONFIRMED', :uid, :created_at)",
                     [
                         'bank_id' => $bankAcctId,
                         'code' => $bankTxnCode,
@@ -142,7 +145,8 @@ if ($method === 'POST') {
                         'after' => $balAfterBank,
                         'ref_id' => Database::connection()->lastInsertId(),
                         'remarks' => "Payment collection from passenger {$passengerId}",
-                        'uid' => $user['user_id']
+                        'uid' => $user['user_id'],
+                        'created_at' => date('Y-m-d H:i:s')
                     ]
                 );
                 
@@ -165,10 +169,11 @@ if ($method === 'POST') {
                 total_paid = total_paid + :paid,
                 balance = :after,
                 status = :status,
-                last_payment_date = NOW(),
-                updated_at = NOW()
+                last_payment_date = :last_payment_date,
+                updated_at = :updated_at
              WHERE passenger_id = :pid",
-            ['paid' => $applied, 'after' => $balAfter, 'status' => $newStatus, 'pid' => $passengerId]
+            ['paid' => $applied, 'after' => $balAfter, 'status' => $newStatus, 'pid' => $passengerId,
+             'last_payment_date' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]
         );
 
         Database::connection()->commit();

@@ -343,7 +343,7 @@ function handlePost() {
     Database::execute(
         "INSERT INTO user_accounts
          (user_code, username, password_hash, email, emp_id, role_id, branch_id, profile_image, status, is_time_restricted, allowed_login_start, allowed_login_end, allowed_days, created_at, updated_at)
-         VALUES (:user_code, :username, :password_hash, :email, :emp_id, :role_id, :branch_id, :profile_image, :status, :is_time_restricted, :allowed_login_start, :allowed_login_end, :allowed_days, NOW(), NOW())",
+         VALUES (:user_code, :username, :password_hash, :email, :emp_id, :role_id, :branch_id, :profile_image, :status, :is_time_restricted, :allowed_login_start, :allowed_login_end, :allowed_days, :created_at, :updated_at)",
         [
             'user_code' => $userCode,
             'username' => $data['username'],
@@ -357,7 +357,9 @@ function handlePost() {
             'is_time_restricted' => isset($data['is_time_restricted']) ? (int)$data['is_time_restricted'] : 0,
             'allowed_login_start' => isset($data['allowed_login_start']) ? $data['allowed_login_start'] : null,
             'allowed_login_end' => isset($data['allowed_login_end']) ? $data['allowed_login_end'] : null,
-            'allowed_days' => isset($data['allowed_days']) ? $data['allowed_days'] : null
+            'allowed_days' => isset($data['allowed_days']) ? $data['allowed_days'] : null,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
         ]
     );
     
@@ -562,7 +564,8 @@ function handlePut() {
         return;
     }
     
-    $updateFields[] = "updated_at = NOW()";
+    $updateFields[] = "updated_at = :updated_at";
+    $params['updated_at'] = date('Y-m-d H:i:s');
     
     $sql = "UPDATE user_accounts SET " . implode(", ", $updateFields) . " WHERE user_id = :user_id";
     
@@ -653,13 +656,14 @@ function logActivity($userId, $action, $description) {
         $actingUserId = $currentUser ? $currentUser['user_id'] : null;
         Database::execute(
             "INSERT INTO activity_logs (user_id, action, description, ip_address, user_agent, created_at) 
-             VALUES (:user_id, :action, :description, :ip_address, :user_agent, NOW())",
+             VALUES (:user_id, :action, :description, :ip_address, :user_agent, :created_at)",
             [
                 'user_id' => $actingUserId,
                 'action' => $action,
                 'description' => $description,
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                'created_at' => date('Y-m-d H:i:s')
             ]
         );
     } catch (Exception $e) {

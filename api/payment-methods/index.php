@@ -13,11 +13,12 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null;
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId,
             'device_id' => $deviceId,
@@ -26,7 +27,8 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
             'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -114,7 +116,7 @@ function handlePost() {
              requires_customer, requires_reference, include_in_expected_cash, tracks_credit, is_active, sort_order, created_at)
          VALUES
             (:method_code, :method_name, :method_type, :description, :icon, :requires_confirmation,
-             :requires_customer, :requires_reference, :include_in_expected_cash, :tracks_credit, :is_active, :sort_order, NOW())",
+             :requires_customer, :requires_reference, :include_in_expected_cash, :tracks_credit, :is_active, :sort_order, :created_at)",
         [
             'method_code'               => $methodCode,
             'method_name'               => $methodName,
@@ -128,6 +130,7 @@ function handlePost() {
             'tracks_credit'             => $input['tracks_credit'] ?? ($methodType === 'CHARGE' ? 1 : 0),
             'is_active'                 => $input['is_active'] ?? 1,
             'sort_order'                => $input['sort_order'] ?? 0,
+            'created_at'                => date('Y-m-d H:i:s'),
         ]
     );
 
@@ -177,8 +180,8 @@ function handlePut() {
     // Status-only toggle
     if (count($input) === 2 && isset($input['is_active'])) {
         Database::execute(
-            "UPDATE payment_methods SET is_active = :is_active, updated_at = NOW() WHERE method_id = :id",
-            ['is_active' => $input['is_active'], 'id' => $methodId]
+            "UPDATE payment_methods SET is_active = :is_active, updated_at = :updated_at WHERE method_id = :id",
+            ['is_active' => $input['is_active'], 'updated_at' => date('Y-m-d H:i:s'), 'id' => $methodId]
         );
         logActivity($user['user_id'], 'TOGGLE_PAYMENT_METHOD', 'PAYMENT_METHODS', "PM-{$methodId}",
             ['is_active' => $existing['is_active']], ['is_active' => $input['is_active']]);
@@ -219,7 +222,7 @@ function handlePut() {
             tracks_credit = :tracks_credit,
             is_active = :is_active,
             sort_order = :sort_order,
-            updated_at = NOW()
+            updated_at = :updated_at
          WHERE method_id = :id",
         [
             'method_code'              => $methodCode,
@@ -234,6 +237,7 @@ function handlePut() {
             'tracks_credit'            => $input['tracks_credit'] ?? 0,
             'is_active'                => $input['is_active'] ?? 1,
             'sort_order'               => $input['sort_order'] ?? 0,
+            'updated_at'               => date('Y-m-d H:i:s'),
             'id'                       => $methodId
         ]
     );

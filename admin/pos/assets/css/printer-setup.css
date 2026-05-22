@@ -1,0 +1,100 @@
+.printer-setup-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+.status-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+}
+.status-connected {
+    background-color: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+}
+.status-disconnected {
+    background-color: #dc3545;
+}
+.status-connecting {
+    background-color: #ffc107;
+    animation: pulse 1s infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+.printer-card {
+    border: 2px dashed #dee2e6;
+    transition: all 0.3s ease;
+}
+.printer-card:hover {
+    border-color: #0d6efd;
+    background-color: #f8f9fa;
+}
+.printer-card.selected {
+    border-color: #28a745;
+    border-style: solid;
+    background-color: #f0f9f4;
+}
+.receipt-preview {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    padding: 20px;
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.receipt-58mm {
+    max-width: 232px; /* 58mm in pixels at 96 DPI */
+    margin: 0 auto;
+}
+.receipt-76mm {
+    max-width: 304px; /* 76mm in pixels at 96 DPI */
+    margin: 0 auto;
+}
+.receipt-80mm {
+    max-width: 302px; /* 80mm in pixels at 96 DPI */
+    margin: 0 auto;
+}
+.receipt-100mm {
+    max-width: 378px; /* 100mm in pixels at 96 DPI */
+    margin: 0 auto;
+}
+.receipt-112mm {
+    max-width: 423px; /* 112mm in pixels at 96 DPI */
+    margin: 0 auto;
+}
+.connection-log {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.log-entry {
+    margin-bottom: 4px;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.log-info {
+    background-color: #e3f2fd;
+    color: #1565c0;
+}
+.log-success {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+.log-error {
+    background-color: #ffebee;
+    color: #c62828;
+}
+.log-warning {
+    background-color: #fff3e0;
+    color: #ef6c00;
+}

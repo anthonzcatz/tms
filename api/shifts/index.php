@@ -44,10 +44,10 @@ $transactions = Database::fetchAll(
     ['sid' => $sessionId]
 );
 
-// Payment breakdown by method
+// Payment breakdown by method (filter by session ID, not cashier ID)
 $paymentWhere = "AND tp.created_at >= :start";
 $paymentParams = [
-    'uid'   => $session['cashier_user_id'],
+    'sid'   => $session['session_id'],
     'start' => $session['started_at']
 ];
 if ($session['ended_at']) {
@@ -59,7 +59,7 @@ $payments = Database::fetchAll(
     "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
      FROM transaction_payments tp
      JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-     WHERE tp.created_by = :uid
+     WHERE tp.cashier_session_id = :sid
        $paymentWhere
      GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash
      ORDER BY total_amount DESC",

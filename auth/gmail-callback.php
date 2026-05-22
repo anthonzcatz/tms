@@ -67,8 +67,8 @@ if (!isset($tokenData['refresh_token'])) {
 
 // Store refresh token in database
 Database::execute(
-    "UPDATE email_settings SET gmail_refresh_token = :token, updated_at = NOW() WHERE setting_id = 1",
-    ['token' => $tokenData['refresh_token']]
+    "UPDATE email_settings SET gmail_refresh_token = :token, updated_at = :updated_at WHERE setting_id = 1",
+    ['token' => $tokenData['refresh_token'], 'updated_at' => date('Y-m-d H:i:s')]
 );
 
 $_SESSION['success'] = 'Gmail authorization successful! You can now send emails via Gmail API.';

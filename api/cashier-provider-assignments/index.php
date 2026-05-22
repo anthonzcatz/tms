@@ -92,12 +92,13 @@ if ($method === 'POST') {
         // Insert new assignment
         Database::execute(
             "INSERT INTO cashier_transport_assignments (user_id, provider_id, transport_type, created_by, created_at)
-             VALUES (:user_id, :provider_id, :transport_type, :created_by, NOW())",
+             VALUES (:user_id, :provider_id, :transport_type, :created_by, :created_at)",
             [
                 'user_id' => $userId,
                 'provider_id' => $providerId,
                 'transport_type' => $transportType,
-                'created_by' => $user['user_id']
+                'created_by' => $user['user_id'],
+                'created_at' => date('Y-m-d H:i:s')
             ]
         );
         

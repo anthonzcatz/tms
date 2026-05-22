@@ -14,11 +14,12 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
+    $now = date('Y-m-d H:i:s');
     Database::execute(
         "INSERT INTO activity_logs
             (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
          VALUES
-            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, NOW())",
+            (:user_id, :device_id, :action, :module_name, :reference_code, :ip_address, :old_value, :new_value, :created_at)",
         [
             'user_id' => $userId,
             'device_id' => $deviceId,
@@ -27,7 +28,8 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
             'reference_code' => $referenceCode,
             'ip_address' => $ipAddress,
             'old_value' => $oldValue ? json_encode($oldValue) : null,
-            'new_value' => $newValue ? json_encode($newValue) : null
+            'new_value' => $newValue ? json_encode($newValue) : null,
+            'created_at' => $now
         ]
     );
 }
@@ -216,7 +218,7 @@ function handlePost() {
     
     // Insert new service fee
     $sql = "INSERT INTO provider_service_fees (provider_id, branch_id, fee_type, fee_value, is_active, created_by, created_at)
-            VALUES (:provider_id, :branch_id, :fee_type, :fee_value, :is_active, :created_by, NOW())";
+            VALUES (:provider_id, :branch_id, :fee_type, :fee_value, :is_active, :created_by, :created_at)";
     
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
@@ -224,7 +226,8 @@ function handlePost() {
         'fee_type' => $feeType,
         'fee_value' => (float)$feeAmount,
         'is_active' => $status === 'active' ? 1 : 0,
-        'created_by' => $user['user_id']
+        'created_by' => $user['user_id'],
+        'created_at' => date('Y-m-d H:i:s')
     ]);
     
     $feeId = Database::connection()->lastInsertId();

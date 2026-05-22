@@ -25,7 +25,7 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 } elseif (!Auth::canAccessModule('admin/settings/payment-methods/')) {
     $message = 'You do not have permission to access the Payment Methods module.';
     $defaultDashboard = BASE_URL . '/admin/dashboard';
-    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }
 
