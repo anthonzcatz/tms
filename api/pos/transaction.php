@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 Auth::requireLogin();
@@ -43,6 +44,17 @@ if (!$id && !$code) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Transaction ID or code required']);
     exit;
+}
+
+// Decode ID if it's encrypted (not numeric)
+if ($id && !is_numeric($id)) {
+    $decodedId = IdEncoder::decode($id);
+    if ($decodedId === false) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid transaction ID']);
+        exit;
+    }
+    $id = $decodedId;
 }
 
 // Check if pos_orders table exists

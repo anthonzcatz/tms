@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Check authentication
@@ -84,6 +85,40 @@ function handleGet() {
     $search = $_GET['search'] ?? '';
     $checkUsername = $_GET['check_username'] ?? null;
     $excludeUserId = $_GET['exclude_user_id'] ?? null;
+
+    // Decode IDs if provided
+    if ($userId) {
+        $decodedUserId = IdEncoder::decode($userId);
+        if ($decodedUserId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+            return;
+        }
+        $userId = $decodedUserId;
+    }
+    if ($roleId) {
+        $decodedRoleId = IdEncoder::decode($roleId);
+        if ($decodedRoleId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid role ID']);
+            return;
+        }
+        $roleId = $decodedRoleId;
+    }
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        $branchId = $decodedBranchId;
+    }
+    if ($excludeUserId) {
+        $decodedExcludeUserId = IdEncoder::decode($excludeUserId);
+        if ($decodedExcludeUserId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid exclude user ID']);
+            return;
+        }
+        $excludeUserId = $decodedExcludeUserId;
+    }
 
     // Check if username exists
     if ($checkUsername) {
@@ -255,10 +290,16 @@ function handleGet() {
 }
 
 /**
- * Handle POST requests - create new user
+ * Handle POST requests - create new user or bulk update
  */
 function handlePost() {
     $data = json_decode(file_get_contents('php://input'), true);
+    
+    // Handle bulk update action
+    if (isset($data['action']) && $data['action'] === 'bulk_update') {
+        handleBulkUpdate($data);
+        return;
+    }
     
     // Validate required fields
     if (empty($data['username'])) {
@@ -587,7 +628,17 @@ function handlePut() {
  */
 function handleDelete() {
     $userId = $_GET['id'] ?? null;
-    
+
+    // Decode user_id if provided
+    if ($userId) {
+        $decodedUserId = IdEncoder::decode($userId);
+        if ($decodedUserId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+            return;
+        }
+        $userId = $decodedUserId;
+    }
+
     if (!$userId) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'User ID is required']);
@@ -711,5 +762,72 @@ function saveProfileImage($base64Image, $userCode) {
     } catch (Exception $e) {
         error_log("Error saving profile image: " . $e->getMessage());
         return null;
+    }
+}
+
+/**
+ * Handle bulk update operations
+ */
+function handleBulkUpdate($data) {
+    if (empty($data['user_ids']) || !is_array($data['user_ids'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'User IDs are required']);
+        return;
+    }
+    
+    if (empty($data['status']) || !in_array($data['status'], ['active', 'inactive'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Valid status (active/inactive) is required']);
+        return;
+    }
+    
+    $userIds = $data['user_ids'];
+    $status = $data['status'];
+    
+    // Decode user IDs
+    $decodedIds = [];
+    foreach ($userIds as $id) {
+        $decoded = IdEncoder::decode($id);
+        if ($decoded === false) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+            return;
+        }
+        $decodedIds[] = $decoded;
+    }
+    
+    // Prevent deactivating super admin accounts
+    if ($status === 'inactive') {
+        $placeholders = implode(',', array_fill(0, count($decodedIds), '?'));
+        $sql = "SELECT user_id, role_code FROM user_accounts WHERE user_id IN ($placeholders)";
+        $users = Database::fetchAll($sql, $decodedIds);
+        
+        foreach ($users as $user) {
+            if ($user['role_code'] === 'SUPER_ADMIN') {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Cannot deactivate super admin account']);
+                return;
+            }
+        }
+    }
+    
+    // Update users
+    $placeholders = implode(',', array_fill(0, count($decodedIds), '?'));
+    $sql = "UPDATE user_accounts SET status = ? WHERE user_id IN ($placeholders)";
+    $params = array_merge([$status], $decodedIds);
+    
+    try {
+        $result = Database::execute($sql, $params);
+        
+        if ($result) {
+            echo json_encode(['success' => true, 'message' => count($decodedIds) . ' user(s) updated successfully']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Failed to update users']);
+        }
+    } catch (Exception $e) {
+        error_log("Bulk update error: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Internal server error']);
     }
 }

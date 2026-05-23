@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -25,6 +26,17 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $passengerId = $_GET['passenger_id'] ?? null;
+
+    // Decode passenger_id if provided
+    if ($passengerId) {
+        $decodedPassengerId = IdEncoder::decode($passengerId);
+        if ($decodedPassengerId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid passenger ID']);
+            return;
+        }
+        $passengerId = $decodedPassengerId;
+    }
+
     if (!$passengerId) { echo json_encode(['success' => false, 'error' => 'passenger_id required']); return; }
 
     // Charge entries (from transaction_payments where payment method tracks_credit = 1)

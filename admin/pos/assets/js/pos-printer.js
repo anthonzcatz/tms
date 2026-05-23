@@ -458,8 +458,8 @@
                 data.push('\n');
                 data.push(cmd.ALIGN_CENTER);
                 const qrData = this.config.qrFormat === 'TRANSACTION_CODE'
-                    ? (transaction.transaction_code || transaction.id.toString())
-                    : transaction.id.toString();
+                    ? (transaction.transaction_code || IdEncoder.encode(transaction.id))
+                    : IdEncoder.encode(transaction.id);
                 data.push(this.generateQRCode(qrData));
                 data.push(cmd.ALIGN_LEFT);
             }

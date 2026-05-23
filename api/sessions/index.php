@@ -12,6 +12,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -35,8 +36,19 @@ switch ($method) {
         $page       = max(1, (int) ($_GET['page']        ?? 1));
         $perPage    = 20;
         $offset     = ($page - 1) * $perPage;
-        $filterUser = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
+        $filterUser = isset($_GET['user_id']) ? $_GET['user_id'] : 0;
         $activeOnly = !empty($_GET['active_only']);
+
+        // Decode user_id if provided
+        if ($filterUser) {
+            $decodedUserId = IdEncoder::decode($filterUser);
+            if ($decodedUserId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+                exit;
+            }
+            $filterUser = $decodedUserId;
+        }
 
         $where  = ['1=1'];
         $params = [];
@@ -66,6 +78,7 @@ switch ($method) {
                 us.user_id,
                 ua.username,
                 ua.email,
+                ua.profile_image,
                 CONCAT_WS(' ',
                     e.first_name,
                     IF(e.middle_name IS NOT NULL AND e.middle_name != '',
@@ -115,8 +128,30 @@ switch ($method) {
             exit;
         }
 
-        $sessionId = isset($_GET['id'])      ? (int) $_GET['id']      : 0;
-        $userId    = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
+        $sessionId = isset($_GET['id'])      ? $_GET['id']      : 0;
+        $userId    = isset($_GET['user_id']) ? $_GET['user_id'] : 0;
+
+        // Decode session_id if provided
+        if ($sessionId) {
+            $decodedSessionId = IdEncoder::decode($sessionId);
+            if ($decodedSessionId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid session ID']);
+                exit;
+            }
+            $sessionId = $decodedSessionId;
+        }
+
+        // Decode user_id if provided
+        if ($userId) {
+            $decodedUserId = IdEncoder::decode($userId);
+            if ($decodedUserId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+                exit;
+            }
+            $userId = $decodedUserId;
+        }
 
         if ($sessionId) {
             Database::execute(

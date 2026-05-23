@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Helper function for logging activity
@@ -109,6 +110,24 @@ function handleGet() {
     $date = $_GET['date'] ?? null;
     $limit = $_GET['limit'] ?? 100;
     $offset = $_GET['offset'] ?? 0;
+
+    // Decode IDs if provided
+    if ($txnId) {
+        $decodedTxnId = IdEncoder::decode($txnId);
+        if ($decodedTxnId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid transaction ID']);
+            return;
+        }
+        $txnId = $decodedTxnId;
+    }
+    if ($walletId) {
+        $decodedWalletId = IdEncoder::decode($walletId);
+        if ($decodedWalletId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid wallet ID']);
+            return;
+        }
+        $walletId = $decodedWalletId;
+    }
 
     // Get single transaction
     if ($txnId) {

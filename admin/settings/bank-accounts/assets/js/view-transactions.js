@@ -42,7 +42,7 @@ function loadTransactions() {
         </tr>
     `;
     
-    let url = `${window.BASE_URL}/api/bank-transactions?bank_account_id=${bankAccountId}&page=${transactionsCurrentPage}&limit=${transactionsPerPage}`;
+    let url = `${window.BASE_URL}/api/bank-transactions?bank_account_id=${IdEncoder.encode(bankAccountId)}&page=${transactionsCurrentPage}&limit=${transactionsPerPage}`;
     
     if (txnType) url += `&txn_type=${txnType}`;
     if (direction) url += `&direction=${direction}`;
@@ -210,7 +210,7 @@ function exportTransactions() {
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
     
-    let url = `${window.BASE_URL}/api/bank-transactions?bank_account_id=${bankAccountId}&limit=1000`;
+    let url = `${window.BASE_URL}/api/bank-transactions?bank_account_id=${IdEncoder.encode(bankAccountId)}&limit=1000`;
     
     if (txnType) url += `&txn_type=${txnType}`;
     if (direction) url += `&direction=${direction}`;

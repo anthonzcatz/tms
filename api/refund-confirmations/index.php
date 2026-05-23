@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 Auth::requireLogin();
@@ -47,6 +48,24 @@ $filterCashier  = trim($_GET['cashier']    ?? '');
 $filterDateFrom = $_GET['date_from'] ?? null;
 $filterDateTo   = $_GET['date_to']   ?? null;
 $filterSearch   = trim($_GET['search']     ?? '');
+
+// Decode IDs if provided
+if ($filterBranchId) {
+    $decodedBranchId = IdEncoder::decode($filterBranchId);
+    if ($decodedBranchId === false) {
+        echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+        exit;
+    }
+    $filterBranchId = $decodedBranchId;
+}
+if ($filterWalletId) {
+    $decodedWalletId = IdEncoder::decode($filterWalletId);
+    if ($decodedWalletId === false) {
+        echo json_encode(['success' => false, 'error' => 'Invalid wallet ID']);
+        exit;
+    }
+    $filterWalletId = $decodedWalletId;
+}
 
 // Pagination
 $limit  = max(1, min(100, (int)($_GET['limit']  ?? 15)));

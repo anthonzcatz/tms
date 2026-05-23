@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Helper function for logging activity
@@ -92,9 +93,19 @@ function handleGet() {
     $providerId = $_GET['id'] ?? null;
     $action = $_GET['action'] ?? null;
 
+    // Decode provider_id if provided
+    if ($providerId) {
+        $decodedProviderId = IdEncoder::decode($providerId);
+        if ($decodedProviderId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+            return;
+        }
+        $providerId = $decodedProviderId;
+    }
+
     // Get provider stats
     if ($action === 'stats') {
-        $sql = "SELECT 
+        $sql = "SELECT
                     COUNT(*) as total_providers,
                     SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_providers,
                     SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive_providers
@@ -336,7 +347,17 @@ function handleDelete() {
     }
     
     $providerId = $_GET['id'] ?? null;
-    
+
+    // Decode provider_id if provided
+    if ($providerId) {
+        $decodedProviderId = IdEncoder::decode($providerId);
+        if ($decodedProviderId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+            return;
+        }
+        $providerId = $decodedProviderId;
+    }
+
     if (!$providerId) {
         echo json_encode(['success' => false, 'error' => 'Missing provider ID']);
         return;

@@ -3,11 +3,7 @@
  * Session Refresh API
  * Extends the session when user is active
  */
-session_start();
-
 require_once dirname(__DIR__) . '/config/bootstrap.php';
-require_once dirname(__DIR__) . '/config/database.php';
-require_once dirname(__DIR__) . '/app/helpers/Auth.php';
 
 header('Content-Type: application/json');
 

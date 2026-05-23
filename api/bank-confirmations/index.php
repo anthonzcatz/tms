@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -27,6 +28,17 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $id = $_GET['id'] ?? null;
+    
+    // Decode ID if it's encrypted (not numeric)
+    if ($id && !is_numeric($id)) {
+        $decodedId = IdEncoder::decode($id);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid payment ID']);
+            return;
+        }
+        $id = $decodedId;
+    }
+    
     if ($id) {
         $p = Database::fetch("SELECT * FROM transaction_payments WHERE payment_id = :id", ['id' => $id]);
         if (!$p) {

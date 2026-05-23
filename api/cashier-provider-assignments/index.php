@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 Auth::requireLogin();
@@ -23,7 +24,17 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $userId = $_GET['user_id'] ?? null;
-    
+
+    // Decode user_id if provided
+    if ($userId) {
+        $decodedUserId = IdEncoder::decode($userId);
+        if ($decodedUserId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+            return;
+        }
+        $userId = $decodedUserId;
+    }
+
     if ($userId) {
         // Get assignments for a specific user
         $assignments = Database::fetchAll(

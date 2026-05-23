@@ -76,7 +76,8 @@ async function submitAddServiceType() {
 
 async function editServiceType(id) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/service-types?id=${id}`);
+        const encodedId = IdEncoder.encode(id);
+        const response = await fetch(`${window.BASE_URL}/api/service-types?id=${encodedId}`);
         const result = await response.json();
         if (!result.success || !result.data) {
             showToast('danger', 'Error', 'Failed to fetch service type details.');

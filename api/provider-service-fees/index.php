@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Helper function for logging activity
@@ -95,6 +96,16 @@ try {
 function handleGet() {
     $feeId = $_GET['id'] ?? null;
 
+    // Decode fee_id if provided
+    if ($feeId) {
+        $decodedFeeId = IdEncoder::decode($feeId);
+        if ($decodedFeeId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid fee ID']);
+            return;
+        }
+        $feeId = $decodedFeeId;
+    }
+
     // Get single fee
     if ($feeId) {
         $sql = "SELECT psf.*,
@@ -105,9 +116,9 @@ function handleGet() {
                 LEFT JOIN ticket_providers tp ON psf.provider_id = tp.provider_id
                 LEFT JOIN business_branches bb ON psf.branch_id = bb.branch_id
                 WHERE psf.fee_id = :fee_id";
-        
+
         $fee = Database::fetch($sql, ['fee_id' => (int)$feeId]);
-        
+
         if ($fee) {
             echo json_encode(['success' => true, 'data' => $fee]);
         } else {
@@ -130,15 +141,25 @@ function handleGet() {
     // Filter by provider_id if provided
     $providerId = $_GET['provider_id'] ?? null;
     if ($providerId) {
+        $decodedProviderId = IdEncoder::decode($providerId);
+        if ($decodedProviderId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+            return;
+        }
         $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "psf.provider_id = :provider_id";
-        $params['provider_id'] = (int)$providerId;
+        $params['provider_id'] = (int)$decodedProviderId;
     }
 
     // Filter by branch_id if provided
     $branchId = $_GET['branch_id'] ?? null;
     if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
         $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "psf.branch_id = :branch_id";
-        $params['branch_id'] = (int)$branchId;
+        $params['branch_id'] = (int)$decodedBranchId;
     }
 
     // Filter by active fees only
@@ -192,13 +213,31 @@ function handlePost() {
     }
     
     $input = json_decode(file_get_contents('php://input'), true);
-    
+
     $providerId = $input['provider_id'] ?? null;
     $branchId = $input['branch_id'] ?? null;
     $feeType = $input['fee_type'] ?? null;
     $feeAmount = $input['fee_value'] ?? 0;
     $status = $input['status'] ?? 'active';
-    
+
+    // Decode provider_id and branch_id if provided
+    if ($providerId) {
+        $decodedProviderId = IdEncoder::decode($providerId);
+        if ($decodedProviderId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+            return;
+        }
+        $providerId = $decodedProviderId;
+    }
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        $branchId = $decodedBranchId;
+    }
+
     // Validate required fields
     if (!$providerId || !$branchId || !$feeType) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
@@ -277,7 +316,35 @@ function handlePut() {
     $feeType = $input['fee_type'] ?? null;
     $feeAmount = $input['fee_value'] ?? null;
     $status = $input['status'] ?? null;
-    
+
+    // Decode fee_id if provided
+    if ($feeId) {
+        $decodedFeeId = IdEncoder::decode($feeId);
+        if ($decodedFeeId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid fee ID']);
+            return;
+        }
+        $feeId = $decodedFeeId;
+    }
+
+    // Decode provider_id and branch_id if provided
+    if ($providerId) {
+        $decodedProviderId = IdEncoder::decode($providerId);
+        if ($decodedProviderId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+            return;
+        }
+        $providerId = $decodedProviderId;
+    }
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        $branchId = $decodedBranchId;
+    }
+
     if (!$feeId) {
         echo json_encode(['success' => false, 'error' => 'Missing fee ID']);
         return;
@@ -376,7 +443,17 @@ function handleDelete() {
     }
     
     $feeId = $_GET['id'] ?? null;
-    
+
+    // Decode fee_id if provided
+    if ($feeId) {
+        $decodedFeeId = IdEncoder::decode($feeId);
+        if ($decodedFeeId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid fee ID']);
+            return;
+        }
+        $feeId = $decodedFeeId;
+    }
+
     if (!$feeId) {
         echo json_encode(['success' => false, 'error' => 'Missing fee ID']);
         return;

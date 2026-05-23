@@ -108,20 +108,20 @@
             <div class="card">
               <div class="card-body py-3">
                 <div class="row g-3 align-items-center justify-content-center">
-                  <div class="d-inline-flex gap-2 flex-wrap justify-content-center">
-                    <div class="badge bg-primary-subtle text-primary fs-10 px-3 py-2">
+                  <div class="d-inline-flex gap-2 flex-wrap justify-content-center stats-badges">
+                    <div class="badge bg-primary-subtle text-primary fs-10 px-3 py-2 cursor-pointer stat-badge" id="statTotal" onclick="filterByStat('total')">
                       <span class="fas fa-users me-1"></span>
                       Total: <span id="totalUsers">0</span>
                     </div>
-                    <div class="badge bg-success-subtle text-success fs-10 px-3 py-2">
+                    <div class="badge bg-success-subtle text-success fs-10 px-3 py-2 cursor-pointer stat-badge" id="statActive" onclick="filterByStat('active')">
                       <span class="fas fa-user-check me-1"></span>
                       Active: <span id="activeUsers">0</span>
                     </div>
-                    <div class="badge bg-warning-subtle text-warning fs-10 px-3 py-2">
+                    <div class="badge bg-warning-subtle text-warning fs-10 px-3 py-2 cursor-pointer stat-badge" id="statInactive" onclick="filterByStat('inactive')">
                       <span class="fas fa-user-clock me-1"></span>
                       Inactive: <span id="inactiveUsers">0</span>
                     </div>
-                    <div class="badge bg-info-subtle text-info fs-10 px-3 py-2">
+                    <div class="badge bg-info-subtle text-info fs-10 px-3 py-2 cursor-pointer stat-badge" id="statOnline" onclick="filterByStat('online')">
                       <span class="online-indicator me-1"></span>
                       Online: <span id="onlineUsers">0</span>
                     </div>
@@ -137,22 +137,22 @@
           <div class="col-12">
             <div class="card" id="usersCard">
               <div class="card-header border-bottom border-200 px-0">
-                <div class="d-lg-flex justify-content-between">
-                  <div class="row flex-between-center gy-2 px-x1">
-                    <div class="col-auto pe-0">
-                      <h6 class="mb-0">User Accounts  </h6>
+                <div class="d-lg-flex justify-content-between align-items-center px-x1">
+                  <div class="d-flex align-items-center gap-3">
+                    <h6 class="mb-0">User Accounts</h6>
+                    <div class="form-check mb-0 mt-1">
+                      <input class="form-check-input" id="selectAllUsers" type="checkbox" onchange="toggleSelectAll()">
+                      <label class="form-check-label small" for="selectAllUsers">Select All</label>
                     </div>
-                    <div class="col-auto">
-                      <div class="dropdown">
-                        <button class="btn btn-falcon-default btn-sm dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                          <span class="fas fa-download me-1"></span>Export
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                          <li><a class="dropdown-item" href="#" onclick="exportUsers('csv')"><span class="fas fa-file-csv me-2"></span>CSV</a></li>
-                          <li><a class="dropdown-item" href="#" onclick="exportUsers('excel')"><span class="fas fa-file-excel me-2"></span>Excel</a></li>
-                        </ul>
-                      </div>
-                    </div>
+                  </div>
+                  <div class="dropdown">
+                    <button class="btn btn-falcon-default btn-sm dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                      <span class="fas fa-download me-1"></span>Export
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                      <li><a class="dropdown-item" href="#" onclick="exportUsers('csv')"><span class="fas fa-file-csv me-2"></span>CSV</a></li>
+                      <li><a class="dropdown-item" href="#" onclick="exportUsers('excel')"><span class="fas fa-file-excel me-2"></span>Excel</a></li>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -194,14 +194,11 @@
                 <span class="fw-semibold"><span id="selectedCount">0</span> users selected</span>
               </div>
               <div class="d-flex gap-2">
-                <button type="button" class="btn btn-success btn-sm" onclick="bulkActivate()">
+                <button type="button" class="btn btn-success btn-sm px-3" onclick="bulkActivate()">
                   <span class="fas fa-check me-1"></span>Activate
                 </button>
-                <button type="button" class="btn btn-warning btn-sm" onclick="bulkDeactivate()">
+                <button type="button" class="btn btn-warning btn-sm px-3" onclick="bulkDeactivate()">
                   <span class="fas fa-ban me-1"></span>Deactivate
-                </button>
-                <button type="button" class="btn btn-danger btn-sm" onclick="bulkDelete()">
-                  <span class="fas fa-trash-alt me-1"></span>Delete
                 </button>
                 <button type="button" class="btn btn-falcon-default btn-sm" onclick="clearSelection()">
                   <span class="fas fa-times"></span>

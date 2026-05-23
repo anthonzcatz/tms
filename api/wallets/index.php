@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 // Helper function for logging activity
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
@@ -95,6 +96,17 @@ try {
 function handleGet() {
     $walletId = $_GET['id'] ?? null;
     $action = $_GET['action'] ?? null;
+
+    // Decode wallet_id if encrypted
+    if ($walletId && !is_numeric($walletId)) {
+        $decodedId = IdEncoder::decode($walletId);
+        if ($decodedId === false) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid wallet ID']);
+            exit;
+        }
+        $walletId = $decodedId;
+    }
 
     // Get wallet stats
     if ($action === 'stats') {
@@ -196,6 +208,16 @@ function handleGet() {
     // Filter by provider_id if provided
     $providerId = $_GET['provider_id'] ?? null;
     if ($providerId) {
+        // Decode provider_id if encrypted
+        if (!is_numeric($providerId)) {
+            $decodedId = IdEncoder::decode($providerId);
+            if ($decodedId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+                exit;
+            }
+            $providerId = $decodedId;
+        }
         $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "pw.provider_id = :provider_id";
         $params['provider_id'] = (int)$providerId;
     }
@@ -203,6 +225,16 @@ function handleGet() {
     // Filter by branch_id if provided
     $branchId = $_GET['branch_id'] ?? null;
     if ($branchId) {
+        // Decode branch_id if encrypted
+        if (!is_numeric($branchId)) {
+            $decodedId = IdEncoder::decode($branchId);
+            if ($decodedId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+                exit;
+            }
+            $branchId = $decodedId;
+        }
         $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "pw.branch_id = :branch_id";
         $params['branch_id'] = (int)$branchId;
     }
@@ -309,6 +341,26 @@ function handlePost() {
     $branchId = $input['branch_id'] ?? null;
     $initialBalance = floatval($input['initial_balance'] ?? 0);
     $status = $input['status'] ?? 'active';
+
+    // Decode provider_id if encrypted
+    if ($providerId && !is_numeric($providerId)) {
+        $decodedId = IdEncoder::decode($providerId);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
+            return;
+        }
+        $providerId = $decodedId;
+    }
+
+    // Decode branch_id if encrypted
+    if ($branchId && !is_numeric($branchId)) {
+        $decodedId = IdEncoder::decode($branchId);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        $branchId = $decodedId;
+    }
     
     // Validate required fields
     if (!$providerId || !$branchId) {
@@ -381,6 +433,16 @@ function handlePut() {
     $input = json_decode(file_get_contents('php://input'), true);
     $walletId = $input['wallet_id'] ?? null;
     $status = $input['status'] ?? null;
+
+    // Decode wallet_id if encrypted
+    if ($walletId && !is_numeric($walletId)) {
+        $decodedId = IdEncoder::decode($walletId);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid wallet ID']);
+            return;
+        }
+        $walletId = $decodedId;
+    }
     
     if (!$walletId || !$status) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
@@ -440,6 +502,16 @@ function handleDelete() {
     if (!$walletId) {
         echo json_encode(['success' => false, 'error' => 'Missing wallet ID']);
         return;
+    }
+
+    // Decode wallet_id if encrypted
+    if (!is_numeric($walletId)) {
+        $decodedId = IdEncoder::decode($walletId);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid wallet ID']);
+            return;
+        }
+        $walletId = $decodedId;
     }
     
     // Get current wallet data

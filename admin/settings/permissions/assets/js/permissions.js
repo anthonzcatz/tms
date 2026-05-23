@@ -46,6 +46,406 @@ function filterPermissions() {
 }
 
 /**
+ * Select a module to display its permissions
+ */
+function selectModule(moduleName, roleId) {
+  // Update active state in module list
+  const moduleList = document.getElementById(`moduleList-${roleId}`);
+  if (moduleList) {
+    moduleList.querySelectorAll('.module-item').forEach(item => {
+      item.classList.remove('active');
+      if (item.dataset.module === moduleName) {
+        item.classList.add('active');
+      }
+    });
+  }
+  
+  // Update module title
+  const moduleTitle = document.getElementById(`moduleTitle-${roleId}`);
+  if (moduleTitle) {
+    moduleTitle.innerHTML = `<span class="fas fa-folder me-2"></span>${moduleName}`;
+  }
+  
+  // Show/hide permission sections
+  const permissionsContainer = document.getElementById(`permissionsContainer-${roleId}`);
+  if (permissionsContainer) {
+    permissionsContainer.querySelectorAll('.module-permissions').forEach(section => {
+      if (section.dataset.module === moduleName) {
+        section.classList.remove('d-none');
+      } else {
+        section.classList.add('d-none');
+      }
+    });
+  }
+  
+  // Clear permission search when switching modules
+  const searchInput = document.getElementById(`permissionSearch-${roleId}`);
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  
+  // Save selected module to localStorage
+  localStorage.setItem(`permissions_selected_module_${roleId}`, moduleName);
+}
+
+/**
+ * Filter modules based on search input
+ */
+function filterModules(roleId) {
+  const searchInput = document.getElementById(`moduleSearch-${roleId}`);
+  const moduleList = document.getElementById(`moduleList-${roleId}`);
+  
+  if (!searchInput || !moduleList) return;
+  
+  const searchTerm = searchInput.value.toLowerCase();
+  const moduleItems = moduleList.querySelectorAll('.module-item');
+  
+  moduleItems.forEach(item => {
+    const moduleName = item.dataset.module.toLowerCase();
+    if (moduleName.includes(searchTerm)) {
+      item.classList.remove('d-none');
+    } else {
+      item.classList.add('d-none');
+    }
+  });
+}
+
+/**
+ * Filter permissions based on search input in Role Permissions Matrix
+ */
+function filterRolePermissions(roleId) {
+  const searchInput = document.getElementById(`permissionSearch-${roleId}`);
+  const permissionsContainer = document.getElementById(`permissionsContainer-${roleId}`);
+  
+  if (!searchInput || !permissionsContainer) return;
+  
+  const searchTerm = searchInput.value.toLowerCase();
+  const visibleSection = permissionsContainer.querySelector('.module-permissions:not(.d-none)');
+  
+  if (!visibleSection) return;
+  
+  const permissionRows = visibleSection.querySelectorAll('.d-flex.align-items-center.justify-content-between');
+  
+  permissionRows.forEach(row => {
+    const permissionCode = row.querySelector('.fw-medium')?.textContent.toLowerCase() || '';
+    const permissionName = row.querySelector('.text-muted')?.textContent.toLowerCase() || '';
+    
+    if (permissionCode.includes(searchTerm) || permissionName.includes(searchTerm)) {
+      row.classList.remove('d-none');
+    } else {
+      row.classList.add('d-none');
+    }
+  });
+}
+
+/**
+ * Restore selected module from localStorage on page load
+ */
+function restoreSelectedModule(roleId) {
+  const savedModule = localStorage.getItem(`permissions_selected_module_${roleId}`);
+  if (savedModule) {
+    selectModule(savedModule, roleId);
+  }
+}
+
+/**
+ * Save active role tab to localStorage
+ */
+function saveActiveRoleTab(roleCode) {
+  localStorage.setItem('permissions_active_role', roleCode);
+}
+
+/**
+ * Restore active role tab from localStorage on page load
+ */
+function restoreActiveRoleTab() {
+  const savedRole = localStorage.getItem('permissions_active_role');
+  if (savedRole) {
+    const tabButton = document.querySelector(`button[data-bs-target="#role-${savedRole}"]`);
+    if (tabButton) {
+      const tab = new bootstrap.Tab(tabButton);
+      tab.show();
+    }
+  }
+}
+
+/**
+ * Toggle between module view and all permissions view
+ */
+function toggleView(viewType, roleId) {
+  const moduleView = document.getElementById(`moduleView-${roleId}`);
+  const allView = document.getElementById(`allView-${roleId}`);
+  const moduleBtn = document.getElementById(`viewModuleBtn-${roleId}`);
+  const allBtn = document.getElementById(`viewAllBtn-${roleId}`);
+  
+  if (viewType === 'module') {
+    moduleView.classList.remove('d-none');
+    allView.classList.add('d-none');
+    moduleBtn.classList.add('active');
+    allBtn.classList.remove('active');
+  } else {
+    moduleView.classList.add('d-none');
+    allView.classList.remove('d-none');
+    moduleBtn.classList.remove('active');
+    allBtn.classList.add('active');
+  }
+}
+
+/**
+ * Select a module in the Permissions by Module tab
+ */
+function selectPermissionModule(moduleName) {
+  // Update active state in module list
+  const moduleList = document.getElementById('permissionModuleList');
+  if (moduleList) {
+    moduleList.querySelectorAll('.permission-module-item').forEach(item => {
+      item.classList.remove('active');
+      if (item.dataset.module === moduleName) {
+        item.classList.add('active');
+      }
+    });
+  }
+  
+  // Update module title
+  const moduleTitle = document.getElementById('permissionModuleTitle');
+  if (moduleTitle) {
+    moduleTitle.innerHTML = `<span class="fas fa-folder me-2"></span>${moduleName}`;
+  }
+  
+  // Show/hide permission sections
+  const permissionsContainer = document.getElementById('permissionModuleContainer');
+  if (permissionsContainer) {
+    permissionsContainer.querySelectorAll('.permission-module-section').forEach(section => {
+      if (section.dataset.module === moduleName) {
+        section.classList.remove('d-none');
+      } else {
+        section.classList.add('d-none');
+      }
+    });
+  }
+  
+  // Clear search when switching modules
+  const searchInput = document.getElementById('permissionModuleSearch');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  
+  // Save selected module to localStorage
+  localStorage.setItem('permissions_by_module_selected', moduleName);
+}
+
+/**
+ * Restore selected module in Permissions by Module tab on page load
+ */
+function restorePermissionModule() {
+  const savedModule = localStorage.getItem('permissions_by_module_selected');
+  if (savedModule) {
+    selectPermissionModule(savedModule);
+  }
+}
+
+/**
+ * Filter permissions in the Permissions by Module tab
+ */
+function filterPermissionModule() {
+  const searchInput = document.getElementById('permissionModuleSearch');
+  const permissionsContainer = document.getElementById('permissionModuleContainer');
+  
+  if (!searchInput || !permissionsContainer) return;
+  
+  const searchTerm = searchInput.value.toLowerCase();
+  const visibleSection = permissionsContainer.querySelector('.permission-module-section:not(.d-none)');
+  
+  if (!visibleSection) return;
+  
+  const tableRows = visibleSection.querySelectorAll('tbody tr');
+  
+  tableRows.forEach(row => {
+    const codeCell = row.querySelector('td:first-child');
+    const nameCell = row.querySelector('td:nth-child(2)');
+    
+    const code = codeCell ? codeCell.textContent.toLowerCase() : '';
+    const name = nameCell ? nameCell.textContent.toLowerCase() : '';
+    
+    if (code.includes(searchTerm) || name.includes(searchTerm)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+/**
+ * Filter modules in the Permissions by Module tab sidebar
+ */
+function filterPermissionModules() {
+  const searchInput = document.getElementById('permissionModuleSidebarSearch');
+  const moduleList = document.getElementById('permissionModuleList');
+  
+  if (!searchInput || !moduleList) return;
+  
+  const searchTerm = searchInput.value.toLowerCase();
+  const moduleItems = moduleList.querySelectorAll('.permission-module-item');
+  
+  moduleItems.forEach(item => {
+    const moduleName = item.dataset.module.toLowerCase();
+    if (moduleName.includes(searchTerm)) {
+      item.classList.remove('d-none');
+    } else {
+      item.classList.add('d-none');
+    }
+  });
+}
+
+/**
+ * Enable all permissions for the currently selected module
+ */
+function enableModulePermissions(roleId) {
+  const permissionsContainer = document.getElementById(`permissionsContainer-${roleId}`);
+  if (!permissionsContainer) return;
+  
+  const visibleSection = permissionsContainer.querySelector('.module-permissions:not(.d-none)');
+  if (!visibleSection) return;
+  
+  const toggles = visibleSection.querySelectorAll('.permission-toggle');
+  const uncheckedToggles = [];
+  
+  toggles.forEach(toggle => {
+    if (!toggle.checked) {
+      uncheckedToggles.push(toggle);
+    }
+  });
+  
+  if (uncheckedToggles.length === 0) {
+    const toast = new bootstrap.Toast(document.getElementById('successToast'));
+    toast.show();
+    return;
+  }
+  
+  // Get permission IDs
+  const permissionIds = Array.from(uncheckedToggles).map(t => parseInt(t.dataset.permissionId));
+  
+  // Get fresh CSRF token
+  const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  
+  // Use bulk API endpoint
+  fetch(`${API_BASE}/bulk-assign`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': freshToken
+    },
+    body: JSON.stringify({
+      role_id: roleId,
+      permission_ids: permissionIds
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(err => { throw err; });
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Update UI
+      uncheckedToggles.forEach(toggle => toggle.checked = true);
+      const toast = new bootstrap.Toast(document.getElementById('successToast'));
+      toast.show();
+      // Reload page to get fresh CSRF token
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      throw new Error(data.error || 'Operation failed');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    const errorToast = document.getElementById('errorToast');
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = error.error || error.message;
+    const toast = new bootstrap.Toast(errorToast);
+    toast.show();
+  });
+}
+
+/**
+ * Disable all permissions for the currently selected module
+ */
+function disableModulePermissions(roleId) {
+  const permissionsContainer = document.getElementById(`permissionsContainer-${roleId}`);
+  if (!permissionsContainer) return;
+  
+  const visibleSection = permissionsContainer.querySelector('.module-permissions:not(.d-none)');
+  if (!visibleSection) return;
+  
+  const toggles = visibleSection.querySelectorAll('.permission-toggle');
+  const checkedToggles = [];
+  
+  toggles.forEach(toggle => {
+    if (toggle.checked) {
+      checkedToggles.push(toggle);
+    }
+  });
+  
+  if (checkedToggles.length === 0) {
+    const errorToast = document.getElementById('errorToast');
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = 'No permissions are currently enabled in this module';
+    const toast = new bootstrap.Toast(errorToast);
+    toast.show();
+    return;
+  }
+  
+  // Get permission IDs
+  const permissionIds = Array.from(checkedToggles).map(t => parseInt(t.dataset.permissionId));
+  
+  // Get fresh CSRF token
+  const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  
+  // Use bulk API endpoint
+  fetch(`${API_BASE}/bulk-unassign`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': freshToken
+    },
+    body: JSON.stringify({
+      role_id: roleId,
+      permission_ids: permissionIds
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(err => { throw err; });
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Update UI
+      checkedToggles.forEach(toggle => toggle.checked = false);
+      const toast = new bootstrap.Toast(document.getElementById('successToast'));
+      toast.show();
+      // Reload page to get fresh CSRF token
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      throw new Error(data.error || 'Operation failed');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    const errorToast = document.getElementById('errorToast');
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = error.error || error.message;
+    const toast = new bootstrap.Toast(errorToast);
+    toast.show();
+  });
+}
+
+
+/**
  * Filter parent permission options based on selected menu level
  */
 function filterParentOptions() {
@@ -294,13 +694,16 @@ function getCSRFToken() {
 /**
  * Toggle permission assignment
  */
-function togglePermission(roleId, permissionId, endpoint, toggleElement) {
+function togglePermission(roleId, permissionId, endpoint, toggleElement, callback, errorCallback) {
+  // Get fresh CSRF token from meta tag
+  const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  
   fetch(`${API_BASE}/${endpoint}`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRF-Token': getCSRFToken()
+      'X-CSRF-Token': freshToken
     },
     body: JSON.stringify({
       role_id: roleId,
@@ -315,21 +718,32 @@ function togglePermission(roleId, permissionId, endpoint, toggleElement) {
   })
   .then(data => {
     if (data.success) {
-      const toast = new bootstrap.Toast(document.getElementById('successToast'));
-      toast.show();
-      // Don't reload to stay on current tab
+      if (callback) {
+        callback();
+      } else {
+        const toast = new bootstrap.Toast(document.getElementById('successToast'));
+        toast.show();
+        // Reload page to get fresh CSRF token
+        setTimeout(() => window.location.reload(), 500);
+      }
     } else {
       throw new Error(data.error || 'Operation failed');
     }
   })
   .catch(error => {
     console.error('Error:', error);
-    toggleElement.checked = !toggleElement.checked;
-    const errorToast = document.getElementById('errorToast');
-    const errorMessage = document.getElementById('errorMessage');
-    errorMessage.textContent = error.error || error.message;
-    const toast = new bootstrap.Toast(errorToast);
-    toast.show();
+    if (toggleElement) {
+      toggleElement.checked = !toggleElement.checked;
+    }
+    if (errorCallback) {
+      errorCallback();
+    } else if (!callback) {
+      const errorToast = document.getElementById('errorToast');
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = error.error || error.message;
+      const toast = new bootstrap.Toast(errorToast);
+      toast.show();
+    }
   });
 }
 
@@ -470,7 +884,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener('click', function() {
       if (deletePermissionId) {
-        fetch(`${API_BASE}/delete?id=${deletePermissionId}`, {
+        const encodedPermissionId = IdEncoder.encode(deletePermissionId);
+        fetch(`${API_BASE}/delete?id=${encodedPermissionId}`, {
           method: 'DELETE',
           credentials: 'same-origin',
           headers: {
@@ -677,7 +1092,8 @@ function saveRole() {
  * Edit role
  */
 function editRole(roleId) {
-  fetch(`${ROLES_API_BASE}?id=${roleId}`, {
+  const encodedRoleId = IdEncoder.encode(roleId);
+  fetch(`${ROLES_API_BASE}?id=${encodedRoleId}`, {
     method: 'GET',
     credentials: 'same-origin'
   })
@@ -719,7 +1135,8 @@ function editRole(roleId) {
  */
 function deleteRole(roleId) {
   // Prevent deleting SUPER_ADMIN role
-  fetch(`${ROLES_API_BASE}?id=${roleId}`, {
+  const encodedRoleId = IdEncoder.encode(roleId);
+  fetch(`${ROLES_API_BASE}?id=${encodedRoleId}`, {
     method: 'GET',
     credentials: 'same-origin'
   })

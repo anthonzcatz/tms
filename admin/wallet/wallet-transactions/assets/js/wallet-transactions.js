@@ -148,7 +148,8 @@ async function updateCurrentBalance() {
         return;
     }
     try {
-        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${walletId}`);
+        const encodedWalletId = IdEncoder.encode(walletId);
+        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${encodedWalletId}`);
         const result = await res.json();
         if (result.success && result.data) {
             el.textContent = formatCurrency(result.data.current_balance ?? result.data.wallet?.current_balance ?? 0);
@@ -420,7 +421,8 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
 // View transaction details
 async function viewTransaction(txnId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/wallet-transactions?id=${txnId}`);
+        const encodedTxnId = IdEncoder.encode(txnId);
+        const response = await fetch(`${window.BASE_URL}/api/wallet-transactions?id=${encodedTxnId}`);
         const result = await response.json();
         
         if (result.success) {

@@ -12,6 +12,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -75,6 +76,7 @@ switch ($method) {
                 sd.last_user_id,
                 sd.last_user_username,
                 sd.last_user_fullname,
+                ua.profile_image AS last_user_profile_image,
                 sd.city,
                 sd.country,
                 sd.latitude,
@@ -89,6 +91,7 @@ switch ($method) {
                       AND us.expires_at > NOW()
                 ) AS active_sessions
              FROM system_devices sd
+             LEFT JOIN user_accounts ua ON ua.user_id = sd.last_user_id
              LEFT JOIN user_accounts ab ON ab.user_id = sd.approved_by
              WHERE {$whereSQL}
              ORDER BY sd.last_used_at DESC
@@ -168,7 +171,19 @@ switch ($method) {
             exit;
         }
 
-        $deviceId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        $deviceId = isset($_GET['id']) ? $_GET['id'] : 0;
+
+        // Decode device_id if provided
+        if ($deviceId) {
+            $decodedDeviceId = IdEncoder::decode($deviceId);
+            if ($decodedDeviceId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid device ID']);
+                exit;
+            }
+            $deviceId = $decodedDeviceId;
+        }
+
         if (!$deviceId) {
             http_response_code(422);
             echo json_encode(['success' => false, 'error' => 'Device ID is required.']);

@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -34,6 +35,17 @@ switch ($method) {
 function handleGet() {
     global $user;
     $id = $_GET['id'] ?? null;
+    
+    // Decode ID if it's encrypted (not numeric)
+    if ($id && !is_numeric($id)) {
+        $decodedId = IdEncoder::decode($id);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid session ID']);
+            return;
+        }
+        $id = $decodedId;
+    }
+    
     $status = $_GET['status'] ?? null;
     $cashierId = $_GET['cashier_id'] ?? null;
     

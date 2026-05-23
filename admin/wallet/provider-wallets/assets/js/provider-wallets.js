@@ -388,7 +388,8 @@ async function saveAdjustment() {
 
 // View wallet
 function viewWallet(walletId) {
-    window.location.href = `${window.BASE_URL}/admin/wallet/wallet-transactions?wallet_id=${walletId}`;
+    const encodedWalletId = IdEncoder.encode(walletId);
+    window.location.href = `${window.BASE_URL}/admin/wallet/wallet-transactions?wallet_id=${encodedWalletId}`;
 }
 
 // Filter wallets

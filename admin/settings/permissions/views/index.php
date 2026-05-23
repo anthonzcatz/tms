@@ -142,34 +142,157 @@ if (!defined('NAVBAR_POSITION')) {
                              aria-labelledby="role-<?php echo $role['role_code']; ?>-tab">
                           <div class="card">
                             <div class="card-body">
-                              <h5 class="card-title mb-3">
-                                <span class="badge bg-primary"><?php echo $role['role_code']; ?></span>
-                                Permissions for <?php echo $role['role_name']; ?>
-                              </h5>
-                              <div class="d-flex flex-wrap gap-2">
-                                <?php 
-                                $assignedPermissions = $rolePermissionsByRole[$role['role_code']] ?? [];
-                                $assignedPermissionIds = array_column($assignedPermissions, 'permission_id');
-                                ?>
-                                <?php foreach ($allPermissions as $permission): ?>
-                                  <?php $isAssigned = in_array($permission['permission_id'], $assignedPermissionIds); ?>
-                                  <div class="d-flex align-items-center me-3 mb-2">
-                                    <div class="form-check form-switch">
-                                      <input class="form-check-input permission-toggle" 
-                                             type="checkbox" 
-                                             style="width: 3em; height: 1.5em;"
-                                             id="perm_<?php echo $role['role_id']; ?>_<?php echo $permission['permission_id']; ?>"
-                                             data-role-id="<?php echo $role['role_id']; ?>"
-                                             data-permission-id="<?php echo $permission['permission_id']; ?>"
-                                             <?php echo $isAssigned ? 'checked' : ''; ?>>
-                                      <label class="form-check-label ms-2" for="perm_<?php echo $role['role_id']; ?>_<?php echo $permission['permission_id']; ?>">
-                                        <span class="badge bg-light text-dark border">
-                                          <?php echo $permission['permission_code']; ?>
-                                        </span>
-                                      </label>
+                              <div class="d-flex align-items-center justify-content-between mb-4">
+                                <h5 class="card-title mb-0">
+                                  <span class="badge bg-primary"><?php echo $role['role_code']; ?></span>
+                                  Permissions for <?php echo $role['role_name']; ?>
+                                </h5>
+                                <div class="btn-group" role="group">
+                                  <button type="button" class="btn btn-sm btn-outline-primary active" id="viewModuleBtn-<?php echo $role['role_id']; ?>" onclick="toggleView('module', <?php echo $role['role_id']; ?>)">
+                                    <span class="fas fa-folder me-1"></span> By Module
+                                  </button>
+                                  <button type="button" class="btn btn-sm btn-outline-primary" id="viewAllBtn-<?php echo $role['role_id']; ?>" onclick="toggleView('all', <?php echo $role['role_id']; ?>)">
+                                    <span class="fas fa-list me-1"></span> View All
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <?php 
+                              $assignedPermissions = $rolePermissionsByRole[$role['role_code']] ?? [];
+                              $assignedPermissionIds = array_column($assignedPermissions, 'permission_id');
+                              
+                              // Group permissions by module
+                              $permissionsByModule = [];
+                              foreach ($allPermissions as $permission) {
+                                $permissionsByModule[$permission['module_name']][] = $permission;
+                              }
+                              ?>
+                              
+                              <!-- Module View -->
+                              <div class="row g-0" id="moduleView-<?php echo $role['role_id']; ?>">
+                                <!-- Module List (Left Sidebar) -->
+                                <div class="col-md-3">
+                                  <div class="p-2 border-bottom">
+                                    <div class="input-group input-group-sm">
+                                      <span class="input-group-text"><span class="fas fa-search"></span></span>
+                                      <input type="text" 
+                                             class="form-control" 
+                                             id="moduleSearch-<?php echo $role['role_id']; ?>"
+                                             placeholder="Search modules..."
+                                             onkeyup="filterModules(<?php echo $role['role_id']; ?>)">
                                     </div>
                                   </div>
-                                <?php endforeach; ?>
+                                  <div class="list-group module-list" id="moduleList-<?php echo $role['role_id']; ?>">
+                                    <?php $firstModule = true; ?>
+                                    <?php foreach ($permissionsByModule as $module => $permissions): ?>
+                                    <button type="button" 
+                                            class="list-group-item list-group-item-action <?php echo $firstModule ? 'active' : ''; ?> module-item"
+                                            data-module="<?php echo htmlspecialchars($module); ?>"
+                                            data-role-id="<?php echo $role['role_id']; ?>"
+                                            onclick="selectModule('<?php echo htmlspecialchars($module); ?>', <?php echo $role['role_id']; ?>)">
+                                      <div class="d-flex align-items-center">
+                                        <span class="fas fa-folder me-2"></span>
+                                        <span class="fw-medium"><?php echo htmlspecialchars($module); ?></span>
+                                        <span class="badge bg-light text-dark ms-auto"><?php echo count($permissions); ?></span>
+                                      </div>
+                                    </button>
+                                    <?php $firstModule = false; ?>
+                                    <?php endforeach; ?>
+                                  </div>
+                                </div>
+                                
+                                <!-- Permissions Display (Right Side) -->
+                                <div class="col-md-9">
+                                  <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-header bg-light py-2 d-flex align-items-center justify-content-between">
+                                      <h6 class="mb-0 fw-bold text-primary" id="moduleTitle-<?php echo $role['role_id']; ?>">
+                                        <span class="fas fa-folder me-2"></span><?php echo htmlspecialchars(array_key_first($permissionsByModule)); ?>
+                                      </h6>
+                                      <div class="d-flex gap-2 align-items-center">
+                                        <div class="input-group input-group-sm" style="width: 200px;">
+                                          <span class="input-group-text"><span class="fas fa-search"></span></span>
+                                          <input class="form-control" type="search" id="permissionSearch-<?php echo $role['role_id']; ?>" placeholder="Search permissions..." aria-label="Search" oninput="filterRolePermissions(<?php echo $role['role_id']; ?>)" />
+                                        </div>
+                                        <div class="d-flex gap-1">
+                                          <button class="btn btn-sm btn-outline-success" onclick="enableModulePermissions(<?php echo $role['role_id']; ?>)">
+                                            <span class="fas fa-check me-1"></span> Enable All
+                                          </button>
+                                          <button class="btn btn-sm btn-outline-danger" onclick="disableModulePermissions(<?php echo $role['role_id']; ?>)">
+                                            <span class="fas fa-times me-1"></span> Disable All
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div class="card-body py-3" id="permissionsContainer-<?php echo $role['role_id']; ?>">
+                                      <?php 
+                                      $firstModule = true;
+                                      foreach ($permissionsByModule as $module => $permissions): ?>
+                                      <div class="module-permissions <?php echo $firstModule ? '' : 'd-none'; ?>" 
+                                           data-module="<?php echo htmlspecialchars($module); ?>"
+                                           data-role-id="<?php echo $role['role_id']; ?>">
+                                        <div class="d-flex flex-column gap-2">
+                                          <?php foreach ($permissions as $permission): ?>
+                                            <?php $isAssigned = in_array($permission['permission_id'], $assignedPermissionIds); ?>
+                                            <div class="d-flex align-items-center justify-content-between p-2 rounded hover-bg">
+                                              <div class="flex-grow-1">
+                                                <small class="fw-medium text-dark"><?php echo htmlspecialchars($permission['permission_code']); ?></small>
+                                                <div class="text-muted" style="font-size: 11px;"><?php echo htmlspecialchars($permission['permission_name']); ?></div>
+                                              </div>
+                                              <div class="form-check form-switch ms-2">
+                                                <input class="form-check-input permission-toggle" 
+                                                       type="checkbox" 
+                                                       style="width: 2.5em; height: 1.25em;"
+                                                       id="perm_<?php echo $role['role_id']; ?>_<?php echo $permission['permission_id']; ?>"
+                                                       data-role-id="<?php echo $role['role_id']; ?>"
+                                                       data-permission-id="<?php echo $permission['permission_id']; ?>"
+                                                       <?php echo $isAssigned ? 'checked' : ''; ?>>
+                                              </div>
+                                            </div>
+                                          <?php endforeach; ?>
+                                        </div>
+                                      </div>
+                                      <?php $firstModule = false; ?>
+                                      <?php endforeach; ?>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <!-- View All Permissions -->
+                              <div class="d-none" id="allView-<?php echo $role['role_id']; ?>">
+                                <div class="table-responsive">
+                                  <table class="table table-hover table-bordered">
+                                    <thead class="table-light">
+                                      <tr>
+                                        <th>Module</th>
+                                        <th>Permission Code</th>
+                                        <th>Permission Name</th>
+                                        <th class="text-center">Enabled</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      <?php foreach ($allPermissions as $permission): ?>
+                                      <?php $isAssigned = in_array($permission['permission_id'], $assignedPermissionIds); ?>
+                                      <tr>
+                                        <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($permission['module_name']); ?></span></td>
+                                        <td><code class="small"><?php echo htmlspecialchars($permission['permission_code']); ?></code></td>
+                                        <td><?php echo htmlspecialchars($permission['permission_name']); ?></td>
+                                        <td class="text-center">
+                                          <div class="form-check form-switch d-inline-block">
+                                            <input class="form-check-input permission-toggle" 
+                                                   type="checkbox" 
+                                                   style="width: 2.5em; height: 1.25em;"
+                                                   id="perm_<?php echo $role['role_id']; ?>_<?php echo $permission['permission_id']; ?>"
+                                                   data-role-id="<?php echo $role['role_id']; ?>"
+                                                   data-permission-id="<?php echo $permission['permission_id']; ?>"
+                                                   <?php echo $isAssigned ? 'checked' : ''; ?>>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      <?php endforeach; ?>
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -233,124 +356,114 @@ if (!defined('NAVBAR_POSITION')) {
                             <div>
                               <h5 class="mb-0 fw-bold text-primary">
                                 <span class="fas fa-sitemap me-2"></span>
-                                Permission Hierarchy
+                                Permissions by Module
                               </h5>
-                              <small class="text-muted">Manage permissions with multi-level menu structure</small>
+                              <small class="text-muted">Manage permissions organized by module</small>
                             </div>
-                            <div class="d-flex gap-2 align-items-center">
-                              <div class="d-flex gap-2">
-                                <span class="badge bg-light text-dark border">
-                                  <span class="fas fa-circle text-primary me-1" style="font-size: 6px;"></span>
-                                  Menu Item
-                                </span>
-                                <span class="badge bg-light text-dark border">
-                                  <span class="fas fa-circle text-secondary me-1" style="font-size: 6px;"></span>
-                                  Hidden Action
-                                </span>
-                              </div>
-                              <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPermissionModal">
-                                <span class="fas fa-plus me-1"></span> Add Permission
-                              </button>
-                            </div>
+                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPermissionModal">
+                              <span class="fas fa-plus me-1"></span> Add Permission
+                            </button>
                           </div>
                         </div>
                         <div class="card-body p-0">
-                          <div class="d-flex mb-3 px-3 pt-3">
-                            <div class="search-box position-relative" style="width: 300px; max-width: 100%;">
-                              <input class="form-control search-input form-control-sm" type="search" id="permissionsSearch" placeholder="Search permissions..." aria-label="Search" oninput="filterPermissions()" />
-                              <span class="fas fa-search search-box-icon"></span>
-                            </div>
-                          </div>
-                          <div class="table-responsive">
-                            <table class="table table-hover mb-0" id="permissionsTable">
-                              <thead class="bg-light">
-                                <tr>
-                                  <th style="width: 60px;" class="text-center">
-                                    <span class="fas fa-eye"></span>
-                                  </th>
-                                  <th style="width: 200px;" class="sort" data-sort="code">Permission Code</th>
-                                  <th class="sort" data-sort="name">Permission Name</th>
-                                  <th style="width: 100px;" class="sort" data-sort="level">Level</th>
-                                  <th style="width: 120px;" class="sort" data-sort="module">Module</th>
-                                  <th style="width: 200px;" class="sort" data-sort="url">Menu URL</th>
-                                  <th style="width: 80px;" class="text-center sort" data-sort="order">Order</th>
-                                  <th style="width: 120px;" class="text-end no-sort">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody class="list">
-                                <?php
-                                function renderPermissionTree($permissions, $level = 0) {
-                                    foreach ($permissions as $permission) {
-                                        $indent = $level * 24;
-                                        $hasChildren = !empty($permission['children']);
-                                        $isMenuItem = $permission['is_menu_item'];
-                                        $bgClass = $level > 0 ? 'bg-body-tertiary bg-opacity-25' : '';
-                                        ?>
-                                        <tr class="<?php echo $bgClass; ?>">
-                                          <td class="text-center">
-                                            <?php if ($permission['menu_icon']): ?>
-                                              <span class="<?php echo htmlspecialchars($permission['menu_icon']); ?> text-primary"></span>
-                                            <?php else: ?>
-                                              <span class="fas fa-circle text-muted" style="font-size: 6px;"></span>
-                                            <?php endif; ?>
-                                          </td>
-                                          <td class="code">
-                                            <div style="padding-left: <?php echo $indent; ?>px;">
-                                              <code class="bg-light px-2 py-1 rounded"><?php echo htmlspecialchars($permission['permission_code']); ?></code>
-                                              <?php if ($hasChildren): ?>
-                                                <span class="fas fa-chevron-down ms-2 text-muted" style="font-size: 10px;"></span>
-                                              <?php endif; ?>
-                                            </div>
-                                          </td>
-                                          <td class="name">
-                                            <div style="padding-left: <?php echo $indent; ?>px;">
-                                              <div class="d-flex align-items-center">
-                                                <span class="fw-medium"><?php echo htmlspecialchars($permission['permission_name']); ?></span>
-                                                <?php if (!$isMenuItem): ?>
-                                                  <span class="badge bg-secondary ms-2" style="font-size: 10px;">Hidden</span>
-                                                <?php endif; ?>
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <td class="level">
-                                            <span class="badge bg-<?php echo $permission['menu_level'] == 1 ? 'primary' : ($permission['menu_level'] == 2 ? 'success' : 'info'); ?>">
-                                              L<?php echo $permission['menu_level']; ?>
-                                            </span>
-                                          </td>
-                                          <td class="module">
-                                            <span class="badge bg-light text-dark border"><?php echo htmlspecialchars($permission['module_name']); ?></span>
-                                          </td>
-                                          <td class="url">
-                                            <?php if ($permission['menu_url']): ?>
-                                              <code class="bg-light px-2 py-1 rounded" style="font-size: 11px;"><?php echo htmlspecialchars($permission['menu_url']); ?></code>
-                                            <?php else: ?>
-                                              <span class="text-muted">-</span>
-                                            <?php endif; ?>
-                                          </td>
-                                          <td class="order text-center">
-                                            <span class="badge bg-light text-dark border"><?php echo $permission['menu_order'] ?? 0; ?></span>
-                                          </td>
-                                          <td class="text-end">
-                                            <div class="btn-group">
-                                              <button class="btn btn-sm btn-outline-primary" onclick="editPermission(<?php echo $permission['permission_id']; ?>)" title="Edit Permission">
-                                                <span class="fas fa-edit"></span>
-                                              </button>
-                                              <button class="btn btn-sm btn-outline-danger" onclick="deletePermission(<?php echo $permission['permission_id']; ?>)" title="Delete Permission">
-                                                <span class="fas fa-trash"></span>
-                                              </button>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                        <?php
-                                        if ($hasChildren) {
-                                            renderPermissionTree($permission['children'], $level + 1);
-                                        }
-                                    }
+                          <div class="row g-0">
+                            <!-- Module List (Left Sidebar) -->
+                            <div class="col-md-3 border-end">
+                              <div class="p-2 border-bottom">
+                                <div class="input-group input-group-sm">
+                                  <span class="input-group-text"><span class="fas fa-search"></span></span>
+                                  <input type="text" 
+                                         class="form-control" 
+                                         id="permissionModuleSidebarSearch"
+                                         placeholder="Search modules..."
+                                         onkeyup="filterPermissionModules()">
+                                </div>
+                              </div>
+                              <div class="list-group list-group-flush" id="permissionModuleList">
+                                <?php 
+                                $permissionsByModule = [];
+                                foreach ($allPermissions as $permission) {
+                                  $permissionsByModule[$permission['module_name']][] = $permission;
                                 }
-                                renderPermissionTree($permissionsTree);
-                                ?>
-                              </tbody>
-                            </table>
+                                ksort($permissionsByModule);
+                                $firstModule = true;
+                                foreach ($permissionsByModule as $module => $permissions): ?>
+                                <button type="button" 
+                                        class="list-group-item list-group-item-action <?php echo $firstModule ? 'active' : ''; ?> permission-module-item"
+                                        data-module="<?php echo htmlspecialchars($module); ?>"
+                                        onclick="selectPermissionModule('<?php echo htmlspecialchars($module); ?>')">
+                                  <div class="d-flex align-items-center">
+                                    <span class="fas fa-folder me-2 text-primary"></span>
+                                    <span class="fw-medium"><?php echo htmlspecialchars($module); ?></span>
+                                    <span class="badge bg-light text-dark ms-auto"><?php echo count($permissions); ?></span>
+                                  </div>
+                                </button>
+                                <?php $firstModule = false; ?>
+                                <?php endforeach; ?>
+                              </div>
+                            </div>
+                            
+                            <!-- Permissions Display (Right Side) -->
+                            <div class="col-md-9">
+                              <div class="card border-0 shadow-none h-100">
+                                <div class="card-header bg-light py-2">
+                                  <div class="d-flex align-items-center justify-content-between">
+                                    <h6 class="mb-0 fw-bold text-primary" id="permissionModuleTitle">
+                                      <span class="fas fa-folder me-2"></span><?php echo htmlspecialchars(array_key_first($permissionsByModule)); ?>
+                                    </h6>
+                                    <div class="input-group input-group-sm" style="width: 250px;">
+                                      <span class="input-group-text"><span class="fas fa-search"></span></span>
+                                      <input class="form-control" type="search" id="permissionModuleSearch" placeholder="Search permissions..." aria-label="Search" oninput="filterPermissionModule()" />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div class="card-body py-3" id="permissionModuleContainer">
+                                  <?php 
+                                  $firstModule = true;
+                                  foreach ($permissionsByModule as $module => $permissions): ?>
+                                  <div class="permission-module-section <?php echo $firstModule ? '' : 'd-none'; ?>" 
+                                       data-module="<?php echo htmlspecialchars($module); ?>">
+                                    <div class="table-responsive">
+                                      <table class="table table-hover table-bordered">
+                                        <thead class="table-light">
+                                          <tr>
+                                            <th>Permission Code</th>
+                                            <th>Permission Name</th>
+                                            <th>Level</th>
+                                            <th>Menu URL</th>
+                                            <th>Order</th>
+                                            <th class="text-center">Actions</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          <?php foreach ($permissions as $permission): ?>
+                                          <tr>
+                                            <td><code class="small"><?php echo htmlspecialchars($permission['permission_code']); ?></code></td>
+                                            <td><?php echo htmlspecialchars($permission['permission_name']); ?></td>
+                                            <td><span class="badge bg-light text-dark"><?php echo $permission['menu_level']; ?></span></td>
+                                            <td><small class="text-muted"><?php echo htmlspecialchars($permission['menu_url'] ?? '-'); ?></small></td>
+                                            <td><span class="badge bg-light text-dark"><?php echo $permission['menu_order']; ?></span></td>
+                                            <td class="text-center">
+                                              <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="editPermission(<?php echo $permission['permission_id']; ?>)">
+                                                  <span class="fas fa-edit"></span>
+                                                </button>
+                                                <button class="btn btn-outline-danger" onclick="confirmDeletePermission(<?php echo $permission['permission_id']; ?>)">
+                                                  <span class="fas fa-trash"></span>
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                          <?php endforeach; ?>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                  <?php $firstModule = false; ?>
+                                  <?php endforeach; ?>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -502,11 +615,32 @@ if (!defined('NAVBAR_POSITION')) {
       </div>
     </div>
 
+
     <!-- Include JavaScript -->
     <script src="<?php echo BASE_URL; ?>/resources/vendors/jquery/jquery.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/resources/vendors/select2/select2.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/resources/vendors/list.js/list.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/admin/settings/permissions/assets/js/permissions.js"></script>
+
+    <script>
+    // Restore selected modules and active role tab on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      restoreActiveRoleTab();
+      restorePermissionModule();
+      <?php foreach ($roles as $role): ?>
+      restoreSelectedModule(<?php echo $role['role_id']; ?>);
+      <?php endforeach; ?>
+      
+      // Save active role tab when clicked
+      document.querySelectorAll('[data-bs-toggle="pill"][data-bs-target^="#role-"]').forEach(tabButton => {
+        tabButton.addEventListener('shown.bs.tab', function() {
+          const targetId = this.getAttribute('data-bs-target');
+          const roleCode = targetId.replace('#role-', '');
+          saveActiveRoleTab(roleCode);
+        });
+      });
+    });
+    </script>
 
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
   </body>

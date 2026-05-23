@@ -1,7 +1,6 @@
 <?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 ?>
-<script>window.BASE_URL = '<?php echo BASE_URL; ?>';</script>
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/settings/bank-accounts/assets/css/bank-accounts.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/bank-accounts.css'); ?>">
 <body>
   <main class="main" id="top">

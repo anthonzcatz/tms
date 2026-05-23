@@ -24,7 +24,7 @@
     content: '';
     position: absolute;
     bottom: 2px;
-    right: 2px;
+    right: -2px;
     width: 14px;
     height: 14px;
     background-color: #28a745;
@@ -90,6 +90,99 @@
 /* Table row hover enhancement */
 #usersTable tbody tr:hover {
     background-color: var(--falcon-100);
+}
+
+/* User card hover effect */
+.hover-shadow:hover {
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.15) !important;
+    transform: translateY(-2px);
+}
+
+/* Responsive adjustments for user cards */
+@media (max-width: 768px) {
+    .user-card {
+        padding: 1rem !important;
+    }
+    
+    .user-card .avatar {
+        width: 40px !important;
+        height: 40px !important;
+    }
+    
+    .user-card .avatar img,
+    .user-card .avatar .avatar-name {
+        width: 40px !important;
+        height: 40px !important;
+    }
+    
+    .user-card h6 {
+        font-size: 0.9rem !important;
+    }
+    
+    .user-card .small,
+    .user-card .text-muted {
+        font-size: 0.75rem !important;
+    }
+    
+    .user-card .badge {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+    
+    .user-card .btn-sm {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.75rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .user-card {
+        padding: 0.75rem !important;
+    }
+    
+    .user-card .d-flex.justify-content-between {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+    
+    .user-card .d-flex.gap-1 {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .user-card .row {
+        flex-direction: column;
+    }
+    
+    .user-card .col-md-6 {
+        width: 100% !important;
+        margin-bottom: 0.25rem;
+    }
+    
+    .card-header .d-lg-flex {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+    
+    .card-header .d-flex.align-items-center.gap-3 {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .card-header .dropdown {
+        width: 100%;
+    }
+    
+    .card-header .dropdown .btn {
+        width: 100%;
+    }
+    
+    .stats-badges .badge {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
 }
 
 /* Status badges */

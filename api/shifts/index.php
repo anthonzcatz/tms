@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 Auth::requireLogin();
@@ -15,6 +16,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 $sessionId = $_GET['session_id'] ?? null;
+
+// Decode session_id if provided
+if ($sessionId) {
+    $decodedSessionId = IdEncoder::decode($sessionId);
+    if ($decodedSessionId === false) {
+        echo json_encode(['success' => false, 'error' => 'Invalid session ID']);
+        exit;
+    }
+    $sessionId = $decodedSessionId;
+}
+
 if (!$sessionId) { echo json_encode(['success' => false, 'error' => 'session_id required']); exit; }
 
 $session = Database::fetch(

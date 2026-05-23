@@ -85,7 +85,8 @@ async function submitAddAccount() {
 // Edit Account - fetch and populate
 async function editAccount(accountId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/bank-accounts?id=${accountId}`);
+        const encodedAccountId = IdEncoder.encode(accountId);
+        const response = await fetch(`${window.BASE_URL}/api/bank-accounts?id=${encodedAccountId}`);
         const result = await response.json();
         if (!result.success || !result.data) {
             showToast('danger', 'Error', 'Failed to fetch account details.');

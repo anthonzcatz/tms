@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../config/bootstrap.php';
+require_once __DIR__ . '/../../app/helpers/IdEncoder.php';
 
 // Set headers
 header('Content-Type: application/json');
@@ -119,6 +120,15 @@ try {
 
         case 'DELETE':
             $roleId = $_GET['id'] ?? null;
+
+            // Decode role_id if provided
+            if ($roleId) {
+                $decodedRoleId = IdEncoder::decode($roleId);
+                if ($decodedRoleId === false) {
+                    throw new Exception('Invalid role ID');
+                }
+                $roleId = $decodedRoleId;
+            }
 
             if (!$roleId) {
                 throw new Exception('Missing role_id parameter');

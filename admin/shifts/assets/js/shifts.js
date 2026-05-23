@@ -19,7 +19,8 @@ async function viewSessionDetail(sessionId) {
     sessionDetailModal.show();
 
     try {
-        const res = await fetch(`${window.BASE_URL}/api/shifts?session_id=${sessionId}`);
+        const encodedSessionId = IdEncoder.encode(sessionId);
+        const res = await fetch(`${window.BASE_URL}/api/shifts?session_id=${encodedSessionId}`);
         const result = await res.json();
         if (!result.success) {
             document.getElementById('sessionDetailContent').innerHTML = '<p class="text-danger text-center py-3">Failed to load session details.</p>';

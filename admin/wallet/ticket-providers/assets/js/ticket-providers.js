@@ -91,9 +91,10 @@ async function saveProvider() {
 // Edit provider
 async function editProvider(providerId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/ticket-providers?id=${providerId}`);
+        const encodedProviderId = IdEncoder.encode(providerId);
+        const response = await fetch(`${window.BASE_URL}/api/ticket-providers?id=${encodedProviderId}`);
         const result = await response.json();
-        
+
         if (result.success) {
             const provider = result.data;
             document.getElementById('editProviderId').value = provider.provider_id;
@@ -258,8 +259,9 @@ async function deleteProvider(providerId) {
         if (csrfToken) {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
-        
-        const response = await fetch(`${window.BASE_URL}/api/ticket-providers?id=${providerId}`, {
+
+        const encodedProviderId = IdEncoder.encode(providerId);
+        const response = await fetch(`${window.BASE_URL}/api/ticket-providers?id=${encodedProviderId}`, {
             method: 'DELETE',
             headers: headers
         });

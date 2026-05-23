@@ -82,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'session_lifetime_minutes' => isset($_POST['session_lifetime_minutes']) && $_POST['session_lifetime_minutes'] !== '' ? max(5, min(1440, (int)$_POST['session_lifetime_minutes'])) : 120,
             'device_approval_required' => isset($_POST['device_approval_required']) ? 1 : 0,
             'max_concurrent_sessions'  => isset($_POST['max_concurrent_sessions']) && $_POST['max_concurrent_sessions'] !== '' ? max(1, min(10, (int)$_POST['max_concurrent_sessions'])) : 1,
+            'encrypt_ids' => isset($_POST['encrypt_ids']) ? 1 : 0,
             // Printer Settings
             'receipt_printing_enabled' => isset($_POST['receipt_printing_enabled']) ? 1 : 0,
             'receipt_paper_width' => trim($_POST['receipt_paper_width'] ?? '80mm'),
@@ -144,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 session_lifetime_minutes = :session_lifetime_minutes,
                 device_approval_required = :device_approval_required,
                 max_concurrent_sessions  = :max_concurrent_sessions,
+                encrypt_ids = :encrypt_ids,
                 receipt_printing_enabled = :receipt_printing_enabled,
                 receipt_paper_width = :receipt_paper_width,
                 receipt_auto_print = :receipt_auto_print,

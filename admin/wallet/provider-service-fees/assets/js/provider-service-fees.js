@@ -18,12 +18,13 @@ async function loadProviders() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/ticket-providers`);
         const result = await response.json();
-        
+
         if (result.success) {
             const select = document.getElementById('addProviderId');
             select.innerHTML = '<option value="">Select Provider</option>';
             result.data.providers.forEach(provider => {
-                select.innerHTML += `<option value="${provider.provider_id}">${provider.provider_name}</option>`;
+                const encodedId = IdEncoder.encode(provider.provider_id);
+                select.innerHTML += `<option value="${encodedId}">${provider.provider_name}</option>`;
             });
         }
     } catch (error) {
@@ -36,12 +37,13 @@ async function loadBranches() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/business-branches`);
         const result = await response.json();
-        
+
         if (result.success) {
             const select = document.getElementById('addBranchId');
             select.innerHTML = '<option value="">Select Branch</option>';
             result.data.branches.forEach(branch => {
-                select.innerHTML += `<option value="${branch.branch_id}">${branch.branch_name}</option>`;
+                const encodedId = IdEncoder.encode(branch.branch_id);
+                select.innerHTML += `<option value="${encodedId}">${branch.branch_name}</option>`;
             });
         }
     } catch (error) {
@@ -112,24 +114,27 @@ async function editFee(feeId) {
     // Load providers and branches for edit modal
     await loadProvidersForEdit();
     await loadBranchesForEdit();
-    
+
     try {
-        const response = await fetch(`${window.BASE_URL}/api/provider-service-fees?id=${feeId}`);
+        const encodedFeeId = IdEncoder.encode(feeId);
+        const response = await fetch(`${window.BASE_URL}/api/provider-service-fees?id=${encodedFeeId}`);
         const result = await response.json();
-        
+
         if (result.success) {
             const fee = result.data;
             document.getElementById('editFeeId').value = fee.fee_id;
-            document.getElementById('editProviderId').value = fee.provider_id;
-            document.getElementById('editBranchId').value = fee.branch_id;
+            const encodedProviderId = IdEncoder.encode(fee.provider_id);
+            const encodedBranchId = IdEncoder.encode(fee.branch_id);
+            document.getElementById('editProviderId').value = encodedProviderId;
+            document.getElementById('editBranchId').value = encodedBranchId;
             document.getElementById('editFeeType').value = fee.fee_type;
             document.getElementById('editFeeAmount').value = fee.fee_value || '';
             document.getElementById('editStatus').value = fee.is_active ? 'active' : 'inactive';
-            
+
             // Display current provider and branch names
             document.getElementById('editCurrentProviderName').textContent = fee.provider_name || '-';
             document.getElementById('editCurrentBranchName').textContent = fee.branch_name || '-';
-            
+
             editFeeModal.show();
         } else {
             showToast('error', 'Error', result.message || 'Failed to load fee');
@@ -145,12 +150,13 @@ async function loadProvidersForEdit() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/ticket-providers`);
         const result = await response.json();
-        
+
         if (result.success) {
             const select = document.getElementById('editProviderId');
             select.innerHTML = '<option value="">Select Provider</option>';
             result.data.providers.forEach(provider => {
-                select.innerHTML += `<option value="${provider.provider_id}">${provider.provider_name}</option>`;
+                const encodedId = IdEncoder.encode(provider.provider_id);
+                select.innerHTML += `<option value="${encodedId}">${provider.provider_name}</option>`;
             });
         }
     } catch (error) {
@@ -163,12 +169,13 @@ async function loadBranchesForEdit() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/business-branches`);
         const result = await response.json();
-        
+
         if (result.success) {
             const select = document.getElementById('editBranchId');
             select.innerHTML = '<option value="">Select Branch</option>';
             result.data.branches.forEach(branch => {
-                select.innerHTML += `<option value="${branch.branch_id}">${branch.branch_name}</option>`;
+                const encodedId = IdEncoder.encode(branch.branch_id);
+                select.innerHTML += `<option value="${encodedId}">${branch.branch_name}</option>`;
             });
         }
     } catch (error) {
@@ -184,29 +191,30 @@ async function updateFee() {
     const feeType = document.getElementById('editFeeType').value;
     const feeAmount = document.getElementById('editFeeAmount').value;
     const status = document.getElementById('editStatus').value;
-    
+
     if (!providerId || !branchId || !feeType) {
         showToast('warning', 'Warning', 'Please select provider, branch and enter fee type');
         return;
     }
-    
+
     try {
         // Get CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
+
         const headers = {
             'Content-Type': 'application/json'
         };
-        
+
         if (csrfToken) {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
-        
+
+        const encodedFeeId = IdEncoder.encode(feeId);
         const response = await fetch(`${window.BASE_URL}/api/provider-service-fees`, {
             method: 'PUT',
             headers: headers,
             body: JSON.stringify({
-                fee_id: feeId,
+                fee_id: encodedFeeId,
                 provider_id: providerId,
                 branch_id: branchId,
                 fee_type: feeType,
@@ -214,9 +222,9 @@ async function updateFee() {
                 status: status
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             showToast('success', 'Success', 'Service fee updated successfully');
             editFeeModal.hide();
@@ -235,26 +243,27 @@ async function deleteFee(feeId) {
     if (!confirm('Are you sure you want to delete this service fee?')) {
         return;
     }
-    
+
     try {
         // Get CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
+
         const headers = {
             'Content-Type': 'application/json'
         };
-        
+
         if (csrfToken) {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
-        
-        const response = await fetch(`${window.BASE_URL}/api/provider-service-fees?id=${feeId}`, {
+
+        const encodedFeeId = IdEncoder.encode(feeId);
+        const response = await fetch(`${window.BASE_URL}/api/provider-service-fees?id=${encodedFeeId}`, {
             method: 'DELETE',
             headers: headers
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             showToast('success', 'Success', 'Service fee deleted successfully');
             location.reload();

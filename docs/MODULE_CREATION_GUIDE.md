@@ -349,7 +349,354 @@ Maintenance settings are cached in session for 5 minutes to avoid database queri
 
 ---
 
-## 8. Checklist for New Modules
+## 8. ID Encryption
+
+The system supports ID encryption for security. When enabled, database IDs in URLs are encrypted to prevent direct ID enumeration attacks. This feature can be toggled in System Settings → Security tab.
+
+### How ID Encryption Works
+
+1. **Configuration:** Admins can enable/disable ID encryption in System Settings
+2. **Toggle Control:** When enabled, all API endpoints expect encrypted IDs
+3. **Backward Compatibility:** When disabled, plain numeric IDs work for development/debugging
+4. **Automatic Handling:** The `IdEncoder` helper handles both encrypted and plain IDs
+
+### Implementation in API Endpoints
+
+All API endpoints that receive ID parameters must decode them using `IdEncoder::decode()`:
+
+```php
+<?php
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+
+// Decode ID parameter
+$id = $_GET['id'] ?? null;
+if ($id) {
+    $decodedId = IdEncoder::decode($id);
+    if ($decodedId === false) {
+        echo json_encode(['success' => false, 'error' => 'Invalid ID']);
+        return;
+    }
+    $id = $decodedId;
+}
+```
+
+**Important:** Always check if `IdEncoder::decode()` returns `false` (invalid ID) and return an error response.
+
+### Implementation in JavaScript
+
+All JavaScript files that make API calls with IDs must encode them using `IdEncoder.encode()`:
+
+```javascript
+// Encode ID before sending to API
+const encodedId = IdEncoder.encode(id);
+const response = await fetch(`${window.BASE_URL}/api/endpoint?id=${encodedId}`);
+```
+
+**Note:** The `IdEncoder` helper is available globally in `resources/assets/js/id-encoder.js` and is included in the main scripts.
+
+### Common ID Parameters
+
+These are the most common ID parameters that need encoding/decoding:
+- `id` - Generic ID (user, role, branch, etc.)
+- `user_id` - User account ID
+- `branch_id` - Business branch ID
+- `provider_id` - Ticket provider ID
+- `wallet_id` - Provider wallet ID
+- `passenger_id` - Passenger account ID
+- `session_id` - Cashier session ID
+- `device_id` - System device ID
+- `permission_id` - Permission ID
+- `role_id` - User role ID
+- `payment_method_id` - Payment method ID
+- `bank_account_id` - Bank account ID
+
+### Example: Complete API Endpoint with ID Decoding
+
+```php
+<?php
+header('Content-Type: application/json');
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/config/database.php';
+
+Auth::requireLogin();
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    $id = $_GET['id'] ?? null;
+
+    // Decode ID if provided
+    if ($id) {
+        $decodedId = IdEncoder::decode($id);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid ID']);
+            return;
+        }
+        $id = $decodedId;
+    }
+
+    // Use the decoded ID in your query
+    $result = Database::fetch("SELECT * FROM table WHERE id = :id", ['id' => $id]);
+    echo json_encode(['success' => true, 'data' => $result]);
+}
+```
+
+### Example: Complete JavaScript with ID Encoding
+
+```javascript
+// Fetch single item
+async function fetchItem(id) {
+    const encodedId = IdEncoder.encode(id);
+    const response = await fetch(`${window.BASE_URL}/api/endpoint?id=${encodedId}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+    });
+    const result = await response.json();
+    return result;
+}
+
+// Delete item
+async function deleteItem(id) {
+    const encodedId = IdEncoder.encode(id);
+    const response = await fetch(`${window.BASE_URL}/api/endpoint?id=${encodedId}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': getCSRFToken() },
+        credentials: 'same-origin'
+    });
+    const result = await response.json();
+    return result;
+}
+```
+
+### Testing ID Encryption
+
+To test ID encryption:
+1. Enable "ID Encryption" in System Settings → Security tab
+2. Reload the page
+3. All API calls should now use encrypted IDs
+4. Disable the toggle to test with plain IDs
+5. Both modes should work without errors
+
+---
+
+## 9. Responsive Design & Mobile Compatibility
+
+All admin modules must be fully responsive and work seamlessly across all device sizes, from desktop to mobile. The system uses Bootstrap 5's responsive grid system.
+
+### Bootstrap Grid System
+
+Use Bootstrap's 12-column grid with responsive breakpoints:
+
+```php
+<div class="row g-3">
+  <!-- On mobile: full width (12 cols), On tablet: half (6 cols), On desktop: quarter (3 cols) -->
+  <div class="col-12 col-md-6 col-lg-3">
+    <label class="form-label">Field Label</label>
+    <input type="text" class="form-control" name="field_name">
+  </div>
+</div>
+```
+
+**Breakpoints:**
+- `col-` or `col-xs-` - Extra small (<576px) - Mobile phones
+- `col-sm-` - Small (≥576px) - Large phones
+- `col-md-` - Medium (≥768px) - Tablets
+- `col-lg-` - Large (≥992px) - Desktops
+- `col-xl-` - Extra large (≥1200px) - Large desktops
+
+### Responsive Tables
+
+Tables must be wrapped in `.table-responsive` for horizontal scrolling on small screens:
+
+```php
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead>
+      <tr>
+        <th>Column 1</th>
+        <th>Column 2</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Table rows -->
+    </tbody>
+  </table>
+</div>
+```
+
+**Mobile table best practices:**
+- Use `.table-sm` for smaller padding on mobile
+- Limit columns to essential information on mobile
+- Consider hiding less important columns on mobile using `.d-none .d-md-table-cell`
+- Use `.text-nowrap` on columns with short content to prevent wrapping
+
+### Responsive Forms
+
+Forms should use responsive grid layouts:
+
+```php
+<div class="row g-3">
+  <!-- Full width on mobile, half on tablet+ -->
+  <div class="col-12 col-md-6">
+    <label class="form-label">Field 1</label>
+    <input type="text" class="form-control" name="field1">
+  </div>
+  <div class="col-12 col-md-6">
+    <label class="form-label">Field 2</label>
+    <input type="text" class="form-control" name="field2">
+  </div>
+</div>
+```
+
+**Form field sizing:**
+- Use `.form-control-lg` for larger touch targets on mobile
+- Use `.form-select-sm` for compact selects in tight spaces
+- Ensure minimum 44px height for touch targets on mobile
+
+### Responsive Navigation
+
+The system's sidebar/navbar automatically adapts to screen size:
+- Desktop: Full sidebar with icons and text
+- Tablet: Collapsed sidebar (icons only)
+- Mobile: Offcanvas sidebar with hamburger menu
+
+**No custom mobile navigation needed** - the global layout handles this automatically.
+
+### Responsive Cards
+
+Cards should use flexible layouts:
+
+```php
+<div class="card">
+  <div class="card-body">
+    <div class="row g-3 align-items-center">
+      <!-- Stack vertically on mobile, horizontally on tablet+ -->
+      <div class="col-12 col-md-auto">
+        <img src="..." class="img-fluid" style="max-width: 100px;">
+      </div>
+      <div class="col">
+        <h5 class="card-title">Title</h5>
+        <p class="card-text">Description</p>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### Responsive Buttons
+
+Button groups should wrap on small screens:
+
+```php
+<div class="d-flex gap-2 flex-wrap">
+  <button type="button" class="btn btn-primary">Action 1</button>
+  <button type="button" class="btn btn-secondary">Action 2</button>
+  <button type="button" class="btn btn-outline-primary">Action 3</button>
+</div>
+```
+
+**Button sizing:**
+- Use `.btn-sm` for compact buttons in tables
+- Use standard size for primary actions
+- Consider icon-only buttons on mobile with tooltips
+
+### Mobile-Specific Considerations
+
+**Hide elements on mobile:**
+```php
+<!-- Hidden on mobile, visible on tablet+ -->
+<div class="d-none d-md-block">Desktop-only content</div>
+
+<!-- Visible on mobile, hidden on tablet+ -->
+<div class="d-md-none">Mobile-only content</div>
+```
+
+**Text sizing:**
+- Use `.fs-10` (smaller font) for tables on mobile
+- Use `.text-truncate` to truncate long text with ellipsis
+- Limit text length in tables on mobile
+
+**Touch targets:**
+- Minimum 44x44px for buttons and links
+- Adequate spacing between clickable elements
+- Use `.form-control-lg` for better touch input
+
+### Testing Responsive Design
+
+Test your module on:
+1. **Desktop** (1920x1080) - Full layout
+2. **Laptop** (1366x768) - Compact layout
+3. **Tablet** (768x1024) - Stacked layout
+4. **Mobile** (375x667) - Single column layout
+
+**Browser DevTools:**
+- Use Chrome DevTools device emulation
+- Test in landscape and portrait modes
+- Check touch interactions work properly
+
+### Common Responsive Patterns
+
+**Header card with actions:**
+```php
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="row align-items-center g-3">
+          <div class="col-12 col-md">
+            <h4 class="mb-0">Module Title</h4>
+          </div>
+          <div class="col-12 col-md-auto">
+            <div class="d-flex gap-2 flex-wrap">
+              <button class="btn btn-primary">Action</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+**Filter bar:**
+```php
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-12 col-md-4 col-lg-3">
+        <input type="text" class="form-control" placeholder="Search...">
+      </div>
+      <div class="col-12 col-md-4 col-lg-3">
+        <select class="form-select">Filter...</select>
+      </div>
+      <div class="col-12 col-md-4 col-lg-3">
+        <input type="date" class="form-control">
+      </div>
+      <div class="col-12 col-md-auto col-lg-3">
+        <button class="btn btn-primary w-100">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### Responsive Images
+
+Always use `.img-fluid` for responsive images:
+
+```php
+<img src="..." class="img-fluid" alt="...">
+```
+
+This ensures images scale to their container width without overflowing.
+
+---
+
+## 10. Checklist for New Modules
 
 Before finishing a new module, verify:
 
@@ -362,12 +709,24 @@ Before finishing a new module, verify:
 - [ ] **Access-denied path is correct:** `dirname(__DIR__) . '/includes/access-denied.php'` NOT `dirname(dirname(__DIR__)) . '/includes/access-denied.php'`
 - [ ] **Directory has index.php** to avoid Apache 403 Forbidden errors
 - [ ] **Transaction filters use session_id** (not cashier_id) if displaying session-specific data
+- [ ] **API endpoints include IdEncoder.php and decode all ID parameters**
+- [ ] **JavaScript files encode all IDs using IdEncoder.encode() before API calls**
+- [ ] **All tables are wrapped in `.table-responsive` for mobile scrolling**
+- [ ] **Forms use responsive grid classes (col-12, col-md-6, etc.)**
+- [ ] **Buttons use `.flex-wrap` to wrap on small screens**
+- [ ] **Images use `.img-fluid` for responsive scaling**
+- [ ] **Touch targets are at least 44x44px on mobile**
 - [ ] Test: change Navigation Position to "Top" → page reloads → top navbar shows
 - [ ] Test: change back to "Vertical" → page reloads → sidebar shows
+- [ ] Test: enable ID Encryption → all API calls still work with encrypted IDs
+- [ ] Test: disable ID Encryption → all API calls still work with plain IDs
+- [ ] Test: mobile view (375px width) → layout stacks properly, no horizontal overflow
+- [ ] Test: tablet view (768px width) → grid adjusts correctly
+- [ ] Test: desktop view (1920px width) → full layout displays properly
 
 ---
 
-## 10. Existing Module Patterns
+## 11. Existing Module Patterns
 
 | Module | Guard Chain | NAVBAR_STATUS |
 |--------|-------------|---------------|

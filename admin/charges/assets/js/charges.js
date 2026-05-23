@@ -110,7 +110,8 @@ async function viewHistory(passengerId, name) {
     chargeHistoryModal.show();
 
     try {
-        const res = await fetch(`${window.BASE_URL}/api/charges?passenger_id=${passengerId}`);
+        const encodedPassengerId = IdEncoder.encode(passengerId);
+        const res = await fetch(`${window.BASE_URL}/api/charges?passenger_id=${encodedPassengerId}`);
         const result = await res.json();
         if (!result.success) { document.getElementById('chargeHistoryContent').innerHTML = '<p class="text-danger">Failed to load history.</p>'; return; }
 

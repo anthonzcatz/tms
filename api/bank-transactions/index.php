@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 // Authenticate user
 $user = Auth::user();
@@ -43,6 +44,17 @@ try {
  */
 function handleGet() {
     $bankAccountId = $_GET['bank_account_id'] ?? null;
+
+    // Decode bank_account_id if provided
+    if ($bankAccountId) {
+        $decodedBankAccountId = IdEncoder::decode($bankAccountId);
+        if ($decodedBankAccountId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid bank account ID']);
+            return;
+        }
+        $bankAccountId = $decodedBankAccountId;
+    }
+
     $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
     $limit = isset($_GET['limit']) ? min(100, max(10, (int)$_GET['limit'])) : 20;
     $offset = ($page - 1) * $limit;

@@ -16,6 +16,15 @@
     font-weight: 600;
 }
 
+/* Permission Grid Layout */
+.hover-bg {
+    transition: background-color 0.2s ease;
+}
+
+.hover-bg:hover {
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
 /* Access Denied Page */
 .access-denied-container {
     background: white;

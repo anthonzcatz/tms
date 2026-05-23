@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Helper function for logging activity
@@ -94,6 +95,16 @@ try {
  */
 function handleGet() {
     $branchId = $_GET['id'] ?? null;
+
+    // Decode branch_id if provided
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        $branchId = $decodedBranchId;
+    }
 
     // Get single branch
     if ($branchId) {
@@ -619,7 +630,17 @@ function handleDelete() {
     }
     
     $branchId = $_GET['id'] ?? null;
-    
+
+    // Decode branch_id if provided
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        $branchId = $decodedBranchId;
+    }
+
     if (!$branchId) {
         echo json_encode(['success' => false, 'error' => 'Missing branch ID']);
         return;

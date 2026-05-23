@@ -79,6 +79,7 @@ Passenger: passenger_accounts
 - [x] Bank Accounts (admin/settings/bank-accounts/) — Manage company bank accounts per branch
 - [x] Service Types (admin/settings/service-types/) — Manage Print Fee, Photocopy, etc.
 - [x] System Settings (admin/system-settings/) — Configure company info, cancellation settings, maintenance mode, bank transaction settings
+- [x] ID Encryption (System Settings → Security tab) — Toggle ID encryption for API endpoints. When enabled, database IDs in URLs are encrypted for security. When disabled, plain IDs are used for development/debugging.
 
 ### Phase 2: Operational Modules
 - [x] Cashier POS (admin/pos/) — Main checkout screen: sell tickets, print fees, accept mixed payments, track cashier session

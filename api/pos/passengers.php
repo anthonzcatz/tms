@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Check authentication - return 401 if not authenticated
@@ -161,10 +162,20 @@ function handleGet($user) {
         
         // Get passenger_id parameter for single passenger fetch
         $passengerId = $_GET['passenger_id'] ?? null;
-        
+
+        // Decode passenger_id if provided
+        if ($passengerId) {
+            $decodedPassengerId = IdEncoder::decode($passengerId);
+            if ($decodedPassengerId === false) {
+                echo json_encode(['success' => false, 'error' => 'Invalid passenger ID']);
+                return;
+            }
+            $passengerId = $decodedPassengerId;
+        }
+
         // If passenger_id is provided, fetch single passenger
         if ($passengerId) {
-            $sql = "SELECT p.*, 
+            $sql = "SELECT p.*,
                            r.region_name,
                            pr.province_name,
                            c.city_municipality_name,

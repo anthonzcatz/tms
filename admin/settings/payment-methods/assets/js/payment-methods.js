@@ -91,7 +91,8 @@ async function submitAddMethod() {
 // Edit Method - fetch and populate
 async function editMethod(methodId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/payment-methods?id=${methodId}`);
+        const encodedMethodId = IdEncoder.encode(methodId);
+        const response = await fetch(`${window.BASE_URL}/api/payment-methods?id=${encodedMethodId}`);
         const result = await response.json();
         if (!result.success || !result.data) {
             showToast('danger', 'Error', 'Failed to fetch method details.');

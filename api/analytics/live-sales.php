@@ -1,6 +1,7 @@
 <?php
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -15,6 +16,16 @@ try {
     $hours = isset($_GET['hours']) ? intval($_GET['hours']) : 1;
     $today = isset($_GET['today']) && $_GET['today'] === 'true';
     $branchId = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
+
+    // Decode branch_id if provided
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            exit;
+        }
+        $branchId = $decodedBranchId;
+    }
 
     // Build query for live sales from POS orders
     if ($today) {

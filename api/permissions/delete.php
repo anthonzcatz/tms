@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Check authentication
@@ -55,6 +56,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
 
 // Get permission ID from URL path or query parameter
 $permissionId = $_GET['id'] ?? null;
+
+// Decode permission_id if provided
+if ($permissionId) {
+    $decodedPermissionId = IdEncoder::decode($permissionId);
+    if ($decodedPermissionId === false) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid permission ID']);
+        exit;
+    }
+    $permissionId = $decodedPermissionId;
+}
 
 if (!$permissionId) {
     http_response_code(400);

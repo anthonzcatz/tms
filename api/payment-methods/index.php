@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
@@ -54,6 +55,16 @@ switch ($method) {
  */
 function handleGet() {
     $id = $_GET['id'] ?? null;
+
+    // Decode ID if it's encrypted (not numeric)
+    if ($id && !is_numeric($id)) {
+        $decodedId = IdEncoder::decode($id);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid payment method ID']);
+            return;
+        }
+        $id = $decodedId;
+    }
 
     if ($id) {
         $method = Database::fetch(

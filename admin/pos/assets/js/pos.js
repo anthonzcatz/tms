@@ -577,8 +577,9 @@ function selectTicketPassenger(passenger) {
 
 function viewPassenger(passengerId, event) {
     if (event) event.stopPropagation();
-    
-    fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${passengerId}`)
+
+    const encodedPassengerId = IdEncoder.encode(passengerId);
+    fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${encodedPassengerId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data) {
@@ -1046,8 +1047,8 @@ function loadWallets(providerId = null, branchId = null) {
     // Add filter parameters if provided
     if (providerId || userBranchId) {
         const params = [];
-        if (providerId) params.push(`provider_id=${providerId}`);
-        if (userBranchId) params.push(`branch_id=${userBranchId}`);
+        if (providerId) params.push(`provider_id=${IdEncoder.encode(providerId)}`);
+        if (userBranchId) params.push(`branch_id=${IdEncoder.encode(userBranchId)}`);
         url += `?${params.join('&')}`;
     }
 
@@ -1126,10 +1127,17 @@ function loadServiceFeeForWallet() {
     
     const providerId = selectedOption.dataset.providerId;
     const branchId = selectedOption.dataset.branchId;
-    
+
     console.log('Loading service fee for wallet:', selectedOption.value, 'providerId:', providerId, 'branchId:', branchId);
-    
-    if (!providerId) {
+
+    // Convert to numbers and validate
+    const numericProviderId = providerId ? parseInt(providerId, 10) : null;
+    const numericBranchId = branchId ? parseInt(branchId, 10) : null;
+
+    console.log('Numeric providerId:', numericProviderId, 'Numeric branchId:', numericBranchId);
+
+    if (!numericProviderId || numericProviderId < 1) {
+        console.log('Invalid providerId, skipping service fee fetch');
         serviceFeeDisplay.textContent = '-';
         serviceFeeInput.value = 0;
         baseAmountDisplay.textContent = '₱0.00';
@@ -1138,9 +1146,18 @@ function loadServiceFeeForWallet() {
     }
     
     // Fetch service fee for this provider and branch
-    let url = `${window.BASE_URL}/api/provider-service-fees?provider_id=${providerId}`;
-    if (branchId) {
-        url += `&branch_id=${branchId}`;
+    const encodedProviderId = IdEncoder.encode(numericProviderId);
+    let url = `${window.BASE_URL}/api/provider-service-fees`;
+
+    // Only add parameters if they have valid values
+    if (encodedProviderId) {
+        url += `?provider_id=${encodedProviderId}`;
+    }
+    if (numericBranchId) {
+        const encodedBranchId = IdEncoder.encode(numericBranchId);
+        if (encodedBranchId) {
+            url += (encodedProviderId ? '&' : '?') + `branch_id=${encodedBranchId}`;
+        }
     }
     
     console.log('Fetching service fee from:', url);
@@ -1281,7 +1298,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const activeItem = items[currentActiveIndex];
                     const passengerId = activeItem.dataset.passengerId;
                     // Get passenger data from the items
-                    fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${passengerId}`)
+                    const encodedPassengerId = IdEncoder.encode(passengerId);
+                    fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${encodedPassengerId}`)
                         .then(response => response.json())
                         .then(data => {
                             if (data.success && data.data) {
@@ -1416,7 +1434,8 @@ async function openCloseSession() {
 
     // Fetch session summary
     try {
-        const response = await fetch(`${window.BASE_URL}/api/pos/sessions?id=${window.POS_SESSION_ID}`);
+        const encodedSessionId = IdEncoder.encode(window.POS_SESSION_ID);
+        const response = await fetch(`${window.BASE_URL}/api/pos/sessions?id=${encodedSessionId}`);
         const result = await response.json();
         if (result.success) {
             const s = result.data.session;
@@ -3355,7 +3374,7 @@ async function confirmReprintReceipt() {
     try {
         // Fetch transaction details
         const apiUrl = txnId
-            ? `${window.BASE_URL}/api/pos/transaction/${txnId}`
+            ? `${window.BASE_URL}/api/pos/transaction/${IdEncoder.encode(txnId)}`
             : `${window.BASE_URL}/api/pos/transaction?code=${txnCode}`;
 
         const res = await fetch(apiUrl);

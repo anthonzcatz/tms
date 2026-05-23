@@ -461,7 +461,8 @@ async function saveBranch() {
 // Edit branch
 async function editBranch(branchId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/business-branches?id=${branchId}`);
+        const encodedBranchId = IdEncoder.encode(branchId);
+        const response = await fetch(`${window.BASE_URL}/api/business-branches?id=${encodedBranchId}`);
         const result = await response.json();
         
         if (result.success) {
@@ -810,8 +811,9 @@ async function deleteBranch(branchId) {
         if (csrfToken) {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
-        
-        const response = await fetch(`${window.BASE_URL}/api/business-branches?id=${branchId}`, {
+
+        const encodedBranchId = IdEncoder.encode(branchId);
+        const response = await fetch(`${window.BASE_URL}/api/business-branches?id=${encodedBranchId}`, {
             method: 'DELETE',
             headers: headers
         });

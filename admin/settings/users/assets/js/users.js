@@ -324,6 +324,7 @@ function filterAndRenderUsers() {
     const searchTerm = document.getElementById('userSearch').value.toLowerCase();
     const roleFilter = document.getElementById('roleFilter').value;
     const statusFilter = document.getElementById('statusFilter').value;
+    const onlineFilter = document.getElementById('statusFilter').dataset.onlineFilter || '';
     
     filteredUsers = usersData.filter(user => {
         // Search filter
@@ -338,10 +339,58 @@ function filterAndRenderUsers() {
         // Status filter
         const matchesStatus = statusFilter === '' || user.status === (statusFilter === '1' ? 'active' : 'inactive');
         
-        return matchesSearch && matchesRole && matchesStatus;
+        // Online filter (from stat badge)
+        let matchesOnline = true;
+        if (onlineFilter === 'online') {
+            matchesOnline = Number(user.is_online) === 1;
+        } else if (onlineFilter === 'active') {
+            matchesOnline = user.status === 'active';
+        } else if (onlineFilter === 'inactive') {
+            matchesOnline = user.status === 'inactive';
+        }
+        
+        return matchesSearch && matchesRole && matchesStatus && matchesOnline;
     });
     
     renderUsersTable();
+}
+
+/**
+ * Filter users by stat badge click
+ */
+function filterByStat(statType) {
+    const statusFilter = document.getElementById('statusFilter');
+    
+    // Remove active state from all stat badges
+    document.querySelectorAll('.stat-badge').forEach(badge => {
+        badge.classList.remove('bg-primary', 'text-white');
+        badge.classList.add('bg-primary-subtle', 'text-primary');
+    });
+    
+    // Add active state to clicked badge
+    const activeBadge = document.getElementById(`stat${statType.charAt(0).toUpperCase() + statType.slice(1)}`);
+    if (activeBadge) {
+        activeBadge.classList.remove('bg-primary-subtle', 'text-primary');
+        activeBadge.classList.add('bg-primary', 'text-white');
+    }
+    
+    // Set filter based on stat type
+    if (statType === 'total') {
+        statusFilter.value = '';
+        statusFilter.dataset.onlineFilter = '';
+    } else if (statType === 'active') {
+        statusFilter.value = '1';
+        statusFilter.dataset.onlineFilter = 'active';
+    } else if (statType === 'inactive') {
+        statusFilter.value = '0';
+        statusFilter.dataset.onlineFilter = 'inactive';
+    } else if (statType === 'online') {
+        statusFilter.value = '';
+        statusFilter.dataset.onlineFilter = 'online';
+    }
+    
+    currentPage = 1;
+    filterAndRenderUsers();
 }
 
 /**
@@ -408,62 +457,65 @@ function renderUsersTable() {
             }
             
             return `
-                <div class="bg-white dark__bg-1100 d-md-flex d-xl-inline-block d-xxl-flex align-items-center p-x1 rounded-3 shadow-sm" data-user-id="${user.user_id}">
-                    <div class="d-flex align-items-start align-items-sm-center">
-                        <div class="form-check me-2 me-xxl-3 mb-0">
+                <div class="bg-white dark__bg-1100 p-3 rounded-3 shadow-sm hover-shadow transition-all user-card" data-user-id="${user.user_id}">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="form-check mt-1">
                             <input class="form-check-input user-checkbox" type="checkbox" 
                                    data-user-id="${user.user_id}" ${isSelected ? 'checked' : ''}>
                         </div>
-                        <div class="avatar avatar-xl avatar-3xl ${isOnline ? 'status-online' : ''}" style="width:56px; height:56px; flex-shrink:0;">
+                        <div class="avatar ${isOnline ? 'status-online' : ''}" style="width:48px; height:48px; flex-shrink:0; position:relative;">
                             ${avatarContent}
                         </div>
-                        <div class="ms-1 ms-sm-3">
-                            <p class="fw-semi-bold mb-3 mb-sm-2">
-                                <a href="#" onclick="openEditUserModal(${user.user_id})">
-                                    ${fullName}
-                                    ${isSuperAdmin ? '<span class="badge bg-primary-subtle text-primary ms-1 fs-11">SUPER</span>' : ''}
-                                </a>
-                            </p>
-                            <div class="row align-items-center gx-0 gy-2">
-                                <div class="col-auto me-2">
-                                    <h6 class="mb-0 text-800">
-                                        <span class="fas fa-user me-1 text-muted"></span>${user.username}
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1 fw-semibold">
+                                        <a href="#" onclick="openEditUserModal(${user.user_id})" class="text-decoration-none text-dark">
+                                            ${fullName}
+                                            ${isSuperAdmin ? '<span class="badge bg-primary ms-1 fs-11">SUPER</span>' : ''}
+                                        </a>
                                     </h6>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span class="text-muted small"><span class="fas fa-user me-1"></span>${user.username}</span>
+                                        <span class="badge rounded-pill ${statusBadgeClass} fs-10">${isActive ? 'Active' : user.status}</span>
+                                        <small class="text-muted"><span class="fas fa-clock me-1"></span>Last login: ${formatDate(user.last_login_at) || 'Never'}</small>
+                                    </div>
                                 </div>
-                                <div class="col-auto lh-1 me-3">
-                                    <small class="badge rounded ${statusBadgeClass}">${isActive ? 'Active' : user.status}</small>
-                                </div>
-                                <div class="col-auto">
-                                    <h6 class="mb-0 text-500">${formatDate(user.last_login_at) || 'Never'}</h6>
+                                <div class="d-flex gap-1">
+                                    <button type="button" class="btn btn-light btn-sm" 
+                                            onclick="openEditUserModal(${user.user_id})">
+                                        <span class="fas fa-edit"></span>
+                                    </button>
+                                    <button type="button" class="btn btn-light btn-sm" 
+                                            onclick="confirmDelete(${user.user_id}, '${user.username}', ${isSuperAdmin})"
+                                            ${isSuperAdmin ? 'disabled' : ''}>
+                                        <span class="fas fa-trash-alt"></span>
+                                    </button>
                                 </div>
                             </div>
-                            ${transportDisplay}
-                            ${Number(user.is_time_restricted) === 1 ? `<div class="mt-1"><span class="badge bg-warning-subtle text-warning fs-10" title="Login time restrictions are active"><span class="fas fa-clock me-1"></span>Time Restricted</span></div>` : ''}
-                        </div>
-                    </div>
-                    <div class="border-bottom mt-4 mb-x1"></div>
-                    <div class="d-flex justify-content-between ms-auto">
-                        <div class="d-flex align-items-center gap-2 ms-md-4 ms-xl-0">
-                            <span class="badge bg-soft-${getRoleBadgeColor(user.role_code)} text-${getRoleBadgeColor(user.role_code)}">
-                                ${user.role_name || 'N/A'}
-                            </span>
-                            ${user.branch_name ? `<span class="badge bg-200 text-600 fs-10">
-                                <span class="fas fa-building me-1"></span>${user.branch_name}
-                            </span>` : ''}
-                            <span class="text-500 fs-10">
-                                <span class="fas fa-envelope me-1"></span>${user.email}
-                            </span>
-                        </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-falcon-default btn-sm" 
-                                    onclick="openEditUserModal(${user.user_id})">
-                                <span class="fas fa-edit"></span>
-                            </button>
-                            <button type="button" class="btn btn-falcon-default btn-sm" 
-                                    onclick="confirmDelete(${user.user_id}, '${user.username}', ${isSuperAdmin})"
-                                    ${isSuperAdmin ? 'disabled' : ''}>
-                                <span class="fas fa-trash-alt"></span>
-                            </button>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-soft-${getRoleBadgeColor(user.role_code)} text-${getRoleBadgeColor(user.role_code)} fs-10">
+                                            ${user.role_name || 'N/A'}
+                                        </span>
+                                        ${user.branch_name ? `<span class="badge bg-light text-dark fs-10">
+                                            <span class="fas fa-building me-1"></span>${user.branch_name}
+                                        </span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <small class="text-muted"><span class="fas fa-envelope me-1"></span>${user.email}</small>
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-6">
+                                    ${transportDisplay}
+                                    ${Number(user.is_time_restricted) === 1 ? `<span class="badge bg-warning-subtle text-warning fs-10" title="Login time restrictions are active"><span class="fas fa-clock me-1"></span>Time Restricted</span>` : ''}
+                                </div>
+                                <div class="col-md-6">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -599,6 +651,27 @@ function updateSelectAllCheckbox() {
 function clearSelection() {
     selectedUsers.clear();
     document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAllUsers').checked = false;
+    updateQuickActionsBar();
+}
+
+/**
+ * Toggle select all users
+ */
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAllUsers');
+    const isChecked = selectAllCheckbox.checked;
+    
+    document.querySelectorAll('.user-checkbox').forEach(cb => {
+        cb.checked = isChecked;
+        const userId = cb.dataset.userId;
+        if (isChecked) {
+            selectedUsers.add(userId);
+        } else {
+            selectedUsers.delete(userId);
+        }
+    });
+    
     updateQuickActionsBar();
 }
 
@@ -1186,11 +1259,14 @@ async function confirmDeleteUser() {
         btn.disabled = true;
         btn.innerHTML = '<span class="fas fa-spinner fa-spin me-1"></span>Deleting...';
         
-        const response = await fetch(`${window.BASE_URL}/api/users/index.php?id=${deleteUserId}&_token=${window.CSRF_TOKEN}`, {
+        // Get fresh CSRF token from meta tag
+        const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        const response = await fetch(`${window.BASE_URL}/api/users/index.php?id=${deleteUserId}&_token=${freshToken}`, {
             method: 'DELETE',
             headers: {
                 'Accept': 'application/json',
-                'X-CSRF-Token': window.CSRF_TOKEN
+                'X-CSRF-Token': freshToken
             },
             credentials: 'same-origin'
         });
@@ -1623,14 +1699,78 @@ function exportUsers(format) {
 }
 
 /**
- * Bulk actions (placeholder implementations)
+ * Bulk actions
  */
-function bulkActivate() {
-    showToast('info', 'Info', `Would activate ${selectedUsers.size} users`);
+async function bulkActivate() {
+    if (selectedUsers.size === 0) return;
+    
+    try {
+        const userIds = Array.from(selectedUsers);
+        
+        const response = await fetch(`${BASE_URL}/api/users/index.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': CSRF_TOKEN
+            },
+            body: JSON.stringify({
+                action: 'bulk_update',
+                user_ids: userIds,
+                status: 'active'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('success', 'Success', `${selectedUsers.size} user(s) activated successfully`);
+            // Reload page to refresh CSRF token
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showToast('error', 'Error', result.error || 'Failed to activate users');
+        }
+    } catch (error) {
+        console.error('Bulk activate error:', error);
+        showToast('error', 'Error', 'Failed to activate users');
+    }
 }
 
-function bulkDeactivate() {
-    showToast('info', 'Info', `Would deactivate ${selectedUsers.size} users`);
+async function bulkDeactivate() {
+    if (selectedUsers.size === 0) return;
+    
+    try {
+        const userIds = Array.from(selectedUsers);
+        
+        const response = await fetch(`${BASE_URL}/api/users/index.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': CSRF_TOKEN
+            },
+            body: JSON.stringify({
+                action: 'bulk_update',
+                user_ids: userIds,
+                status: 'inactive'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('success', 'Success', `${selectedUsers.size} user(s) deactivated successfully`);
+            // Reload page to refresh CSRF token
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showToast('error', 'Error', result.error || 'Failed to deactivate users');
+        }
+    } catch (error) {
+        console.error('Bulk deactivate error:', error);
+        showToast('error', 'Error', 'Failed to deactivate users');
+    }
 }
 
 function bulkDelete() {
@@ -1775,7 +1915,8 @@ async function checkUsernameExists(username, excludeUserId = null) {
     try {
         let url = `${window.BASE_URL}/api/users/index.php?check_username=${encodeURIComponent(username)}`;
         if (excludeUserId) {
-            url += `&exclude_user_id=${excludeUserId}`;
+            const encodedExcludeUserId = IdEncoder.encode(excludeUserId);
+            url += `&exclude_user_id=${encodedExcludeUserId}`;
         }
 
         const response = await fetch(url, {
@@ -1902,7 +2043,8 @@ async function saveTransportAssignments(userId, transportTypes, specificProvider
  */
 async function loadTransportAssignments(userId) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/cashier-provider-assignments/index.php?user_id=${userId}`, {
+        const encodedUserId = IdEncoder.encode(userId);
+        const response = await fetch(`${window.BASE_URL}/api/cashier-provider-assignments/index.php?user_id=${encodedUserId}`, {
             method: 'GET',
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
