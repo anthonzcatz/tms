@@ -216,6 +216,31 @@ if ($useOrdersTable) {
              ORDER BY oi.item_type DESC, oi.item_id ASC",
             ['oid' => $order['order_id']]
         );
+
+        // Fetch aggregated payment breakdown for this order.
+        // We join transaction_payments against all items in the order (TICKET and SERVICE).
+        // DISTINCT on payment_method_id + bank_account_id gives one row per payment split.
+        $order['payments'] = Database::fetchAll(
+            "SELECT pm.method_name,
+                    pm.method_type,
+                    pm.method_code,
+                    pm.tracks_credit,
+                    SUM(tp.amount) AS amount
+             FROM transaction_payments tp
+             JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+             WHERE EXISTS (
+                 SELECT 1 FROM pos_order_items oi
+                 WHERE oi.order_id = :oid
+                   AND oi.reference_id = tp.source_id
+                   AND (
+                       (oi.item_type = 'TICKET'  AND tp.source_type = 'TICKET_TRANSACTION') OR
+                       (oi.item_type = 'SERVICE' AND tp.source_type = 'SERVICE_TRANSACTION')
+                   )
+             )
+             GROUP BY pm.method_id
+             ORDER BY pm.sort_order ASC, pm.method_name ASC",
+            ['oid' => $order['order_id']]
+        );
     }
     unset($order);
 

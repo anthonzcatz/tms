@@ -83,7 +83,7 @@
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/user-rtl.css" rel="stylesheet" id="user-style-rtl">
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/user.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/resources/assets/css/user.css'); ?>" rel="stylesheet" id="user-style-default">
     
-    <!-- Fix navbar positioning variables -->
+    <!-- CSS custom properties for navbar height -->
     <style>
       :root {
         --falcon-top-nav-height: 4.3125rem;
@@ -92,19 +92,6 @@
         :root.double-top-nav-layout {
           --falcon-top-nav-height: 8.688rem;
         }
-      }
-      
-      /* Ensure navbar-top is positioned correctly */
-      .navbar-top {
-        position: sticky;
-        top: 0;
-        z-index: 1020;
-        min-height: var(--falcon-top-nav-height);
-      }
-      
-      /* Fix content positioning */
-      .navbar-top + .content {
-        min-height: calc(100vh - var(--falcon-top-nav-height));
       }
     </style>
     

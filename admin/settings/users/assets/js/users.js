@@ -1711,7 +1711,7 @@ async function bulkActivate() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': CSRF_TOKEN
+                'X-CSRF-Token': window.CSRF_TOKEN
             },
             body: JSON.stringify({
                 action: 'bulk_update',
@@ -1747,7 +1747,7 @@ async function bulkDeactivate() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': CSRF_TOKEN
+                'X-CSRF-Token': window.CSRF_TOKEN
             },
             body: JSON.stringify({
                 action: 'bulk_update',

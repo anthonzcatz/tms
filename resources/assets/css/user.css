@@ -13,8 +13,44 @@ body {
   padding-top: 0 !important;
 }
 
+/* -------------------------------------------------------------------------- */
+/*                          Navbar Brand Logo                                 */
+/* Centralized logo sizing for all navbar positions.                          */
+/* To change logo size, update ONLY this section.                             */
+/*                                                                            */
+/* File map:                                                                  */
+/*   vertical / combo  sidebar  → sidebar.php   → .navbar-vertical           */
+/*   vertical / combo  top bar  → navbar.php    → .navbar-top.navbar-expand  */
+/*   top / combo       top bar  → navbar-top.php→ .navbar-top.navbar-expand-lg */
+/*   double-top        top bar  → navbar-double-top.php → same as above      */
+/* -------------------------------------------------------------------------- */
+
+/* Sidebar logo (vertical + combo) */
+.navbar-vertical .navbar-brand-logo {
+  max-height: 40px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Ensure the top navbar stays sticky at the top across all screen sizes and configurations */
 .navbar-top {
+  position: sticky !important;
   top: 0 !important;
+  z-index: 1020 !important;
+}
+
+/* Base for all top-bar logos */
+.navbar-top .navbar-brand-logo {
+  max-height: 40px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* navbar.php top bar (vertical / combo layout) uses .navbar-expand (no breakpoint suffix) */
+.navbar-top.navbar-expand .navbar-brand-logo {
+  max-height: 40px;
 }
 
 /*# sourceMappingURL=user.css.map */

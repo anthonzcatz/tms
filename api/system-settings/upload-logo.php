@@ -122,9 +122,10 @@ if (!$source) {
 $origWidth = imagesx($source);
 $origHeight = imagesy($source);
 
-// Target dimensions (max 400x120 for logo)
-$maxWidth = 400;
-$maxHeight = 120;
+// Target dimensions - support up to 4K displays (retina/hiDPI)
+// Original image quality preserved up to 2000x600 max
+$maxWidth = 2000;
+$maxHeight = 600;
 
 // Calculate new dimensions maintaining aspect ratio
 $ratio = min($maxWidth / $origWidth, $maxHeight / $origHeight);
@@ -149,8 +150,8 @@ imagecopyresampled($dest, $source, 0, 0, 0, 0, $newWidth, $newHeight, $origWidth
 $filename = 'logo_' . time() . '_' . bin2hex(random_bytes(4)) . '.png';
 $filepath = $uploadDir . $filename;
 
-// Save as PNG
-if (!imagepng($dest, $filepath, 9)) {
+// Save as PNG with low compression for high quality (level 3 = good quality, reasonable size)
+if (!imagepng($dest, $filepath, 3)) {
     imagedestroy($source);
     imagedestroy($dest);
     echo json_encode(['success' => false, 'error' => 'Failed to save image']);

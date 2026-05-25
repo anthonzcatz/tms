@@ -89,6 +89,16 @@
                 </div>
               </div>
             </div>
+
+            <!-- Payment Breakdown -->
+            <div id="cancelPaymentBreakdown" class="card bg-soft-light mb-3" style="display: none;">
+              <div class="card-body p-3">
+                <h6 class="card-title mb-2 fw-bold"><span class="fas fa-credit-card me-2"></span>Original Payment</h6>
+                <div id="cancelPaymentMethods" class="small">
+                  <!-- Payment methods will be populated here -->
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Right Column: Input Fields -->
@@ -97,10 +107,21 @@
               <label class="form-label fw-semibold" for="cancelTicketCode">Transaction Code</label>
               <input type="text" class="form-control" id="cancelTicketCode" placeholder="Enter transaction code (e.g., TKT-20260515-123456-789-01)">
             </div>
+
+            <!-- Refund Breakdown -->
+            <div id="cancelRefundBreakdown" class="card bg-soft-success mb-3" style="display: none;">
+              <div class="card-body p-3">
+                <h6 class="card-title mb-2 fw-bold"><span class="fas fa-hand-holding-usd me-2"></span>Refund Distribution</h6>
+                <div id="cancelRefundMethods" class="small">
+                  <!-- Refund breakdown will be populated here -->
+                </div>
+              </div>
+            </div>
+
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelRefundAmount">Refund Amount (₱)</label>
               <input type="number" class="form-control" id="cancelRefundAmount" placeholder="0.00" min="0" step="0.01">
-              <small class="text-muted">Only the Cost will be refunded to the wallet balance (excluding Service Fee: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>).</small>
+              <small class="text-muted">Refund will be given from cashier cash. Service Fee is non-refundable: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>.</small>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelReason">Reason for Cancellation <span class="text-danger">*</span></label>

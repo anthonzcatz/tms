@@ -25,7 +25,7 @@ require_once __DIR__ . '/navbar-context.php';
             <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVerticalCollapse" aria-controls="navbarVerticalCollapse" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
             <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">
               <div class="d-flex align-items-center">
-                <img class="me-2" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" height="40" style="width: auto; max-width: 120px;" />
+                <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" />
                 <span class="font-sans-serif text-primary"><?php echo $systemName; ?></span>
               </div>
             </a>

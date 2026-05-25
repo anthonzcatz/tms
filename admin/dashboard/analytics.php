@@ -26,134 +26,186 @@ require_once __DIR__ . '/../_guard.php';
         <?php include __DIR__ . '/../includes/sidebar.php'; ?>
         <div class="content">
          <?php include __DIR__ . '/../includes/navbar.php'; ?>
+          <!-- Branch Sales Analytics Card -->
           <div class="row g-3 mb-3">
             <div class="col-xxl-8">
-              <div class="card overflow-hidden mb-3">
+              <div class="card overflow-hidden mb-3" id="branchAnalyticsCard">
                 <div class="card-header audience-chart-header p-0 bg-body-tertiary scrollbar-overlay">
                   <ul class="nav nav-tabs border-0 chart-tab flex-nowrap" id="audience-chart-tab" role="tablist">
-                    <li class="nav-item" role="presentation"><a class="nav-link mb-0 active" id="users-tab" data-bs-toggle="tab" href="#users" role="tab" aria-controls="users" aria-selected="true">
+                    <li class="nav-item" role="presentation">
+                      <a class="nav-link mb-0 active" id="sales-tab" data-bs-toggle="tab" href="#sales" role="tab" aria-controls="sales" aria-selected="true">
                         <div class="audience-tab-item p-2 pe-4">
-                          <h6 class="text-800 fs-11 text-nowrap">Users</h6>
-                          <h5 class="text-800">3.9K</h5>
-                          <div class="d-flex align-items-center"><span class="fas fa-caret-up text-success"></span>
-                            <h6 class="fs-11 mb-0 ms-2 text-success">62.0%</h6>
+                          <h6 class="text-800 fs-11 text-nowrap">Total Sales</h6>
+                          <h5 class="text-800" id="tabTotalSales">₱0.00</h5>
+                          <div class="d-flex align-items-center">
+                            <span class="fas fa-caret-up text-success" id="tabSalesTrendIcon"></span>
+                            <h6 class="fs-11 mb-0 ms-2 text-success" id="tabSalesTrend">0%</h6>
                           </div>
                         </div>
-                      </a></li>
-                    <li class="nav-item" role="presentation"><a class="nav-link mb-0" id="sessions-tab" data-bs-toggle="tab" href="#sessions" role="tab" aria-controls="sessions" aria-selected="false">
+                      </a>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                      <a class="nav-link mb-0" id="net-tab" data-bs-toggle="tab" href="#net" role="tab" aria-controls="net" aria-selected="false">
                         <div class="audience-tab-item p-2 pe-4">
-                          <h6 class="text-800 fs-11 text-nowrap">Sessions</h6>
-                          <h5 class="text-800">6.3K</h5>
-                          <div class="d-flex align-items-center"><span class="fas fa-caret-up text-success"></span>
-                            <h6 class="fs-11 mb-0 ms-2 text-success">46.2%</h6>
+                          <h6 class="text-800 fs-11 text-nowrap">Net Sales</h6>
+                          <h5 class="text-800" id="tabNetSales">₱0.00</h5>
+                          <div class="d-flex align-items-center">
+                            <span class="fas fa-caret-up text-success" id="tabNetTrendIcon"></span>
+                            <h6 class="fs-11 mb-0 ms-2 text-success" id="tabNetTrend">0%</h6>
                           </div>
                         </div>
-                      </a></li>
-                    <li class="nav-item" role="presentation"><a class="nav-link mb-0" id="rate-tab" data-bs-toggle="tab" href="#rate" role="tab" aria-controls="rate" aria-selected="false">
+                      </a>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                      <a class="nav-link mb-0" id="refunds-tab" data-bs-toggle="tab" href="#refunds" role="tab" aria-controls="refunds" aria-selected="false">
                         <div class="audience-tab-item p-2 pe-4">
-                          <h6 class="text-800 fs-11 text-nowrap">Bounce Rate</h6>
-                          <h5 class="text-800">9.49%</h5>
-                          <div class="d-flex align-items-center"><span class="fas fa-caret-down text-warning"></span>
-                            <h6 class="fs-11 mb-0 ms-2 text-warning">56.1%</h6>
+                          <h6 class="text-800 fs-11 text-nowrap">Refunds</h6>
+                          <h5 class="text-800" id="tabRefunds">₱0.00</h5>
+                          <div class="d-flex align-items-center">
+                            <span class="fas fa-caret-down text-warning" id="tabRefundTrendIcon"></span>
+                            <h6 class="fs-11 mb-0 ms-2 text-warning" id="tabRefundTrend">0%</h6>
                           </div>
                         </div>
-                      </a></li>
-                    <li class="nav-item" role="presentation"><a class="nav-link mb-0" id="duration-tab" data-bs-toggle="tab" href="#duration" role="tab" aria-controls="duration" aria-selected="false">
+                      </a>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                      <a class="nav-link mb-0" id="transactions-tab" data-bs-toggle="tab" href="#transactions" role="tab" aria-controls="transactions" aria-selected="false">
                         <div class="audience-tab-item p-2 pe-4">
-                          <h6 class="text-800 fs-11 text-nowrap">Session Duration</h6>
-                          <h5 class="text-800">4m 03s</h5>
-                          <div class="d-flex align-items-center"><span class="fas fa-caret-down text-warning"></span>
-                            <h6 class="fs-11 mb-0 ms-2 text-warning">32.2%</h6>
+                          <h6 class="text-800 fs-11 text-nowrap">Transactions</h6>
+                          <h5 class="text-800" id="tabTransactions">0</h5>
+                          <div class="d-flex align-items-center">
+                            <span class="fas fa-caret-up text-success" id="tabTxnTrendIcon"></span>
+                            <h6 class="fs-11 mb-0 ms-2 text-success" id="tabTxnTrend">0%</h6>
                           </div>
                         </div>
-                      </a></li>
+                      </a>
+                    </li>
                   </ul>
                 </div>
                 <div class="card-body">
+                  <!-- Branch Selector -->
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0 text-primary" id="currentBranchName">
+                      <span class="fas fa-store me-2"></span><span id="branchNameText">Loading...</span>
+                    </h5>
+                    <select class="form-select form-select-sm" id="branchSelector" style="width: auto; min-width: 150px;">
+                      <!-- Populated by JS -->
+                    </select>
+                  </div>
+
                   <div class="tab-content">
-                    <div class="tab-pane active" id="users" role="tabpanel" aria-labelledby="users-tab">
-                      <!-- Find the JS file for the following chart at: src/js/charts/echarts/audience.js-->
-                      <!-- If you are not using gulp based workflow, you can find the transpiled code at: public/assets/js/theme.js-->
-                      <div class="echart-audience" data-echart-responsive="true" style="height:320px;"></div>
+                    <div class="tab-pane active" id="sales" role="tabpanel" aria-labelledby="sales-tab">
+                      <div id="branchSalesChart" data-echart-responsive="true" style="height:320px;"></div>
                     </div>
-                    <div class="tab-pane" id="sessions" role="tabpanel" aria-labelledby="sessions-tab">
-                      <div class="echart-audience" data-echart-responsive="true" style="height:320px;"></div>
+                    <div class="tab-pane" id="net" role="tabpanel" aria-labelledby="net-tab">
+                      <div id="branchNetChart" data-echart-responsive="true" style="height:320px;"></div>
                     </div>
-                    <div class="tab-pane" id="rate" role="tabpanel" aria-labelledby="rate-tab">
-                      <div class="echart-audience" data-echart-responsive="true" style="height:320px;"></div>
+                    <div class="tab-pane" id="refunds" role="tabpanel" aria-labelledby="refunds-tab">
+                      <div id="branchRefundsChart" data-echart-responsive="true" style="height:320px;"></div>
                     </div>
-                    <div class="tab-pane" id="duration" role="tabpanel" aria-labelledby="duration-tab">
-                      <div class="echart-audience" data-echart-responsive="true" style="height:320px;"></div>
+                    <div class="tab-pane" id="transactions" role="tabpanel" aria-labelledby="transactions-tab">
+                      <div id="branchTransactionsChart" data-echart-responsive="true" style="height:320px;"></div>
                     </div>
                   </div>
                 </div>
                 <div class="card-footer bg-body-tertiary py-2">
                   <div class="row flex-between-center g-0">
                     <div class="col-auto">
-                      <select class="form-select form-select-sm audience-select-menu">
+                      <select class="form-select form-select-sm" id="branchAnalyticsRange">
+                        <option value="today">Today</option>
                         <option value="week" selected="selected">Last 7 days</option>
-                        <option value="month">Last month</option>
+                        <option value="month">Last 30 days</option>
+                        <option value="year">Last 365 days</option>
                       </select>
                     </div>
-                    <div class="col-auto"><a class="btn btn-link btn-sm px-0 fw-medium" href="#!">Visitors overview<span class="fas fa-chevron-right ms-1 fs-11"></span></a></div>
+                    <div class="col-auto">
+                      <a class="btn btn-link btn-sm px-0 fw-medium" href="<?php echo BASE_URL; ?>/admin/pos/">
+                        <span class="fas fa-external-link-alt me-1"></span>View POS
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div class="card">
-                <div class="bg-holder bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-5.png);">
-                </div>
+              <!-- Accounts Receivable Widget -->
+              <div class="card position-relative overflow-hidden" id="arWidget">
+                <div class="bg-holder bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-2.png);"></div>
                 <!--/.bg-holder-->
-
-                <div class="card-body position-relative">
-                  <div class="row g-2 align-items-sm-center">
-                    <div class="col-auto"><img src="<?php echo BASE_URL; ?>/resources/assets/img/icons/connect-circle.png" alt="" height="55" /></div>
-                    <div class="col">
-                      <div class="row align-items-center">
-                        <div class="col col-lg-8">
-                          <h5 class="fs-9 mb-3 mb-sm-0 text-primary">Connect your domain to your website and get things done faster with Falcon</h5>
-                        </div>
-                        <div class="col-12 col-sm-auto ms-auto">
-                          <button class="btn btn-falcon-primary" type="button">Connect</button>
-                        </div>
+                <div class="card-header bg-body-tertiary py-2 d-flex align-items-center justify-content-between position-relative">
+                  <h6 class="mb-0 text-700">
+                    <span class="fas fa-file-invoice-dollar me-2 text-warning"></span>Accounts Receivable
+                  </h6>
+                  <a href="<?php echo BASE_URL; ?>/admin/charges/" class="btn btn-link btn-sm px-0 fw-medium">
+                    <span class="fas fa-external-link-alt me-1 fs-11"></span>View All
+                  </a>
+                </div>
+                <div class="card-body position-relative" id="arWidgetBody">
+                  <!-- Loading state -->
+                  <div class="text-center text-muted py-4" id="arLoading">
+                    <span class="fas fa-spinner fa-spin fa-lg mb-2 d-block"></span>
+                    <span class="fs-11">Loading...</span>
+                  </div>
+                  <!-- Content -->
+                  <div id="arContent" style="display:none;">
+                    <!-- Hero total -->
+                    <div class="d-flex align-items-start justify-content-between mb-3">
+                      <div>
+                        <p class="fs-11 text-600 mb-1">Total Outstanding Balance</p>
+                        <h3 class="fw-semibold text-warning mb-0" id="arTotalOutstanding">₱0.00</h3>
+                      </div>
+                      <div class="text-end">
+                        <span class="badge badge-subtle-warning fs-11 px-2" id="arCustomersBadge">0 customers</span>
                       </div>
                     </div>
+                    <!-- Collection progress (7-day) -->
+                    <div class="mb-3">
+                      <div class="d-flex justify-content-between fs-11 text-600 mb-1">
+                        <span><span class="fas fa-arrow-up text-danger me-1"></span>Charged <span class="fw-semibold text-danger" id="arCharged7d">₱0.00</span></span>
+                        <span><span class="fas fa-arrow-down text-success me-1"></span>Collected <span class="fw-semibold text-success" id="arCollected7d">₱0.00</span></span>
+                      </div>
+                      <div class="progress" style="height:6px;">
+                        <div class="progress-bar bg-success" id="arCollectionBar" role="progressbar" style="width:0%"></div>
+                      </div>
+                      <p class="fs-11 text-500 mt-1 mb-0">Collection rate this week: <span id="arCollectionRate" class="fw-semibold">0%</span></p>
+                    </div>
+                    <div id="arTopDebtorsSection" style="display:none;"><div id="arTopDebtors"></div></div>
+                  </div>
+                  <!-- Error state -->
+                  <div id="arError" style="display:none;" class="text-center text-danger py-3 fs-11">
+                    <span class="fas fa-exclamation-circle me-1"></span><span id="arErrorMsg">Failed to load</span>
                   </div>
                 </div>
               </div>
             </div>
             <div class="col-md-6 col-xxl-4">
               <div class="card h-100 bg-line-chart-gradient">
-                <div class="card-header bg-transparent d-flex justify-content-between align-items-start" data-bs-theme="light">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-start pt-3" data-bs-theme="light">
                   <div>
-                    <h5 class="text-white mb-2">Live Sales</h5>
-                    <div class="display-1 fw-normal text-white" id="liveSalesTotal">₱0.00</div>
+                    <h5 class="text-white fw-bold mb-0">Live Sales</h5>
                   </div>
-                  <select class="form-select form-select-sm" id="liveSalesFilter" style="width: auto; background-color: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white;">
-                    <option value="1" style="background-color: #212529; color: white;">Last Hour</option>
-                    <option value="6" style="background-color: #212529; color: white;">Last 6 Hours</option>
-                    <option value="24" style="background-color: #212529; color: white;">Last 24 Hours</option>
-                    <option value="today" style="background-color: #212529; color: white;">Today</option>
+                  <select class="form-select form-select-sm" id="liveSalesFilter" style="width:auto;min-width:90px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#fff;">
+                    <option value="today"   style="background:#1a68c0;color:#fff;">Today</option>
+                    <option value="1"       style="background:#1a68c0;color:#fff;">Last Hour</option>
+                    <option value="6"       style="background:#1a68c0;color:#fff;">Last 6 Hours</option>
+                    <option value="24"      style="background:#1a68c0;color:#fff;">Last 24 Hours</option>
                   </select>
                 </div>
-                <div class="card-body text-white fs-10 pb-0" data-bs-theme="light">
-                  <p class="border-bottom pb-2" style="border-color: rgba(255, 255, 255, 0.15) !important">Transactions: <span id="liveTransactionCount">0</span></p>
-                  <div id="liveSalesChart" style="height:150px"></div>
-                  <div class="list-group-flush mt-4">
-                    <div class="rounded-2" style="border:1px solid rgba(255, 255, 255, 0.15)">
-                      <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1 fw-semi-bold border-top-0" style="border-bottom:1px solid rgba(255, 255, 255, 0.15)">
-                        <p class="mb-0">Recent Transactions</p>
-                        <p class="mb-0">Amount</p>
-                      </div>
-                      <div id="liveTransactionsList" style="max-height: 200px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) rgba(255,255,255,0.1);">
-                        <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                          <p class="mb-0">Loading...</p>
-                          <p class="mb-0">-</p>
-                        </div>
-                      </div>
-                    </div>
+                <div class="card-body pb-0" data-bs-theme="light">
+                  <div class="display-4 fw-bold text-white mb-0" id="liveSalesTotal">₱0.00</div>
+                  <p class="text-white opacity-75 fs-10 mb-3">Sales / <span id="liveFilterLabel">today</span></p>
+                  <!-- Bar chart -->
+                  <div id="liveSalesChart" style="height:130px;"></div>
+                  <!-- Transactions subtitle -->
+                  <p class="text-white opacity-75 fs-10 mt-2 mb-2" style="border-top:1px solid rgba(255,255,255,0.15);padding-top:8px;">
+                    Recent Transactions &nbsp;<span class="badge" style="background:rgba(255,255,255,0.2);font-weight:500;" id="liveTransactionCount">0</span>
+                  </p>
+                  <!-- Transactions list -->
+                  <div id="liveTransactionsList">
+                    <div class="text-white opacity-50 fs-11 py-1">Loading...</div>
                   </div>
                 </div>
-                <div class="card-footer text-end bg-transparent" data-bs-theme="light"><a class="text-white" href="/admin/pos/">View POS<span class="fa fa-chevron-right ms-1 fs-10"></span></a></div>
+                <div class="card-footer bg-transparent text-end pt-0" data-bs-theme="light">
+                  <a class="text-white fs-10" href="<?php echo BASE_URL; ?>/admin/pos/">View POS <span class="fa fa-chevron-right ms-1"></span></a>
+                </div>
               </div>
             </div>
             <div class="col-md-6 col-xxl-4">
@@ -776,7 +828,44 @@ require_once __DIR__ . '/../_guard.php';
     <!--    End of Main Content-->
     <!-- ===============================================-->
     <?php include __DIR__ . '/../includes/footer.php'; ?>
+
+    <!-- Suppress old Falcon audience chart init only (others are still valid) -->
+    <script>
+        // Only suppress .echart-audience which no longer has a valid element
+        // DO NOT touch echart-session-by-browser, echart-session-by-country, echart-active-users-report
+        window.document.querySelectorAll('.echart-audience').forEach(el => {
+            if (el) el.classList.remove('echart-audience');
+        });
+        window._originalUtilsGetData = null;
+    </script>
+
     <?php include __DIR__ . '/../includes/scripts.php'; ?>
+
+    <!-- Suppress theme.js chart initialization errors -->
+    <script>
+        // Patch utils.getData after theme.js loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.utils && window.utils.getData) {
+                window._originalUtilsGetData = window.utils.getData;
+                window.utils.getData = function(el, data) {
+                    if (!el || !el.dataset) {
+                        console.warn('utils.getData: Invalid element', el);
+                        return {};
+                    }
+                    return window._originalUtilsGetData.call(this, el, data);
+                };
+            }
+
+            // Suppress map/regions errors from old charts
+            window.addEventListener('error', function(e) {
+                if (e.message && (e.message.includes('regions') || e.message.includes('dataset') || e.message.includes('echart'))) {
+                    console.warn('Suppressed chart error:', e.message);
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script>
     // Live Sales Data
@@ -787,49 +876,47 @@ require_once __DIR__ . '/../_guard.php';
     function initLiveSalesChart() {
         const chartDom = document.getElementById('liveSalesChart');
         if (!chartDom) return;
-        
-        liveSalesChart = echarts.init(chartDom);
-        
-        const option = {
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: { type: 'shadow' }
-            },
-            grid: {
-                left: '5%',
-                right: '5%',
-                bottom: '10%',
-                top: '10%',
-                containLabel: true
-            },
+
+        liveSalesChart = echarts.init(chartDom, null, { renderer: 'canvas' });
+
+        liveSalesChart.setOption({
+            grid: { left: 0, right: 0, top: 4, bottom: 0 },
             xAxis: {
-                type: 'category',
-                data: [],
-                axisLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10 },
-                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }
+                type: 'category', data: [],
+                axisLine: { show: false }, axisTick: { show: false },
+                axisLabel: { show: false }, splitLine: { show: false }
             },
             yAxis: {
                 type: 'value',
-                axisLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10 },
-                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } },
-                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } }
+                axisLine: { show: false }, axisTick: { show: false },
+                axisLabel: { show: false }, splitLine: { show: false }
+            },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'none' },
+                backgroundColor: 'rgba(0,31,91,0.9)',
+                borderWidth: 0,
+                padding: [6, 10],
+                textStyle: { color: '#fff', fontSize: 11 },
+                formatter: function(params) {
+                    const p = params[0];
+                    return `<span style="opacity:.7">${p.axisValue}</span><br/><b>₱${parseFloat(p.value||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</b>`;
+                }
             },
             series: [{
+                type: 'bar',
                 data: [],
-                type: 'line',
-                smooth: true,
-                areaStyle: {
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(255,255,255,0.3)' },
-                        { offset: 1, color: 'rgba(255,255,255,0.05)' }
-                    ])
+                barWidth: '100%',
+                barCategoryGap: '5%',
+                itemStyle: {
+                    color: 'rgba(255,255,255,0.35)',
+                    borderRadius: [1, 1, 0, 0]
                 },
-                lineStyle: { color: '#fff', width: 2 },
-                itemStyle: { color: '#fff' }
+                emphasis: {
+                    itemStyle: { color: 'rgba(255,255,255,0.7)' }
+                }
             }]
-        };
-        
-        liveSalesChart.setOption(option);
+        });
     }
 
     function formatCurrency(amount) {
@@ -841,63 +928,51 @@ require_once __DIR__ . '/../_guard.php';
         return date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
     }
 
+    const filterLabels = { 'today': 'today', '1': 'last hour', '6': 'last 6 hours', '24': 'last 24 hours' };
+
     function fetchLiveSales() {
         const filter = document.getElementById('liveSalesFilter').value;
-        let apiUrl = LIVE_SALES_API;
-        
-        if (filter === 'today') {
-            apiUrl += '?hours=24&today=true';
-        } else {
-            apiUrl += '?hours=' + filter;
-        }
-        
+
+        // Update subtitle label
+        const labelEl = document.getElementById('liveFilterLabel');
+        if (labelEl) labelEl.textContent = filterLabels[filter] || filter;
+
+        const apiUrl = LIVE_SALES_API + (filter === 'today' ? '?hours=24&today=true' : '?hours=' + filter);
+
         fetch(apiUrl)
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
-                if (data.success) {
-                    // Update total sales
-                    document.getElementById('liveSalesTotal').textContent = formatCurrency(data.data.total_sales);
-                    
-                    // Update transaction count
-                    document.getElementById('liveTransactionCount').textContent = data.data.transaction_count;
-                    
-                    // Update chart
-                    if (liveSalesChart) {
-                        const times = data.data.sales_by_minute.map(item => item.time);
-                        const amounts = data.data.sales_by_minute.map(item => item.amount);
-                        
-                        liveSalesChart.setOption({
-                            xAxis: { data: times },
-                            series: [{ data: amounts }]
-                        });
-                    }
-                    
-                    // Update recent transactions list
-                    const listContainer = document.getElementById('liveTransactionsList');
-                    if (data.data.recent_transactions && data.data.recent_transactions.length > 0) {
-                        let html = '';
-                        data.data.recent_transactions.slice(0, 5).forEach(txn => {
-                            html += `
-                                <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                                    <p class="mb-0">${txn.order_code} • ${txn.branch_name || 'Unknown'}</p>
-                                    <p class="mb-0">${formatCurrency(txn.grand_total)}</p>
-                                </div>
-                            `;
-                        });
-                        listContainer.innerHTML = html;
-                    } else {
-                        listContainer.innerHTML = `
-                            <div class="px-3 bg-transparent text-white d-flex justify-content-between px-0 py-1" style="border-bottom:1px solid rgba(255, 255, 255, 0.05)">
-                                <p class="mb-0">No transactions yet</p>
-                                <p class="mb-0">-</p>
+                if (!data.success) return;
+                const d = data.data;
+
+                document.getElementById('liveSalesTotal').textContent      = formatCurrency(d.total_sales);
+                document.getElementById('liveTransactionCount').textContent = d.transaction_count;
+
+                // Update bar chart — API always returns 60 minute slots
+                if (liveSalesChart) {
+                    const rawPoints = d.sales_by_minute || [];
+                    liveSalesChart.setOption({
+                        xAxis:  { data: rawPoints.map(p => p.time) },
+                        series: [{ data: rawPoints.map(p => parseFloat(p.amount) || 0) }]
+                    });
+                }
+
+                // Recent transactions list — clean rows matching template
+                const list = document.getElementById('liveTransactionsList');
+                if (d.recent_transactions && d.recent_transactions.length > 0) {
+                    list.innerHTML = d.recent_transactions.slice(0, 5).map((txn, idx) => `
+                        <div class="d-flex justify-content-between align-items-center py-1 ${idx < 4 ? 'border-bottom' : ''}" style="border-color:rgba(255,255,255,0.1)!important">
+                            <div class="text-truncate me-2" style="max-width:68%;">
+                                <span class="fs-11 text-white">${txn.order_code}</span>
+                                <span class="fs-11 opacity-50"> &bull; ${txn.branch_name || ''}</span>
                             </div>
-                        `;
-                    }
+                            <span class="fs-11 text-white fw-semibold">${formatCurrency(txn.grand_total)}</span>
+                        </div>`).join('');
+                } else {
+                    list.innerHTML = `<p class="text-white opacity-50 fs-11 mb-0 py-1">No transactions yet</p>`;
                 }
             })
-            .catch(error => {
-                console.error('Error fetching live sales:', error);
-            });
+            .catch(e => console.error('Live sales error:', e));
     }
 
     function initGoalCharts() {
@@ -1058,6 +1133,428 @@ require_once __DIR__ . '/../_guard.php';
             clearInterval(liveSalesInterval);
         }
     });
+
+    // ============================================
+    // BRANCH SALES ANALYTICS (NEW)
+    // ============================================
+    let branchAnalyticsData = null;
+    let branchCharts = {};
+
+    // Format currency
+    function formatPeso(amount) {
+        return '₱' + parseFloat(amount || 0).toLocaleString('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    // Format number
+    function formatNumber(num) {
+        return parseInt(num || 0).toLocaleString('en-PH');
+    }
+
+    // Update trend indicators
+    function updateTrend(elementId, iconId, value) {
+        const el = document.getElementById(elementId);
+        const icon = document.getElementById(iconId);
+        if (!el || !icon) return;
+
+        const numValue = parseFloat(value) || 0;
+        el.textContent = (numValue >= 0 ? '+' : '') + numValue.toFixed(1) + '%';
+
+        if (numValue >= 0) {
+            el.className = 'fs-11 mb-0 ms-2 text-success';
+            icon.className = 'fas fa-caret-up text-success';
+        } else {
+            el.className = 'fs-11 mb-0 ms-2 text-danger';
+            icon.className = 'fas fa-caret-down text-danger';
+        }
+    }
+
+    // Fetch branch analytics data
+    async function fetchBranchAnalytics() {
+        const range = document.getElementById('branchAnalyticsRange')?.value || 'week';
+        const branchSelector = document.getElementById('branchSelector');
+        // Always send branch_id: empty string = All Branches, value = specific branch
+        const branchId = branchSelector ? (branchSelector.value || '') : null;
+
+        try {
+            // Only append branch_id if selector exists (null = omit param = default first branch)
+            const branchParam = branchSelector !== null ? `&branch_id=${branchId}` : '';
+            const url = `${window.BASE_URL}/api/analytics/branch-sales?range=${range}${branchParam}`;
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.success) {
+                branchAnalyticsData = result.data;
+                updateBranchAnalyticsUI();
+                renderBranchCharts();
+                populateBranchSelector(result.data.accessible_branches);
+
+                // Clear any error message
+                document.getElementById('branchNameText').textContent = result.data.branch_name;
+            } else {
+                console.error('Branch analytics error:', result.error);
+                // Show error in UI
+                document.getElementById('branchNameText').innerHTML =
+                    `<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${result.error || 'Failed to load'}</span>`;
+            }
+        } catch (error) {
+            console.error('Failed to fetch branch analytics:', error);
+            // Show network error in UI
+            document.getElementById('branchNameText').innerHTML =
+                '<span class="text-warning"><i class="fas fa-wifi me-1"></i>Connection error - retrying...</span>';
+
+            // Retry after 5 seconds
+            setTimeout(fetchBranchAnalytics, 5000);
+        }
+    }
+
+    // Populate branch selector
+    function populateBranchSelector(branches) {
+        const selector = document.getElementById('branchSelector');
+        if (!selector) return;
+
+        // Only populate once (avoid resetting on every fetch)
+        if (selector.dataset.populated === 'true') return;
+
+        // Save current selection
+        const currentValue = selector.value;
+
+        // Build options: All Branches first (only for multi-branch users)
+        let html = '';
+        if (branches.length > 1) {
+            html += `<option value="">All Branches</option>`;
+        }
+        html += branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+        selector.innerHTML = html;
+
+        // Restore selection if still valid
+        if (currentValue && branches.find(b => b.id === currentValue)) {
+            selector.value = currentValue;
+        }
+
+        selector.dataset.populated = 'true';
+    }
+
+    // Update UI with analytics data
+    function updateBranchAnalyticsUI() {
+        if (!branchAnalyticsData) return;
+
+        const { summary, branch_name } = branchAnalyticsData;
+
+        // Update branch name
+        document.getElementById('branchNameText').textContent = branch_name;
+
+        // Update tab values
+        document.getElementById('tabTotalSales').textContent = formatPeso(summary.total_sales);
+        document.getElementById('tabNetSales').textContent = formatPeso(summary.total_net);
+        document.getElementById('tabRefunds').textContent = formatPeso(summary.total_refunds);
+        document.getElementById('tabTransactions').textContent = formatNumber(summary.total_transactions);
+
+        // Update trends
+        updateTrend('tabSalesTrend', 'tabSalesTrendIcon', summary.period_change);
+        updateTrend('tabNetTrend', 'tabNetTrendIcon', summary.period_change);
+        updateTrend('tabRefundTrend', 'tabRefundTrendIcon', -summary.period_change); // Inverse for refunds
+        updateTrend('tabTxnTrend', 'tabTxnTrendIcon', summary.sales_trend);
+    }
+
+    // Initialize branch charts
+    function initBranchCharts() {
+        const chartIds = ['branchSalesChart', 'branchNetChart', 'branchRefundsChart', 'branchTransactionsChart'];
+
+        chartIds.forEach(id => {
+            try {
+                const dom = document.getElementById(id);
+                if (dom && typeof echarts !== 'undefined') {
+                    branchCharts[id] = echarts.init(dom);
+                }
+            } catch (e) {
+                console.warn(`Failed to init chart ${id}:`, e);
+            }
+        });
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            Object.values(branchCharts).forEach(chart => {
+                if (chart) chart.resize();
+            });
+        });
+    }
+
+    // Render all branch charts
+    function renderBranchCharts() {
+        if (!branchAnalyticsData || !branchAnalyticsData.chart_data) {
+            console.warn('No chart data available');
+            return;
+        }
+
+        const data = branchAnalyticsData.chart_data;
+        const dates = data.map(d => d.display_date);
+
+        try { renderSalesChart(dates, data); } catch (e) { console.error('Sales chart error:', e); }
+        try { renderNetChart(dates, data); } catch (e) { console.error('Net chart error:', e); }
+        try { renderRefundsChart(dates, data); } catch (e) { console.error('Refunds chart error:', e); }
+        try { renderTransactionsChart(dates, data); } catch (e) { console.error('Transactions chart error:', e); }
+    }
+
+    // Shared base chart config matching Falcon template style
+    function baseChartOption(dates) {
+        return {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'none' },
+                backgroundColor: 'rgba(255,255,255,0.96)',
+                borderColor: '#e2e8f0',
+                borderWidth: 1,
+                padding: [8, 12],
+                textStyle: { color: '#344050', fontSize: 12 },
+                extraCssText: 'box-shadow:0 4px 14px rgba(0,0,0,.12);border-radius:6px;'
+            },
+            grid: { left: 8, right: 8, bottom: 24, top: 8, containLabel: true },
+            xAxis: {
+                type: 'category',
+                boundaryGap: false,
+                data: dates,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { color: '#9da9bb', fontSize: 11, margin: 8 },
+                splitLine: { show: false }
+            },
+            yAxis: {
+                type: 'value',
+                position: 'right',
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { color: '#9da9bb', fontSize: 11, margin: 8 },
+                splitLine: { lineStyle: { color: '#edf2f9', type: 'solid' } }
+            }
+        };
+    }
+
+    function pesoFormatter(value) {
+        if (value >= 1000000) return '₱' + (value / 1000000).toFixed(1) + 'M';
+        if (value >= 1000) return '₱' + (value / 1000).toFixed(0) + 'k';
+        return '₱' + value;
+    }
+
+    function pesoFull(value) {
+        return '₱' + parseFloat(value).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    }
+
+    function hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1,3), 16);
+        const g = parseInt(hex.slice(3,5), 16);
+        const b = parseInt(hex.slice(5,7), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    function lineSeries(name, values, color, dotted) {
+        return {
+            name,
+            type: 'line',
+            smooth: false,
+            symbol: 'circle',
+            symbolSize: 4,
+            showSymbol: false,
+            data: values,
+            lineStyle: { color, width: 2, type: dotted ? 'dotted' : 'solid' },
+            itemStyle: { color, borderWidth: 2, borderColor: '#fff' },
+            emphasis: { scale: true },
+            areaStyle: dotted ? undefined : {
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                        { offset: 0, color: hexToRgba(color, 0.18) },
+                        { offset: 1, color: hexToRgba(color, 0) }
+                    ]
+                }
+            }
+        };
+    }
+
+    // Sales Chart — primary line + dotted refunds line
+    function renderSalesChart(dates, data) {
+        const chart = branchCharts['branchSalesChart'];
+        if (!chart || typeof echarts === 'undefined') return;
+
+        const opt = baseChartOption(dates);
+        opt.yAxis.axisLabel.formatter = pesoFormatter;
+        opt.tooltip.formatter = function(params) {
+            let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].axisValue}</div>`;
+            params.forEach(p => {
+                html += `<div style="display:flex;justify-content:space-between;gap:16px;margin:2px 0">
+                    <span style="color:${p.color}">${p.seriesName}</span>
+                    <span style="font-weight:600">${pesoFull(p.value)}</span>
+                </div>`;
+            });
+            return html;
+        };
+        opt.legend = {
+            data: ['Total Sales', 'Refunds'],
+            bottom: 0,
+            itemWidth: 16,
+            itemHeight: 2,
+            textStyle: { color: '#9da9bb', fontSize: 11 }
+        };
+        opt.grid.bottom = 36;
+        opt.series = [
+            lineSeries('Total Sales', data.map(d => d.sales), '#27bcfd', false),
+            lineSeries('Refunds',     data.map(d => d.refunds), '#79e8f6', true)
+        ];
+
+        chart.setOption(opt, true);
+    }
+
+    // Net Sales Chart
+    function renderNetChart(dates, data) {
+        const chart = branchCharts['branchNetChart'];
+        if (!chart || typeof echarts === 'undefined') return;
+
+        const opt = baseChartOption(dates);
+        opt.yAxis.axisLabel.formatter = pesoFormatter;
+        opt.tooltip.formatter = function(params) {
+            const p = params[0];
+            return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
+                    <div style="display:flex;justify-content:space-between;gap:16px">
+                        <span style="color:${p.color}">Net Sales</span>
+                        <span style="font-weight:600">${pesoFull(p.value)}</span>
+                    </div>`;
+        };
+        opt.series = [ lineSeries('Net Sales', data.map(d => d.net), '#27bcfd', false) ];
+
+        chart.setOption(opt, true);
+    }
+
+    // Refunds Chart
+    function renderRefundsChart(dates, data) {
+        const chart = branchCharts['branchRefundsChart'];
+        if (!chart || typeof echarts === 'undefined') return;
+
+        const opt = baseChartOption(dates);
+        opt.yAxis.axisLabel.formatter = pesoFormatter;
+        opt.tooltip.formatter = function(params) {
+            const p = params[0];
+            return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
+                    <div style="display:flex;justify-content:space-between;gap:16px">
+                        <span style="color:${p.color}">Refunds</span>
+                        <span style="font-weight:600">${pesoFull(p.value)}</span>
+                    </div>`;
+        };
+        opt.series = [ lineSeries('Refunds', data.map(d => d.refunds), '#e63757', false) ];
+
+        chart.setOption(opt, true);
+    }
+
+    // Transactions Chart
+    function renderTransactionsChart(dates, data) {
+        const chart = branchCharts['branchTransactionsChart'];
+        if (!chart || typeof echarts === 'undefined') return;
+
+        const opt = baseChartOption(dates);
+        opt.yAxis.axisLabel.formatter = v => v;
+        opt.tooltip.formatter = function(params) {
+            const p = params[0];
+            return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
+                    <div style="display:flex;justify-content:space-between;gap:16px">
+                        <span style="color:${p.color}">Transactions</span>
+                        <span style="font-weight:600">${p.value}</span>
+                    </div>`;
+        };
+        opt.series = [ lineSeries('Transactions', data.map(d => d.transactions), '#27bcfd', false) ];
+
+        chart.setOption(opt, true);
+    }
+
+    // Initialize branch analytics
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize branch charts after a short delay to ensure DOM is ready
+        setTimeout(() => {
+            try {
+                initBranchCharts();
+                fetchBranchAnalytics();
+            } catch (e) {
+                console.error('Branch analytics init error:', e);
+            }
+        }, 500);
+
+        // Event listeners
+        const rangeSelector = document.getElementById('branchAnalyticsRange');
+        const branchSelector = document.getElementById('branchSelector');
+
+        if (rangeSelector) {
+            rangeSelector.addEventListener('change', function() {
+                try { fetchBranchAnalytics(); } catch(e) { console.error(e); }
+            });
+        }
+
+        if (branchSelector) {
+            branchSelector.addEventListener('change', function() {
+                try { fetchBranchAnalytics(); } catch(e) { console.error(e); }
+            });
+        }
+
+        // Tab change event - resize charts
+        document.querySelectorAll('#audience-chart-tab .nav-link').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', function() {
+                setTimeout(() => {
+                    Object.values(branchCharts).forEach(chart => {
+                        if (chart) chart.resize();
+                    });
+                }, 100);
+            });
+        });
+
+        // Accounts Receivable widget
+        fetchAccountsReceivable();
+        setInterval(fetchAccountsReceivable, 60000);
+    });
+
+    // ─── Accounts Receivable Widget ──────────────────────────────────────────────
+
+    function formatPHP(val) {
+        return '₱' + parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    async function fetchAccountsReceivable() {
+        try {
+            const res    = await fetch(`${window.BASE_URL}/api/analytics/receivables`);
+            const result = await res.json();
+
+            document.getElementById('arLoading').style.display = 'none';
+
+            if (!result.success) {
+                document.getElementById('arError').style.display  = 'block';
+                document.getElementById('arErrorMsg').textContent = result.error || 'Failed to load';
+                return;
+            }
+
+            const s = result.data.summary;
+
+            // Hero
+            document.getElementById('arTotalOutstanding').textContent = formatPHP(s.total_outstanding);
+            document.getElementById('arCustomersBadge').textContent   = s.total_customers + ' customer' + (s.total_customers !== 1 ? 's' : '');
+
+            // 7-day activity
+            document.getElementById('arCharged7d').textContent   = formatPHP(s.charged_7d);
+            document.getElementById('arCollected7d').textContent = formatPHP(s.collected_7d);
+
+            // Collection rate progress bar
+            const charged   = parseFloat(s.charged_7d)   || 0;
+            const collected = parseFloat(s.collected_7d) || 0;
+            const rate = charged > 0 ? Math.min(100, (collected / charged) * 100) : (collected > 0 ? 100 : 0);
+            document.getElementById('arCollectionBar').style.width  = rate.toFixed(1) + '%';
+            document.getElementById('arCollectionRate').textContent = rate.toFixed(1) + '%';
+
+            document.getElementById('arContent').style.display = 'block';
+
+        } catch (e) {
+            document.getElementById('arLoading').style.display = 'none';
+            document.getElementById('arError').style.display   = 'block';
+            document.getElementById('arErrorMsg').textContent  = 'Connection error';
+            console.error('AR widget error:', e);
+        }
+    }
     </script>
   </body>
 

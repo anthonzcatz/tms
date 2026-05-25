@@ -40,17 +40,17 @@ unset($_SESSION['login_username']);
                       <!--/.bg-holder-->
 
                       <div class="z-1 position-relative">
-                        <div class="d-flex align-items-center justify-content-center mb-2">
-                          <img class="me-2" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" />
+                        <div class="d-flex flex-column align-items-center justify-content-center mb-2">
+                          <img class="mb-2" style="max-height: 65px; width: auto; height: auto; object-fit: contain;" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" />
                           <a class="link-light font-sans-serif fs-5 d-inline-block fw-bolder" href="<?php echo BASE_URL; ?>/admin"><?php echo $companyAbbreviation ?: $systemName; ?></a>
                         </div>
                         <?php if ($companyName): ?>
                         <div class="text-center fs-7 text-white opacity-75 mb-4"><?php echo $companyName; ?></div>
                         <?php endif; ?>
-                        <p class="opacity-75 text-white"><?php echo $companyTagline; ?></p>
+                        <p class="opacity-75 text-white d-none d-md-block"><?php echo $companyTagline; ?></p>
                       </div>
                     </div>
-                    <div class="mt-3 mb-4 mt-md-4 mb-md-5" data-bs-theme="light">
+                    <div class="mt-3 mb-4 mt-md-4 mb-md-5 d-none d-md-block" data-bs-theme="light">
                       <p class="text-white">Don't have an account?<br><a class="text-decoration-underline link-light" href="<?php echo REGISTER_URL; ?>">Get started!</a></p>
                       <p class="mb-0 mt-4 mt-md-5 fs-10 fw-semi-bold text-white opacity-75">Read our <a class="text-decoration-underline text-white" href="#!">terms</a> and <a class="text-decoration-underline text-white" href="#!">conditions </a></p>
                     </div>

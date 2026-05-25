@@ -577,9 +577,9 @@ function openLogoCropper() {
         logoCropCanvas = document.getElementById('logoCropCanvas');
         logoPreviewCanvas = document.getElementById('logoPreviewCanvas');
         
-        // Use high-res internal canvas (500x300) for 5:3 ratio
-        logoCanvasWidth = 500;
-        logoCanvasHeight = 300;
+        // Use high-res internal canvas (2000x1200) for 5:3 ratio - supports 4K displays
+        logoCanvasWidth = 2000;
+        logoCanvasHeight = 1200;
         logoCropCanvas.width = logoCanvasWidth;
         logoCropCanvas.height = logoCanvasHeight;
         logoPreviewCanvas.width = logoCanvasWidth;

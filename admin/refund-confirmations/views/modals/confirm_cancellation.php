@@ -25,9 +25,33 @@
                     <small class="text-muted d-block">Transaction Code</small>
                     <strong id="modalTransactionCode">-</strong>
                   </div>
+                  <div class="col-md-6" id="modalTicketNumberContainer" style="display: none;">
+                    <small class="text-muted d-block">Ticket Number</small>
+                    <strong id="modalTicketNumber" class="text-info">-</strong>
+                  </div>
                   <div class="col-md-6">
                     <small class="text-muted d-block">Refund Amount</small>
                     <strong id="modalRefundAmount" class="text-success">₱0.00</strong>
+                  </div>
+                  <div class="col-12" id="modalRefundBreakdown" style="display: none;">
+                    <!-- Refund breakdown will be populated by JS -->
+                  </div>
+                  <!-- Charge Reversal Warning -->
+                  <div class="col-12" id="modalChargeReversalWarning" style="display: none;">
+                    <div class="alert alert-warning border-warning border-2">
+                      <div class="d-flex align-items-start">
+                        <span class="fas fa-exclamation-triangle text-warning fs-4 me-2"></span>
+                        <div>
+                          <strong class="text-warning">Charge Reversal Notice</strong>
+                          <p class="mb-1 small">
+                            Approving this cancellation will reverse <strong id="modalChargeReversalAmount" class="text-warning">₱0.00</strong> from the passenger's outstanding charge/debt balance.
+                          </p>
+                          <p class="mb-0 small text-muted">
+                            This amount will be deducted from their debt in <a href="<?php echo BASE_URL; ?>/admin/charges/" target="_blank">Accounts Receivable</a>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="col-md-6">
                     <small class="text-muted d-block">Cancellation Type</small>
@@ -75,9 +99,10 @@
                 <strong>What happens on Approval:</strong>
                 <ul class="mb-0 mt-1 ps-3 small">
                   <li>Ticket status will change to <strong>Cancelled</strong></li>
-                  <li>Refund amount <span id="modalRefundAmountInline" class="fw-bold text-success">₱0.00</span> will be <strong>restored to the provider wallet</strong></li>
+                  <li>Cash portion (if any) will be <strong>given to passenger from cashier cash drawer</strong></li>
+                  <li>Charge/debt portion (if any) will be <strong>reversed from passenger's outstanding balance</strong></li>
+                  <li>Total refund amount <span id="modalRefundAmountInline" class="fw-bold text-success">₱0.00</span> will be <strong>restored to the provider wallet</strong></li>
                   <li>A wallet transaction record will be created for audit</li>
-                  <li>Cashier session will track the refund</li>
                 </ul>
               </div>
             </div>

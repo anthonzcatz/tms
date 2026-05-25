@@ -64,8 +64,8 @@ if (!$tokenValid) {
                       <!--/.bg-holder-->
 
                       <div class="z-1 position-relative">
-                        <div class="d-flex align-items-center justify-content-center mb-2">
-                          <img class="me-2" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" />
+                        <div class="d-flex flex-column align-items-center justify-content-center mb-2">
+                          <img class="mb-2" style="max-height: 65px; width: auto; height: auto; object-fit: contain;" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" />
                           <a class="link-light font-sans-serif fs-5 d-inline-block fw-bolder" href="<?php echo BASE_URL; ?>/admin"><?php echo $companyAbbreviation ?: $systemName; ?></a>
                         </div>
                         <?php if ($companyName): ?>

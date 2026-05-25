@@ -115,16 +115,18 @@ async function viewHistory(passengerId, name) {
         const result = await res.json();
         if (!result.success) { document.getElementById('chargeHistoryContent').innerHTML = '<p class="text-danger">Failed to load history.</p>'; return; }
 
-        const { charges, payments } = result.data;
+        const { charges, payments, reversals } = result.data;
         let html = '';
 
-        if (charges.length === 0 && payments.length === 0) {
+        const hasReversals = reversals && reversals.length > 0;
+        if (charges.length === 0 && payments.length === 0 && !hasReversals) {
             html = '<p class="text-muted text-center py-3">No history found.</p>';
         } else {
             // Merge and sort by date desc
             const entries = [
                 ...charges.map(c => ({ ...c, _type: 'charge', _date: c.created_at })),
-                ...payments.map(p => ({ ...p, _type: 'payment', _date: p.created_at }))
+                ...payments.map(p => ({ ...p, _type: 'payment', _date: p.created_at })),
+                ...(reversals || []).map(r => ({ ...r, _type: 'reversal', _date: r.created_at }))
             ].sort((a, b) => new Date(b._date) - new Date(a._date));
 
             html = '<div class="list-unstyled mb-0">';
@@ -132,31 +134,50 @@ async function viewHistory(passengerId, name) {
                 if (e._type === 'charge') {
                     const itemLabel = e.item_label || e.service_type_name || (e.source_type === 'TICKET_TRANSACTION' ? 'Ticket' : 'Service');
                     const dateObj = new Date(e._date);
-                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + 
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' +
                                           dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                     const branchInfo = e.branch_name ? `<div class="text-muted small"><span class="fas fa-building me-1"></span>${e.branch_name}</div>` : '';
                     const cashierInfo = e.cashier_name ? `<div class="text-muted small"><span class="fas fa-user me-1"></span>${e.cashier_name}</div>` : '';
+                    const ticketInfo = e.ticket_number ? `<div class="text-muted small"><span class="fas fa-ticket-alt me-1"></span>Ticket #: ${e.ticket_number}</div>` : '';
                     html += `<div class="history-entry charge mb-2">
                         <div class="d-flex justify-content-between">
                           <strong class="text-danger"><span class="fas fa-minus-circle me-1"></span>${e.method_name || 'CHARGE'}</strong>
                           <strong class="text-danger">+₱${fmt(e.amount)}</strong>
                         </div>
                         <div class="text-muted small">${itemLabel} • ${e.txn_code ?? ''}</div>
+                        ${ticketInfo}
                         ${branchInfo}
                         ${cashierInfo}
                         <div class="text-muted" style="font-size:.75rem;">${formattedDate}</div>
                     </div>`;
-                } else {
+                } else if (e._type === 'reversal') {
                     const dateObj = new Date(e._date);
-                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + 
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' +
                                           dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                    
+                    const cashierInfo = e.cashier_name ? `<div class="text-muted small"><span class="fas fa-user-check me-1"></span>Approved by: ${e.cashier_name}</div>` : '';
+                    const ticketInfo = e.ticket_number ? `<div class="text-muted small"><span class="fas fa-ticket-alt me-1"></span>Ticket #: ${e.ticket_number}</div>` : '';
+                    html += `<div class="history-entry reversal mb-2">
+                        <div class="d-flex justify-content-between">
+                          <strong class="text-info"><span class="fas fa-undo-alt me-1"></span>CHARGE REVERSAL</strong>
+                          <strong class="text-info">-₱${fmt(e.amount)}</strong>
+                        </div>
+                        <div class="text-muted small">${e.item_label} • ${e.txn_code ?? ''}</div>
+                        ${ticketInfo}
+                        <div class="text-warning small"><span class="fas fa-info-circle me-1"></span>Reversed from outstanding balance</div>
+                        ${cashierInfo}
+                        <div class="text-muted" style="font-size:.75rem;">${formattedDate}</div>
+                    </div>`;
+                } else if (e._type === 'payment') {
+                    const dateObj = new Date(e._date);
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' +
+                                          dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
                     // Check confirmation status
                     const confStatus = e.confirmation_status || 'NOT_REQUIRED';
                     let statusBadge = '';
                     let balanceRestoredMsg = '';
                     let remarksMsg = e.notes ? `<div class="text-muted small"><span class="fas fa-sticky-note me-1"></span>${e.notes}</div>` : '';
-                    
+
                     if (confStatus === 'PENDING') {
                         statusBadge = '<span class="badge bg-soft-warning text-warning fs-10">PENDING</span>';
                     } else if (confStatus === 'CONFIRMED') {
@@ -171,9 +192,9 @@ async function viewHistory(passengerId, name) {
                             remarksMsg += `<div class="text-muted small"><span class="fas fa-user-times me-1"></span>Rejected by ${e.confirmed_by}</div>`;
                         }
                     }
-                    
+
                     const statusHtml = confStatus !== 'NOT_REQUIRED' ? `<div class="mb-1">${statusBadge}</div>` : '';
-                    
+
                     html += `<div class="history-entry payment mb-2">
                         <div class="d-flex justify-content-between align-items-center">
                           <strong class="text-success"><span class="fas fa-plus-circle me-1"></span>PAYMENT</strong>

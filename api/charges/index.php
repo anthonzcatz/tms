@@ -44,6 +44,7 @@ if ($method === 'GET') {
         "SELECT tp.payment_id, tp.amount, tp.created_at, tp.source_type,
                 pm.method_name, pm.method_type,
                 COALESCE(st.transaction_code, tt.transaction_code) AS txn_code,
+                tt.ticket_number,
                 stype.name AS service_type_name,
                 CASE WHEN tp.source_type = 'TICKET_TRANSACTION' THEN 'Ticket' ELSE stype.name END AS item_label,
                 bb.branch_name,
@@ -72,7 +73,22 @@ if ($method === 'GET') {
         ['pid' => $passengerId]
     );
 
-    echo json_encode(['success' => true, 'data' => ['charges' => $charges, 'payments' => $payments]]);
+    // Cancellation-based charge reversals (show as negative charges / adjustments)
+    $reversals = Database::fetchAll(
+        "SELECT tc.cancellation_id, tc.charge_amount AS amount, tc.approved_at AS created_at,
+                tc.transaction_code AS txn_code, tt.ticket_number, 'Ticket Cancellation' AS item_label,
+                CONCAT(e.first_name, IF(e.middle_name IS NOT NULL AND e.middle_name != '', CONCAT(' ', LEFT(e.middle_name, 1), '.'), ''), ' ', e.last_name) AS cashier_name,
+                'CHARGE_REVERSAL' AS entry_type
+         FROM ticket_cancellations tc
+         LEFT JOIN ticket_transactions tt ON tc.transaction_id = tt.transaction_id
+         LEFT JOIN user_accounts ua ON tc.approved_by = ua.user_id
+         LEFT JOIN employees e ON ua.emp_id = e.emp_id
+         WHERE tc.passenger_id = :pid AND tc.charge_amount > 0 AND tc.status = 'approved'
+         ORDER BY tc.approved_at DESC",
+        ['pid' => $passengerId]
+    );
+
+    echo json_encode(['success' => true, 'data' => ['charges' => $charges, 'payments' => $payments, 'reversals' => $reversals]]);
     return;
 }
 

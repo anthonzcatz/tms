@@ -11,7 +11,7 @@ if ($navbarPosition === 'combo') {
 <nav class="navbar navbar-light navbar-glass navbar-top navbar-expand-lg"<?php echo $navbarDataAttrs; ?>>
   <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="<?php echo $navbarPosition === 'combo' ? '#navbarVerticalCollapse' : '#navbarStandard'; ?>" aria-controls="<?php echo $navbarPosition === 'combo' ? 'navbarVerticalCollapse' : 'navbarStandard'; ?>" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
   <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">
-    <div class="d-flex align-items-center"><img class="me-2" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" /><span class="font-sans-serif text-primary"><?php echo $systemName; ?></span></div>
+    <div class="d-flex align-items-center"><img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" /><span class="font-sans-serif text-primary"><?php echo $systemName; ?></span></div>
   </a>
   <div class="collapse navbar-collapse scrollbar" id="navbarStandard">
     <ul class="navbar-nav" data-top-nav-dropdowns="data-top-nav-dropdowns">

@@ -98,7 +98,7 @@ function buildParams(page) {
 function handleReviewClick(btn) {
     try {
         const data = JSON.parse(btn.getAttribute('data-cancel'));
-        openConfirmModal(data.id, data.code, data.amount, data.type, data.reason, data.requestedBy, data.passenger, data.origin, data.destination, data.requestedAt);
+        openConfirmModal(data.id, data.code, data.ticketNumber, data.amount, data.type, data.reason, data.requestedBy, data.passenger, data.origin, data.destination, data.requestedAt, data.cashAmount, data.chargeAmount);
     } catch (e) {
         console.error('Failed to parse cancellation data:', e);
         showToast('danger', 'Error', 'Failed to load cancellation details');
@@ -106,18 +106,60 @@ function handleReviewClick(btn) {
 }
 
 // Open confirmation modal
-function openConfirmModal(cancellationId, transactionCode, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt) {
+function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt, cashAmount, chargeAmount) {
     currentCancellationId = cancellationId;
 
+    const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    const cashAmt = parseFloat(cashAmount || 0);
+    const chargeAmt = parseFloat(chargeAmount || 0);
+
     document.getElementById('modalTransactionCode').textContent = transactionCode;
-    document.getElementById('modalRefundAmount').textContent = '₱' + refundAmount;
-    document.getElementById('modalRefundAmountInline').textContent = '₱' + refundAmount;
+    const ticketNumEl = document.getElementById('modalTicketNumber');
+    if (ticketNumEl) {
+        if (ticketNumber) {
+            ticketNumEl.textContent = ticketNumber;
+            ticketNumEl.parentElement.style.display = 'block';
+        } else {
+            ticketNumEl.parentElement.style.display = 'none';
+        }
+    }
+    document.getElementById('modalRefundAmount').textContent = '₱' + fmt(refundAmount);
+    document.getElementById('modalRefundAmountInline').textContent = '₱' + fmt(refundAmount);
     document.getElementById('modalCancellationType').textContent = cancellationType;
     document.getElementById('modalPassenger').textContent = passenger;
     document.getElementById('modalRoute').textContent = (origin && destination) ? origin + ' → ' + destination : '-';
     document.getElementById('modalRequestedBy').textContent = requestedBy;
     document.getElementById('modalReason').textContent = reason || 'No reason provided';
     document.getElementById('modalRequestedAt').textContent = requestedAt;
+
+    // Show refund breakdown in modal
+    const refundBreakdownEl = document.getElementById('modalRefundBreakdown');
+    if (refundBreakdownEl) {
+        if (chargeAmt > 0) {
+            refundBreakdownEl.innerHTML = `<div class="alert alert-info mb-0">
+                <div class="d-flex justify-content-between"><span><i class="fas fa-hand-holding-usd me-1"></i>Cash to give:</span><span class="fw-bold">₱${fmt(cashAmt)}</span></div>
+                <div class="d-flex justify-content-between"><span><i class="fas fa-file-invoice-dollar me-1"></i>Charge reversal:</span><span class="fw-bold">₱${fmt(chargeAmt)}</span></div>
+            </div>`;
+            refundBreakdownEl.style.display = 'block';
+        } else {
+            refundBreakdownEl.innerHTML = `<div class="alert alert-success mb-0">
+                <div class="d-flex justify-content-between"><span><i class="fas fa-hand-holding-usd me-1"></i>Cash to give:</span><span class="fw-bold">₱${fmt(cashAmt)}</span></div>
+            </div>`;
+            refundBreakdownEl.style.display = 'block';
+        }
+    }
+
+    // Show charge reversal warning
+    const chargeWarningEl = document.getElementById('modalChargeReversalWarning');
+    const chargeAmountEl = document.getElementById('modalChargeReversalAmount');
+    if (chargeWarningEl && chargeAmountEl) {
+        if (chargeAmt > 0) {
+            chargeAmountEl.textContent = '₱' + fmt(chargeAmt);
+            chargeWarningEl.style.display = 'block';
+        } else {
+            chargeWarningEl.style.display = 'none';
+        }
+    }
 
     // Reset action and rejection reason
     document.getElementById('modalAction').value = 'approve';
@@ -206,19 +248,35 @@ function renderTable(rows) {
     const statusIcons  = { pending:'fa-clock', approved:'fa-check-circle', rejected:'fa-times-circle', completed:'fa-check-double' };
     const statusColors = { pending:'warning',  approved:'success',         rejected:'danger',          completed:'primary' };
 
+    const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
     tbody.innerHTML = rows.map(c => {
         const color       = statusColors[c.status] || 'secondary';
         const icon        = statusIcons[c.status]  || 'fa-circle';
         const requestedAt = formatDateTime(c.requested_at);
         const approvedAt  = c.approved_at ? formatDateTime(c.approved_at) : null;
         const travelDate  = c.travel_date ? formatDate(c.travel_date) : null;
-        const amount      = parseFloat(c.refund_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+        const refundAmt   = parseFloat(c.refund_amount || 0);
+        const chargeAmt   = parseFloat(c.charge_amount || 0);
+        const cashAmt     = parseFloat(c.cash_refund_amount || 0);
+
+        // Build refund breakdown display
+        let refundBreakdown = `<div class="fw-semibold text-success fs-6">₱${fmt(refundAmt)}</div>`;
+        if (chargeAmt > 0) {
+            refundBreakdown += `<div class="small text-muted">
+                <div><i class="fas fa-hand-holding-usd text-success me-1"></i>Cash: ₱${fmt(cashAmt)}</div>
+                <div><i class="fas fa-file-invoice-dollar text-warning me-1"></i>Charge reversal: ₱${fmt(chargeAmt)}</div>
+            </div>`;
+        }
 
         const reviewBtn = c.status === 'pending'
             ? `<button class="btn btn-sm btn-success" title="Review" data-cancel='${JSON.stringify({
                    id: c.cancellation_id,
                    code: c.transaction_code,
-                   amount: parseFloat(c.refund_amount).toFixed(2),
+                   ticketNumber: c.ticket_number || '',
+                   amount: refundAmt.toFixed(2),
+                   cashAmount: cashAmt.toFixed(2),
+                   chargeAmount: chargeAmt.toFixed(2),
                    type: c.cancellation_type,
                    reason: c.reason || '',
                    requestedBy: c.requested_by_name || '—',
@@ -229,9 +287,11 @@ function renderTable(rows) {
                  })}' onclick="handleReviewClick(this)"><span class="fas fa-check-double me-1"></span>Review</button>`
             : `<span class="text-muted small">Reviewed</span>`;
 
+        const ticketNumberDisplay = c.ticket_number ? `<div class="small text-info"><i class="fas fa-ticket-alt me-1"></i>Ticket #: ${esc(c.ticket_number)}</div>` : '';
         return `<tr>
             <td class="ps-3 py-3">
                 <div class="fw-semibold">${esc(c.transaction_code)}</div>
+                ${ticketNumberDisplay}
                 <div class="text-muted small">${esc(c.provider_name || '—')}</div>
                 <div class="text-muted" style="font-size:.75rem">${esc(c.branch_name || '—')}</div>
                 <div class="text-muted" style="font-size:.75rem">${requestedAt}</div>
@@ -242,8 +302,8 @@ function renderTable(rows) {
                 ${travelDate ? `<div class="text-muted" style="font-size:.75rem">Travel: ${travelDate}</div>` : ''}
             </td>
             <td class="py-3">
-                <div class="fw-semibold text-success fs-6">₱${amount}</div>
-                <div class="small"><span class="badge bg-soft-primary text-primary">${esc(c.cancellation_type)}</span></div>
+                ${refundBreakdown}
+                <div class="small mt-1"><span class="badge bg-soft-primary text-primary">${esc(c.cancellation_type)}</span></div>
                 ${c.reason ? `<div class="mt-1 text-muted small text-truncate" style="max-width:200px" title="${esc(c.reason)}">${esc(c.reason)}</div>` : '<div class="text-muted small">No reason</div>'}
             </td>
             <td class="py-3">
@@ -294,8 +354,14 @@ function updateStats(stats) {
     document.getElementById('statPending').textContent       = stats.pending_count  || 0;
     document.getElementById('statApproved').textContent      = stats.approved_count || 0;
     document.getElementById('statRejected').textContent      = stats.rejected_count || 0;
-    document.getElementById('statPendingAmount').textContent = '₱' + parseFloat(stats.pending_amount || 0)
-        .toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    // Show pending cash amount (actual cash that will leave the drawer)
+    const pendingCash = parseFloat(stats.pending_cash_amount || 0);
+    const pendingCharge = parseFloat(stats.pending_charge_amount || 0);
+    let amountText = '₱' + pendingCash.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    if (pendingCharge > 0) {
+        amountText += ` <span class="text-muted small">(+₱${pendingCharge.toLocaleString('en-PH', { minimumFractionDigits: 2 })} charge reversal)</span>`;
+    }
+    document.getElementById('statPendingAmount').innerHTML = amountText;
 }
 
 function resetFilters() {

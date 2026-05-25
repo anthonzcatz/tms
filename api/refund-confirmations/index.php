@@ -138,8 +138,11 @@ $dataSql = "SELECT
         tc.cancellation_id,
         tc.transaction_id,
         tc.transaction_code,
+        tt.ticket_number,
         tc.cancellation_type,
         tc.refund_amount,
+        tc.charge_amount,
+        (tc.refund_amount - tc.charge_amount) AS cash_refund_amount,
         tc.status,
         tc.reason,
         tc.requested_at,
@@ -180,7 +183,9 @@ $stats = Database::fetch(
         SUM(CASE WHEN tc.status='approved'  THEN 1 ELSE 0 END) AS approved_count,
         SUM(CASE WHEN tc.status='rejected'  THEN 1 ELSE 0 END) AS rejected_count,
         SUM(CASE WHEN tc.status='completed' THEN 1 ELSE 0 END) AS completed_count,
-        SUM(CASE WHEN tc.status='pending'   THEN tc.refund_amount ELSE 0 END) AS pending_amount
+        SUM(CASE WHEN tc.status='pending'   THEN tc.refund_amount ELSE 0 END) AS pending_total_amount,
+        SUM(CASE WHEN tc.status='pending'   THEN (tc.refund_amount - tc.charge_amount) ELSE 0 END) AS pending_cash_amount,
+        SUM(CASE WHEN tc.status='pending'   THEN tc.charge_amount ELSE 0 END) AS pending_charge_amount
      FROM ticket_cancellations tc
      LEFT JOIN ticket_transactions tt ON tc.transaction_id = tt.transaction_id
      LEFT JOIN business_branches bb   ON tt.branch_id = bb.branch_id

@@ -71,7 +71,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </div>
                   </div>
                   <div class="col-auto d-flex gap-2">
-                    <a href="<?php echo BASE_URL; ?>/admin/pos/printer-setup" class="btn btn-outline-info btn-sm rounded-2">
+                    <a href="<?php echo BASE_URL; ?>/admin/pos/printer-setup" class="btn btn-outline-info btn-sm rounded-2 d-flex align-items-center">
                       <span class="fas fa-print me-1"></span>Printer Setup
                     </a>
                     <?php if ($activeSession): ?>
@@ -177,7 +177,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
             </div>
 
             <!-- Ticket Selection (shown by default) -->
-            <div class="card mb-3" id="ticketSection">
+            <div class="card" id="ticketSection">
               <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-6.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
               </div>
               <!--/.bg-holder-->
@@ -189,7 +189,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   <div class="col-md-6">
                     <label class="form-label fw-semibold" for="ticketPassenger">Passenger</label>
                     <div class="position-relative">
-                      <div class="input-group mb-2">
+                      <!-- Search input (shown when no passenger selected) -->
+                      <div id="passengerSearchGroup" class="input-group">
                         <span class="input-group-text bg-light">
                           <span class="fas fa-search text-muted"></span>
                         </span>
@@ -200,7 +201,20 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                       </div>
                       <input type="hidden" id="ticketPassenger" name="ticketPassenger">
                       <div id="ticketPassengerDropdown" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;"></div>
-                      <small class="text-muted">Start typing to search passengers (min 2 characters)</small>
+                      <!-- Selected passenger display (shown inside input area after selection) -->
+                      <div id="selectedPassengerDetails" style="display:none;" class="input-group">
+                        <span class="input-group-text bg-success bg-opacity-10 border-success">
+                          <span class="fas fa-user-check text-success"></span>
+                        </span>
+                        <div class="form-control d-flex align-items-center border-success bg-success bg-opacity-10 px-2" style="height:38px;">
+                          <span class="fw-semibold text-dark me-2" style="font-size:0.88rem;" id="selectedPassengerName"></span>
+                          <span class="text-muted" style="font-size:0.82rem;" id="selectedPassengerMobile"></span>
+                        </div>
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearSelectedPassenger()" title="Change Passenger">
+                          <span class="fas fa-times"></span>
+                        </button>
+                      </div>
+                      <small class="text-muted" id="passengerSearchHint">Start typing to search passengers (min 2 characters)</small>
                     </div>
                   </div>
                   <div class="col-md-6">
@@ -270,7 +284,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
             </div>
 
             <!-- Service Type Selection (hidden by default) -->
-            <div class="card mb-3" id="serviceSection" style="display:none;">
+            <div class="card" id="serviceSection" style="display:none;">
               <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-2.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
               </div>
               <!--/.bg-holder-->
@@ -317,7 +331,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
             </div>
 
             <!-- Transactions Section -->
-            <div class="card mb-3" id="transactionSection" style="display:none;">
+            <div class="card" id="transactionSection" style="display:none;">
               <div class="bg-holder d-none d-lg-block bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-7.png); pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
               </div>
               <!--/.bg-holder-->
@@ -367,7 +381,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                         <th>Passenger/Description</th>
                         <th>Branch</th>
                         <th>Provider</th>
-                        <th>Ticket Number</th>
+                        <th>Payment</th>
                         <th>Amount</th>
                         <th>Status</th>
                         <th>Date</th>

@@ -76,25 +76,36 @@ try {
         $params
     );
 
-    // Get sales by minute for the chart (last 60 minutes)
+    // Get sales by time bucket — bucket size depends on filter range
+    if ($today || $hours >= 24) {
+        $bucketMinutes = 60;  // 1-hour buckets → 24 bars
+        $bucketCount   = 24;
+    } elseif ($hours >= 6) {
+        $bucketMinutes = 15;  // 15-min buckets → 24 bars
+        $bucketCount   = 24;
+    } else {
+        $bucketMinutes = 3;   // 3-min buckets → 20 bars
+        $bucketCount   = 20;
+    }
+
     $salesByMinute = [];
-    for ($i = 59; $i >= 0; $i--) {
-        $minuteStart = date('Y-m-d H:i:s', strtotime("-$i minutes"));
-        $minuteEnd = date('Y-m-d H:i:s', strtotime("-" . ($i - 1) . " minutes"));
-        
-        $minuteSales = Database::fetch(
+    for ($i = $bucketCount - 1; $i >= 0; $i--) {
+        $bucketStart = date('Y-m-d H:i:s', strtotime('-' . (($i + 1) * $bucketMinutes) . ' minutes'));
+        $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
+
+        $bucketSales = Database::fetch(
             "SELECT COALESCE(SUM(po.grand_total), 0) as total,
                     COUNT(*) as count
              FROM pos_orders po
              WHERE po.status = 'completed'
              AND po.created_at >= :start AND po.created_at < :end",
-            ['start' => $minuteStart, 'end' => $minuteEnd]
+            ['start' => $bucketStart, 'end' => $bucketEnd]
         );
 
         $salesByMinute[] = [
-            'time' => date('H:i', strtotime("-$i minutes")),
-            'amount' => floatval($minuteSales['total']),
-            'count' => intval($minuteSales['count'])
+            'time'   => date('H:i', strtotime('-' . ($i * $bucketMinutes) . ' minutes')),
+            'amount' => floatval($bucketSales['total']),
+            'count'  => intval($bucketSales['count']),
         ];
     }
 

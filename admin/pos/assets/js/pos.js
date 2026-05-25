@@ -472,20 +472,21 @@ function renderTicketPassengers(searchTerm = '') {
                 const genderIcon = p.gender === 'male' ? 'fa-mars' : p.gender === 'female' ? 'fa-venus' : 'fa-genderless';
                 const genderBadge = p.gender ? `<span class="badge ${genderBadgeClass} ms-2"><span class="fas ${genderIcon} me-1"></span>${p.gender.charAt(0).toUpperCase() + p.gender.slice(1).toLowerCase()}</span>` : '';
                 
+                const mobileHtml = p.mobile_number
+                    ? `<div class="text-muted small"><span class="fas fa-phone-alt me-1"></span>${p.mobile_number}</div>`
+                    : '';
+                const addressHtml = `<div class="text-muted small"><span class="fas fa-map-marker-alt me-1"></span>${addressParts.length > 0 ? addressParts.join(', ') : '<em>No address on file</em>'}</div>`;
+
                 item.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-start">
+                    <div class="d-flex justify-content-between align-items-center">
                         <div class="flex-grow-1">
                             <div class="fw-bold text-primary mb-1">${toTitleCase(p.fullname)}</div>
-                            <div class="text-muted small mb-1">
-                                <span class="fas fa-phone-alt me-1"></span>${p.mobile_number || 'No mobile number'}
-                            </div>
-                            <div class="text-muted small">
-                                <span class="fas fa-map-marker-alt me-1"></span>${address}
-                            </div>
+                            ${mobileHtml}
+                            ${addressHtml}
                         </div>
                         <div class="d-flex flex-column align-items-end gap-1">
                             ${genderBadge}
-                            <button class="btn btn-sm btn-outline-primary" onclick="viewPassenger('${p.passenger_id}', event)" title="View/Edit Passenger" style="min-width: 32px; height: 32px; padding: 4px;">
+                            <button class="btn btn-sm btn-outline-primary mt-1" onclick="viewPassenger('${p.passenger_id}', event)" title="Edit Passenger" style="min-width:32px; height:28px; padding:2px 6px;">
                                 <span class="fas fa-edit"></span>
                             </button>
                         </div>
@@ -518,67 +519,72 @@ function selectTicketPassenger(passenger) {
     const searchInput = document.getElementById('ticketPassengerSearch');
     const hiddenInput = document.getElementById('ticketPassenger');
     const dropdown = document.getElementById('ticketPassengerDropdown');
-    
-    // Helper function to capitalize first letter of each word
+
     const toTitleCase = (str) => {
         if (!str) return '';
         return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
     };
-    
-    // Set values - show only fullname in search input
-    searchInput.value = toTitleCase(passenger.fullname);
+
+    // Set hidden passenger ID value, clear the visible search input
     hiddenInput.value = passenger.passenger_id;
-    
-    // Hide dropdown
+    searchInput.value = '';
+
+    // Hide dropdown and hint
     dropdown.style.display = 'none';
-    
-    // Display selected passenger details in a separate area
-    const passengerDetailsDiv = document.getElementById('selectedPassengerDetails');
-    if (!passengerDetailsDiv) {
-        // Create passenger details display area if it doesn't exist
-        const detailsContainer = document.createElement('div');
-        detailsContainer.id = 'selectedPassengerDetails';
-        detailsContainer.className = 'card mb-3 border-0 shadow-sm';
-        detailsContainer.innerHTML = `
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                        <div class="fw-bold text-primary mb-1" id="selectedPassengerName"></div>
-                        <div class="text-muted small mb-1" id="selectedPassengerMobile"></div>
-                        <div class="text-muted small" id="selectedPassengerAddress"></div>
-                    </div>
-                    <button class="btn btn-sm btn-outline-info" onclick="viewPassenger('${passenger.passenger_id}', event)">
-                        <span class="fas fa-info-circle me-1"></span>View More Details
-                    </button>
-                </div>
-            </div>
-        `;
-        // Insert after the passenger search input container
-        const searchContainer = searchInput.closest('.col-md-6').parentElement;
-        searchContainer.insertAdjacentElement('afterend', detailsContainer);
-    }
-    
-    // Update passenger details display
-    document.getElementById('selectedPassengerName').textContent = toTitleCase(passenger.fullname);
-    document.getElementById('selectedPassengerMobile').innerHTML = `<span class="fas fa-phone-alt me-1"></span>${passenger.mobile_number || 'No mobile number'}`;
-    
-    // Build address string
-    const addressParts = [];
-    if (passenger.street_address) addressParts.push(toTitleCase(passenger.street_address));
-    if (passenger.barangay_name) addressParts.push(toTitleCase(passenger.barangay_name));
-    if (passenger.city_municipality_name) addressParts.push(toTitleCase(passenger.city_municipality_name));
-    if (passenger.province_name) addressParts.push(toTitleCase(passenger.province_name));
-    const address = addressParts.length > 0 ? addressParts.join(', ') : 'No address on file';
-    document.getElementById('selectedPassengerAddress').innerHTML = `<span class="fas fa-map-marker-alt me-1"></span>${address}`;
-    
+    dropdown.innerHTML = '';
+    const hint = document.getElementById('passengerSearchHint');
+    if (hint) hint.style.display = 'none';
+
+    // Hide search group, show selected display
+    const searchGroup = document.getElementById('passengerSearchGroup');
+    if (searchGroup) searchGroup.style.display = 'none';
+
+    // Populate and show the selected passenger inside the input area
+    const detailsContainer = document.getElementById('selectedPassengerDetails');
+    const nameEl = document.getElementById('selectedPassengerName');
+    const mobileEl = document.getElementById('selectedPassengerMobile');
+
+    nameEl.textContent = toTitleCase(passenger.fullname);
+    mobileEl.textContent = passenger.mobile_number ? `· ${passenger.mobile_number}` : '';
+
+    detailsContainer.style.display = 'flex';
+
     // Trigger change event
     hiddenInput.dispatchEvent(new Event('change'));
+}
+
+function resetPassengerField() {
+    const searchInput = document.getElementById('ticketPassengerSearch');
+    if (searchInput) searchInput.value = '';
+    const hiddenInput = document.getElementById('ticketPassenger');
+    if (hiddenInput) hiddenInput.value = '';
+
+    const nameEl = document.getElementById('selectedPassengerName');
+    const mobileEl = document.getElementById('selectedPassengerMobile');
+    if (nameEl) nameEl.textContent = '';
+    if (mobileEl) mobileEl.textContent = '';
+
+    const details = document.getElementById('selectedPassengerDetails');
+    if (details) details.style.display = 'none';
+    const searchGroup = document.getElementById('passengerSearchGroup');
+    if (searchGroup) searchGroup.style.display = 'flex';
+
+    const hint = document.getElementById('passengerSearchHint');
+    if (hint) hint.style.display = '';
+
+    const dropdown = document.getElementById('ticketPassengerDropdown');
+    if (dropdown) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; }
+}
+
+function clearSelectedPassenger() {
+    resetPassengerField();
+    document.getElementById('ticketPassengerSearch').focus();
 }
 
 function viewPassenger(passengerId, event) {
     if (event) event.stopPropagation();
 
-    const encodedPassengerId = IdEncoder.encode(passengerId);
+    const encodedPassengerId = IdEncoder.encode(parseInt(passengerId, 10));
     fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${encodedPassengerId}`)
         .then(response => response.json())
         .then(data => {
@@ -894,9 +900,7 @@ function updatePassenger() {
         if (data.success) {
             showToast('success', 'Success', data.message);
             viewPassengerModal.hide();
-            // Refresh passenger search
-            document.getElementById('ticketPassengerSearch').value = '';
-            document.getElementById('ticketPassenger').value = '';
+            resetPassengerField();
         } else {
             showToast('error', 'Error', data.error || 'Failed to update passenger');
         }
@@ -930,14 +934,7 @@ document.addEventListener('keydown', function(e) {
     } else if (e.key === 'Enter') {
         e.preventDefault();
         if (currentActiveIndex >= 0 && items[currentActiveIndex]) {
-            const passengerId = items[currentActiveIndex].dataset.passengerId;
-            // Fetch full passenger data
-            const passenger = {
-                passenger_id: passengerId,
-                fullname: items[currentActiveIndex].querySelector('.fw-bold').textContent,
-                mobile_number: items[currentActiveIndex].querySelector('.text-muted').textContent
-            };
-            selectTicketPassenger(passenger);
+            items[currentActiveIndex].click();
         }
     } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -1219,15 +1216,11 @@ function loadServiceFeeForWallet() {
 function searchTicketPassenger(searchTerm) {
     console.log('Searching for passenger:', searchTerm, 'Length:', searchTerm.length);
     
-    // Clear passenger details if search is empty
+    // If search is empty, just hide dropdown — do not destroy the selected passenger display
     if (!searchTerm || searchTerm.trim() === '') {
-        const passengerDetailsDiv = document.getElementById('selectedPassengerDetails');
-        if (passengerDetailsDiv) {
-            passengerDetailsDiv.remove();
-        }
-        const hiddenInput = document.getElementById('ticketPassenger');
-        hiddenInput.value = '';
-        console.log('Search empty, clearing details');
+        const dropdown = document.getElementById('ticketPassengerDropdown');
+        if (dropdown) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; }
+        console.log('Search empty');
         return;
     }
     
@@ -1295,17 +1288,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (currentActiveIndex >= 0 && currentActiveIndex < items.length) {
-                    const activeItem = items[currentActiveIndex];
-                    const passengerId = activeItem.dataset.passengerId;
-                    // Get passenger data from the items
-                    const encodedPassengerId = IdEncoder.encode(passengerId);
-                    fetch(`${window.BASE_URL}/api/pos/passengers?passenger_id=${encodedPassengerId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success && data.data) {
-                                selectTicketPassenger(data.data);
-                            }
-                        });
+                    items[currentActiveIndex].click();
                 }
             }
         });
@@ -1763,9 +1746,7 @@ function openAddPassengerModal() {
     
     // Refresh passenger lists after adding
     renderCustomers();
-    // Clear ticket passenger search
-    document.getElementById('ticketPassengerSearch').value = '';
-    document.getElementById('ticketPassenger').value = '';
+    resetPassengerField();
 }
 
 function nextPassengerStep() {
@@ -2279,8 +2260,8 @@ function addTicketToCart() {
     // if (!destination) { showToast('danger', 'Error', 'Please enter destination.'); return; }
     if (total <= 0) { showToast('danger', 'Error', 'Ticket total must be greater than 0.'); return; }
 
-    // Get passenger name from search input
-    const passengerName = document.getElementById('ticketPassengerSearch').value.trim();
+    // Get passenger name from selected passenger display
+    const passengerName = (document.getElementById('selectedPassengerName') || {}).textContent?.trim() || document.getElementById('ticketPassengerSearch').value.trim();
 
     const ticketItem = {
         type: 'ticket',
@@ -2312,8 +2293,7 @@ function addTicketToCart() {
     renderCart();
 
     // Clear ticket form after adding to cart
-    document.getElementById('ticketPassengerSearch').value = '';
-    document.getElementById('ticketPassenger').value = '';
+    resetPassengerField();
     document.getElementById('ticketNumber').value = '';
     document.getElementById('ticketBaseAmount').value = '';
     document.getElementById('ticketDiscount').value = '0';
@@ -2467,31 +2447,37 @@ function renderCart() {
         subtotal += item.total;
         if (item.type === 'ticket') {
             html += `
-            <div class="cart-item d-flex justify-content-between align-items-start border-start border-4 border-primary">
-              <div class="flex-grow-1">
-                <div class="fw-semibold small text-primary"><span class="fas fa-ticket-alt me-1"></span>${item.passengerName}</div>
-                <div class="text-muted" style="font-size:0.75rem;">Ticket #: ${item.ticketNumber}</div>
-                <div class="text-muted small">Cost: ₱${fmt(item.baseAmount)} | Fee: ₱${fmt(item.serviceFee)}</div>
+            <div class="cart-item d-flex align-items-center gap-2 py-2 px-1 border-start border-4 border-primary">
+              <div class="flex-grow-1 min-width-0">
+                <div class="fw-semibold text-primary" style="font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.passengerName || '-'}</div>
+                <div class="text-muted" style="font-size:0.72rem;">
+                  Ticket #${item.ticketNumber}
+                  &nbsp;·&nbsp;Cost: ₱${fmt(item.baseAmount)}
+                  &nbsp;·&nbsp;Fee: ₱${fmt(item.serviceFee)}
+                </div>
               </div>
-              <div class="d-flex align-items-center gap-2">
-                <strong class="text-success">₱${fmt(item.total)}</strong>
-                <button class="btn btn-sm btn-outline-danger p-1" style="line-height:1;" onclick="removeCartItem(${idx})">
-                  <span class="fas fa-times"></span>
+              <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                <span class="fw-bold text-success" style="font-size:0.88rem; white-space:nowrap;">₱${fmt(item.total)}</span>
+                <button class="btn btn-sm btn-link text-danger p-0" style="width:24px; height:24px; line-height:1; flex-shrink:0;" onclick="removeCartItem(${idx})" title="Remove">
+                  <span class="fas fa-times-circle" style="font-size:1rem;"></span>
                 </button>
               </div>
             </div>`;
         } else {
             html += `
-            <div class="cart-item d-flex justify-content-between align-items-start">
-              <div class="flex-grow-1">
-                <div class="fw-semibold small">${item.serviceName}</div>
-                ${item.description ? `<div class="text-muted" style="font-size:0.75rem;">${item.description}</div>` : ''}
-                <div class="text-muted small">${item.qty} × ₱${fmt(item.unitPrice)}</div>
+            <div class="cart-item d-flex align-items-center gap-2 py-2 px-1">
+              <span class="fas fa-concierge-bell text-secondary" style="font-size:1.1rem; flex-shrink:0;"></span>
+              <div class="flex-grow-1 min-width-0">
+                <div class="fw-semibold text-dark" style="font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.serviceName}</div>
+                <div class="text-muted" style="font-size:0.72rem;">
+                  ${item.qty} × ₱${fmt(item.unitPrice)}
+                  ${item.description ? `&nbsp;·&nbsp;${item.description}` : ''}
+                </div>
               </div>
-              <div class="d-flex align-items-center gap-2">
-                <strong class="text-success">₱${fmt(item.total)}</strong>
-                <button class="btn btn-sm btn-outline-danger p-1" style="line-height:1;" onclick="removeCartItem(${idx})">
-                  <span class="fas fa-times"></span>
+              <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                <span class="fw-bold text-success" style="font-size:0.88rem; white-space:nowrap;">₱${fmt(item.total)}</span>
+                <button class="btn btn-sm btn-link text-danger p-0" style="width:24px; height:24px; line-height:1; flex-shrink:0;" onclick="removeCartItem(${idx})" title="Remove">
+                  <span class="fas fa-times-circle" style="font-size:1rem;"></span>
                 </button>
               </div>
             </div>`;
@@ -2996,7 +2982,7 @@ let totalItems = 0;
 function loadRecentTransactions(page = 1) {
     currentPage = page;
     const list = document.getElementById('recentTransactionsList');
-    list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...</td></tr>';
+    list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...</td></tr>';
     
     // Get filter values
     const search = document.getElementById('filterSearch').value.trim();
@@ -3042,16 +3028,16 @@ function loadRecentTransactions(page = 1) {
                 updatePaginationUI();
             } else if (data.error && data.error.includes('Permission denied')) {
                 showAlert('error', data.error);
-                list.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">Permission denied. You do not have access to view transactions.</td></tr>';
+                list.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">Permission denied. You do not have access to view transactions.</td></tr>';
                 updatePaginationUI();
             } else {
-                list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No transactions found.</td></tr>';
+                list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No transactions found.</td></tr>';
                 updatePaginationUI();
             }
         })
         .catch(error => {
             console.error('Error loading transactions:', error);
-            list.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">Error loading transactions.</td></tr>';
+            list.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">Error loading transactions.</td></tr>';
         });
 }
 
@@ -3059,7 +3045,7 @@ function renderTransactionsTable(transactions) {
     const list = document.getElementById('recentTransactionsList');
 
     if (transactions.length === 0) {
-        list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No transactions found.</td></tr>';
+        list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No transactions found.</td></tr>';
         return;
     }
 
@@ -3155,6 +3141,20 @@ function renderTransactionsTable(transactions) {
             routeCell = (txn.origin && txn.destination) ? `${txn.origin} → ${txn.destination}` : '-';
         }
 
+        // Build payment method cell — shows each payment line e.g. Cash ₱1,000 + Charge ₱500
+        let paymentCell = '-';
+        if (isOrderBased && txn.payments && txn.payments.length > 0) {
+            const methodTypeIcon = { CASH: 'fa-money-bill-wave', BANK_TRANSFER: 'fa-university', E_WALLET: 'fa-mobile-alt', CHARGE: 'fa-file-invoice-dollar' };
+            const methodTypeColor = { CASH: 'text-success', BANK_TRANSFER: 'text-primary', E_WALLET: 'text-info', CHARGE: 'text-warning' };
+            paymentCell = txn.payments.map(p => {
+                const icon  = methodTypeIcon[p.method_type]  || 'fa-credit-card';
+                const color = methodTypeColor[p.method_type] || 'text-secondary';
+                return `<div><i class="fas ${icon} ${color} me-1" style="font-size:0.75rem;"></i><span class="small">${p.method_name}</span> <span class="fw-semibold small">₱${fmt(p.amount)}</span></div>`;
+            }).join('');
+        } else if (!isOrderBased && txn.payment_method) {
+            paymentCell = `<span class="small">${txn.payment_method}</span>`;
+        }
+
         // Items breakdown (collapsible) for order-based
         let itemsBreakdown = '';
         if (isOrderBased && orderItems.length > 0) {
@@ -3194,7 +3194,7 @@ function renderTransactionsTable(transactions) {
                 }
             });
             itemsBreakdown = `<tr id="${rowId}" style="display:none;">
-                <td colspan="10" class="p-0">
+                <td colspan="9" class="p-0">
                   <table class="table table-sm mb-0 border-top">
                     <thead class="table-secondary"><tr style="font-size:0.75em;">
                       <th colspan="2">Item / Passenger</th><th colspan="2">Provider / Description</th>
@@ -3298,7 +3298,7 @@ function renderTransactionsTable(transactions) {
                 <td class="small">${passengerCell}</td>
                 <td class="small">${branchName}</td>
                 <td class="small">${providerCell}</td>
-                <td class="small">${ticketNumber}</td>
+                <td class="small">${paymentCell}</td>
                 <td>${amountDisplay}</td>
                 <td>${statusBadge}</td>
                 <td class="small">
@@ -3543,7 +3543,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     const list = document.getElementById('recentTransactionsList');
                     if (list) {
-                        list.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Switch to Transaction History to view transactions.</td></tr>';
+                        list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Switch to Transaction History to view transactions.</td></tr>';
                     }
                 }
             }
@@ -3715,9 +3715,129 @@ async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 
     
     // Disable transaction code if pre-filled
     document.getElementById('cancelTicketCode').readOnly = txnCode !== '';
+
+    // Fetch and display payment breakdown
+    const paymentBreakdownDiv = document.getElementById('cancelPaymentBreakdown');
+    const refundBreakdownDiv = document.getElementById('cancelRefundBreakdown');
+    const paymentMethodsDiv = document.getElementById('cancelPaymentMethods');
+    const refundMethodsDiv = document.getElementById('cancelRefundMethods');
+
+    if (txnCode && paymentBreakdownDiv && refundBreakdownDiv) {
+        try {
+            const response = await fetch(`${window.BASE_URL}/api/pos/transaction-payments.php?transaction_code=${encodeURIComponent(txnCode)}`);
+            const result = await response.json();
+
+            if (result.success && result.data && result.data.payments) {
+                const payments = result.data.payments;
+                const totalAmount = parseFloat(result.data.total_amount) || 0;
+
+                // Display original payment breakdown
+                if (payments.length > 0) {
+                    paymentMethodsDiv.innerHTML = payments.map(p => {
+                        const isCharge = parseInt(p.tracks_credit) === 1;
+                        const chargeLabel = isCharge ? ' <span class="badge bg-soft-warning text-warning" style="font-size:0.65rem;">DEBT</span>' : '';
+                        return `<div class="d-flex justify-content-between align-items-center mb-1">
+                            <span><i class="fas fa-credit-card me-1 text-muted"></i>${p.method_name}${chargeLabel}</span>
+                            <span class="fw-semibold">₱${fmt(p.amount)}</span>
+                        </div>`;
+                    }).join('');
+                    paymentBreakdownDiv.style.display = 'block';
+                } else {
+                    paymentBreakdownDiv.style.display = 'none';
+                }
+
+                // Calculate refund distribution based on refund amount
+                const refundInput = document.getElementById('cancelRefundAmount');
+                const updateRefundBreakdown = () => {
+                    const refundAmount = parseFloat(refundInput.value) || 0;
+                    if (refundAmount <= 0 || payments.length === 0) {
+                        refundBreakdownDiv.style.display = 'none';
+                        return;
+                    }
+
+                    // User-friendly logic: First fully reverse CHARGE debt, then remaining from cash
+                    let remainingRefund = refundAmount;
+                    const refundBreakdown = [];
+
+                    // Process CHARGE payments first (debt reversal)
+                    const chargePayments = payments.filter(p => parseInt(p.tracks_credit) === 1);
+                    for (const p of chargePayments) {
+                        const originalAmount = parseFloat(p.amount) || 0;
+                        const refundForMethod = Math.min(originalAmount, remainingRefund);
+                        if (refundForMethod > 0) {
+                            refundBreakdown.push({
+                                method_name: p.method_name,
+                                tracks_credit: p.tracks_credit,
+                                amount: refundForMethod,
+                                note: '<span class="text-muted small">(reverses debt)</span>'
+                            });
+                            remainingRefund -= refundForMethod;
+                        }
+                    }
+
+                    // Then process other payments (cash, bank, etc.)
+                    const otherPayments = payments.filter(p => parseInt(p.tracks_credit) !== 1);
+                    for (const p of otherPayments) {
+                        if (remainingRefund <= 0) break;
+                        const originalAmount = parseFloat(p.amount) || 0;
+                        const refundForMethod = Math.min(originalAmount, remainingRefund);
+                        if (refundForMethod > 0) {
+                            refundBreakdown.push({
+                                method_name: p.method_name,
+                                tracks_credit: p.tracks_credit,
+                                amount: refundForMethod,
+                                note: '<span class="text-muted small">(cash refund)</span>'
+                            });
+                            remainingRefund -= refundForMethod;
+                        }
+                    }
+
+                    refundMethodsDiv.innerHTML = refundBreakdown.map(r => {
+                        const isCharge = parseInt(r.tracks_credit) === 1;
+                        const chargeLabel = isCharge ? ' <span class="badge bg-soft-warning text-warning" style="font-size:0.65rem;">DEBT</span>' : '';
+                        const cashIcon = !isCharge ? '<i class="fas fa-money-bill-wave text-success me-1"></i>' : '';
+                        return `<div class="d-flex justify-content-between align-items-center mb-1">
+                            <span>${cashIcon}${r.method_name}${chargeLabel} ${r.note}</span>
+                            <span class="fw-semibold">₱${fmt(r.amount)}</span>
+                        </div>`;
+                    }).join('');
+
+                    // Calculate total cash to give (exclude CHARGE reversals)
+                    const totalCashToGive = refundBreakdown
+                        .filter(r => parseInt(r.tracks_credit) !== 1)
+                        .reduce((sum, r) => sum + r.amount, 0);
+
+                    // Add summary line for cash to give
+                    if (totalCashToGive > 0) {
+                        refundMethodsDiv.innerHTML += `<div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center fw-bold">
+                            <span><i class="fas fa-hand-holding-usd text-success me-1"></i>Total cash to give:</span>
+                            <span class="text-success">₱${fmt(totalCashToGive)}</span>
+                        </div>`;
+                    }
+
+                    refundBreakdownDiv.style.display = 'block';
+                };
+
+                // Update refund breakdown on input change
+                refundInput.addEventListener('input', updateRefundBreakdown);
+                // Initial calculation
+                updateRefundBreakdown();
+            } else {
+                paymentBreakdownDiv.style.display = 'none';
+                refundBreakdownDiv.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('Error fetching payment breakdown:', e);
+            paymentBreakdownDiv.style.display = 'none';
+            refundBreakdownDiv.style.display = 'none';
+        }
+    } else {
+        if (paymentBreakdownDiv) paymentBreakdownDiv.style.display = 'none';
+        if (refundBreakdownDiv) refundBreakdownDiv.style.display = 'none';
+    }
 }
 
-function confirmCancelTicket() {
+async function confirmCancelTicket() {
     const txnCode = document.getElementById('cancelTicketCode').value.trim();
     const refundAmount = parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
     const reason = document.getElementById('cancelReason').value.trim();
@@ -3737,11 +3857,105 @@ function confirmCancelTicket() {
         return;
     }
     
-    // Show refund confirmation modal
-    showRefundConfirmModal(txnCode, refundAmount, reason);
+    // Fetch payment breakdown to calculate cash vs debt reversal
+    let paymentBreakdown = [];
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/transaction-payments.php?transaction_code=${encodeURIComponent(txnCode)}`);
+        const result = await response.json();
+        if (result.success && result.data && result.data.payments) {
+            const payments = result.data.payments;
+            const totalAmount = parseFloat(result.data.total_amount) || 0;
+            
+            // Calculate refund distribution (same logic as modal display)
+            let remainingRefund = refundAmount;
+            
+            // Process CHARGE payments first
+            const chargePayments = payments.filter(p => parseInt(p.tracks_credit) === 1);
+            for (const p of chargePayments) {
+                const originalAmount = parseFloat(p.amount) || 0;
+                const refundForMethod = Math.min(originalAmount, remainingRefund);
+                if (refundForMethod > 0) {
+                    paymentBreakdown.push({
+                        method_name: p.method_name,
+                        tracks_credit: p.tracks_credit,
+                        amount: refundForMethod,
+                        type: 'charge'
+                    });
+                    remainingRefund -= refundForMethod;
+                }
+            }
+            
+            // Then other payments
+            const otherPayments = payments.filter(p => parseInt(p.tracks_credit) !== 1);
+            for (const p of otherPayments) {
+                if (remainingRefund <= 0) break;
+                const originalAmount = parseFloat(p.amount) || 0;
+                const refundForMethod = Math.min(originalAmount, remainingRefund);
+                if (refundForMethod > 0) {
+                    paymentBreakdown.push({
+                        method_name: p.method_name,
+                        tracks_credit: p.tracks_credit,
+                        amount: refundForMethod,
+                        type: 'cash'
+                    });
+                    remainingRefund -= refundForMethod;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error fetching payment breakdown for confirmation:', e);
+    }
+    
+    // Show refund confirmation modal with breakdown
+    showRefundConfirmModal(txnCode, refundAmount, reason, paymentBreakdown);
 }
 
-function showRefundConfirmModal(txnCode, refundAmount, reason) {
+function showRefundConfirmModal(txnCode, refundAmount, reason, paymentBreakdown) {
+    // Calculate totals
+    const totalCash = paymentBreakdown
+        .filter(p => p.type === 'cash')
+        .reduce((sum, p) => sum + p.amount, 0);
+    const totalChargeReversal = paymentBreakdown
+        .filter(p => p.type === 'charge')
+        .reduce((sum, p) => sum + p.amount, 0);
+    
+    // Build breakdown HTML
+    let breakdownHtml = '';
+    if (paymentBreakdown.length > 0) {
+        breakdownHtml = `<div class="card border-0 bg-soft-info mb-3">
+            <div class="card-body p-3">
+                <h6 class="card-title mb-2"><span class="fas fa-list me-2"></span>Refund Breakdown</h6>`;
+        
+        if (totalChargeReversal > 0) {
+            breakdownHtml += `<div class="d-flex justify-content-between align-items-center mb-1">
+                <span><i class="fas fa-file-invoice-dollar text-warning me-1"></i>Charge Debt Reversal (System)</span>
+                <span class="fw-semibold text-warning">₱${fmt(totalChargeReversal)}</span>
+            </div>
+            <div class="small text-muted mb-2">Customer's outstanding balance will be reduced by this amount.</div>`;
+        }
+        
+        if (totalCash > 0) {
+            breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2">
+                <span><i class="fas fa-hand-holding-usd text-success me-1"></i><strong>Total Cash to Give</strong></span>
+                <span class="fw-bold text-success">₱${fmt(totalCash)}</span>
+            </div>`;
+        }
+        
+        breakdownHtml += `</div></div>`;
+    }
+    
+    // Build confirmation text
+    let confirmText = '';
+    if (totalCash > 0 && totalChargeReversal > 0) {
+        confirmText = `I confirm that I will give ₱${fmt(totalCash)} cash to the passenger, and the system will reverse ₱${fmt(totalChargeReversal)} from their outstanding charge/debt balance.`;
+    } else if (totalCash > 0) {
+        confirmText = `I confirm that I will give ₱${fmt(totalCash)} cash to the passenger from the cash drawer.`;
+    } else if (totalChargeReversal > 0) {
+        confirmText = `I confirm that the system will reverse ₱${fmt(totalChargeReversal)} from the passenger's outstanding charge/debt balance (no cash refund).`;
+    } else {
+        confirmText = `I confirm that I will process this cancellation with refund amount of ₱${fmt(refundAmount)}.`;
+    }
+    
     const modalHtml = `
         <div class="modal fade" id="refundConfirmModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
@@ -3749,14 +3963,14 @@ function showRefundConfirmModal(txnCode, refundAmount, reason) {
                     <div class="modal-header bg-light">
                         <h5 class="modal-title">
                             <span class="fas fa-money-bill-wave text-warning me-2"></span>
-                            Confirm Refund Amount
+                            Confirm Cancellation & Refund
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-warning">
                             <span class="fas fa-exclamation-triangle me-2"></span>
-                            <strong>Important:</strong> This refund will be deducted from your cash drawer and will affect your Close Cashier Session Expected Cash calculation.
+                            <strong>Important:</strong> This action will deduct cash from your drawer and update the customer's charge balance.
                         </div>
                         <div class="card border-0 bg-light mb-3">
                             <div class="card-body">
@@ -3766,8 +3980,8 @@ function showRefundConfirmModal(txnCode, refundAmount, reason) {
                                         <td class="text-end">${txnCode}</td>
                                     </tr>
                                     <tr>
-                                        <td class="fw-bold">Refund Amount:</td>
-                                        <td class="text-end text-danger fw-bold">₱${refundAmount.toFixed(2)}</td>
+                                        <td class="fw-bold">Total Refund Amount:</td>
+                                        <td class="text-end text-danger fw-bold">₱${fmt(refundAmount)}</td>
                                     </tr>
                                     <tr>
                                         <td class="fw-bold">Reason:</td>
@@ -3776,10 +3990,11 @@ function showRefundConfirmModal(txnCode, refundAmount, reason) {
                                 </table>
                             </div>
                         </div>
+                        ${breakdownHtml}
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="confirmRefund">
                             <label class="form-check-label" for="confirmRefund">
-                                I confirm that I will give ₱${refundAmount.toFixed(2)} to the passenger/customer from the cash drawer
+                                ${confirmText}
                             </label>
                         </div>
                     </div>
@@ -3787,7 +4002,10 @@ function showRefundConfirmModal(txnCode, refundAmount, reason) {
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                             <span class="fas fa-times me-1"></span>Cancel
                         </button>
-                        <button type="button" class="btn btn-danger" id="confirmRefundBtn" disabled onclick="executeTicketCancellation('${txnCode}', ${refundAmount}, '${reason}')">
+                        <button type="button" class="btn btn-danger" id="confirmRefundBtn" disabled
+                            data-txn-code="${txnCode.replace(/"/g, '&quot;')}"
+                            data-refund-amount="${refundAmount}"
+                            data-reason="${reason.replace(/"/g, '&quot;')}">
                             <span class="fas fa-check me-1"></span>Confirm & Cancel Ticket
                         </button>
                     </div>
@@ -3810,6 +4028,14 @@ function showRefundConfirmModal(txnCode, refundAmount, reason) {
     document.getElementById('confirmRefund').addEventListener('change', function() {
         document.getElementById('confirmRefundBtn').disabled = !this.checked;
     });
+
+    // Attach click handler using data attributes to safely handle special characters in reason
+    document.getElementById('confirmRefundBtn').addEventListener('click', function() {
+        const code   = this.dataset.txnCode;
+        const amount = parseFloat(this.dataset.refundAmount);
+        const rsn    = this.dataset.reason;
+        executeTicketCancellation(code, amount, rsn);
+    });
     
     modal.show();
     
@@ -3820,13 +4046,20 @@ function showRefundConfirmModal(txnCode, refundAmount, reason) {
 }
 
 function executeTicketCancellation(txnCode, refundAmount, reason) {
-    const btn = document.querySelector('#cancelTicketModal .btn-danger');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
-    
-    // Hide confirmation modal
-    bootstrap.Modal.getInstance(document.getElementById('refundConfirmModal')).hide();
-    
+    // Hide the confirmation modal first
+    const refundConfirmModalEl = document.getElementById('refundConfirmModal');
+    if (refundConfirmModalEl) {
+        const refundConfirmModalInstance = bootstrap.Modal.getInstance(refundConfirmModalEl);
+        if (refundConfirmModalInstance) refundConfirmModalInstance.hide();
+    }
+
+    // Use the confirmCancelBtn in the cancel ticket modal
+    const btn = document.getElementById('confirmCancelBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
+    }
+
     fetch(`${window.BASE_URL}/api/pos/ticket-cancel.php`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3838,21 +4071,25 @@ function executeTicketCancellation(txnCode, refundAmount, reason) {
     })
     .then(response => response.json())
     .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="fas fa-check me-1"></span>Confirm Cancellation';
-        
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="fas fa-check me-1"></span>Confirm Cancellation';
+        }
+
         if (data.success) {
             showToast('success', 'Success', data.message);
-            cancelTicketModal.hide();
-            loadRecentTransactions(); // Refresh transactions list
-            loadWallets(null, window.POS_BRANCH_ID); // Refresh wallet balances after cancellation refund
+            if (cancelTicketModal) cancelTicketModal.hide();
+            loadRecentTransactions();
+            loadWallets(null, window.POS_BRANCH_ID);
         } else {
             showToast('danger', 'Error', data.error || 'Cancellation failed.');
         }
     })
     .catch(error => {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="fas fa-check me-1"></span>Confirm Cancellation';
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="fas fa-check me-1"></span>Confirm Cancellation';
+        }
         showToast('danger', 'Error', 'An error occurred during cancellation.');
         console.error('Cancel error:', error);
     });

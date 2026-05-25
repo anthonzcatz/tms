@@ -290,7 +290,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                           <div class="row align-items-center g-3">
                             <div class="col-md-auto">
                               <!-- Logo preview box -->
-                              <div id="logoUploadArea" onclick="document.getElementById('systemLogoUpload').click()" style="width: 250px; height: 150px; border: 2px dashed #0d6efd; border-radius: 10px; cursor: pointer; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                              <div id="logoUploadArea" onclick="document.getElementById('systemLogoUpload').click()" style="width: 250px; height: 150px; border: 2px dashed #0d6efd; border-radius: 10px; cursor: pointer; background: linear-gradient(45deg, #e9ecef 25%, transparent 25%, transparent 75%, #e9ecef 75%, #e9ecef), linear-gradient(45deg, #e9ecef 25%, transparent 25%, transparent 75%, #e9ecef 75%, #e9ecef); background-size: 20px 20px; background-position: 0 0, 10px 10px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                                 <div id="logoUploadPlaceholder" class="text-center <?php echo !empty($settings['system_logo']) ? 'd-none' : ''; ?>">
                                   <span class="fas fa-image text-primary fs-4"></span>
                                   <p class="mb-0 text-primary small fw-bold mt-1">Click to upload</p>
@@ -302,7 +302,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                             </div>
                             <div class="col">
                               <p class="fw-semibold mb-1">Upload your system logo</p>
-                              <p class="text-muted small mb-2">Recommended: 500x300px &bull; PNG, JPG, WebP &bull; Max 10MB</p>
+                              <p class="text-muted small mb-2">Recommended: 2000x600px (supports 4K) &bull; PNG, JPG, WebP &bull; Max 10MB</p>
                               <div class="d-flex gap-2 flex-wrap">
                                 <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('systemLogoUpload').click()">
                                   <span class="fas fa-upload me-1"></span> Upload
@@ -1001,7 +1001,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                   </span>
                 </div>
                 <div class="position-relative" style="border: 1px solid #dee2e6; border-radius: 12px; background: #fff; overflow: hidden;">
-                  <canvas id="logoCropCanvas" width="500" height="300" style="width: 100%; height: auto; display: block; cursor: move;"></canvas>
+                  <canvas id="logoCropCanvas" width="2000" height="1200" style="width: 100%; height: auto; display: block; cursor: move;"></canvas>
                 </div>
                 <div class="d-flex justify-content-center gap-2 mt-3 flex-wrap">
                   <button type="button" class="btn btn-sm btn-outline-primary" onclick="zoomLogoOut()" title="Zoom Out">
@@ -1039,8 +1039,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                   <span class="fas fa-eye me-2"></span>Preview
                 </h6>
                 <div class="text-center mb-3">
-                  <div class="border rounded-3 p-4 bg-light d-inline-block" style="background: linear-gradient(45deg, #e9ecef 25%, transparent 25%, transparent 75%, #e9ecef 75%, #e9ecef), linear-gradient(45deg, #e9ecef 25%, transparent 25%, transparent 75%, #e9ecef 75%, #e9ecef); background-size: 20px 20px; background-position: 0 0, 10px 10px;">
-                    <canvas id="logoPreviewCanvas" width="500" height="300" style="width: 100%; height: auto; display: block;"></canvas>
+                  <div class="border rounded-3 d-block w-100" style="overflow: hidden; background: linear-gradient(45deg, #e9ecef 25%, transparent 25%, transparent 75%, #e9ecef 75%, #e9ecef), linear-gradient(45deg, #e9ecef 25%, transparent 25%, transparent 75%, #e9ecef 75%, #e9ecef); background-size: 20px 20px; background-position: 0 0, 10px 10px;">
+                    <canvas id="logoPreviewCanvas" width="2000" height="1200" style="width: 100%; height: auto; display: block;"></canvas>
                   </div>
                 </div>
                 <div class="mb-3">
