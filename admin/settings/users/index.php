@@ -24,7 +24,7 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow
 } elseif (!Auth::canAccessModule('admin/settings/users/')) {
     http_response_code(403);
-    include dirname(__DIR__) . '/includes/access-denied.php';
+    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;
 }
 

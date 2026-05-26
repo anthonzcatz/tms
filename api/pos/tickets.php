@@ -72,6 +72,42 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         $orderTotal     = $ticketsTotal + $servicesTotal;
         $totalPaid      = array_sum(array_column($payments, 'amount'));
 
+        // Pre-compute profit columns
+        $totalCost        = array_sum(array_column($tickets, 'base_amount'));  // Cost paid to provider
+        $totalServiceFees = array_sum(array_column($tickets, 'service_fee'));  // Service fees = profit
+        $totalAddOns      = array_sum(array_column($services, 'total_amount')); // Add-ons = profit
+        $totalProfit      = $totalServiceFees + $totalAddOns;
+
+        // Denormalize cashier name from employee record
+        $cashierName = null;
+        $cashierUserId = $user['user_id'];
+        $empRow = Database::fetch(
+            "SELECT e.first_name, e.middle_name, e.last_name
+             FROM user_accounts ua
+             JOIN employees e ON e.emp_id = ua.emp_id
+             WHERE ua.user_id = :uid",
+            ['uid' => $cashierUserId]
+        );
+        if ($empRow) {
+            $mid = !empty($empRow['middle_name']) ? ' ' . substr($empRow['middle_name'],0,1) . '.' : '';
+            $cashierName = trim($empRow['first_name'] . $mid . ' ' . $empRow['last_name']);
+        }
+        if (!$cashierName) $cashierName = $user['username'] ?? null;
+
+        // Denormalize all payment methods (handles multi-payment)
+        $uniqueMethodIds = array_unique(array_filter(array_column($payments, 'payment_method_id')));
+        $paymentMethodsDetail = [];
+        foreach ($uniqueMethodIds as $pmId) {
+            $pmRow = Database::fetch("SELECT method_id, method_name FROM payment_methods WHERE method_id = :id", ['id' => $pmId]);
+            if ($pmRow) {
+                $totalForMethod = array_sum(array_column(array_filter($payments, fn($p) => $p['payment_method_id'] == $pmId), 'amount'));
+                $paymentMethodsDetail[] = ['method_id' => (int)$pmRow['method_id'], 'method_name' => $pmRow['method_name'], 'amount' => $totalForMethod];
+            }
+        }
+        $primaryPaymentMethod  = implode(' + ', array_column($paymentMethodsDetail, 'method_name')) ?: null;
+        $paymentMethodIds      = implode(',', array_column($paymentMethodsDetail, 'method_id')) ?: null;
+        $paymentMethodsJson    = !empty($paymentMethodsDetail) ? json_encode($paymentMethodsDetail) : null;
+
         if ($totalPaid < $orderTotal) {
             Database::connection()->rollBack();
             echo json_encode(['success' => false, 'error' => "Payment (₱{$totalPaid}) is less than total (₱{$orderTotal})."]); exit;
@@ -80,20 +116,37 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         // --- Create pos_orders record ---
         Database::execute(
             "INSERT INTO pos_orders
-                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, original_grand_total, amount_paid, change_amount, status, created_at)
-             VALUES (:code, :branch, :session, :uid, :subtotal, :discount, :grand, :original, :paid, :change, 'completed', :created_at)",
+                (order_code, branch_id, cashier_session_id, created_by,
+                 subtotal, discount_total, total_cost, total_service_fees, total_add_ons, total_profit,
+                 grand_total, original_grand_total, amount_paid, change_amount,
+                 payment_method, cashier_name, cashier_user_id,
+                 payment_method_ids, payment_methods_json, status, created_at)
+             VALUES (:code, :branch, :session, :uid,
+                     :subtotal, :discount, :total_cost, :total_service_fees, :total_add_ons, :total_profit,
+                     :grand, :original, :paid, :change,
+                     :payment_method, :cashier_name, :cashier_user_id,
+                     :payment_method_ids, :payment_methods_json, 'completed', :created_at)",
             [
-                'code'     => $orderCode,
-                'branch'   => $branchId,
-                'session'  => $sessionId,
-                'uid'      => $user['user_id'],
-                'subtotal' => $orderTotal + $discountTotal,
-                'discount' => $discountTotal,
-                'grand'    => $orderTotal,
-                'original' => $orderTotal,
-                'paid'     => $totalPaid,
-                'change'   => $totalPaid - $orderTotal,
-                'created_at' => date('Y-m-d H:i:s'),
+                'code'                => $orderCode,
+                'branch'              => $branchId,
+                'session'             => $sessionId,
+                'uid'                 => $user['user_id'],
+                'subtotal'            => $orderTotal + $discountTotal,
+                'discount'            => $discountTotal,
+                'total_cost'          => $totalCost,
+                'total_service_fees'  => $totalServiceFees,
+                'total_add_ons'       => $totalAddOns,
+                'total_profit'        => $totalProfit,
+                'grand'               => $orderTotal,
+                'original'            => $orderTotal,
+                'paid'                => $totalPaid,
+                'change'              => $totalPaid - $orderTotal,
+                'payment_method'      => $primaryPaymentMethod,
+                'cashier_name'        => $cashierName,
+                'cashier_user_id'     => $cashierUserId,
+                'payment_method_ids'  => $paymentMethodIds,
+                'payment_methods_json'=> $paymentMethodsJson,
+                'created_at'          => date('Y-m-d H:i:s'),
             ]
         );
         $orderId = Database::connection()->lastInsertId();
@@ -108,25 +161,32 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
 
             Database::execute(
                 "INSERT INTO ticket_transactions
-                    (transaction_code, wallet_id, passenger_id, origin, destination,
+                    (transaction_code, wallet_id, branch_id, passenger_id, accommodation_id, discount_id,
+                     origin, destination, travel_date, ticket_number,
                      base_amount, service_fee, discount_amount, total_amount, status,
                      cashier_session_id, created_by, created_at)
-                 VALUES (:code, :wallet, :passenger, :origin, :destination,
+                 VALUES (:code, :wallet, :branch, :passenger, :accommodation_id, :discount_id,
+                         :origin, :destination, :travel_date, :ticket_number,
                          :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
                          :session, :uid, :created_at)",
                 [
-                    'code'           => $txnCode,
-                    'wallet'         => $ticket['wallet_id'] ?? null,
-                    'passenger'      => $ticket['passenger_id'] ?? null,
-                    'origin'         => $ticket['origin'] ?? null,
-                    'destination'    => $ticket['destination'] ?? null,
-                    'base_amount'    => floatval($ticket['base_amount'] ?? 0),
-                    'service_fee'    => floatval($ticket['service_fee'] ?? 0),
-                    'discount_amount'=> floatval($ticket['discount_amount'] ?? 0),
-                    'total_amount'   => floatval($ticket['total_amount'] ?? 0),
-                    'session'        => $sessionId,
-                    'uid'            => $user['user_id'],
-                    'created_at'     => date('Y-m-d H:i:s'),
+                    'code'            => $txnCode,
+                    'wallet'          => $ticket['wallet_id'] ?? null,
+                    'branch'          => $branchId,
+                    'passenger'       => $ticket['passenger_id'] ?? null,
+                    'accommodation_id'=> $ticket['accommodation_id'] ?? null,
+                    'discount_id'     => $ticket['discount_id'] ?? null,
+                    'origin'          => $ticket['origin'] ?? null,
+                    'destination'     => $ticket['destination'] ?? null,
+                    'travel_date'     => $ticket['travel_date'] ?? null,
+                    'ticket_number'   => $ticket['ticket_number'] ?? null,
+                    'base_amount'     => floatval($ticket['base_amount'] ?? 0),
+                    'service_fee'     => floatval($ticket['service_fee'] ?? 0),
+                    'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
+                    'total_amount'    => floatval($ticket['total_amount'] ?? 0),
+                    'session'         => $sessionId,
+                    'uid'             => $user['user_id'],
+                    'created_at'      => date('Y-m-d H:i:s'),
                 ]
             );
             $ticketTxnId = Database::connection()->lastInsertId();
@@ -135,14 +195,30 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             // --- Write order item for this ticket ---
             Database::execute(
                 "INSERT INTO pos_order_items
-                    (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
-                 VALUES (:oid, 'TICKET', :ref, :code, :total, :created_at)",
+                    (order_id, item_type, reference_id, transaction_code, ticket_number,
+                     wallet_id, passenger_id, description,
+                     unit_price, service_fee, discount_amount, total_amount,
+                     origin, destination, travel_date, created_at)
+                 VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
+                         :wallet_id, :passenger_id, :description,
+                         :unit_price, :service_fee, :discount_amount, :total,
+                         :origin, :destination, :travel_date, :created_at)",
                 [
-                    'oid'   => $orderId,
-                    'ref'   => $ticketTxnId,
-                    'code'  => $txnCode,
-                    'total' => floatval($ticket['total_amount'] ?? 0),
-                    'created_at' => date('Y-m-d H:i:s'),
+                    'oid'             => $orderId,
+                    'ref'             => $ticketTxnId,
+                    'code'            => $txnCode,
+                    'ticket_number'   => $ticket['ticket_number'] ?? $txnCode, // Fallback to transaction code if no ticket number
+                    'wallet_id'       => $ticket['wallet_id'] ?? null,
+                    'passenger_id'    => $ticket['passenger_id'] ?? null,
+                    'description'     => $ticket['description'] ?? null,
+                    'unit_price'      => floatval($ticket['base_amount'] ?? 0),
+                    'service_fee'     => floatval($ticket['service_fee'] ?? 0),
+                    'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
+                    'total'           => floatval($ticket['total_amount'] ?? 0),
+                    'origin'          => $ticket['origin'] ?? null,
+                    'destination'     => $ticket['destination'] ?? null,
+                    'travel_date'     => $ticket['travel_date'] ?? null,
+                    'created_at'      => date('Y-m-d H:i:s'),
                 ]
             );
 
@@ -292,14 +368,23 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             // --- Write order item for this service ---
             Database::execute(
                 "INSERT INTO pos_order_items
-                    (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
-                 VALUES (:oid, 'SERVICE', :ref, :code, :total, :created_at)",
+                    (order_id, item_type, reference_id, transaction_code,
+                     service_type_id, passenger_id, description,
+                     quantity, unit_price, service_fee, discount_amount, total_amount, created_at)
+                 VALUES (:oid, 'SERVICE', :ref, :code,
+                         :service_type_id, :passenger_id, :description,
+                         :quantity, :unit_price, 0, 0, :total, :created_at)",
                 [
-                    'oid'   => $orderId,
-                    'ref'   => $serviceTxnId,
-                    'code'  => $svcCode,
-                    'total' => floatval($svc['total_amount'] ?? 0),
-                    'created_at' => date('Y-m-d H:i:s'),
+                    'oid'             => $orderId,
+                    'ref'             => $serviceTxnId,
+                    'code'            => $svcCode,
+                    'service_type_id' => $svc['service_type_id'] ?? null,
+                    'passenger_id'    => $svc['passenger_id'] ?? null,
+                    'description'     => $svc['description'] ?? null,
+                    'quantity'        => intval($svc['quantity'] ?? 1),
+                    'unit_price'      => floatval($svc['unit_price'] ?? 0),
+                    'total'           => floatval($svc['total_amount'] ?? 0),
+                    'created_at'      => date('Y-m-d H:i:s'),
                 ]
             );
 

@@ -111,7 +111,7 @@ if ($useOrdersTable) {
             COALESCE(o.original_grand_total, o.grand_total) as total_amount,
             o.discount_total as discount_amount,
             o.subtotal as base_amount,
-            0 as service_fee,
+            o.total_service_fees as service_fee,
             o.status,
             COALESCE(o.total_refunded_amount, 0) as total_refunded_amount,
             o.created_at,
@@ -119,8 +119,15 @@ if ($useOrdersTable) {
             o.created_by,
             o.amount_paid,
             o.change_amount,
+            o.total_cost,
+            o.total_service_fees,
+            o.total_add_ons,
+            o.total_profit,
+            o.payment_method,
+            o.payment_method_ids,
+            o.payment_methods_json,
+            o.cashier_name,
             b.branch_name,
-            COALESCE(CONCAT(ce.first_name, ' ', ce.last_name), cua.username) as cashier_name,
             (SELECT COUNT(*) FROM pos_order_items oi2 WHERE oi2.order_id = o.order_id AND oi2.item_type = 'TICKET') as ticket_count,
             (SELECT COUNT(*) FROM pos_order_items oi2 WHERE oi2.order_id = o.order_id AND oi2.item_type = 'SERVICE') as service_count,
             (SELECT GROUP_CONCAT(DISTINCT pa2.fullname SEPARATOR ', ')
@@ -196,6 +203,15 @@ if ($useOrdersTable) {
             ? "{$order['ticket_count']} ticket(s) + {$order['service_count']} service(s)"
             : ($hasTickets ? "{$order['ticket_count']} ticket(s)" : "{$order['service_count']} service(s)");
         $order['provider_type']    = null;
+        
+        // Add profit information for display
+        $order['profit_margin'] = $order['total_amount'] > 0 ? round(($order['total_profit'] / $order['total_amount']) * 100, 1) : 0;
+        
+        // Ensure payment method is available for display
+        if (empty($order['payment_method']) && !empty($order['payments'])) {
+            $paymentNames = array_column($order['payments'], 'method_name');
+            $order['payment_method'] = implode(' + ', $paymentNames);
+        }
 
         // Fetch line items for this order
         $order['order_items'] = Database::fetchAll(
@@ -218,29 +234,34 @@ if ($useOrdersTable) {
         );
 
         // Fetch aggregated payment breakdown for this order.
-        // We join transaction_payments against all items in the order (TICKET and SERVICE).
-        // DISTINCT on payment_method_id + bank_account_id gives one row per payment split.
-        $order['payments'] = Database::fetchAll(
-            "SELECT pm.method_name,
-                    pm.method_type,
-                    pm.method_code,
-                    pm.tracks_credit,
-                    SUM(tp.amount) AS amount
-             FROM transaction_payments tp
-             JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE EXISTS (
-                 SELECT 1 FROM pos_order_items oi
-                 WHERE oi.order_id = :oid
-                   AND oi.reference_id = tp.source_id
-                   AND (
-                       (oi.item_type = 'TICKET'  AND tp.source_type = 'TICKET_TRANSACTION') OR
-                       (oi.item_type = 'SERVICE' AND tp.source_type = 'SERVICE_TRANSACTION')
-                   )
-             )
-             GROUP BY pm.method_id
-             ORDER BY pm.sort_order ASC, pm.method_name ASC",
-            ['oid' => $order['order_id']]
-        );
+        // Use the new payment_methods_json if available, otherwise fall back to transaction_payments
+        if (!empty($order['payment_methods_json'])) {
+            $order['payments'] = json_decode($order['payment_methods_json'], true) ?: [];
+        } else {
+            // Fallback: We join transaction_payments against all items in the order (TICKET and SERVICE).
+            // DISTINCT on payment_method_id + bank_account_id gives one row per payment split.
+            $order['payments'] = Database::fetchAll(
+                "SELECT pm.method_name,
+                        pm.method_type,
+                        pm.method_code,
+                        pm.tracks_credit,
+                        SUM(tp.amount) AS amount
+                 FROM transaction_payments tp
+                 JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+                 WHERE EXISTS (
+                     SELECT 1 FROM pos_order_items oi
+                     WHERE oi.order_id = :oid
+                       AND oi.reference_id = tp.source_id
+                       AND (
+                           (oi.item_type = 'TICKET'  AND tp.source_type = 'TICKET_TRANSACTION') OR
+                           (oi.item_type = 'SERVICE' AND tp.source_type = 'SERVICE_TRANSACTION')
+                       )
+                 )
+                 GROUP BY pm.method_id
+                 ORDER BY pm.sort_order ASC, pm.method_name ASC",
+                ['oid' => $order['order_id']]
+            );
+        }
     }
     unset($order);
 

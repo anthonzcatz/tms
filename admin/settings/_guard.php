@@ -13,6 +13,6 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow
 } elseif (!Auth::can('VIEW_SETTINGS')) {
     $message = 'You do not have permission to access the Settings module.';
-    include dirname(__DIR__) . '/includes/access-denied.php';
+    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;
 }

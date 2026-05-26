@@ -510,6 +510,12 @@
           </div>
         </form>
       </div>
+      <!-- Inline save error alert -->
+      <div id="saveErrorAlert" class="alert alert-danger alert-dismissible mx-3 mb-0 py-2 fs-11" style="display:none;" role="alert">
+        <span class="fas fa-exclamation-circle me-1"></span>
+        <span id="saveErrorMsg"></span>
+        <button type="button" class="btn-close btn-sm" onclick="document.getElementById('saveErrorAlert').style.display='none'"></button>
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           <span class="fas fa-times me-2"></span>Cancel

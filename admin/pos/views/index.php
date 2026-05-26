@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php
+/**
+ * @var array|null $activeSession
+ * @var array      $serviceTypes
+ * @var array      $paymentMethods
+ * @var array      $bankAccounts
+ * @var array      $passengers
+ * @var array|null $cancellationSettings
+ * @var array|null $posSettings
+ * @var array|null $printerSettings
+ * @var string     $userRoleCode
+ * @var string     $userBranchId
+ * @var array      $depositBankAccounts
+ */
 require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
 // Calculate POS permissions once at the top using explicit integer values
@@ -542,7 +555,9 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         printerType: '<?php echo $printerSettings['printer_type'] ?? 'THERMAL'; ?>',
         headerText: '<?php echo htmlspecialchars($printerSettings['receipt_header_text'] ?? ''); ?>',
         footerText: '<?php echo htmlspecialchars($printerSettings['receipt_footer'] ?? 'Thank you for your business!'); ?>',
-        customFooter: '<?php echo htmlspecialchars($printerSettings['receipt_custom_footer'] ?? ''); ?>'
+        customFooter: '<?php echo htmlspecialchars($printerSettings['receipt_custom_footer'] ?? ''); ?>',
+        customerCopy: <?php echo ($printerSettings['receipt_customer_copy'] ?? 0) ? 'true' : 'false'; ?>,
+        merchantCopy: <?php echo ($printerSettings['receipt_merchant_copy'] ?? 1) ? 'true' : 'false'; ?>
     };
 
     // Company Info for Receipts
@@ -556,6 +571,16 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     };
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/qz-tray.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+  <script>
+    // QZ Tray signing credentials (served via PHP to avoid public file exposure)
+    window.QZ_CERT = <?php echo json_encode(
+      file_get_contents(dirname(__DIR__) . '/views/digital-certificate.txt')
+    ); ?>;
+    window.QZ_PRIVATE_KEY = <?php echo json_encode(
+      file_get_contents(dirname(__DIR__) . '/views/private-key.pem')
+    ); ?>;
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js"></script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js"></script>
 </body>

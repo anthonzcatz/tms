@@ -24,6 +24,8 @@ try {
 
     // Get parameters
     $range = isset($_GET['range']) ? $_GET['range'] : 'week';
+    $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : null;
+    $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : null;
     // branch_id absent = default to first branch; branch_id = '' = All Branches
     $branchIdRaw = array_key_exists('branch_id', $_GET) ? $_GET['branch_id'] : 'DEFAULT';
     $isAllBranches = ($branchIdRaw === '');
@@ -59,7 +61,7 @@ try {
     }
 
     // If specific branch requested, verify access
-    if (!$isAllBranches && $branchId && !in_array($branchId, $accessibleBranches)) {
+    if (!$isAllBranches && $branchId && !in_array(intval($branchId), array_map('intval', $accessibleBranches))) {
         echo json_encode(['success' => false, 'error' => 'Access denied for this branch']);
         exit;
     }
@@ -79,29 +81,40 @@ try {
     }
 
     // Calculate date range
-    $endDate = date('Y-m-d');
-    switch ($range) {
-        case 'today':
-            $startDate = date('Y-m-d');
-            $days = 1;
-            break;
-        case 'month':
-            $startDate = date('Y-m-d', strtotime('-30 days'));
-            $days = 30;
-            break;
-        case 'year':
-            $startDate = date('Y-m-d', strtotime('-365 days'));
-            $days = 365;
-            break;
-        case 'week':
-        default:
-            $startDate = date('Y-m-d', strtotime('-6 days'));
-            $days = 7;
-            break;
+    // Use custom dates if provided, otherwise use preset ranges
+    if ($startDate && $endDate) {
+        // Custom date range - calculate days between dates
+        $startTs = strtotime($startDate);
+        $endTs = strtotime($endDate);
+        if ($startTs > $endTs) { $tmp = $startTs; $startTs = $endTs; $endTs = $tmp; }
+        $days = max(1, min(365, (int)(($endTs - $startTs) / 86400) + 1));
+    } else {
+        $endDate = date('Y-m-d');
+        switch ($range) {
+            case 'today':
+                $startDate = date('Y-m-d');
+                $days = 1;
+                break;
+            case 'month':
+                $startDate = date('Y-m-01'); // First day of current month
+                $days = (int)date('t'); // Days in current month
+                break;
+            case 'year':
+                $startDate = date('Y-01-01'); // January 1st of current year
+                $days = (int)date('z') + 1; // Day of year (1-365/366)
+                break;
+            case 'week':
+            default:
+                $startDate = date('Y-m-d', strtotime('-6 days'));
+                $days = 7;
+                break;
+        }
     }
 
     // Get daily sales data from cashier_sessions
     // For 'today', build hourly buckets instead of daily
+    // For 'year', build monthly buckets instead of daily
+    // For custom date ranges, build daily buckets
     $dailyData = [];
     if ($range === 'today') {
         for ($h = 0; $h < 24; $h++) {
@@ -115,68 +128,103 @@ try {
                 'transactions' => 0
             ];
         }
-    } else {
-        for ($i = 0; $i < $days; $i++) {
-            $date = date('Y-m-d', strtotime("-$i days"));
-            $dailyData[$date] = [
-                'date' => $date,
-                'display_date' => date('M d', strtotime($date)),
+    } elseif ($range === 'year' && !($startDate && $endDate)) {
+        // Generate monthly data from January to current month (only for preset year range)
+        $currentMonth = 1;
+        $currentYear = date('Y');
+        $endMonth = (int)date('n');
+        while ($currentMonth <= $endMonth) {
+            $key = sprintf('%d-%02d', $currentYear, $currentMonth);
+            $dailyData[$key] = [
+                'date' => $key,
+                'display_date' => date('M Y', strtotime(sprintf('%d-%02d-01', $currentYear, $currentMonth))),
                 'sales' => 0,
                 'refunds' => 0,
                 'net' => 0,
                 'transactions' => 0
             ];
+            $currentMonth++;
+        }
+    } else {
+        // Generate dates from startDate to endDate in chronological order (for custom ranges and preset week/month)
+        $currentDate = $startDate;
+        while ($currentDate <= $endDate) {
+            $dailyData[$currentDate] = [
+                'date' => $currentDate,
+                'display_date' => date('M d', strtotime($currentDate)),
+                'sales' => 0,
+                'refunds' => 0,
+                'net' => 0,
+                'transactions' => 0
+            ];
+            $currentDate = date('Y-m-d', strtotime($currentDate . ' +1 day'));
         }
     }
 
     // Build positional params for sales and previous-period queries
     if ($isAllBranches) {
         $branchInPlaceholders = implode(',', array_fill(0, count($accessibleBranches), '?'));
-        $branchWhereCs   = "cs.branch_id IN ($branchInPlaceholders)";
+        $branchWhereCs   = "po.branch_id IN ($branchInPlaceholders)";
         $branchWhereFlat = "branch_id IN ($branchInPlaceholders)";
 
         $salesParams    = array_merge([$startDate, $endDate], $accessibleBranches);
         $prevBranchArgs = $accessibleBranches;
     } else {
-        $branchWhereCs   = "cs.branch_id = ?";
+        $branchWhereCs   = "po.branch_id = ?";
         $branchWhereFlat = "branch_id = ?";
 
         $salesParams    = [$startDate, $endDate, $targetBranchId];
         $prevBranchArgs = [$targetBranchId];
     }
 
-    // Query sales data from completed sessions
+    // Query sales data from pos_orders (new optimized system)
     if ($range === 'today') {
         // Hourly grouping for today
         $salesQuery = "
             SELECT
-                DATE_FORMAT(cs.ended_at, '%Y-%m-%d %H:00') as sale_date,
-                COALESCE(SUM(cs.total_sales), 0) as total_sales,
-                COALESCE(SUM(cs.total_refunds_wallet), 0) as total_refunds,
-                COUNT(*) as session_count
-            FROM cashier_sessions cs
-            WHERE cs.status = 'CLOSED'
-            AND DATE(cs.ended_at) = ?
+                DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00') as sale_date,
+                COALESCE(SUM(po.grand_total), 0) as total_sales,
+                COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
+                COUNT(*) as transaction_count
+            FROM pos_orders po
+            WHERE po.status = 'completed'
+            AND DATE(po.created_at) = ?
             AND $branchWhereCs
-            GROUP BY DATE_FORMAT(cs.ended_at, '%Y-%m-%d %H:00')
+            GROUP BY DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')
             ORDER BY sale_date ASC
         ";
         $salesParams = $isAllBranches
             ? array_merge([date('Y-m-d')], $accessibleBranches)
             : [date('Y-m-d'), $targetBranchId];
-    } else {
+    } elseif ($range === 'year' && !($startDate && $endDate)) {
+        // Monthly grouping for preset year range only
         $salesQuery = "
             SELECT
-                DATE(cs.ended_at) as sale_date,
-                COALESCE(SUM(cs.total_sales), 0) as total_sales,
-                COALESCE(SUM(cs.total_refunds_wallet), 0) as total_refunds,
-                COUNT(*) as session_count
-            FROM cashier_sessions cs
-            WHERE cs.status = 'CLOSED'
-            AND DATE(cs.ended_at) BETWEEN ? AND ?
+                DATE_FORMAT(po.created_at, '%Y-%m') as sale_date,
+                COALESCE(SUM(po.grand_total), 0) as total_sales,
+                COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
+                COUNT(*) as transaction_count
+            FROM pos_orders po
+            WHERE po.status = 'completed'
+            AND DATE(po.created_at) BETWEEN ? AND ?
             AND $branchWhereCs
-            GROUP BY DATE(cs.ended_at)
-            ORDER BY sale_date DESC
+            GROUP BY DATE_FORMAT(po.created_at, '%Y-%m')
+            ORDER BY sale_date ASC
+        ";
+    } else {
+        // Daily grouping for custom ranges and preset week/month
+        $salesQuery = "
+            SELECT
+                DATE(po.created_at) as sale_date,
+                COALESCE(SUM(po.grand_total), 0) as total_sales,
+                COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
+                COUNT(*) as transaction_count
+            FROM pos_orders po
+            WHERE po.status = 'completed'
+            AND DATE(po.created_at) BETWEEN ? AND ?
+            AND $branchWhereCs
+            GROUP BY DATE(po.created_at)
+            ORDER BY sale_date ASC
         ";
     }
 
@@ -188,7 +236,7 @@ try {
             $dailyData[$key]['sales'] = floatval($row['total_sales']);
             $dailyData[$key]['refunds'] = floatval($row['total_refunds']);
             $dailyData[$key]['net'] = floatval($row['total_sales']) - floatval($row['total_refunds']);
-            $dailyData[$key]['sessions'] = intval($row['session_count']);
+            $dailyData[$key]['transactions'] = intval($row['transaction_count']);
         }
     }
 
@@ -197,7 +245,12 @@ try {
         $txnGroupBy  = "DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')";
         $txnDateWhere = "DATE(po.created_at) = ?";
         $txnDateArgs  = [date('Y-m-d')];
+    } elseif ($range === 'year' && !($startDate && $endDate)) {
+        $txnGroupBy  = "DATE_FORMAT(po.created_at, '%Y-%m')";
+        $txnDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
+        $txnDateArgs  = [$startDate, $endDate];
     } else {
+        // Daily grouping for custom ranges and preset week/month
         $txnGroupBy  = "DATE(po.created_at)";
         $txnDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
         $txnDateArgs  = [$startDate, $endDate];
@@ -234,14 +287,83 @@ try {
         }
     }
 
-    // Calculate totals
+    // Get profit data from pos_orders with item costs
+    // Profit = Revenue (grand_total) - Cost (base_amount from tickets + unit_price from services)
+    if ($range === 'today') {
+        $profitGroupBy = "DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')";
+        $profitDateWhere = "DATE(po.created_at) = ?";
+        $profitDateArgs = [date('Y-m-d')];
+    } elseif ($range === 'year' && !($startDate && $endDate)) {
+        $profitGroupBy = "DATE_FORMAT(po.created_at, '%Y-%m')";
+        $profitDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
+        $profitDateArgs = [$startDate, $endDate];
+    } else {
+        // Daily grouping for custom ranges and preset week/month
+        $profitGroupBy = "DATE(po.created_at)";
+        $profitDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
+        $profitDateArgs = [$startDate, $endDate];
+    }
+
+    // Build branch filter for profit query
+    if ($isAllBranches) {
+        $profitBranchWhere = "po.branch_id IN ($branchInPo)";
+        $profitBranchArgs = $accessibleBranches;
+    } else {
+        $profitBranchWhere = "po.branch_id = ?";
+        $profitBranchArgs = [$targetBranchId];
+    }
+
+    // Read profit data directly from pos_orders denormalized columns
+    $profitQuery = "
+        SELECT
+            $profitGroupBy as profit_date,
+            COALESCE(SUM(po.grand_total), 0)          as revenue,
+            COALESCE(SUM(po.total_cost), 0)           as cost,
+            COALESCE(SUM(po.total_service_fees), 0)   as service_fees,
+            COALESCE(SUM(po.total_add_ons), 0)        as add_ons,
+            COALESCE(SUM(po.total_profit), 0)         as profit
+        FROM pos_orders po
+        WHERE po.status = 'completed'
+        AND $profitDateWhere
+        AND $profitBranchWhere
+        GROUP BY $profitGroupBy
+    ";
+
+    $profitParams = array_merge($profitDateArgs, $profitBranchArgs);
+    $profitResults = Database::fetchAll($profitQuery, $profitParams);
+
+    foreach ($profitResults as $row) {
+        $key = $row['profit_date'];
+        if (isset($dailyData[$key])) {
+            $revenue     = floatval($row['revenue']);
+            $cost        = floatval($row['cost']);
+            $serviceFees = floatval($row['service_fees']);
+            $addOns      = floatval($row['add_ons']);
+            $profit      = floatval($row['profit']);
+
+            $dailyData[$key]['revenue']        = $revenue;
+            $dailyData[$key]['cost']           = $cost;
+            $dailyData[$key]['service_fees']   = $serviceFees;
+            $dailyData[$key]['add_ons']        = $addOns;
+            $dailyData[$key]['profit']         = $profit;
+            $dailyData[$key]['profit_margin']  = $revenue > 0 ? round(($profit / $revenue) * 100, 1) : 0;
+        }
+    }
+
+    // Calculate totals - use revenue from pos_orders for consistency
     $totalSales = array_sum(array_column($dailyData, 'sales'));
     $totalRefunds = array_sum(array_column($dailyData, 'refunds'));
     $totalNet = $totalSales - $totalRefunds;
     $totalTransactions = array_sum(array_column($dailyData, 'transactions'));
+    $totalRevenue = array_sum(array_column($dailyData, 'revenue'));
+    $totalCost = array_sum(array_column($dailyData, 'cost'));
+    $totalServiceFees = array_sum(array_column($dailyData, 'service_fees'));
+    $totalAddOns = array_sum(array_column($dailyData, 'add_ons'));
+    $totalProfit = array_sum(array_column($dailyData, 'profit'));
+    $avgProfitMargin = $totalRevenue > 0 ? round(($totalProfit / $totalRevenue) * 100, 1) : 0;
 
-    // Prepare chart data (reverse to show oldest first)
-    $chartData = array_reverse(array_values($dailyData));
+    // Prepare chart data
+    $chartData = array_values($dailyData);
 
     // Calculate trend percentages
     $midPoint = floor(count($dailyData) / 2);
@@ -268,11 +390,11 @@ try {
 
     $prevParams = array_merge([$prevStartDate, $prevEndDate], $prevBranchArgs);
     $prevResult = Database::fetch("
-        SELECT COALESCE(SUM(total_sales), 0) as total,
-               COALESCE(SUM(total_refunds_wallet), 0) as refunds
-        FROM cashier_sessions
-        WHERE status = 'CLOSED'
-        AND DATE(ended_at) BETWEEN ? AND ?
+        SELECT COALESCE(SUM(grand_total), 0) as total,
+               COALESCE(SUM(total_refunded_amount), 0) as refunds
+        FROM pos_orders
+        WHERE status = 'completed'
+        AND DATE(created_at) BETWEEN ? AND ?
         AND $branchWhereFlat
     ", $prevParams);
 
@@ -289,10 +411,16 @@ try {
             'branch_id' => $targetBranchId ? IdEncoder::encode($targetBranchId) : '',
             'period' => $range,
             'summary' => [
-                'total_sales' => $totalSales,
+                'total_sales' => $totalRevenue, // Use revenue for consistency
                 'total_refunds' => $totalRefunds,
                 'total_net' => $totalNet,
                 'total_transactions' => $totalTransactions,
+                'total_revenue' => $totalRevenue,
+                'total_cost' => $totalCost,
+                'total_service_fees' => $totalServiceFees,
+                'total_add_ons' => $totalAddOns,
+                'total_profit' => $totalProfit,
+                'profit_margin' => $avgProfitMargin,
                 'sales_trend' => round($salesTrend, 1),
                 'period_change' => round($periodChange, 1)
             ],

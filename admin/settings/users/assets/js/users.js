@@ -175,12 +175,12 @@ function setupEventListeners() {
     // Username validation
     const usernameInput = document.getElementById('username');
     usernameInput.addEventListener('input', debounce(async function() {
-        const username = this.value;
+        const username = usernameInput.value;
         const userId = document.getElementById('userId').value;
         const invalidFeedback = document.getElementById('usernameInvalidFeedback');
 
         // Reset validation
-        this.classList.remove('is-invalid', 'is-valid');
+        usernameInput.classList.remove('is-invalid', 'is-valid');
         if (invalidFeedback) {
             invalidFeedback.style.display = 'none';
         }
@@ -193,13 +193,13 @@ function setupEventListeners() {
         const exists = await checkUsernameExists(username, userId || null);
         
         if (exists) {
-            this.classList.add('is-invalid');
+            usernameInput.classList.add('is-invalid');
             if (invalidFeedback) {
                 invalidFeedback.textContent = 'Username already exists';
                 invalidFeedback.style.display = 'block';
             }
         } else {
-            this.classList.add('is-valid');
+            usernameInput.classList.add('is-valid');
         }
         updateNextButtonState();
     }, 500));
@@ -758,9 +758,11 @@ function nextStep() {
         const selectedOption = roleIdSelect.options[roleIdSelect.selectedIndex];
         const roleCode = selectedOption ? selectedOption.dataset.roleCode : '';
         
-        // Skip step 6 if not CASHIER role
+        // Skip step 6 if not CASHIER role — jump straight to last step
         if (roleCode !== 'CASHIER') {
-            currentStep = 6; // Skip to end
+            currentStep = totalSteps;
+            updateWizardUI();
+            return;
         }
     }
     
@@ -776,6 +778,17 @@ function nextStep() {
 function prevStep() {
     if (currentStep > 1) {
         currentStep--;
+
+        // Skip step 6 backward if not CASHIER role
+        if (currentStep === 6) {
+            const roleIdSelect = document.getElementById('roleId');
+            const selectedOption = roleIdSelect ? roleIdSelect.options[roleIdSelect.selectedIndex] : null;
+            const roleCode = selectedOption ? selectedOption.dataset.roleCode : '';
+            if (roleCode !== 'CASHIER') {
+                currentStep = 5;
+            }
+        }
+
         updateWizardUI();
     }
 }
@@ -1187,6 +1200,10 @@ async function saveUser() {
             }
         }
 
+        // Hide any previous inline error
+        const saveErrAlert = document.getElementById('saveErrorAlert');
+        if (saveErrAlert) saveErrAlert.style.display = 'none';
+
         if (result.success) {
             // Handle transport assignments if user is a cashier
             const roleIdSelect = document.getElementById('roleId');
@@ -1223,7 +1240,16 @@ async function saveUser() {
             userModal.hide();
             loadUsers();
         } else {
-            showToast('error', 'Error', result.error || 'Failed to save user');
+            const msg = result.error || 'Failed to save user';
+            // Show error inside modal so it is always visible
+            const errAlert = document.getElementById('saveErrorAlert');
+            const errMsg   = document.getElementById('saveErrorMsg');
+            if (errAlert && errMsg) {
+                errMsg.textContent = msg;
+                errAlert.style.display = 'block';
+            } else {
+                showToast('error', 'Error', msg);
+            }
         }
     } catch (error) {
         console.error('Error saving user:', error);

@@ -293,6 +293,16 @@ Waiting for test print...
 
   <!-- QZ Tray Library -->
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/qz-tray.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+  <script>
+    // QZ Tray signing credentials (served via PHP to avoid public file exposure)
+    window.QZ_CERT = <?php echo json_encode(
+      file_get_contents(dirname(__FILE__) . '/digital-certificate.txt')
+    ); ?>;
+    window.QZ_PRIVATE_KEY = <?php echo json_encode(
+      file_get_contents(dirname(__FILE__) . '/private-key.pem')
+    ); ?>;
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js"></script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/printer-setup.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/printer-setup.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

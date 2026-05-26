@@ -2245,6 +2245,7 @@ function addTicketToCart() {
     const discountPercentage = discountSelect.value === '0' ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
     const discountAmount = (baseAmount * discountPercentage) / 100;
     const total = baseAmount + serviceFee - discountAmount;
+    const accommodationId = document.getElementById('ticketAccommodation').value || null;
     
     // Get wallet and branch info
     const walletSelect = document.getElementById('ticketWallet');
@@ -2275,6 +2276,7 @@ function addTicketToCart() {
         discountId: discountSelect.value === '0' ? null : discountSelect.value,
         discountPercentage,
         discountAmount,
+        accommodationId,
         total,
         walletId,
         branchId: walletBranchId,
@@ -2802,6 +2804,7 @@ async function confirmOrder() {
                 service_fee: ticket.serviceFee,
                 discount_id: ticket.discountId,
                 discount_amount: ticket.discountAmount,
+                accommodation_id: ticket.accommodationId || null,
                 total_amount: ticket.total,
                 wallet_id: ticket.walletId
             }],
@@ -2867,7 +2870,7 @@ async function confirmOrder() {
                     if (printerStatus.ready) {
                         // Build transaction data for receipt
                         const transactionData = {
-                            id: result.transaction_id || result.id,
+                            id: result.transaction_id || result.order_id || result.id,
                             transaction_code: result.transaction_code,
                             branch_name: window.POS_BRANCH_NAME || '',
                             cashier_name: window.POS_USER_NAME || '',
@@ -2879,7 +2882,7 @@ async function confirmOrder() {
                             amount_tendered: paid,
                             change_amount: paid - total,
                             items: cart.map(item => ({
-                                name: item.description || item.passengerName || item.serviceName || item.type,
+                                name: (item.type === 'ticket' ? item.ticketNumber : null) || item.description || item.passengerName || item.serviceName || item.type,
                                 quantity: item.qty || 1,
                                 price: item.unitPrice || item.total || 0,
                                 base_amount: parseFloat(item.baseAmount || item.unitPrice || item.total || 0),
@@ -3144,8 +3147,8 @@ function renderTransactionsTable(transactions) {
         // Build payment method cell — shows each payment line e.g. Cash ₱1,000 + Charge ₱500
         let paymentCell = '-';
         if (isOrderBased && txn.payments && txn.payments.length > 0) {
-            const methodTypeIcon = { CASH: 'fa-money-bill-wave', BANK_TRANSFER: 'fa-university', E_WALLET: 'fa-mobile-alt', CHARGE: 'fa-file-invoice-dollar' };
-            const methodTypeColor = { CASH: 'text-success', BANK_TRANSFER: 'text-primary', E_WALLET: 'text-info', CHARGE: 'text-warning' };
+            const methodTypeIcon = { CASH: 'fa-money-bill-wave', BANK_TRANSFER: 'fa-university', E_WALLET: 'fa-mobile-alt', CHARGE: 'fa-file-invoice-dollar', OTHER: 'fa-receipt' };
+            const methodTypeColor = { CASH: 'text-success', BANK_TRANSFER: 'text-primary', E_WALLET: 'text-info', CHARGE: 'text-warning', OTHER: 'text-secondary' };
             paymentCell = txn.payments.map(p => {
                 const icon  = methodTypeIcon[p.method_type]  || 'fa-credit-card';
                 const color = methodTypeColor[p.method_type] || 'text-secondary';
@@ -3373,9 +3376,11 @@ async function confirmReprintReceipt() {
 
     try {
         // Fetch transaction details
-        const apiUrl = txnId
-            ? `${window.BASE_URL}/api/pos/transaction/${IdEncoder.encode(txnId)}`
-            : `${window.BASE_URL}/api/pos/transaction?code=${txnCode}`;
+        // Prefer code-based lookup (always available); fall back to encoded ID path
+        const validTxnId = txnId && txnId !== 'undefined' && txnId !== '' ? txnId : null;
+        const apiUrl = txnCode
+            ? `${window.BASE_URL}/api/pos/transaction?code=${encodeURIComponent(txnCode)}`
+            : `${window.BASE_URL}/api/pos/transaction/${IdEncoder.encode(validTxnId)}`;
 
         const res = await fetch(apiUrl);
         const result = await res.json();
@@ -3389,32 +3394,61 @@ async function confirmReprintReceipt() {
         const txn = result.data;
 
         // Build transaction data for receipt
+        const orderSvcFeeTotal = parseFloat(txn.total_service_fees || 0);
         const transactionData = {
-            id: txn.id || txn.order_id,
-            transaction_code: txn.transaction_code,
+            id: txn.order_id || txn.transaction_id || txn.id,
+            transaction_code: txn.order_code || txn.transaction_code,
             branch_name: txn.branch_name || '',
             cashier_name: txn.cashier_name || '',
             payment_method: txn.payment_method || '',
-            subtotal: parseFloat(txn.subtotal || txn.total_amount || 0),
-            discount: parseFloat(txn.discount_amount || 0),
+            subtotal: parseFloat(txn.subtotal || txn.grand_total || txn.total_amount || 0),
+            discount: parseFloat(txn.discount_total || txn.discount_amount || 0),
             tax: parseFloat(txn.tax || 0),
-            total: parseFloat(txn.total_amount || 0),
-            amount_tendered: parseFloat(txn.total_amount || 0),
+            total: parseFloat(txn.grand_total || txn.total_amount || 0),
+            amount_tendered: parseFloat(txn.amount_paid || txn.grand_total || txn.total_amount || 0),
             change_amount: parseFloat(txn.change_amount || 0),
             items: txn.items || []
         };
 
         // If order-based, build items from order_items
         if (txn.order_items && txn.order_items.length > 0) {
-            transactionData.items = txn.order_items.map(item => ({
-                name: item.item_type === 'TICKET' ? (item.passenger_name || 'Ticket') : (item.service_type_name || 'Service'),
-                quantity: 1,
-                price: parseFloat(item.total_amount || 0),
-                base_amount: parseFloat(item.unit_price || item.total_amount || 0),
-                service_fee: parseFloat(item.service_fee || 0),
-                discount_amount: parseFloat(item.discount_amount || 0),
-                total: parseFloat(item.total_amount || 0)
-            }));
+            const itemCount = txn.order_items.length;
+            transactionData.items = txn.order_items.map((item, idx) => {
+                const itemSvcFee   = parseFloat(item.service_fee || 0);
+                const itemTotal    = parseFloat(item.total_amount || 0);
+                // Distribute order-level service fee across items when item-level is zero
+                const svcFee = itemSvcFee > 0 ? itemSvcFee
+                    : (orderSvcFeeTotal > 0 && idx === 0 ? orderSvcFeeTotal : 0);
+                const baseAmt = parseFloat(item.unit_price || 0) > 0
+                    ? parseFloat(item.unit_price)
+                    : (itemTotal - svcFee - parseFloat(item.discount_amount || 0));
+                const name = item.item_type === 'TICKET'
+                    ? (item.ticket_number || item.passenger_name || item.description || item.transaction_code || 'Ticket')
+                    : (item.service_type_name || item.description || 'Service');
+                return {
+                    name,
+                    quantity: parseInt(item.quantity) || 1,
+                    price: itemTotal,
+                    base_amount: baseAmt,
+                    service_fee: svcFee,
+                    discount_amount: parseFloat(item.discount_amount || 0),
+                    total: itemTotal
+                };
+            });
+        }
+
+        // Guard: printer must be enabled and configured
+        if (!window.PRINTER_SETTINGS || !window.PRINTER_SETTINGS.enabled || !window.PosPrinter) {
+            showToast('warning', 'Printer Disabled', 'Receipt printing is not enabled.');
+            reprintReceiptModal.hide();
+            return;
+        }
+
+        const printerStatus = window.PosPrinter.getStatus();
+        if (!printerStatus.ready) {
+            showToast('warning', 'Printer Not Ready', 'No printer configured. Please visit Printer Setup first.');
+            reprintReceiptModal.hide();
+            return;
         }
 
         // Print with preview if enabled
@@ -3433,7 +3467,7 @@ async function confirmReprintReceipt() {
 
     } catch (error) {
         console.error('Reprint error:', error);
-        showToast('error', 'Reprint Failed', 'An error occurred while reprinting the receipt.');
+        showToast('danger', 'Reprint Failed', error.message || 'An error occurred while reprinting the receipt.');
     }
 }
 

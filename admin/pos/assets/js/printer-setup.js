@@ -1,3 +1,34 @@
+// ── QZ Tray Security Setup ───────────────────────────────────────────────
+/**
+ * Configure QZ Tray certificate and SHA-512/RSA signature callbacks.
+ * Must be called before qz.websocket.connect().
+ */
+function setupQZSecurity() {
+  if (!window.QZ_CERT || !window.QZ_PRIVATE_KEY) {
+    console.warn('[QZSecurity] QZ_CERT or QZ_PRIVATE_KEY not set.');
+    return;
+  }
+
+  qz.security.setCertificatePromise(function(resolve, reject) {
+    resolve(window.QZ_CERT);
+  });
+
+  qz.security.setSignatureAlgorithm('SHA512');
+
+  qz.security.setSignaturePromise(function(toSign) {
+    return function(resolve, reject) {
+      try {
+        const sig = new KJUR.crypto.Signature({ alg: 'SHA512withRSA' });
+        sig.init(window.QZ_PRIVATE_KEY);
+        sig.updateString(toSign);
+        resolve(hex2b64(sig.sign()));
+      } catch (e) {
+        reject(e);
+      }
+    };
+  });
+}
+
 // Global state
 let qzConnected = false;
 let selectedPrinter = null;
@@ -95,6 +126,7 @@ async function connectToQZ() {
       await qz.websocket.disconnect();
     }
 
+    setupQZSecurity();
     await qz.websocket.connect();
     qzConnected = true;
     updateConnectionStatus('connected');

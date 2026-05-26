@@ -136,6 +136,9 @@
                 this.config.qrEnabled = window.PRINTER_SETTINGS.qrEnabled;
                 this.config.autoCut = window.PRINTER_SETTINGS.autoCut;
                 this.config.openCashDrawer = window.PRINTER_SETTINGS.openCashDrawer;
+                this.config.copies = parseInt(window.PRINTER_SETTINGS.copies) || 1;
+                this.config.customerCopy = !!window.PRINTER_SETTINGS.customerCopy;
+                this.config.merchantCopy = window.PRINTER_SETTINGS.merchantCopy !== undefined ? !!window.PRINTER_SETTINGS.merchantCopy : true;
             }
 
             // Load company info
@@ -172,6 +175,36 @@
         },
 
         /**
+         * Configure QZ Tray certificate and SHA-512/RSA signature callbacks.
+         * Must be called before qz.websocket.connect().
+         */
+        setupSecurity: function() {
+            if (!window.QZ_CERT || !window.QZ_PRIVATE_KEY) {
+                console.warn('[PosPrinter] QZ_CERT or QZ_PRIVATE_KEY not set; connecting unsigned.');
+                return;
+            }
+
+            qz.security.setCertificatePromise(function(resolve, reject) {
+                resolve(window.QZ_CERT);
+            });
+
+            qz.security.setSignatureAlgorithm('SHA512');
+
+            qz.security.setSignaturePromise(function(toSign) {
+                return function(resolve, reject) {
+                    try {
+                        const sig = new KJUR.crypto.Signature({ alg: 'SHA512withRSA' });
+                        sig.init(window.QZ_PRIVATE_KEY);
+                        sig.updateString(toSign);
+                        resolve(hex2b64(sig.sign()));
+                    } catch (e) {
+                        reject(e);
+                    }
+                };
+            });
+        },
+
+        /**
          * Connect to QZ Tray
          * @returns {Promise<boolean>}
          */
@@ -186,6 +219,7 @@
                     return true;
                 }
 
+                this.setupSecurity();
                 await qz.websocket.connect();
                 this.state.connected = true;
                 this.state.lastError = null;
@@ -273,9 +307,27 @@
                     }
                 }
 
-                // Print the receipt text
-                await qz.print(config, receiptData);
-                console.log('[PosPrinter] Receipt printed successfully');
+                // Print copies based on settings
+                const copies = this.config.copies || 1;
+                const customerCopy = this.config.customerCopy;
+                const merchantCopy = this.config.merchantCopy !== false;
+
+                for (let i = 0; i < copies; i++) {
+                    const copyOptions = Object.assign({}, options);
+                    if (copies > 1 || customerCopy || merchantCopy) {
+                        // First copy = merchant copy label, second = customer copy label
+                        if (copies >= 2) {
+                            copyOptions.copyLabel = i === 0 ? 'MERCHANT COPY' : 'CUSTOMER COPY';
+                        } else if (merchantCopy && !customerCopy) {
+                            copyOptions.copyLabel = 'MERCHANT COPY';
+                        } else if (customerCopy && !merchantCopy) {
+                            copyOptions.copyLabel = 'CUSTOMER COPY';
+                        }
+                    }
+                    const copyData = this.generateReceiptData(transaction, copyOptions);
+                    await qz.print(config, copyData);
+                }
+                console.log('[PosPrinter] Receipt printed successfully (' + copies + ' copies)');
 
                 // Log the print
                 this.logPrint(transaction, 'SUCCESS');
@@ -353,6 +405,15 @@
                 data.push(cmd.ALIGN_LEFT);
             }
 
+            // ── COPY LABEL ─────────────────────────────────────────
+            if (options.copyLabel) {
+                data.push(cmd.ALIGN_CENTER);
+                data.push(cmd.BOLD_ON);
+                data.push('[ ' + options.copyLabel + ' ]\n');
+                data.push(cmd.BOLD_OFF);
+                data.push(cmd.ALIGN_LEFT);
+            }
+
             // ── TRANSACTION INFO ───────────────────────────────────
             const now = new Date();
             const dateStr = now.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -362,9 +423,11 @@
             if (this.config.showBranch && transaction.branch_name) {
                 data.push(`Branch     : ${transaction.branch_name}\n`);
             }
-            // Receipt number: padded numeric ID (e.g., 001, 012, 100)
+            // Receipt number: padded numeric ID, fallback to transaction_code
             const receiptId = transaction.id || transaction.order_id || transaction.transaction_id;
-            const paddedId = String(receiptId).padStart(3, '0');
+            const paddedId = receiptId != null
+                ? String(receiptId).padStart(3, '0')
+                : (transaction.transaction_code || 'N/A');
             data.push(`Receipt No.: ${paddedId}\n`);
             if (this.config.showCashier && transaction.cashier_name) {
                 data.push(`Cashier    : ${transaction.cashier_name}\n`);
@@ -400,12 +463,10 @@
                     // Qty × base price sub-line
                     if (this.config.showBaseAmount && baseAmt > 0) {
                         data.push(`  ${qty} x ${baseAmt.toFixed(2)}\n`);
-                    } else {
-                        data.push(`  Qty: ${qty}\n`);
                     }
                     // Service fee sub-line (per item)
                     if (this.config.showServiceFee && svcFee > 0) {
-                        data.push(`  Convenience Fee : ${svcFee.toFixed(2)}\n`);
+                        data.push(`  Service Fee : ${svcFee.toFixed(2)}\n`);
                     }
                     // Per-item discount sub-line
                     if (this.config.showDiscount && discAmt > 0) {
@@ -433,7 +494,7 @@
                 data.push(this.formatLine('Subtotal         :', subtotal.toFixed(2), width));
             }
             if (this.config.showServiceFee && totalSvcFee > 0) {
-                data.push(this.formatLine('Convenience Fee  :', totalSvcFee.toFixed(2), width));
+                data.push(this.formatLine('Service Fee      :', totalSvcFee.toFixed(2), width));
             }
             if (this.config.showDiscount && discountTotal > 0) {
                 data.push(this.formatLine('Discount         :', '-' + discountTotal.toFixed(2), width));
@@ -454,14 +515,20 @@
             data.push(this.formatLine('Change           :', changeAmt.toFixed(2), width));
 
             // ── QR CODE ────────────────────────────────────────────
-            if (this.config.qrEnabled && transaction.id) {
-                data.push('\n');
-                data.push(cmd.ALIGN_CENTER);
-                const qrData = this.config.qrFormat === 'TRANSACTION_CODE'
-                    ? (transaction.transaction_code || IdEncoder.encode(transaction.id))
-                    : IdEncoder.encode(transaction.id);
-                data.push(this.generateQRCode(qrData));
-                data.push(cmd.ALIGN_LEFT);
+            if (this.config.qrEnabled) {
+                const qrValue = transaction.transaction_code || transaction.id;
+                if (qrValue) {
+                    data.push('\n');
+                    data.push(cmd.ALIGN_CENTER);
+                    let qrData;
+                    if (this.config.qrFormat === 'URL') {
+                        qrData = (window.BASE_URL || '') + '/verify/' + encodeURIComponent(transaction.transaction_code || transaction.id);
+                    } else {
+                        qrData = String(transaction.transaction_code || transaction.id);
+                    }
+                    data.push(this.generateQRCode(qrData));
+                    data.push(cmd.ALIGN_LEFT);
+                }
             }
 
             // ── FOOTER ─────────────────────────────────────────────
