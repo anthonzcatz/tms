@@ -127,12 +127,15 @@
         <?php endif; ?>
 
         <div class="printer-setup-container">
-          <!-- Connection Status Card -->
-          <div class="card mb-4">
+          <div class="row g-4">
+            <!-- Connection Status Card -->
+            <div class="col-lg-6">
+              <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
               <h5 class="mb-0"><span class="fas fa-plug me-2"></span>QZ Tray Connection</h5>
-              <span id="connectionStatus" class="badge bg-secondary">
-                <span class="status-indicator status-disconnected"></span>Not Connected
+              <span id="connectionStatus" class="badge bg-secondary d-flex align-items-center">
+                <span class="status-indicator status-disconnected me-2"></span>
+                <span class="small">Not Connected</span>
               </span>
             </div>
             <div class="card-body">
@@ -168,10 +171,12 @@
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+            </div>
 
-          <!-- Printer Selection Card -->
-          <div class="card mb-4">
+            <!-- Printer Selection Card -->
+            <div class="col-lg-6">
+              <div class="card h-100">
             <div class="card-header">
               <h5 class="mb-0"><span class="fas fa-print me-2"></span>Printer Selection</h5>
             </div>
@@ -227,11 +232,14 @@
                 </button>
               </div>
             </div>
+            </div>
+            </div>
           </div>
 
           <!-- Test Print Card -->
-          <div class="card mb-4">
-            <div class="card-header">
+          <div class="col-12">
+            <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
               <h5 class="mb-0"><span class="fas fa-vial me-2"></span>Test Print</h5>
             </div>
             <div class="card-body">
@@ -249,11 +257,13 @@
 Waiting for test print...
               </div>
             </div>
+            </div>
           </div>
 
           <!-- System Info Card -->
-          <div class="card mb-4">
-            <div class="card-header">
+          <div class="col-12">
+            <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
               <h5 class="mb-0"><span class="fas fa-info-circle me-2"></span>System Information</h5>
             </div>
             <div class="card-body">
@@ -284,6 +294,8 @@ Waiting for test print...
                 </div>
               </div>
             </div>
+            </div>
+          </div>
           </div>
         </div>
 

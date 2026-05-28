@@ -25,34 +25,19 @@
           </div>
         </div>
 
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-2">
           <div class="col-12">
-            <div class="card mb-4">
-              <div class="card-body py-3">
+            <div class="card mb-0">
+              <div class="card-body py-2">
                 <div id="closeSummary" class="small">Loading...</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="row g-2 mb-4">
+        <div class="row g-2 mb-3">
           <div class="col-6">
-            <div class="card h-100 border-primary">
-              <div class="card-body py-3 px-3">
-                <div class="d-flex align-items-center h-100">
-                  <div class="icon-circle icon-circle-primary me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
-                    <span class="fas fa-wallet text-primary"></span>
-                  </div>
-                  <div class="flex-grow-1 min-width-0">
-                    <div class="text-muted small mb-0">Opening Cash</div>
-                    <div class="fw-bold text-primary fs-6" id="openingCash">₱0.00</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="card h-100 border-success">
+            <div class="card border-success" style="min-height: 80px;">
               <div class="card-body py-3 px-3">
                 <div class="d-flex align-items-center h-100">
                   <div class="icon-circle icon-circle-success me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
@@ -67,7 +52,7 @@
             </div>
           </div>
           <div class="col-6">
-            <div class="card h-100 border-info">
+            <div class="card border-info" style="min-height: 80px;">
               <div class="card-body py-3 px-3">
                 <div class="d-flex align-items-center h-100">
                   <div class="icon-circle icon-circle-info me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
@@ -77,6 +62,23 @@
                     <div class="text-muted small mb-0">Expected Cash</div>
                     <div class="fw-bold text-info fs-6" id="expectedCash">₱0.00</div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Type Breakdown -->
+        <div id="paymentBreakdownSection"></div>
+
+        <div class="row g-3 mt-4">
+          <div class="col-6">
+            <div class="card h-100 border-primary">
+              <div class="card-body py-3 px-3">
+                <div class="d-flex flex-column h-100">
+                  <div class="text-muted small mb-2">Actual Closing Cash (₱) <span class="text-danger">*</span></div>
+                  <input type="text" class="form-control form-control-sm text-end fw-bold" id="closingCash" name="closingCash" placeholder="0.00" oninput="computeVariance()" autofocus>
+                  <div class="form-text fs-10 mt-1 mb-0">Physical cash count at end of shift.</div>
                 </div>
               </div>
             </div>
@@ -95,17 +97,6 @@
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Payment Type Breakdown -->
-        <div id="paymentBreakdownSection"></div>
-
-        <div class="row g-3 mt-4">
-          <div class="col-12">
-            <label class="form-label fw-semibold" for="closingCash">Actual Closing Cash (₱) <span class="text-danger">*</span></label>
-            <input type="text" class="form-control text-end fw-bold" id="closingCash" name="closingCash" placeholder="0.00" oninput="computeVariance()" autofocus>
-            <div class="form-text">Physical cash count at end of shift.</div>
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold" for="closingNotes">Closing Notes</label>

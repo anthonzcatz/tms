@@ -428,10 +428,12 @@ if (!defined('NAVBAR_POSITION')) {
                                         <thead class="table-light">
                                           <tr>
                                             <th>Permission Code</th>
+                                            <th>Module</th>
                                             <th>Permission Name</th>
                                             <th>Level</th>
                                             <th>Menu URL</th>
                                             <th>Order</th>
+                                            <th class="text-center">Show in Sidebar</th>
                                             <th class="text-center">Actions</th>
                                           </tr>
                                         </thead>
@@ -439,18 +441,31 @@ if (!defined('NAVBAR_POSITION')) {
                                           <?php foreach ($permissions as $permission): ?>
                                           <tr>
                                             <td><code class="small"><?php echo htmlspecialchars($permission['permission_code']); ?></code></td>
+                                            <td><span class="badge bg-primary"><?php echo htmlspecialchars($permission['module_name']); ?></span></td>
                                             <td><?php echo htmlspecialchars($permission['permission_name']); ?></td>
                                             <td><span class="badge bg-light text-dark"><?php echo $permission['menu_level']; ?></span></td>
                                             <td><small class="text-muted"><?php echo htmlspecialchars($permission['menu_url'] ?? '-'); ?></small></td>
                                             <td><span class="badge bg-light text-dark"><?php echo $permission['menu_order']; ?></span></td>
                                             <td class="text-center">
+                                              <div class="form-check form-switch d-inline-block">
+                                                <input class="form-check-input sidebar-toggle" 
+                                                       type="checkbox" 
+                                                       style="width: 2.5em; height: 1.25em;"
+                                                       id="sidebar_<?php echo $permission['permission_id']; ?>"
+                                                       data-permission-id="<?php echo $permission['permission_id']; ?>"
+                                                       <?php echo ($permission['is_menu_item'] ?? 1) ? 'checked' : ''; ?>>
+                                              </div>
+                                            </td>
+                                            <td class="text-center">
                                               <div class="btn-group btn-group-sm">
                                                 <button class="btn btn-outline-primary" onclick="editPermission(<?php echo $permission['permission_id']; ?>)">
                                                   <span class="fas fa-edit"></span>
                                                 </button>
-                                                <button class="btn btn-outline-danger" onclick="confirmDeletePermission(<?php echo $permission['permission_id']; ?>)">
+                                                <?php if ($userRoleCode === 'SUPER_ADMIN'): ?>
+                                                <button class="btn btn-outline-danger" onclick="deletePermission(<?php echo $permission['permission_id']; ?>)">
                                                   <span class="fas fa-trash"></span>
                                                 </button>
+                                                <?php endif; ?>
                                               </div>
                                             </td>
                                           </tr>

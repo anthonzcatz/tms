@@ -1,6 +1,29 @@
 .printer-setup-container {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
+}
+
+.printer-setup-container .card {
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+
+.printer-setup-container .card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.printer-setup-container .card-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #dee2e6;
+    padding: 1rem 1.25rem;
+}
+
+.printer-setup-container .card-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
 }
 .status-indicator {
     width: 16px;
@@ -12,6 +35,16 @@
 .status-connected {
     background-color: #28a745;
     box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(40, 167, 69, 0.8);
+    }
 }
 .status-disconnected {
     background-color: #dc3545;

@@ -62,8 +62,7 @@ function handleGet() {
                     COALESCE(cs.total_charge, 0) AS total_charge,
                     COALESCE(cs.total_other, 0) AS total_other,
                     COALESCE(cs.total_refunds_wallet, 0) AS total_refunds,
-                    (SELECT COUNT(*) FROM service_transactions WHERE cashier_session_id = cs.session_id) +
-                    (SELECT COUNT(*) FROM ticket_transactions WHERE cashier_session_id = cs.session_id) AS txn_count,
+                    (SELECT COUNT(*) FROM pos_orders WHERE cashier_session_id = cs.session_id) AS txn_count,
                     (cs.starting_cash + COALESCE(cs.total_cash, 0)) AS expected_cash,
                     bb.branch_name,
                     -- Cashier name from employees table (format: First M. Last)

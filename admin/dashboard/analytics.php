@@ -29,15 +29,159 @@ require_once __DIR__ . '/../_guard.php';
           
           <!-- Showing Data For Card -->
           <style>
+            /* Mobile portrait (<576px) */
             @media (max-width: 575.98px) {
-              #dateRangeButtons { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 0.25rem; width: 100%; }
-              #dateRangeButtons .btn { border-radius: 0.25rem !important; }
+              .card .row.gx-0 { flex-direction: column; }
+              .col-sm-auto.d-flex.align-items-center { 
+                justify-content: center; 
+                text-align: center; 
+                margin-bottom: 1rem;
+              }
+              .col-sm-auto.d-flex.align-items-center img { 
+                width: 60px !important; 
+                margin: 0 0.25rem !important;
+              }
+              .col-sm-auto.d-flex.align-items-center h4 { font-size: 1.25rem; }
+              #dateRangeButtons { 
+                display: grid !important; 
+                grid-template-columns: repeat(2, 1fr); 
+                gap: 0.25rem; 
+                width: 100%; 
+              }
+              #dateRangeButtons .btn { border-radius: 0.25rem !important; font-size: 0.75rem; }
               #globalBranchSelector { width: 100% !important; min-width: auto !important; }
+              .col-md-auto.p-3 .row { flex-direction: column; align-items: stretch !important; }
+              .col-md-auto.p-3 .col-auto { width: 100%; text-align: center; }
+              #customDateRangeContainer .row { flex-direction: column; }
+              #customDateRangeContainer .col-auto { width: 100%; }
+            }
+            
+            /* Mobile landscape (576px-767px) */
+            @media (min-width: 576px) and (max-width: 767.98px) {
+              .card .row.gx-0 { flex-direction: column; }
+              .col-sm-auto.d-flex.align-items-center { 
+                justify-content: center; 
+                margin-bottom: 0.75rem;
+              }
+              .col-sm-auto.d-flex.align-items-center img { width: 70px !important; }
+              #dateRangeButtons { 
+                display: grid !important; 
+                grid-template-columns: repeat(3, 1fr); 
+                gap: 0.25rem; 
+                width: 100%; 
+              }
+              #dateRangeButtons .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+              #globalBranchSelector { width: 100% !important; min-width: auto !important; }
+              .col-md-auto.p-3 .row { flex-wrap: wrap; }
+              .col-md-auto.p-3 .col-auto { flex: 0 0 auto; }
+            }
+            
+            /* Tablet (768px-991px) */
+            @media (min-width: 768px) and (max-width: 991.98px) {
+              .col-sm-auto.d-flex.align-items-center img { width: 70px !important; }
+              .col-sm-auto.d-flex.align-items-center img:last-child { display: none !important; }
+              #dateRangeButtons { flex-wrap: wrap; }
+              #dateRangeButtons .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+              #globalBranchSelector { min-width: 120px !important; }
+              .col-md-auto.p-3 .row { flex-wrap: wrap; }
+            }
+            
+            /* Laptop (992px-1199px) */
+            @media (min-width: 992px) and (max-width: 1199.98px) {
+              .col-sm-auto.d-flex.align-items-center img { width: 80px !important; }
+              #dateRangeButtons .btn { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+              #globalBranchSelector { min-width: 140px !important; }
+            }
+            
+            /* Custom date range responsive */
+            #customDateRangeContainer .row { flex-wrap: wrap; }
+            @media (max-width: 991.98px) {
+              #customDateRangeContainer .row { flex-direction: column; }
+              #customDateRangeContainer .col-auto { width: 100%; }
+            }
+
+            /* AR and Live Sales Side by Side on Tablet/Laptop/MacBook Air */
+            @media (min-width: 768px) and (max-width: 1599.98px) {
+              /* On tablet/laptop/MacBook Air: make Branch Analytics full width */
+              .col-xxl-8 {
+                width: 100% !important;
+                flex: 0 0 100%;
+                max-width: 100%;
+              }
+              /* Hide AR widget inside Branch Analytics on tablet/laptop/MacBook Air */
+              #arWidget {
+                display: none !important;
+              }
+              /* Show standalone AR widget on tablet/laptop/MacBook Air */
+              #arWidgetStandalone {
+                display: block !important;
+              }
+            }
+
+            /* Large desktop screens (1600px+): show AR inside Branch Analytics, hide standalone */
+            @media (min-width: 1600px) {
+              #arWidgetStandalone {
+                display: none !important;
+              }
+              #arWidget {
+                display: block !important;
+              }
+            }
+
+            /* Live Sales Card Responsive */
+            @media (max-width: 575.98px) {
+              /* Mobile: Live Sales card adjustments */
+              .bg-line-chart-gradient .card-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+              }
+              .bg-line-chart-gradient .card-header h5 {
+                font-size: 1rem;
+                margin-bottom: 0.5rem;
+              }
+              .bg-line-chart-gradient .card-header select {
+                width: 100% !important;
+                min-width: auto !important;
+              }
+              .bg-line-chart-gradient .display-4 {
+                font-size: 1.5rem !important;
+              }
+              #liveSalesChart {
+                height: 100px !important;
+              }
+              #liveTransactionsList {
+                max-height: 280px !important;
+              }
+            }
+
+            @media (min-width: 576px) and (max-width: 767.98px) {
+              /* Mobile landscape: Chart height adjustment */
+              #liveSalesChart {
+                height: 110px !important;
+              }
+            }
+
+            @media (min-width: 768px) and (max-width: 991.98px) {
+              /* Tablet: Chart height adjustment */
+              #liveSalesChart {
+                height: 120px !important;
+              }
+            }
+            
+            /* Calendar icon inputs — icon always anchored to its input wrapper */
+            #dailyRangeInput .position-relative,
+            #monthlyRangeInput .position-relative,
+            #annualRangeInput .position-relative {
+              min-width: 160px;
             }
             @media (max-width: 767.98px) {
-              .d-md-none-d-block { display: none !important; }
+              #dailyRangeInput .position-relative,
+              #monthlyRangeInput .position-relative,
+              #annualRangeInput .position-relative {
+                min-width: auto;
+                width: 100%;
+              }
             }
-            #customDateRangeContainer .row { flex-wrap: wrap; }
           </style>
           <div class="row mb-3">
             <div class="col">
@@ -79,17 +223,23 @@ require_once __DIR__ . '/../_guard.php';
                               <option value="annual">Annual Range</option>
                             </select>
                           </div>
-                          <div class="col-auto position-relative" id="dailyRangeInput">
-                            <input class="form-control form-control-sm datetimepicker ps-4" id="AnalyticsDateRange" type="text" placeholder="Jan 1 - Jan 5" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M d&quot;,&quot;disableMobile&quot;:true}" />
-                            <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y ms-2"></span>
+                          <div class="col-auto" id="dailyRangeInput">
+                            <div class="position-relative">
+                              <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y" style="left:10px;z-index:5;pointer-events:none;"></span>
+                              <input class="form-control form-control-sm datetimepicker" id="AnalyticsDateRange" type="text" placeholder="Jan 1 - Jan 5" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M d&quot;,&quot;disableMobile&quot;:true}" />
+                            </div>
                           </div>
                           <div class="col-auto d-none" id="monthlyRangeInput">
-                            <input class="form-control form-control-sm datetimepicker ps-4" id="MonthlyRange" type="text" placeholder="Jan - Mar" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M&quot;,&quot;disableMobile&quot;:true}" />
-                            <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y ms-2"></span>
+                            <div class="position-relative">
+                              <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y" style="left:10px;z-index:5;pointer-events:none;"></span>
+                              <input class="form-control form-control-sm datetimepicker" id="MonthlyRange" type="text" placeholder="Jan - Mar" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M&quot;,&quot;disableMobile&quot;:true}" />
+                            </div>
                           </div>
                           <div class="col-auto d-none" id="annualRangeInput">
-                            <input class="form-control form-control-sm datetimepicker ps-4" id="AnnualRange" type="text" placeholder="2021 - 2026" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;Y&quot;,&quot;disableMobile&quot;:true}" />
-                            <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y ms-2"></span>
+                            <div class="position-relative">
+                              <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y" style="left:10px;z-index:5;pointer-events:none;"></span>
+                              <input class="form-control form-control-sm datetimepicker" id="AnnualRange" type="text" placeholder="2021 - 2026" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;Y&quot;,&quot;disableMobile&quot;:true}" />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -218,7 +368,7 @@ require_once __DIR__ . '/../_guard.php';
                 </div>
               </div>
               <!-- Accounts Receivable Widget -->
-              <div class="card position-relative overflow-hidden" id="arWidget">
+              <div class="card position-relative overflow-hidden d-none d-md-block" id="arWidget">
                 <div class="bg-holder bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-2.png);"></div>
                 <!--/.bg-holder-->
                 <div class="card-header bg-body-tertiary py-2 d-flex align-items-center justify-content-between position-relative">
@@ -267,7 +417,25 @@ require_once __DIR__ . '/../_guard.php';
                 </div>
               </div>
             </div>
-            <div class="col-md-6 col-xxl-4">
+            <!-- Standalone AR Widget for Tablet/Laptop -->
+            <div class="col-12 col-md-6 col-lg-6 col-xl-6 d-none" id="arWidgetStandalone">
+              <div class="card h-100 position-relative overflow-hidden">
+                <div class="bg-holder bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-2.png);"></div>
+                <div class="card-header bg-body-tertiary py-2 d-flex align-items-center justify-content-between position-relative">
+                  <h6 class="mb-0 text-700">
+                    <span class="fas fa-file-invoice-dollar me-2 text-warning"></span>Accounts Receivable
+                  </h6>
+                  <a href="<?php echo BASE_URL; ?>/admin/charges/" class="btn btn-link btn-sm px-0 fw-medium">
+                    <span class="fas fa-external-link-alt me-1 fs-11"></span>View All
+                  </a>
+                </div>
+                <div class="card-body position-relative" id="arWidgetBodyStandalone">
+                  <!-- Content will be cloned from main AR widget -->
+                </div>
+              </div>
+            </div>
+            <!-- Live Sales Card -->
+            <div class="col-12 col-md-6 col-lg-6 col-xl-6 col-xxl-4">
               <div class="card h-100 bg-line-chart-gradient">
                 <div class="card-header bg-transparent d-flex justify-content-between align-items-start pt-3" data-bs-theme="light">
                   <div>
@@ -290,7 +458,7 @@ require_once __DIR__ . '/../_guard.php';
                     Recent Transactions &nbsp;<span class="badge" style="background:rgba(255,255,255,0.2);font-weight:500;" id="liveTransactionCount">0</span>
                   </p>
                   <!-- Transactions list -->
-                  <div id="liveTransactionsList" class="scrollbar" style="max-height: 200px; overflow-y: auto;">
+                  <div id="liveTransactionsList" class="scrollbar" style="max-height: 320px; overflow-y: auto;">
                     <div class="text-white opacity-50 fs-11 py-1">Loading...</div>
                   </div>
                 </div>
@@ -668,10 +836,15 @@ require_once __DIR__ . '/../_guard.php';
                     window._originalUtilsGetData = window.utils.getData;
                     window.utils.getData = function(el, data) {
                         if (!el || !el.dataset) {
-                            console.warn('utils.getData: Invalid element', el);
-                            return {};
+                            console.warn('utils.getData: Invalid element - returning empty data');
+                            return data || {};
                         }
-                        return window._originalUtilsGetData.call(this, el, data);
+                        try {
+                            return window._originalUtilsGetData.call(this, el, data);
+                        } catch (e) {
+                            console.warn('utils.getData error suppressed:', e.message);
+                            return data || {};
+                        }
                     };
                 }
             }
@@ -812,10 +985,58 @@ require_once __DIR__ . '/../_guard.php';
                 // Update bar chart — API always returns 60 minute slots
                 if (liveSalesChart) {
                     const rawPoints = d.sales_by_minute || [];
-                    liveSalesChart.setOption({
-                        xAxis:  { data: rawPoints.map(p => p.time) },
-                        series: [{ data: rawPoints.map(p => parseFloat(p.amount) || 0) }]
-                    });
+                    const hasData = rawPoints.some(p => parseFloat(p.amount) > 0);
+                    
+                    if (hasData) {
+                        liveSalesChart.clear();
+                        liveSalesChart.setOption({
+                            grid: { left: 0, right: 0, top: 4, bottom: 0 },
+                            xAxis: {
+                                type: 'category', data: rawPoints.map(p => p.time),
+                                axisLine: { show: false }, axisTick: { show: false },
+                                axisLabel: { show: false }, splitLine: { show: false }
+                            },
+                            yAxis: {
+                                type: 'value',
+                                axisLine: { show: false }, axisTick: { show: false },
+                                axisLabel: { show: false }, splitLine: { show: false }
+                            },
+                            tooltip: {
+                                trigger: 'axis',
+                                axisPointer: { type: 'none' },
+                                backgroundColor: 'rgba(0,31,91,0.9)',
+                                borderWidth: 0,
+                                padding: [6, 10],
+                                textStyle: { color: '#fff', fontSize: 11 },
+                                formatter: function(params) {
+                                    const p = params[0];
+                                    return `<span style="opacity:.7">${p.axisValue}</span><br/><b>₱${parseFloat(p.value||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</b>`;
+                                }
+                            },
+                            series: [{
+                                type: 'bar',
+                                data: rawPoints.map(p => parseFloat(p.amount) || 0),
+                                barWidth: '60%',
+                                barCategoryGap: '40%',
+                                itemStyle: {
+                                    color: 'rgba(255,255,255,0.35)',
+                                    borderRadius: [1, 1, 0, 0]
+                                },
+                                emphasis: {
+                                    itemStyle: { color: 'rgba(255,255,255,0.7)' }
+                                }
+                            }]
+                        });
+                    } else {
+                        // No data - show empty state
+                        liveSalesChart.clear();
+                        liveSalesChart.setOption({
+                            grid: { left: 0, right: 0, top: 4, bottom: 0 },
+                            xAxis: { show: false },
+                            yAxis: { show: false },
+                            series: []
+                        });
+                    }
                 }
 
                 // Recent transactions list — clean rows matching template
@@ -828,7 +1049,7 @@ require_once __DIR__ . '/../_guard.php';
                                 <div class="text-truncate" style="max-width:65%;">
                                     <span class="fs-11 fw-medium text-white">${txn.order_code}</span>
                                 </div>
-                                <span class="fs-11 fw-semibold text-white">${formatCurrency(txn.grand_total)}</span>
+                                <span class="fs-11 fw-light text-white">${formatCurrency(txn.grand_total)}</span>
                             </div>
                             <div class="d-flex align-items-center mt-1">
                                 <span class="fs-10 text-white opacity-75">${txn.branch_name || 'N/A'}</span>
@@ -1010,6 +1231,27 @@ require_once __DIR__ . '/../_guard.php';
             branchCard.appendChild(loadingOverlay);
         }
 
+        // Clone AR widget content to standalone version for tablet/laptop
+        function cloneARContent() {
+            const mainBody = document.getElementById('arWidgetBody');
+            const standaloneBody = document.getElementById('arWidgetBodyStandalone');
+            if (mainBody && standaloneBody) {
+                standaloneBody.innerHTML = mainBody.innerHTML;
+            }
+        }
+        
+        // Clone on load and whenever AR content updates
+        cloneARContent();
+        
+        // Watch for AR content changes (using MutationObserver)
+        const arObserver = new MutationObserver(() => {
+            cloneARContent();
+        });
+        const arWidgetBody = document.getElementById('arWidgetBody');
+        if (arWidgetBody) {
+            arObserver.observe(arWidgetBody, { childList: true, subtree: true });
+        }
+
         // Initialize branch analytics after restoreDateRange is complete (300ms to ensure restore happens first)
         setTimeout(() => {
             try {
@@ -1162,6 +1404,20 @@ require_once __DIR__ . '/../_guard.php';
 
         if (!transactionsPerHourChart) {
             transactionsPerHourChart = echarts.init(chartDom);
+        }
+
+        // Check for empty data
+        const hasData = data.values && data.values.some(v => v > 0);
+        
+        if (!hasData) {
+            transactionsPerHourChart.clear();
+            transactionsPerHourChart.setOption({
+                grid: { left: 0, right: 0, top: 0, bottom: 0 },
+                xAxis: { show: false },
+                yAxis: { show: false },
+                series: []
+            });
+            return;
         }
 
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
@@ -1337,22 +1593,31 @@ require_once __DIR__ . '/../_guard.php';
             paymentBreakdownChart = echarts.init(chartDom);
         }
 
-        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        const tooltipBg = isDark ? '#0b1727' : '#fff';
-        const tooltipBorder = isDark ? '#344050' : '#d8e2ef';
-        const tooltipText = isDark ? '#d8e2ef' : '#344050';
-
-        // Colors for pie chart
-        const colors = ['#2c7be5', '#00d97e', '#0091e9', '#f6c343', '#e63757', '#6c757d', '#39afd1', '#727cf5'];
-        
         // Build chart data from dynamic breakdown
         const chartData = Object.entries(data.breakdown || {})
             .filter(([name, item]) => item.amount > 0)
             .map(([name, item], index) => ({
                 value: item.amount,
                 name: name,
-                itemStyle: { color: colors[index % colors.length] }
+                itemStyle: { color: ['#2c7be5', '#00d97e', '#0091e9', '#f6c343', '#e63757', '#6c757d', '#39afd1', '#727cf5'][index % 8] }
             }));
+
+        // Check for empty data
+        if (chartData.length === 0) {
+            paymentBreakdownChart.clear();
+            paymentBreakdownChart.setOption({
+                grid: { left: 0, right: 0, top: 0, bottom: 0 },
+                xAxis: { show: false },
+                yAxis: { show: false },
+                series: []
+            });
+            return;
+        }
+
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const tooltipBg = isDark ? '#0b1727' : '#fff';
+        const tooltipBorder = isDark ? '#344050' : '#d8e2ef';
+        const tooltipText = isDark ? '#d8e2ef' : '#344050';
 
         paymentBreakdownChart.setOption({
             tooltip: {
@@ -1478,7 +1743,15 @@ require_once __DIR__ . '/../_guard.php';
         const countBadge = document.getElementById('topServicesCount');
         
         if (!data.services || data.services.length === 0) {
-            tableBody.innerHTML = '<tr><td class="align-middle white-space-nowrap text-center text-muted" colspan="4">No services today</td></tr>';
+            tableBody.innerHTML = `
+                <tr>
+                    <td class="align-middle white-space-nowrap text-center text-muted" colspan="4">
+                        <span class="fas fa-concierge-bell text-muted fs-2 mb-2 d-block"></span>
+                        <p class="text-muted fs-11 mb-0">No services data available</p>
+                        <p class="text-500 fs-10 mb-0">No transactions in selected period</p>
+                    </td>
+                </tr>
+            `;
             countBadge.textContent = '0';
             return;
         }
@@ -1523,16 +1796,34 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     function renderCashierPerformanceChart(data) {
+        const legendEl = document.getElementById('cashierLegend');
+        const chartDom = document.getElementById('cashierPerformanceChart');
+        
         if (!data || !data.cashiers || data.cashiers.length === 0) {
-            document.getElementById('cashierLegend').innerHTML =
-                '<div class="text-muted fs-11">No cashier data available</div>';
+            // Show empty state
+            legendEl.innerHTML = `
+                <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
+                    <span class="fas fa-user-clock text-muted fs-2 mb-2"></span>
+                    <p class="text-muted fs-11 mb-0">No cashier data available</p>
+                    <p class="text-500 fs-10 mb-0">No transactions in selected period</p>
+                </div>
+            `;
+            // Clear chart
+            if (cashierPerformanceChart) {
+                cashierPerformanceChart.clear();
+                cashierPerformanceChart.setOption({
+                    grid: { left: 0, right: 0, top: 0, bottom: 0 },
+                    xAxis: { show: false },
+                    yAxis: { show: false },
+                    series: []
+                });
+            }
             return;
         }
 
         cashierPerformanceData = data;
 
         // Update legend with top 3 cashiers
-        const legendEl = document.getElementById('cashierLegend');
         const topCashiers = data.cashiers.slice(0, 3);
         legendEl.innerHTML = topCashiers.map((c, i) => `
             <div class="pb-2 ${i > 0 ? 'border-top pt-2' : ''}">
@@ -1654,6 +1945,7 @@ require_once __DIR__ . '/../_guard.php';
 
         // Sync date filter with saved range
         const dateFilter = document.getElementById('cashierPerformanceFilter');
+        const branchFilter = document.getElementById('cashierPerformanceBranchFilter');
         if (dateFilter && ['today', 'week', 'month', 'year'].includes(range)) {
             dateFilter.value = rangeToDays(range);
         }
@@ -2351,6 +2643,29 @@ require_once __DIR__ . '/../_guard.php';
             // If no branch data, fall back to provider-only chart
             if (branchSet.length === 0 && d.providers && d.providers.length > 0) {
                 renderWalletProviderChart(d.providers);
+                return;
+            }
+
+            // If no data at all, show empty state
+            if (branchSet.length === 0 && (!d.providers || d.providers.length === 0)) {
+                const legendEl = document.getElementById('walletLegend');
+                legendEl.innerHTML = `
+                    <div class="text-center py-4">
+                        <span class="fas fa-wallet text-muted fs-2 mb-2 d-block"></span>
+                        <p class="text-muted fs-11 mb-0">No wallet data available</p>
+                        <p class="text-500 fs-10 mb-0">No provider wallets configured</p>
+                    </div>
+                `;
+                const chartDom = document.getElementById('walletChart');
+                if (walletBarChart) {
+                    walletBarChart.clear();
+                    walletBarChart.setOption({
+                        grid: { left: 0, right: 0, top: 0, bottom: 0 },
+                        xAxis: { show: false },
+                        yAxis: { show: false },
+                        series: []
+                    });
+                }
                 return;
             }
 

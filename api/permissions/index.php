@@ -96,56 +96,91 @@ try {
             if ($permissionId) {
                 // Update existing permission
                 
-                // Check for duplicate permission_code (excluding current permission)
-                $existingCode = Database::fetch(
-                    "SELECT permission_id FROM permissions WHERE permission_code = :permission_code AND permission_id != :permission_id",
-                    ['permission_code' => strtoupper($data['permission_code']), 'permission_id' => (int)$permissionId]
-                );
+                // Build dynamic SQL for partial updates
+                $updateFields = [];
+                $params = ['permission_id' => (int)$permissionId];
                 
-                if ($existingCode) {
+                // Only update fields that are provided
+                if (isset($data['permission_code'])) {
+                    // Check for duplicate permission_code (excluding current permission)
+                    $existingCode = Database::fetch(
+                        "SELECT permission_id FROM permissions WHERE permission_code = :permission_code AND permission_id != :permission_id",
+                        ['permission_code' => strtoupper($data['permission_code']), 'permission_id' => (int)$permissionId]
+                    );
+                    
+                    if ($existingCode) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'error' => 'Permission code already exists']);
+                        exit;
+                    }
+                    $updateFields[] = 'permission_code = :permission_code';
+                    $params['permission_code'] = strtoupper($data['permission_code']);
+                }
+                
+                if (isset($data['permission_name'])) {
+                    // Check for duplicate permission_name (excluding current permission)
+                    $existingName = Database::fetch(
+                        "SELECT permission_id FROM permissions WHERE permission_name = :permission_name AND permission_id != :permission_id",
+                        ['permission_name' => strtoupper($data['permission_name']), 'permission_id' => (int)$permissionId]
+                    );
+                    
+                    if ($existingName) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'error' => 'Permission name already exists']);
+                        exit;
+                    }
+                    $updateFields[] = 'permission_name = :permission_name';
+                    $params['permission_name'] = strtoupper($data['permission_name']);
+                }
+                
+                if (isset($data['module_name'])) {
+                    $updateFields[] = 'module_name = :module_name';
+                    $params['module_name'] = strtoupper($data['module_name']);
+                }
+                
+                if (isset($data['parent_permission_id'])) {
+                    $updateFields[] = 'parent_permission_id = :parent_permission_id';
+                    $params['parent_permission_id'] = !empty($data['parent_permission_id']) ? (int)$data['parent_permission_id'] : null;
+                }
+                
+                if (isset($data['menu_order'])) {
+                    $updateFields[] = 'menu_order = :menu_order';
+                    $params['menu_order'] = (int)$data['menu_order'];
+                }
+                
+                if (isset($data['menu_icon'])) {
+                    $updateFields[] = 'menu_icon = :menu_icon';
+                    $params['menu_icon'] = $data['menu_icon'] ?? null;
+                }
+                
+                if (isset($data['menu_url'])) {
+                    $updateFields[] = 'menu_url = :menu_url';
+                    $params['menu_url'] = $data['menu_url'] ?? null;
+                }
+                
+                if (isset($data['menu_level'])) {
+                    $updateFields[] = 'menu_level = :menu_level';
+                    $params['menu_level'] = (int)$data['menu_level'];
+                }
+                
+                if (isset($data['is_menu_item'])) {
+                    $updateFields[] = 'is_menu_item = :is_menu_item';
+                    $params['is_menu_item'] = (int)$data['is_menu_item'];
+                }
+                
+                if (empty($updateFields)) {
                     http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Permission code already exists']);
+                    echo json_encode(['success' => false, 'error' => 'No fields to update']);
                     exit;
                 }
                 
-                // Check for duplicate permission_name (excluding current permission)
-                $existingName = Database::fetch(
-                    "SELECT permission_id FROM permissions WHERE permission_name = :permission_name AND permission_id != :permission_id",
-                    ['permission_name' => strtoupper($data['permission_name']), 'permission_id' => (int)$permissionId]
-                );
+                $sql = "UPDATE permissions SET " . implode(', ', $updateFields) . " WHERE permission_id = :permission_id";
                 
-                if ($existingName) {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Permission name already exists']);
-                    exit;
-                }
+                Database::execute($sql, $params);
                 
-                $sql = "UPDATE permissions SET 
-                        permission_code = :permission_code,
-                        permission_name = :permission_name,
-                        module_name = :module_name,
-                        parent_permission_id = :parent_permission_id,
-                        menu_order = :menu_order,
-                        menu_icon = :menu_icon,
-                        menu_url = :menu_url,
-                        menu_level = :menu_level,
-                        is_menu_item = :is_menu_item
-                        WHERE permission_id = :permission_id";
-                
-                Database::execute($sql, [
-                    'permission_id' => (int)$permissionId,
-                    'permission_code' => strtoupper($data['permission_code']),
-                    'permission_name' => strtoupper($data['permission_name']),
-                    'module_name' => strtoupper($data['module_name']),
-                    'parent_permission_id' => !empty($data['parent_permission_id']) ? (int)$data['parent_permission_id'] : null,
-                    'menu_order' => (int)($data['menu_order'] ?? 0),
-                    'menu_icon' => $data['menu_icon'] ?? null,
-                    'menu_url' => $data['menu_url'] ?? null,
-                    'menu_level' => (int)($data['menu_level'] ?? 1),
-                    'is_menu_item' => (int)($data['is_menu_item'] ?? 0)
-                ]);
-                
-                echo json_encode(['success' => true, 'message' => 'Permission updated']);
+                // Return new CSRF token for subsequent requests
+                $newCsrfToken = SecurityHelper::generateCSRFToken();
+                echo json_encode(['success' => true, 'message' => 'Permission updated', 'csrf_token' => $newCsrfToken]);
             } else {
                 // Create new permission
                 
@@ -189,7 +224,9 @@ try {
                     ]
                 );
                 
-                echo json_encode(['success' => true, 'message' => 'Permission created']);
+                // Return new CSRF token for subsequent requests
+                $newCsrfToken = SecurityHelper::generateCSRFToken();
+                echo json_encode(['success' => true, 'message' => 'Permission created', 'csrf_token' => $newCsrfToken]);
             }
             break;
             

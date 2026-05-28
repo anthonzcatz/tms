@@ -68,7 +68,9 @@ try {
     
     Database::execute($sql, $params);
     
-    echo json_encode(['success' => true, 'message' => 'Permissions assigned']);
+    // Return new CSRF token for subsequent requests
+    $newCsrfToken = SecurityHelper::generateCSRFToken();
+    echo json_encode(['success' => true, 'message' => 'Permissions assigned', 'csrf_token' => $newCsrfToken]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);

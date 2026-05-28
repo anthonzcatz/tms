@@ -19,7 +19,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     try {
         $accommodations = Database::fetchAll(
-            "SELECT accommodation_id, code, name FROM accommodation_types ORDER BY name ASC"
+            "SELECT accommodation_id, code, name, is_default FROM accommodation_types ORDER BY name ASC"
         );
         echo json_encode(['success' => true, 'data' => $accommodations]);
     } catch (Exception $e) {

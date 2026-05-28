@@ -97,18 +97,18 @@ function log(message, type = 'info') {
 // Update connection status UI
 function updateConnectionStatus(status, message) {
   if (status === 'connected') {
-    connectionStatus.innerHTML = '<span class="status-indicator status-connected"></span>Connected';
-    connectionStatus.className = 'badge bg-success';
+    connectionStatus.innerHTML = '<span class="status-indicator status-connected me-2"></span><span class="small">Connected</span>';
+    connectionStatus.className = 'badge bg-success d-flex align-items-center';
     btnConnect.disabled = true;
     btnDisconnect.disabled = false;
     btnTestPrint.disabled = !selectedPrinter;
   } else if (status === 'connecting') {
-    connectionStatus.innerHTML = '<span class="status-indicator status-connecting"></span>Connecting...';
-    connectionStatus.className = 'badge bg-warning text-dark';
+    connectionStatus.innerHTML = '<span class="status-indicator status-connecting me-2"></span><span class="small">Connecting...</span>';
+    connectionStatus.className = 'badge bg-warning text-dark d-flex align-items-center';
     btnConnect.disabled = true;
   } else {
-    connectionStatus.innerHTML = '<span class="status-indicator status-disconnected"></span>Not Connected';
-    connectionStatus.className = 'badge bg-secondary';
+    connectionStatus.innerHTML = '<span class="status-indicator status-disconnected me-2"></span><span class="small">Not Connected</span>';
+    connectionStatus.className = 'badge bg-secondary d-flex align-items-center';
     btnConnect.disabled = false;
     btnDisconnect.disabled = true;
     btnTestPrint.disabled = true;

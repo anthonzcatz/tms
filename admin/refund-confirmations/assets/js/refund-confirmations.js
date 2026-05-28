@@ -354,12 +354,23 @@ function updateStats(stats) {
     document.getElementById('statPending').textContent       = stats.pending_count  || 0;
     document.getElementById('statApproved').textContent      = stats.approved_count || 0;
     document.getElementById('statRejected').textContent      = stats.rejected_count || 0;
-    // Show pending cash amount (actual cash that will leave the drawer)
+    // Show total pending refund amount with breakdown
+    const pendingTotal = parseFloat(stats.pending_total_amount || 0);
     const pendingCash = parseFloat(stats.pending_cash_amount || 0);
     const pendingCharge = parseFloat(stats.pending_charge_amount || 0);
-    let amountText = '₱' + pendingCash.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-    if (pendingCharge > 0) {
-        amountText += ` <span class="text-muted small">(+₱${pendingCharge.toLocaleString('en-PH', { minimumFractionDigits: 2 })} charge reversal)</span>`;
+    let amountText = '₱' + pendingTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    if (pendingCharge > 0 && pendingCash > 0) {
+        // Mixed: both cash and charge reversal
+        amountText += `<div class="text-muted" style="font-size: 0.7rem; margin-top: 2px;">
+            <div>• Cash: ₱${pendingCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+            <div>• Charge reversal: ₱${pendingCharge.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+        </div>`;
+    } else if (pendingCharge > 0) {
+        // Only charge reversal
+        amountText += `<div class="text-muted" style="font-size: 0.7rem; margin-top: 2px;">• Charge reversal: ₱${pendingCharge.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>`;
+    } else if (pendingCash > 0) {
+        // Only cash
+        amountText += `<div class="text-muted" style="font-size: 0.7rem; margin-top: 2px;">• Cash: ₱${pendingCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>`;
     }
     document.getElementById('statPendingAmount').innerHTML = amountText;
 }

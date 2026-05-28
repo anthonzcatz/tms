@@ -115,16 +115,16 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
 
         <?php if (!$activeSession): ?>
         <!-- No session warning -->
-        <div class="alert alert-warning d-flex align-items-center mb-3">
-          <span class="fas fa-exclamation-triangle me-3 fs-4"></span>
-          <div>
-            <strong>No Active Session.</strong> You must open a cashier session before processing transactions.
+        <div class="alert alert-warning d-flex align-items-center mb-3 py-2" style="font-size: 0.85rem;">
+          <span class="fas fa-exclamation-triangle me-2" style="font-size: 0.9rem;"></span>
+          <div class="flex-grow-1">
+            <span class="fw-medium">No Active Session.</span> You must open a cashier session before processing transactions.
             <?php if ($canOpenSession): ?>
-            <button class="btn btn-sm btn-warning ms-3" onclick="openSessionModal.show()">
+            <button class="btn btn-sm btn-warning ms-2" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;" onclick="openSessionModal.show()">
               <span class="fas fa-play-circle me-1"></span>Open Session Now
             </button>
             <?php else: ?>
-            <span class="text-muted ms-3"><small><span class="fas fa-lock me-1"></span>Contact your manager to open a session.</small></span>
+            <span class="text-muted ms-2" style="font-size: 0.8rem;"><span class="fas fa-lock me-1"></span>Contact your manager to open a session.</span>
             <?php endif; ?>
           </div>
         </div>
@@ -177,7 +177,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   </div>
                   <div class="col-4">
                     <button type="button" class="btn btn-outline-success d-block w-100 py-3 rounded-4 position-relative" id="btnServiceType" onclick="switchTransactionType('service')">
-                      <span class="fas fa-concierge-bell me-2"></span>Service Only
+                      <span class="fas fa-concierge-bell me-2"></span>Service Add-ons
                     </button>
                   </div>
                   <div class="col-4">
@@ -200,7 +200,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
               <div class="card-body position-relative z-1">
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <label class="form-label fw-semibold" for="ticketPassenger">Passenger</label>
+                    <label class="form-label fw-semibold" for="ticketPassenger">Passenger <span class="text-danger">*</span></label>
                     <div class="position-relative">
                       <!-- Search input (shown when no passenger selected) -->
                       <div id="passengerSearchGroup" class="input-group">
@@ -231,7 +231,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </div>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label fw-semibold" for="ticketNumber">Ticket Number</label>
+                    <label class="form-label fw-semibold" for="ticketNumber">Ticket Number <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="ticketNumber" name="ticketNumber" placeholder="Enter ticket number for tracking">
                   </div>
                   <!-- Hidden for now - Origin and Destination
@@ -245,24 +245,22 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   </div>
                   -->
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketBaseAmount">Cost (₱)</label>
+                    <label class="form-label fw-semibold" for="ticketBaseAmount">Cost (₱) <span class="text-danger">*</span></label>
                     <input type="number" class="form-control" id="ticketBaseAmount" name="ticketBaseAmount" min="0" step="0.01" placeholder="0.00" oninput="computeTicketTotal()">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold">Discount</label>
+                    <label class="form-label fw-semibold">Discount <span class="text-danger">*</span></label>
                     <select class="form-select" id="ticketDiscount" name="ticketDiscount" onchange="computeTicketTotal()">
-                      <option value="0">No Discount</option>
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketAccommodation">Accommodation</label>
+                    <label class="form-label fw-semibold" for="ticketAccommodation">Accommodation <span class="text-danger">*</span></label>
                     <select class="form-select" id="ticketAccommodation" name="ticketAccommodation">
-                      <option value="">None</option>
                     </select>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label fw-semibold d-flex justify-content-between" for="ticketWallet">
-                      <span>Wallet</span>
+                      <span>Wallet <span class="text-danger">*</span></span>
                       <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" onclick="refreshWallets()" title="Refresh Wallets">
                         <span class="fas fa-sync-alt"></span>
                       </button>
@@ -403,8 +401,12 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </thead>
                     <tbody id="recentTransactionsList">
                       <tr>
-                        <td colspan="9" class="text-center text-muted py-4">
-                          <span class="fas fa-info-circle me-2"></span>Select filters and click Refresh to load transactions.
+                        <td colspan="9" class="text-center text-muted py-5">
+                          <div class="d-flex flex-column align-items-center">
+                            <span class="fas fa-inbox mb-3" style="font-size: 2.5rem; color: #adb5bd;"></span>
+                            <span class="fw-medium" style="color: #6c757d;">No transactions found</span>
+                            <small class="text-muted mt-1">Select filters and click Refresh to load transactions</small>
+                          </div>
                         </td>
                       </tr>
                     </tbody>
@@ -412,7 +414,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                 </div>
                 <!-- Pagination -->
                 <div class="card-footer bg-light">
-                  <div class="d-flex justify-content-between align-items-center">
+                  <div class="d-flex flex-column align-items-center gap-2">
                     <div class="small text-muted">
                       Showing <span id="paginationStart">0</span> to <span id="paginationEnd">0</span> of <span id="paginationTotal">0</span> transactions
                     </div>

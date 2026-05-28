@@ -76,7 +76,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
                   <div class="col-auto align-self-end"><div class="fs-6 fw-bold font-sans-serif lh-1 mb-1 text-warning" id="statPendingAmount">—</div></div>
-                  <div class="col-auto ps-0 mt-n4"><span class="fas fa-peso-sign text-warning fs-4"></span></div>
+                  <div class="col-auto ps-0 mt-n4"><span class="fas fa-money-bill-wave text-warning fs-4"></span></div>
                 </div>
               </div>
             </div>

@@ -129,6 +129,13 @@
 .cart-item {
     border-bottom: 1px solid #e9ecef;
     padding: 0.4rem 0.25rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cart-item:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    padding-left: 0.5rem;
 }
 
 .cart-item:last-child {
@@ -156,6 +163,18 @@
 .payment-method-btn.active-payment {
     border-color: #0d6efd;
     background: #f0f6ff !important;
+}
+
+/* ---- Payment Modal Order Summary Items ---- */
+#paymentCartItems > div {
+    transition: background-color 0.2s ease;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 4px 0;
+}
+
+#paymentCartItems > div:hover {
+    background-color: #f8f9fa;
 }
 
 /* ---- Service Type Cards ---- */

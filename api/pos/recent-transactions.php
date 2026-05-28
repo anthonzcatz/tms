@@ -169,6 +169,18 @@ if ($useOrdersTable) {
              LEFT JOIN ticket_transactions tt ON oi8.reference_id = tt.transaction_id AND oi8.item_type = 'TICKET'
              LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
              WHERE oi8.order_id = o.order_id AND tc.cancellation_id IS NOT NULL) as pending_refund_amount,
+            -- Charge amount (debt reversal portion) for pending cancellation
+            (SELECT SUM(tc.charge_amount)
+             FROM pos_order_items oi8
+             LEFT JOIN ticket_transactions tt ON oi8.reference_id = tt.transaction_id AND oi8.item_type = 'TICKET'
+             LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
+             WHERE oi8.order_id = o.order_id AND tc.cancellation_id IS NOT NULL) as pending_charge_amount,
+            -- Cash refund amount (actual cash to give) for pending cancellation
+            (SELECT SUM(tc.cash_refund_amount)
+             FROM pos_order_items oi8
+             LEFT JOIN ticket_transactions tt ON oi8.reference_id = tt.transaction_id AND oi8.item_type = 'TICKET'
+             LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
+             WHERE oi8.order_id = o.order_id AND tc.cancellation_id IS NOT NULL) as pending_cash_refund_amount,
             -- Count cancelled tickets in this order
             (SELECT COUNT(*)
              FROM pos_order_items oi9

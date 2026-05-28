@@ -280,6 +280,11 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                     <?php endif; ?>
                   </div>
                   <div class="d-flex gap-2">
+                    <?php if ($s['status'] === 'OPEN' && ($userRoleCode === 'SUPER_ADMIN' || $userRoleCode === 'MANAGER')): ?>
+                    <button class="btn btn-sm btn-danger" onclick="openManagerSessionModal('close', <?php echo $s['session_id']; ?>)">
+                      <span class="fas fa-stop-circle me-1"></span>Close Session
+                    </button>
+                    <?php endif; ?>
                     <?php if ($s['status'] === 'CLOSED' && $s['deposit_status'] === 'PENDING'): ?>
                     <button class="btn btn-sm btn-success" onclick="openRecordDepositModal(<?php echo $s['session_id']; ?>, <?php echo $s['actual_cash']; ?>)">
                       <span class="fas fa-university me-1"></span>Record Deposit

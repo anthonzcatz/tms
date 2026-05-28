@@ -133,5 +133,8 @@ foreach ($permissionsByModule as $module => $perms) {
     }
 }
 
+// Pass user role code to view
+$userRoleCode = $user['role_code'] ?? null;
+
 // Load view
 require __DIR__ . '/views/index.php';

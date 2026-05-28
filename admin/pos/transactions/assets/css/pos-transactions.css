@@ -1,0 +1,115 @@
+/* POS Transactions Report Styles */
+
+.search-box {
+    position: relative;
+    min-width: 0;
+    width: 100%;
+}
+.search-box .search-input {
+    padding-left: 2rem;
+    min-width: 0;
+    width: 100%;
+}
+.search-box .search-icon {
+    position: absolute;
+    left: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9da9bb;
+    font-size: 0.8rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.status-badge-completed { background-color: rgba(0,200,83,.15); color: #00c853; }
+.status-badge-pending   { background-color: rgba(255,193,7,.15);  color: #d4a017; }
+.status-badge-cancelled { background-color: rgba(255,77,79,.15);  color: #ff4d4f; }
+.status-badge-refunded  { background-color: rgba(108,117,125,.15);color: #6c757d; }
+
+.type-pill-ticket  { background-color: rgba(13,110,253,.1); color: #0d6efd; }
+.type-pill-service { background-color: rgba(32,201,151,.1); color: #20c997; }
+
+.txn-row {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.txn-row:hover {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transform: translateX(2px);
+}
+
+/* Responsive table tweaks */
+@media (max-width: 768px) {
+    .table th:nth-child(4),
+    .table td:nth-child(4),
+    .table th:nth-child(5),
+    .table td:nth-child(5) {
+        display: none;
+    }
+}
+@media (max-width: 576px) {
+    .table th:nth-child(3),
+    .table td:nth-child(3),
+    .table th:nth-child(6),
+    .table td:nth-child(6) {
+        display: none;
+    }
+}
+
+/* Detail modal */
+.detail-section { border-left: 3px solid #e3e6ef; padding-left: 0.75rem; margin-bottom: 1rem; }
+.item-card { background: #f8f9fa; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.4rem; }
+.payment-chip { display: inline-block; background: #e9ecef; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; margin: 2px; }
+
+/* Print styles */
+@media print {
+    @page {
+        size: portrait;
+        margin: 0.5cm;
+    }
+
+    /* Hide everything except print container */
+    body > *:not(#print-container) { display: none !important; }
+
+    /* Show print container */
+    #print-container { display: block !important; position: static; }
+
+    /* Body styling */
+    body { background: white; margin: 0; padding: 0; font-size: 10pt; }
+
+    /* Table styling in print container */
+    #print-container table { border-collapse: collapse; width: 100%; font-size: 9pt; }
+    #print-container th, #print-container td { border: 1px solid #000 !important; padding: 4px 6px; text-align: left; }
+    #print-container th { background: #f0f0f0 !important; color: #000; font-weight: bold; text-align: center; font-size: 9pt; }
+    #print-container td.text-end { text-align: right !important; }
+    #print-container td.ps-3 { padding-left: 6px !important; }
+    #print-container td.pe-3 { padding-right: 6px !important; }
+
+    /* Remove interactive elements */
+    #print-container .txn-row:hover { cursor: default; background: none !important; }
+    #print-container .fas { display: none !important; }
+
+    /* Badge styling for print */
+    #print-container .status-badge-completed, #print-container .status-badge-pending,
+    #print-container .status-badge-cancelled, #print-container .status-badge-refunded {
+        background: none !important; color: #000 !important; border: 1px solid #000; padding: 1px 4px; font-size: 8pt;
+    }
+    #print-container .type-pill-ticket, #print-container .type-pill-service {
+        background: none !important; color: #000 !important; border: 1px solid #000; padding: 1px 4px; font-size: 8pt;
+    }
+    #print-container .payment-chip { border: 1px solid #000; background: none !important; padding: 1px 4px; font-size: 8pt; }
+
+    /* Reset text colors */
+    #print-container .text-muted, #print-container .text-primary, #print-container .text-success,
+    #print-container .text-danger, #print-container .text-info, #print-container .text-warning {
+        color: #000 !important;
+    }
+
+    /* Hide badge icons */
+    #print-container .badge .fas { display: none !important; }
+
+    /* Hide empty cells content */
+    #print-container .table td:empty::after { content: "—"; }
+}

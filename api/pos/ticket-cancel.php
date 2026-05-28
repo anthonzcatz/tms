@@ -188,12 +188,15 @@ try {
         //  • Track the pending refund in the cashier session totals.
         // -----------------------------------------------------------------
 
+        // Only the cash portion leaves the drawer — charge reversal is system-only (not cash).
+        $cashRefundAmount = $refundAmount - $chargeAmount;
+
         Database::execute(
             "INSERT INTO ticket_cancellations
                 (transaction_id, transaction_code, passenger_id, reason, cancellation_type,
-                 refund_amount, charge_amount, status, requested_by, cashier_session_id, requested_at)
+                 refund_amount, charge_amount, cash_refund_amount, status, requested_by, cashier_session_id, requested_at)
              VALUES (:tid, :code, :pid, :reason, :ctype,
-                     :ramount, :camount, 'pending', :uid, :csid, NOW())",
+                     :ramount, :camount, :cramount, 'pending', :uid, :csid, NOW())",
             [
                 'tid'     => $ticketTxnId,
                 'code'    => $ticketTxn['transaction_code'],
@@ -202,15 +205,13 @@ try {
                 'ctype'   => $cancellationType,
                 'ramount' => $refundAmount,
                 'camount' => $chargeAmount,
+                'cramount' => $cashRefundAmount,
                 'uid'     => $user['user_id'],
                 'csid'    => $cashierSessionId,
             ]
         );
 
         $cancellationId = Database::lastInsertId();
-
-        // Only the cash portion leaves the drawer — charge reversal is system-only (not cash).
-        $cashRefundAmount = $refundAmount - $chargeAmount;
 
         // Track pending cash refund in cashier session
         if ($cashierSessionId && $cashRefundAmount > 0) {
@@ -256,13 +257,16 @@ try {
             ['tid' => $ticketTxnId]
         );
 
+        // Only the cash portion leaves the drawer — charge reversal is system-only (not cash).
+        $cashRefundAmount = $refundAmount - $chargeAmount;
+
         Database::execute(
             "INSERT INTO ticket_cancellations
                 (transaction_id, transaction_code, passenger_id, reason, cancellation_type,
-                 refund_amount, charge_amount, status, requested_by, cashier_session_id,
+                 refund_amount, charge_amount, cash_refund_amount, status, requested_by, cashier_session_id,
                  requested_at, approved_by, approved_at)
              VALUES (:tid, :code, :pid, :reason, :ctype,
-                     :ramount, :camount, 'approved', :uid, :csid,
+                     :ramount, :camount, :cramount, 'approved', :uid, :csid,
                      NOW(), :uid2, NOW())",
             [
                 'tid'     => $ticketTxnId,
@@ -272,6 +276,7 @@ try {
                 'ctype'   => $cancellationType,
                 'ramount' => $refundAmount,
                 'camount' => $chargeAmount,
+                'cramount' => $cashRefundAmount,
                 'uid'     => $user['user_id'],
                 'uid2'    => $user['user_id'],
                 'csid'    => $cashierSessionId,
@@ -279,9 +284,6 @@ try {
         );
 
         $cancellationId = Database::lastInsertId();
-
-        // Only the cash portion leaves the drawer — charge reversal is system-only (not cash).
-        $cashRefundAmount = $refundAmount - $chargeAmount;
 
         // Track cash refund in cashier session
         if ($cashierSessionId && $cashRefundAmount > 0) {

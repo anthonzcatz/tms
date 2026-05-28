@@ -68,7 +68,7 @@ require_once __DIR__ . '/../_guard.php';
                           </div>
                           <div class="ps-3">
                             <p class="text-600 fs-10">Today’s total sales </p>
-                            <h4 class="text-800 mb-0">$21,349.29 </h4>
+                            <h4 class="text-800 mb-0">₱21,349.29 </h4>
                           </div>
                         </div>
                       </div>
@@ -122,7 +122,7 @@ require_once __DIR__ . '/../_guard.php';
                         <div class="card-body d-flex flex-column justify-content-end">
                           <div class="row">
                             <div class="col">
-                              <p class="font-sans-serif lh-1 mb-1 fs-7">$47K</p><span class="badge badge-subtle-success rounded-pill fs-11">+3.5%</span>
+                              <p class="font-sans-serif lh-1 mb-1 fs-7">₱47K</p><span class="badge badge-subtle-success rounded-pill fs-11">+3.5%</span>
                             </div>
                             <div class="col-auto ps-0">
                               <div class="echart-bar-weekly-sales h-100 echart-bar-weekly-sales-smaller-width"></div>
@@ -224,7 +224,7 @@ require_once __DIR__ . '/../_guard.php';
                     </div>
                     <div class="col-6 col-md-4 border-200 border-bottom border-end border-end-md-0 pb-4 pt-4 pt-md-0 ps-md-3">
                       <h6 class="pb-1 text-700">Refunds </h6>
-                      <p class="font-sans-serif lh-1 mb-1 fs-7">$145.65 </p>
+                      <p class="font-sans-serif lh-1 mb-1 fs-7">₱145.65 </p>
                       <div class="d-flex align-items-center">
                         <h6 class="fs-10 text-500 mb-0">13,675 </h6>
                         <h6 class="fs-11 ps-3 mb-0 text-success"><span class="me-1 fas fa-caret-up"></span>21.8%</h6>
@@ -232,15 +232,15 @@ require_once __DIR__ . '/../_guard.php';
                     </div>
                     <div class="col-6 col-md-4 border-200 border-bottom border-bottom-md-0 border-end-md pt-4 pb-md-0 ps-3 ps-md-0">
                       <h6 class="pb-1 text-700">Gross sale </h6>
-                      <p class="font-sans-serif lh-1 mb-1 fs-7">$100.26 </p>
+                      <p class="font-sans-serif lh-1 mb-1 fs-7">₱100.26 </p>
                       <div class="d-flex align-items-center">
-                        <h6 class="fs-10 text-500 mb-0">$109.65 </h6>
+                        <h6 class="fs-10 text-500 mb-0">₱109.65 </h6>
                         <h6 class="fs-11 ps-3 mb-0 text-danger"><span class="me-1 fas fa-caret-up"></span>21.8%</h6>
                       </div>
                     </div>
                     <div class="col-6 col-md-4 border-200 border-bottom-md-0 border-end pt-4 pb-md-0 ps-md-3">
                       <h6 class="pb-1 text-700">Shipping </h6>
-                      <p class="font-sans-serif lh-1 mb-1 fs-7">$365.53 </p>
+                      <p class="font-sans-serif lh-1 mb-1 fs-7">₱365.53 </p>
                       <div class="d-flex align-items-center">
                         <h6 class="fs-10 text-500 mb-0">13,675 </h6>
                         <h6 class="fs-11 ps-3 mb-0 text-success"><span class="me-1 fas fa-caret-up"></span>21.8%</h6>
@@ -266,11 +266,11 @@ require_once __DIR__ . '/../_guard.php';
                     <div class="col-auto d-flex">
                       <div class="form-check mb-0 d-flex">
                         <input class="form-check-input form-check-input-primary" id="ecommerceLastMonth" type="checkbox" checked="checked" />
-                        <label class="form-check-label ps-2 fs-11 text-600 mb-0" for="ecommerceLastMonth">Last Month<span class="text-1100 d-none d-md-inline">: $32,502.00</span></label>
+                        <label class="form-check-label ps-2 fs-11 text-600 mb-0" for="ecommerceLastMonth">Last Month<span class="text-1100 d-none d-md-inline">: ₱32,502.00</span></label>
                       </div>
                       <div class="form-check mb-0 d-flex ps-0 ps-md-3">
                         <input class="form-check-input ms-2 form-check-input-warning opacity-75" id="ecommercePrevYear" type="checkbox" checked="checked" />
-                        <label class="form-check-label ps-2 fs-11 text-600 mb-0" for="ecommercePrevYear">Prev Year<span class="text-1100 d-none d-md-inline">: $46,018.00</span></label>
+                        <label class="form-check-label ps-2 fs-11 text-600 mb-0" for="ecommercePrevYear">Prev Year<span class="text-1100 d-none d-md-inline">: ₱46,018.00</span></label>
                       </div>
                     </div>
                     <div class="col-auto">
@@ -446,7 +446,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Slick - Drag &amp; Drop Bootstrap Generator</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-success">Success<span class="ms-1 fas fa-check" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$99</td>
+                          <td class="align-middle text-end amount">₱99</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-0" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -467,7 +467,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Bose SoundSport Wireless Headphones</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-success">Success<span class="ms-1 fas fa-check" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$634</td>
+                          <td class="align-middle text-end amount">₱634</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-1" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -488,7 +488,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">All-New Fire HD 8 Kids Edition Tablet</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-secondary">Blocked<span class="ms-1 fas fa-ban" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$199</td>
+                          <td class="align-middle text-end amount">₱199</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-2" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -509,7 +509,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Apple iPhone XR (64GB)</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-success">Success<span class="ms-1 fas fa-check" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$798</td>
+                          <td class="align-middle text-end amount">₱798</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-3" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -530,7 +530,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">ASUS Chromebook C202SA-YS02 11.6&quot;</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-secondary">Blocked<span class="ms-1 fas fa-ban" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$318</td>
+                          <td class="align-middle text-end amount">₱318</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-4" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -551,7 +551,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Mirari OK to Wake! Alarm Clock &amp; Night-Light</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-warning">Pending<span class="ms-1 fas fa-stream" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$11</td>
+                          <td class="align-middle text-end amount">₱11</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-5" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -572,7 +572,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Summer Infant Contoured Changing Pad</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-success">Success<span class="ms-1 fas fa-check" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$31</td>
+                          <td class="align-middle text-end amount">₱31</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-6" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -593,7 +593,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Munchkin 6 Piece Fork and Spoon Set</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-success">Success<span class="ms-1 fas fa-check" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$43</td>
+                          <td class="align-middle text-end amount">₱43</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-7" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -614,7 +614,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Falcon - Responsive Dashboard Template</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-success">Success<span class="ms-1 fas fa-check" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$57</td>
+                          <td class="align-middle text-end amount">₱57</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-8" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -635,7 +635,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Apple iPhone XR (64GB)</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-secondary">Blocked<span class="ms-1 fas fa-ban" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$999</td>
+                          <td class="align-middle text-end amount">₱999</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-9" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -656,7 +656,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">All-New Fire HD 8 Kids Edition Tablet</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-warning">Pending<span class="ms-1 fas fa-stream" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$199</td>
+                          <td class="align-middle text-end amount">₱199</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-10" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -677,7 +677,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Apple iPhone XR (64GB)</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-secondary">Blocked<span class="ms-1 fas fa-ban" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$999</td>
+                          <td class="align-middle text-end amount">₱999</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-11" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -698,7 +698,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">All-New Fire HD 8 Kids Edition Tablet</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-warning">Pending<span class="ms-1 fas fa-stream" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$199</td>
+                          <td class="align-middle text-end amount">₱199</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-12" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -719,7 +719,7 @@ require_once __DIR__ . '/../_guard.php';
                           <td class="align-middle white-space-nowrap product">Apple iPhone XR (64GB)</td>
                           <td class="align-middle text-center fs-9 white-space-nowrap payment"><span class="badge badge rounded-pill badge-subtle-secondary">Blocked<span class="ms-1 fas fa-ban" data-fa-transform="shrink-2"></span></span>
                           </td>
-                          <td class="align-middle text-end amount">$999</td>
+                          <td class="align-middle text-end amount">₱999</td>
                           <td class="align-middle white-space-nowrap text-end">
                             <div class="dropstart font-sans-serif position-static d-inline-block">
                               <button class="btn btn-link text-600 btn-sm dropdown-toggle btn-reveal float-end" type="button" id="dropdown-recent-purchase-table-13" data-bs-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" data-bs-reference="parent"><span class="fas fa-ellipsis-h fs-10"></span></button>
@@ -755,7 +755,7 @@ require_once __DIR__ . '/../_guard.php';
                     <div class="col-auto">
                       <h6>Returning Customer Rate</h6>
                       <div class="d-flex align-items-center">
-                        <h4 class="text-primary mb-0">$59.09%</h4><span class="badge rounded-pill ms-3 badge-subtle-primary"><span class="fas fa-caret-up"></span> 3.5%</span>
+                        <h4 class="text-primary mb-0">₱59.09%</h4><span class="badge rounded-pill ms-3 badge-subtle-primary"><span class="fas fa-caret-up"></span> 3.5%</span>
                       </div>
                     </div>
                     <div class="col-auto">
@@ -806,12 +806,12 @@ require_once __DIR__ . '/../_guard.php';
                     <tbody>
                       <tr>
                         <td class="pb-2 pt-0"> <span class="fas fa-circle fs-11 me-1 text-primary"></span>Allocated Budget</td>
-                        <td class="pb-2 pt-0 text-end">$13,325.98</td>
+                        <td class="pb-2 pt-0 text-end">₱13,325.98</td>
                         <td class="pb-2 pt-0 text-end"><span class="me-1 fas fa-caret-up text-success"></span>10%</td>
                       </tr>
                       <tr>
                         <td class="pb-2 pt-0"> <span class="fas fa-circle fs-11 me-1 text-warning"></span>Actual Spending</td>
-                        <td class="pb-2 pt-0 text-end">$12,348.46</td>
+                        <td class="pb-2 pt-0 text-end">₱12,348.46</td>
                         <td class="pb-2 pt-0 text-end"><span class="me-1 fas fa-caret-down text-success"></span>13%</td>
                       </tr>
                     </tbody>
@@ -850,7 +850,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">26</td>
                           <td class="align-middle text-center fw-semi-bold">31%</td>
-                          <td class="align-middle text-end fw-semi-bold">$1311</td>
+                          <td class="align-middle text-end fw-semi-bold">₱1311</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="41" aria-valuemin="0" aria-valuemax="100">
@@ -871,7 +871,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">18</td>
                           <td class="align-middle text-center fw-semi-bold">29%</td>
-                          <td class="align-middle text-end fw-semi-bold">$1311</td>
+                          <td class="align-middle text-end fw-semi-bold">₱1311</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="41" aria-valuemin="0" aria-valuemax="100">
@@ -892,7 +892,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">16</td>
                           <td class="align-middle text-center fw-semi-bold">27%</td>
-                          <td class="align-middle text-end fw-semi-bold">$539</td>
+                          <td class="align-middle text-end fw-semi-bold">₱539</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="27" aria-valuemin="0" aria-valuemax="100">
@@ -913,7 +913,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">11</td>
                           <td class="align-middle text-center fw-semi-bold">21%</td>
-                          <td class="align-middle text-end fw-semi-bold">$245</td>
+                          <td class="align-middle text-end fw-semi-bold">₱245</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="17" aria-valuemin="0" aria-valuemax="100">
@@ -934,7 +934,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">10</td>
                           <td class="align-middle text-center fw-semi-bold">19%</td>
-                          <td class="align-middle text-end fw-semi-bold">$234</td>
+                          <td class="align-middle text-end fw-semi-bold">₱234</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="7" aria-valuemin="0" aria-valuemax="100">
@@ -955,7 +955,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">10</td>
                           <td class="align-middle text-center fw-semi-bold">19%</td>
-                          <td class="align-middle text-end fw-semi-bold">$234</td>
+                          <td class="align-middle text-end fw-semi-bold">₱234</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="7" aria-valuemin="0" aria-valuemax="100">
@@ -976,7 +976,7 @@ require_once __DIR__ . '/../_guard.php';
                           </td>
                           <td class="align-middle text-center fw-semi-bold">10</td>
                           <td class="align-middle text-center fw-semi-bold">19%</td>
-                          <td class="align-middle text-end fw-semi-bold">$234</td>
+                          <td class="align-middle text-end fw-semi-bold">₱234</td>
                           <td class="align-middle pe-x1">
                             <div class="d-flex align-items-center">
                               <div class="progress me-3 rounded-3 bg-200" style="height: 5px; width:80px" role="progressbar" aria-valuenow="7" aria-valuemin="0" aria-valuemax="100">

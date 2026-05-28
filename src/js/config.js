@@ -5,8 +5,8 @@ const CONFIG = {
   isNavbarVerticalCollapsed: false,
   theme: 'light',
   isRTL: false,
-  isFluid: false,
-  navbarStyle: 'transparent',
+  isFluid: true,
+  navbarStyle: 'card',
   navbarPosition: 'vertical'
 };
 

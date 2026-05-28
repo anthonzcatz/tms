@@ -122,7 +122,7 @@ $settings = Database::fetch(
 
 $refundAmount     = floatval($cancellation['refund_amount']);
 $chargeAmount     = floatval($cancellation['charge_amount'] ?? 0);
-$cashRefundAmount = $refundAmount - $chargeAmount; // Actual cash out of drawer
+$cashRefundAmount = floatval($cancellation['cash_refund_amount'] ?? ($refundAmount - $chargeAmount)); // Use stored value, fallback to calculation
 $passengerId      = $ticketTxn['passenger_id'] ?? null;
 
 // Start database transaction

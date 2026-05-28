@@ -15,41 +15,45 @@
       </div>
       <div class="modal-body p-4">
 
-        <!-- Cart Summary -->
-        <div class="card mb-4 border-0 bg-light">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h6 class="fw-bold mb-0"><span class="fas fa-shopping-cart me-2 text-primary"></span>Order Summary</h6>
-              <button class="btn btn-sm btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#paymentCartItemsCollapse">
-                <span class="fas fa-chevron-down" id="orderSummaryToggleIcon"></span>
+        <!-- Order Summary -->
+        <div class="card mb-3 border-0 shadow-sm rounded-3 overflow-hidden">
+          <div class="card-header bg-light border-0 py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fas fa-shopping-cart text-primary"></span>
+                <span class="fw-semibold">Order Summary</span>
+              </div>
+              <button class="btn btn-sm btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#paymentCartItemsCollapse">
+                <span class="fas fa-chevron-down text-muted" id="orderSummaryToggleIcon"></span>
               </button>
             </div>
-            <div class="collapse" id="paymentCartItemsCollapse">
-              <div id="paymentCartItems" class="mb-3" style="max-height: 300px; overflow-y: auto;"></div>
-            </div>
-            <div class="row align-items-center pt-3 border-top">
-              <div class="col">
-                <span class="text-muted fw-semibold">Total Due:</span>
-              </div>
-              <div class="col-auto">
-                <span class="display-6 fw-bold text-primary" id="paymentTotalDue">₱0.00</span>
-              </div>
+          </div>
+          <div class="collapse" id="paymentCartItemsCollapse">
+            <div id="paymentCartItems" class="card-body py-3" style="max-height: 200px; overflow-y: auto;"></div>
+          </div>
+          <div class="card-footer bg-primary bg-opacity-10 border-0 py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="fw-semibold text-muted">Total Due:</span>
+              <span class="fs-4 fw-bold text-primary" id="paymentTotalDue">₱0.00</span>
             </div>
           </div>
         </div>
 
         <!-- Payment Methods -->
-        <div class="mb-4">
-          <h6 class="fw-bold mb-3"><span class="fas fa-credit-card me-2 text-primary"></span>Select Payment Method</h6>
-          <div class="row g-2" id="paymentMethodsGrid">
+        <div class="mb-3">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="fas fa-credit-card text-primary"></span>
+            <span class="fw-semibold">Select Payment Method</span>
+          </div>
+          <div class="row g-3" id="paymentMethodsGrid">
             <?php foreach ($paymentMethods as $pm):
               $icons = ['CASH'=>'fa-money-bill-wave','BANK_TRANSFER'=>'fa-university','E_WALLET'=>'fa-mobile-alt','CHARGE'=>'fa-file-invoice','CARD'=>'fa-credit-card','OTHER'=>'fa-ellipsis-h'];
               $colors = ['CASH'=>'success','BANK_TRANSFER'=>'primary','E_WALLET'=>'info','CHARGE'=>'warning','CARD'=>'secondary','OTHER'=>'dark'];
               $icon = $pm['icon'] ?: ($icons[$pm['method_type']] ?? 'fa-credit-card');
               $color = $colors[$pm['method_type']] ?? 'secondary';
             ?>
-            <div class="col-4 col-md-4 col-lg-4">
-              <div class="card payment-method-btn text-center p-3 h-100"
+            <div class="col-4">
+              <div class="card payment-method-btn text-center p-3 h-100 border-2"
                    data-method-id="<?php echo $pm['method_id']; ?>"
                    data-method-code="<?php echo htmlspecialchars($pm['method_code']); ?>"
                    data-method-name="<?php echo htmlspecialchars($pm['method_name']); ?>"
@@ -58,9 +62,14 @@
                    data-requires-customer="<?php echo $pm['requires_customer'] ? '1' : '0'; ?>"
                    data-requires-reference="<?php echo $pm['requires_reference'] ? '1' : '0'; ?>"
                    data-tracks-credit="<?php echo !empty($pm['tracks_credit']) ? '1' : '0'; ?>"
-                   onclick="selectPaymentMethod(this)">
-                <div class="mb-2"><span class="fas <?php echo $icon; ?> text-<?php echo $color; ?> fs-3"></span></div>
-                <div class="fw-semibold small"><?php echo htmlspecialchars($pm['method_name']); ?></div>
+                   onclick="selectPaymentMethod(this)"
+                   style="cursor: pointer; transition: all 0.2s ease;">
+                <div class="mb-2">
+                  <div class="bg-<?php echo $color; ?> bg-opacity-10 rounded-3 p-2 d-inline-block">
+                    <span class="fas <?php echo $icon; ?> text-<?php echo $color; ?> fs-4"></span>
+                  </div>
+                </div>
+                <div class="fw-medium small text-dark"><?php echo htmlspecialchars($pm['method_name']); ?></div>
               </div>
             </div>
             <?php endforeach; ?>
@@ -120,40 +129,36 @@
         <!-- Payment Lines -->
         <div id="paymentLinesList" class="mb-4"></div>
 
-        <!-- Totals Summary -->
-        <div class="card border-0 bg-success bg-opacity-10" id="paymentTotals" style="display:none;">
-          <div class="card-body">
-            <div class="row g-2">
-              <div class="col-md-4">
-                <div class="d-flex justify-content-between">
-                  <span class="text-muted">Total Due:</span>
-                  <span class="fw-bold" id="ptTotalDue">₱0.00</span>
-                </div>
+        <!-- Payment Summary -->
+        <div class="card border-0 bg-light rounded-3 mb-3" id="paymentTotals" style="display:none;">
+          <div class="card-body py-3">
+            <div class="row g-2 text-center">
+              <div class="col-4 border-end">
+                <div class="text-muted small mb-1">Total Due</div>
+                <div class="fw-bold" id="ptTotalDue">₱0.00</div>
               </div>
-              <div class="col-md-4">
-                <div class="d-flex justify-content-between">
-                  <span class="text-muted">Total Paid:</span>
-                  <span class="fw-bold text-success" id="ptTotalPaid">₱0.00</span>
-                </div>
+              <div class="col-4 border-end">
+                <div class="text-muted small mb-1">Total Paid</div>
+                <div class="fw-bold text-success" id="ptTotalPaid">₱0.00</div>
               </div>
-              <div class="col-md-4">
-                <div class="d-flex justify-content-between">
-                  <span class="fw-bold">Change:</span>
-                  <span class="fw-bold fs-5 text-primary" id="ptChange">₱0.00</span>
-                </div>
+              <div class="col-4">
+                <div class="text-muted small mb-1">Change</div>
+                <div class="fw-bold text-danger" id="ptChange">₱0.00</div>
               </div>
             </div>
           </div>
         </div>
 
       </div>
-      <div class="modal-footer bg-light">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="backToCart()">
-          <span class="fas fa-arrow-left me-1"></span>Back to Cart
-        </button>
-        <button type="button" class="btn btn-primary btn-lg" onclick="confirmOrder()" id="confirmOrderBtn">
-          <span class="fas fa-check-circle me-2"></span>Confirm & Process
-        </button>
+      <div class="modal-footer border-0 pt-0">
+        <div class="d-flex gap-2 w-100">
+          <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal" onclick="backToCart()">
+            <span class="fas fa-arrow-left me-2"></span>Back to Cart
+          </button>
+          <button type="button" class="btn btn-primary flex-fill" onclick="confirmOrder()" id="confirmOrderBtn">
+            <span class="fas fa-check-circle me-2"></span>Confirm & Process
+          </button>
+        </div>
       </div>
     </div>
   </div>

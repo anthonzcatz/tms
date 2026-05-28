@@ -54,6 +54,36 @@ foreach ($items as $item) {
 }
 $totalPaid = array_sum(array_column($payments, 'amount'));
 
+// Denormalize cashier name from employee record
+$cashierName = null;
+$cashierUserId = $user['user_id'];
+$empRow = Database::fetch(
+    "SELECT e.first_name, e.middle_name, e.last_name
+     FROM user_accounts ua
+     JOIN employees e ON e.emp_id = ua.emp_id
+     WHERE ua.user_id = :uid",
+    ['uid' => $cashierUserId]
+);
+if ($empRow) {
+    $mid = !empty($empRow['middle_name']) ? ' ' . substr($empRow['middle_name'],0,1) . '.' : '';
+    $cashierName = trim($empRow['first_name'] . $mid . ' ' . $empRow['last_name']);
+}
+if (!$cashierName) $cashierName = $user['username'] ?? null;
+
+// Denormalize all payment methods (handles multi-payment)
+$uniqueMethodIds = array_unique(array_filter(array_column($payments, 'payment_method_id')));
+$paymentMethodsDetail = [];
+foreach ($uniqueMethodIds as $pmId) {
+    $pmRow = Database::fetch("SELECT method_id, method_name FROM payment_methods WHERE method_id = :id", ['id' => $pmId]);
+    if ($pmRow) {
+        $totalForMethod = array_sum(array_column(array_filter($payments, fn($p) => $p['payment_method_id'] == $pmId), 'amount'));
+        $paymentMethodsDetail[] = ['method_id' => (int)$pmRow['method_id'], 'method_name' => $pmRow['method_name'], 'amount' => $totalForMethod];
+    }
+}
+$primaryPaymentMethod  = implode(' + ', array_column($paymentMethodsDetail, 'method_name')) ?: null;
+$paymentMethodIds      = implode(',', array_column($paymentMethodsDetail, 'method_id')) ?: null;
+$paymentMethodsJson    = !empty($paymentMethodsDetail) ? json_encode($paymentMethodsDetail) : null;
+
 if ($totalPaid < $orderTotal) {
     echo json_encode(['success' => false, 'error' => "Payment (₱{$totalPaid}) is less than total (₱{$orderTotal})."]); exit;
 }
@@ -62,28 +92,75 @@ function generateServiceTxnCode() {
     return 'SVC-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
 }
 
+function generateOrderCode() {
+    $today = date('Ymd');
+    $prefix = 'ORD-' . $today;
+
+    // Get the last order code for today
+    $lastOrder = Database::fetch(
+        "SELECT order_code FROM pos_orders WHERE order_code LIKE :prefix ORDER BY order_code DESC LIMIT 1",
+        ['prefix' => $prefix . '%']
+    );
+
+    if ($lastOrder) {
+        // Extract the sequence number from the last order code
+        // Format: ORD-YYYYMMDD-HHMMSS-###
+        $parts = explode('-', $lastOrder['order_code']);
+        $lastSeq = (int)end($parts);
+        $nextSeq = $lastSeq + 1;
+    } else {
+        // First order of the day
+        $nextSeq = 1;
+    }
+
+    return 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', $nextSeq);
+}
+
 try {
         // Start database transaction
         Database::connection()->beginTransaction();
 
-        // --- Create pos_orders record: ORD-YYYYMMDD-HHMM-### ---
-        $orderCode = 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
+        // --- Create pos_orders record: ORD-YYYYMMDD-HHMM-### (sequential) ---
+        $orderCode = generateOrderCode();
+
+        // For service transactions: total_add_ons = order total, total_profit = order total (no costs)
+        $totalCost = 0;
+        $totalServiceFees = 0;
+        $totalAddOns = $orderTotal;
+        $totalProfit = $orderTotal;
 
         Database::execute(
             "INSERT INTO pos_orders
-                (order_code, branch_id, cashier_session_id, created_by, subtotal, discount_total, grand_total, original_grand_total, amount_paid, change_amount, status, created_at)
-             VALUES (:code, :branch, :session, :uid, :subtotal, 0, :grand, :original, :paid, :change, 'completed', :created_at)",
+                (order_code, branch_id, cashier_session_id, created_by,
+                 subtotal, discount_total, total_cost, total_service_fees, total_add_ons, total_profit,
+                 grand_total, original_grand_total, amount_paid, change_amount,
+                 payment_method, cashier_name, cashier_user_id,
+                 payment_method_ids, payment_methods_json, status, created_at)
+             VALUES (:code, :branch, :session, :uid,
+                     :subtotal, 0, :total_cost, :total_service_fees, :total_add_ons, :total_profit,
+                     :grand, :original, :paid, :change,
+                     :payment_method, :cashier_name, :cashier_user_id,
+                     :payment_method_ids, :payment_methods_json, 'completed', :created_at)",
             [
-                'code'    => $orderCode,
-                'branch'  => $branchId,
-                'session' => $sessionId,
-                'uid'     => $user['user_id'],
-                'subtotal'=> $orderTotal,
-                'grand'   => $orderTotal,
-                'original'=> $orderTotal,
-                'paid'    => $totalPaid,
-                'change'  => $totalPaid - $orderTotal,
-                'created_at' => date('Y-m-d H:i:s'),
+                'code'                => $orderCode,
+                'branch'              => $branchId,
+                'session'             => $sessionId,
+                'uid'                 => $user['user_id'],
+                'subtotal'            => $orderTotal,
+                'total_cost'          => $totalCost,
+                'total_service_fees'  => $totalServiceFees,
+                'total_add_ons'       => $totalAddOns,
+                'total_profit'        => $totalProfit,
+                'grand'               => $orderTotal,
+                'original'            => $orderTotal,
+                'paid'                => $totalPaid,
+                'change'              => $totalPaid - $orderTotal,
+                'payment_method'      => $primaryPaymentMethod,
+                'cashier_name'        => $cashierName,
+                'cashier_user_id'     => $cashierUserId,
+                'payment_method_ids'  => $paymentMethodIds,
+                'payment_methods_json'=> $paymentMethodsJson,
+                'created_at'          => date('Y-m-d H:i:s'),
             ]
         );
         $orderId = Database::connection()->lastInsertId();
@@ -144,14 +221,23 @@ try {
             // --- Write pos_order_items for this service ---
             Database::execute(
                 "INSERT INTO pos_order_items
-                    (order_id, item_type, reference_id, transaction_code, total_amount, created_at)
-                 VALUES (:oid, 'SERVICE', :ref, :code, :total, :created_at)",
+                    (order_id, item_type, reference_id, transaction_code,
+                     service_type_id, passenger_id, description,
+                     quantity, unit_price, service_fee, discount_amount, total_amount, created_at)
+                 VALUES (:oid, 'SERVICE', :ref, :code,
+                         :service_type_id, :passenger_id, :description,
+                         :quantity, :unit_price, 0, 0, :total, :created_at)",
                 [
-                    'oid'   => $orderId,
-                    'ref'   => $serviceTxnId,
-                    'code'  => $itemCode,
-                    'total' => $totalAmt,
-                    'created_at' => date('Y-m-d H:i:s'),
+                    'oid'             => $orderId,
+                    'ref'             => $serviceTxnId,
+                    'code'            => $itemCode,
+                    'service_type_id' => $serviceTypeId,
+                    'passenger_id'    => $passengerId,
+                    'description'     => $description,
+                    'quantity'        => $qty,
+                    'unit_price'      => $unitPrice,
+                    'total'           => $totalAmt,
+                    'created_at'      => date('Y-m-d H:i:s'),
                 ]
             );
         }

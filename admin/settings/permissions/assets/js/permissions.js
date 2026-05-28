@@ -349,12 +349,17 @@ function enableModulePermissions(roleId) {
   })
   .then(data => {
     if (data.success) {
+      // Update CSRF token in meta tag if returned
+      if (data.csrf_token) {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+          metaTag.setAttribute('content', data.csrf_token);
+        }
+      }
       // Update UI
       uncheckedToggles.forEach(toggle => toggle.checked = true);
       const toast = new bootstrap.Toast(document.getElementById('successToast'));
       toast.show();
-      // Reload page to get fresh CSRF token
-      setTimeout(() => window.location.reload(), 500);
     } else {
       throw new Error(data.error || 'Operation failed');
     }
@@ -424,12 +429,17 @@ function disableModulePermissions(roleId) {
   })
   .then(data => {
     if (data.success) {
+      // Update CSRF token in meta tag if returned
+      if (data.csrf_token) {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+          metaTag.setAttribute('content', data.csrf_token);
+        }
+      }
       // Update UI
       checkedToggles.forEach(toggle => toggle.checked = false);
       const toast = new bootstrap.Toast(document.getElementById('successToast'));
       toast.show();
-      // Reload page to get fresh CSRF token
-      setTimeout(() => window.location.reload(), 500);
     } else {
       throw new Error(data.error || 'Operation failed');
     }
@@ -607,6 +617,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  // Sidebar toggles (Show in Sidebar Menu)
+  const sidebarToggles = document.querySelectorAll('.sidebar-toggle');
+  
+  sidebarToggles.forEach(toggle => {
+    toggle.addEventListener('change', function() {
+      const permissionId = this.dataset.permissionId;
+      const isChecked = this.checked;
+      
+      toggleSidebarMenuItem(permissionId, isChecked, this);
+    });
+  });
+
   // Add permission form
   const addForm = document.getElementById('addPermissionForm');
   if (addForm) {
@@ -718,13 +740,18 @@ function togglePermission(roleId, permissionId, endpoint, toggleElement, callbac
   })
   .then(data => {
     if (data.success) {
+      // Update CSRF token in meta tag if returned
+      if (data.csrf_token) {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+          metaTag.setAttribute('content', data.csrf_token);
+        }
+      }
       if (callback) {
         callback();
       } else {
         const toast = new bootstrap.Toast(document.getElementById('successToast'));
         toast.show();
-        // Reload page to get fresh CSRF token
-        setTimeout(() => window.location.reload(), 500);
       }
     } else {
       throw new Error(data.error || 'Operation failed');
@@ -744,6 +771,56 @@ function togglePermission(roleId, permissionId, endpoint, toggleElement, callbac
       const toast = new bootstrap.Toast(errorToast);
       toast.show();
     }
+  });
+}
+
+/**
+ * Toggle sidebar menu item visibility
+ */
+function toggleSidebarMenuItem(permissionId, isChecked, toggleElement) {
+  const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  
+  fetch(`${API_BASE}/index.php`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': freshToken
+    },
+    body: JSON.stringify({
+      permission_id: permissionId,
+      is_menu_item: isChecked ? 1 : 0
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(err => { throw err; });
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Update CSRF token in meta tag if returned
+      if (data.csrf_token) {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+          metaTag.setAttribute('content', data.csrf_token);
+        }
+      }
+      const toast = new bootstrap.Toast(document.getElementById('successToast'));
+      toast.show();
+    } else {
+      throw new Error(data.error || 'Operation failed');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    toggleElement.checked = !toggleElement.checked;
+    const errorToast = document.getElementById('errorToast');
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = error.error || error.message;
+    const toast = new bootstrap.Toast(errorToast);
+    toast.show();
   });
 }
 

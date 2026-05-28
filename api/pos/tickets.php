@@ -57,10 +57,34 @@ if (!$session) { echo json_encode(['success' => false, 'error' => 'No active ses
 $maxRetries = 50;
 $lastError = null;
 
+function generateOrderCode() {
+    $today = date('Ymd');
+    $prefix = 'ORD-' . $today;
+
+    // Get the last order code for today
+    $lastOrder = Database::fetch(
+        "SELECT order_code FROM pos_orders WHERE order_code LIKE :prefix ORDER BY order_code DESC LIMIT 1",
+        ['prefix' => $prefix . '%']
+    );
+
+    if ($lastOrder) {
+        // Extract the sequence number from the last order code
+        // Format: ORD-YYYYMMDD-HHMMSS-###
+        $parts = explode('-', $lastOrder['order_code']);
+        $lastSeq = (int)end($parts);
+        $nextSeq = $lastSeq + 1;
+    } else {
+        // First order of the day
+        $nextSeq = 1;
+    }
+
+    return 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', $nextSeq);
+}
+
 for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
     try {
-        // Generate unique order code: ORD-YYYYMMDD-HHMM-###
-        $orderCode = 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
+        // Generate unique order code: ORD-YYYYMMDD-HHMM-### (sequential)
+        $orderCode = generateOrderCode();
 
         // Start database transaction
         Database::connection()->beginTransaction();
@@ -196,29 +220,30 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             Database::execute(
                 "INSERT INTO pos_order_items
                     (order_id, item_type, reference_id, transaction_code, ticket_number,
-                     wallet_id, passenger_id, description,
+                     accommodation_id, wallet_id, passenger_id, description,
                      unit_price, service_fee, discount_amount, total_amount,
                      origin, destination, travel_date, created_at)
                  VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                         :wallet_id, :passenger_id, :description,
+                         :accommodation_id, :wallet_id, :passenger_id, :description,
                          :unit_price, :service_fee, :discount_amount, :total,
                          :origin, :destination, :travel_date, :created_at)",
                 [
-                    'oid'             => $orderId,
-                    'ref'             => $ticketTxnId,
-                    'code'            => $txnCode,
-                    'ticket_number'   => $ticket['ticket_number'] ?? $txnCode, // Fallback to transaction code if no ticket number
-                    'wallet_id'       => $ticket['wallet_id'] ?? null,
-                    'passenger_id'    => $ticket['passenger_id'] ?? null,
-                    'description'     => $ticket['description'] ?? null,
-                    'unit_price'      => floatval($ticket['base_amount'] ?? 0),
-                    'service_fee'     => floatval($ticket['service_fee'] ?? 0),
-                    'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
-                    'total'           => floatval($ticket['total_amount'] ?? 0),
-                    'origin'          => $ticket['origin'] ?? null,
-                    'destination'     => $ticket['destination'] ?? null,
-                    'travel_date'     => $ticket['travel_date'] ?? null,
-                    'created_at'      => date('Y-m-d H:i:s'),
+                    'oid'              => $orderId,
+                    'ref'              => $ticketTxnId,
+                    'code'             => $txnCode,
+                    'ticket_number'    => $ticket['ticket_number'] ?? $txnCode,
+                    'accommodation_id' => !empty($ticket['accommodation_id']) ? intval($ticket['accommodation_id']) : null,
+                    'wallet_id'        => $ticket['wallet_id'] ?? null,
+                    'passenger_id'     => $ticket['passenger_id'] ?? null,
+                    'description'      => $ticket['description'] ?? null,
+                    'unit_price'       => floatval($ticket['base_amount'] ?? 0),
+                    'service_fee'      => floatval($ticket['service_fee'] ?? 0),
+                    'discount_amount'  => floatval($ticket['discount_amount'] ?? 0),
+                    'total'            => floatval($ticket['total_amount'] ?? 0),
+                    'origin'           => $ticket['origin'] ?? null,
+                    'destination'      => $ticket['destination'] ?? null,
+                    'travel_date'      => $ticket['travel_date'] ?? null,
+                    'created_at'       => date('Y-m-d H:i:s'),
                 ]
             );
 

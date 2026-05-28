@@ -75,16 +75,48 @@ if (!$permissionId) {
 }
 
 try {
+    // Get permission details before deletion for logging
+    $permission = Database::fetch(
+        "SELECT * FROM permissions WHERE permission_id = :permission_id",
+        ['permission_id' => (int)$permissionId]
+    );
+
+    if (!$permission) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Permission not found']);
+        exit;
+    }
+
+    // Delete role permissions first
     Database::execute(
         "DELETE FROM role_permissions WHERE permission_id = :permission_id",
         ['permission_id' => (int)$permissionId]
     );
-    
+
+    // Delete permission
     Database::execute(
         "DELETE FROM permissions WHERE permission_id = :permission_id",
         ['permission_id' => (int)$permissionId]
     );
-    
+
+    // Log activity
+    $userId = $_SESSION['user']['user_id'] ?? null;
+    $now = date('Y-m-d H:i:s');
+    Database::execute(
+        "INSERT INTO activity_logs (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
+         VALUES (:uid, NULL, :action, :mod, :ref, :ip, :old, :new, :created_at)",
+        [
+            'uid' => $userId,
+            'action' => 'DELETE_PERMISSION',
+            'mod' => 'PERMISSIONS',
+            'ref' => $permission['permission_code'],
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            'old' => json_encode($permission),
+            'new' => null,
+            'created_at' => $now
+        ]
+    );
+
     echo json_encode(['success' => true, 'message' => 'Permission deleted']);
 } catch (Exception $e) {
     http_response_code(500);

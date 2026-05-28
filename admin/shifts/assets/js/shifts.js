@@ -6,6 +6,9 @@ function fmt(n) {
 
 let sessionDetailModal;
 let recordDepositModal;
+let currentSessionId = null;
+let currentSearch = '';
+let currentPage = 1;
 
 document.addEventListener('DOMContentLoaded', function () {
     sessionDetailModal = new bootstrap.Modal(document.getElementById('sessionDetailModal'));
@@ -13,14 +16,23 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 async function viewSessionDetail(sessionId) {
+    currentSessionId = sessionId;
+    currentSearch = '';
+    currentPage = 1;
+    loadSessionDetails();
+}
+
+async function loadSessionDetails() {
+    if (!currentSessionId) return;
     document.getElementById('sessionDetailSubtitle').textContent = 'Loading...';
     document.getElementById('sessionDetailContent').innerHTML =
         '<div class="text-center py-5"><span class="fas fa-spinner fa-spin fs-3"></span><p class="mt-2 text-muted">Loading session details...</p></div>';
     sessionDetailModal.show();
 
     try {
-        const encodedSessionId = IdEncoder.encode(sessionId);
-        const res = await fetch(`${window.BASE_URL}/api/shifts?session_id=${encodedSessionId}`);
+        const encodedSessionId = IdEncoder.encode(currentSessionId);
+        const url = `${window.BASE_URL}/api/shifts?session_id=${encodedSessionId}&page=${currentPage}&limit=20${currentSearch ? '&search=' + encodeURIComponent(currentSearch) : ''}`;
+        const res = await fetch(url);
         const result = await res.json();
         if (!result.success) {
             document.getElementById('sessionDetailContent').innerHTML = '<p class="text-danger text-center py-3">Failed to load session details.</p>';
@@ -155,7 +167,7 @@ async function viewSessionDetail(sessionId) {
         // Payment type breakdown with include_in_expected_cash indicator
         if (payments && payments.length > 0) {
             html += '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
-            html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0">';
+            html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-hover table-borderless fs-10 mb-0">';
 
             // Opening cash row
             html += `
@@ -214,12 +226,19 @@ async function viewSessionDetail(sessionId) {
           </div>
         </div>`;
 
-            // Add info note about expected cash calculation
+            // Add collapsible info note about expected cash calculation
             html += `
             <div class="alert alert-info fs-10 mb-4">
-              <span class="fas fa-info-circle me-2"></span>
-              <strong>How Expected Cash is calculated:</strong><br>
-              <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : ''}</small>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="fas fa-info-circle me-2"></span>
+                <strong>How Expected Cash is calculated</strong>
+                <button class="btn btn-link btn-sm p-0 ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#expectedCashInfo${s.session_id}" aria-expanded="false">
+                  <span class="fas fa-chevron-down" id="expectedCashInfoIcon${s.session_id}"></span>
+                </button>
+              </div>
+              <div class="collapse mt-2" id="expectedCashInfo${s.session_id}">
+                <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : ''}</small>
+              </div>
             </div>`;
         } else {
             html += '<p class="text-muted text-center py-3">No payments recorded in this session.</p>';
@@ -255,20 +274,61 @@ async function viewSessionDetail(sessionId) {
             </div>`;
         }
 
-        // Transactions
+        // Transactions with search and pagination
+        const pagination = result.data.pagination || { current_page: 1, per_page: 20, total: 0, total_pages: 1 };
+        html += `<h6 class="fw-bold mb-3"><span class="fas fa-receipt me-2 text-primary"></span>Transactions (${pagination.total})</h6>`;
+
+        // Search input
+        html += `
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><span class="fas fa-search"></span></span>
+                    <input type="text" class="form-control" id="transactionSearch" placeholder="Search by order code or payment method..." value="${currentSearch || ''}" onkeyup="if(event.key === 'Enter') searchTransactions()">
+                    <button class="btn btn-outline-secondary" type="button" onclick="searchTransactions()">Search</button>
+                </div>
+            </div>
+        </div>`;
+
         if (txns && txns.length > 0) {
-            html += `<h6 class="fw-bold mb-3"><span class="fas fa-receipt me-2 text-primary"></span>Transactions (${txns.length})</h6>`;
-            html += '<div class="table-responsive"><table class="table table-hover mb-0"><thead class="bg-light"><tr><th class="ps-3">Code</th><th>Service</th><th>Qty</th><th class="text-end">Total</th><th class="pe-3">Time</th></tr></thead><tbody>';
+            html += '<div class="table-responsive"><table class="table table-hover mb-0"><thead class="bg-light"><tr><th class="ps-3">Order Code</th><th>Items</th><th class="text-end">Total</th><th class="text-end">Paid</th><th class="pe-3">Time</th></tr></thead><tbody>';
             txns.forEach(t => {
                 html += `<tr>
-                    <td class="ps-3"><code>${t.transaction_code}</code></td>
-                    <td>${t.service_type_name ?? '—'}</td>
-                    <td>${t.quantity}</td>
-                    <td class="text-end fw-semibold text-success">₱${fmt(t.total_amount)}</td>
+                    <td class="ps-3"><code>${t.order_code}</code></td>
+                    <td>${t.item_count || 0} item(s)</td>
+                    <td class="text-end fw-semibold">₱${fmt(t.grand_total)}</td>
+                    <td class="text-end text-success">₱${fmt(t.amount_paid)}</td>
                     <td class="text-muted small pe-3">${new Date(t.created_at).toLocaleTimeString()}</td>
                 </tr>`;
             });
             html += '</tbody></table></div>';
+
+            // Pagination controls
+            if (pagination.total_pages > 1) {
+                html += `
+                <nav class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="small text-muted">
+                        Showing ${((pagination.current_page - 1) * pagination.per_page) + 1} to ${Math.min(pagination.current_page * pagination.per_page, pagination.total)} of ${pagination.total} transactions
+                    </div>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item ${pagination.current_page === 1 ? 'disabled' : ''}">
+                            <a class="page-link" href="#" onclick="changePage(${pagination.current_page - 1}); return false;">Previous</a>
+                        </li>`;
+                for (let i = 1; i <= pagination.total_pages; i++) {
+                    if (i === 1 || i === pagination.total_pages || (i >= pagination.current_page - 1 && i <= pagination.current_page + 1)) {
+                        html += `<li class="page-item ${i === pagination.current_page ? 'active' : ''}">
+                            <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+                        </li>`;
+                    } else if (i === pagination.current_page - 2 || i === pagination.current_page + 2) {
+                        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                    }
+                }
+                html += `<li class="page-item ${pagination.current_page === pagination.total_pages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${pagination.current_page + 1}); return false;">Next</a>
+                </li>
+                    </ul>
+                </nav>`;
+            }
         } else {
             html += '<p class="text-muted text-center py-3">No transactions recorded in this session.</p>';
         }
@@ -277,6 +337,20 @@ async function viewSessionDetail(sessionId) {
     } catch (e) {
         document.getElementById('sessionDetailContent').innerHTML = '<p class="text-danger text-center py-3">Error loading session details.</p>';
     }
+}
+
+function searchTransactions() {
+    const searchInput = document.getElementById('transactionSearch');
+    if (searchInput) {
+        currentSearch = searchInput.value.trim();
+        currentPage = 1;
+        loadSessionDetails();
+    }
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadSessionDetails();
 }
 
 // Record Deposit Functions
@@ -346,7 +420,7 @@ let availableCashiers = []; // Store cashier data for branch lookup
 let allCashiers = []; // Store all cashiers for filtering
 let cashiersWithOpenSessions = new Set(); // Track cashiers who already have open sessions
 
-async function openManagerSessionModal(action) {
+async function openManagerSessionModal(action, preselectedSessionId = null) {
     if (!managerSessionModal) {
         showToast('danger', 'Error', 'Manager session control not available.');
         return;
@@ -432,8 +506,15 @@ async function openManagerSessionModal(action) {
             document.getElementById('openSessionSection').style.display = 'none';
             document.getElementById('closeSessionSection').style.display = 'block';
             document.getElementById('managerSessionModalLabel').innerHTML = '<span class="fas fa-stop-circle me-2"></span>Close Session for Cashier';
-            
+
             await loadCloseSessionData();
+
+            // Pre-select the session if session ID is provided
+            if (preselectedSessionId) {
+                const select = document.getElementById('managerCloseSessionSelect');
+                select.value = preselectedSessionId;
+                onCloseSessionSelect(select);
+            }
         }
 
         managerSessionModal.show();
@@ -613,7 +694,7 @@ function renderPaymentBreakdown(payments, session) {
     const netTotal = parseFloat(session.starting_cash || 0) + expectedCashCalc - totalRefunds;
     
     let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
-    html += '<div class="card mb-3"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0">';
+    html += '<div class="card mb-3"><div class="card-body py-3"><table class="table table-hover table-borderless fs-10 mb-0">';
     
     // Opening cash row
     html += `
@@ -662,12 +743,19 @@ function renderPaymentBreakdown(payments, session) {
       </tr>
     </table></div></div>`;
     
-    // Info note
+    // Collapsible info note
     html += `
     <div class="alert alert-info fs-10 mb-3">
-      <span class="fas fa-info-circle me-2"></span>
-      <strong>How Expected Cash is calculated:</strong><br>
-      <small>Starting Cash (₱${fmt(session.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : ''}</small>
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="fas fa-info-circle me-2"></span>
+        <strong>How Expected Cash is calculated</strong>
+        <button class="btn btn-link btn-sm p-0 ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#expectedCashInfoMgr${session.session_id}" aria-expanded="false">
+          <span class="fas fa-chevron-down" id="expectedCashInfoIconMgr${session.session_id}"></span>
+        </button>
+      </div>
+      <div class="collapse mt-2" id="expectedCashInfoMgr${session.session_id}">
+        <small>Starting Cash (₱${fmt(session.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : ''}</small>
+      </div>
     </div>`;
     
     container.innerHTML = html;

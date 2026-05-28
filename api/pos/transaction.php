@@ -13,6 +13,18 @@ Auth::requireLogin();
 $user = Auth::user();
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Check if ID encryption is enabled
+$encryptIds = false;
+try {
+    $systemSettings = Database::fetch("SELECT encrypt_ids FROM system_settings WHERE setting_id = 1");
+    if ($systemSettings && isset($systemSettings['encrypt_ids']) && $systemSettings['encrypt_ids'] == 1) {
+        $encryptIds = true;
+    }
+} catch (Exception $e) {
+    // Default to false if table doesn't exist or query fails
+    $encryptIds = false;
+}
+
 if ($method !== 'GET') {
     http_response_code(405);
     echo json_encode(['success' => false, 'error' => 'Method not allowed']);
@@ -114,10 +126,13 @@ if ($useOrdersTable) {
                         WHEN oi.item_type = 'TICKET' THEN p.fullname
                         WHEN oi.item_type = 'SERVICE' THEN st.name
                         ELSE oi.item_type
-                    END as name
+                    END as name,
+                    at.name as accommodation_name,
+                    at.code as accommodation_code
              FROM pos_order_items oi
              LEFT JOIN passenger_accounts p ON oi.passenger_id = p.passenger_id
              LEFT JOIN service_types st ON oi.service_type_id = st.service_type_id
+             LEFT JOIN accommodation_types at ON oi.accommodation_id = at.accommodation_id
              WHERE oi.order_id = :order_id",
             ['order_id' => $transaction['order_id']]
         );
@@ -225,4 +240,22 @@ if (!$transaction) {
     exit;
 }
 
-echo json_encode(['success' => true, 'data' => $transaction]);
+// Encode IDs if encryption is enabled
+if ($encryptIds) {
+    $transaction['order_id'] = IdEncoder::encode($transaction['order_id']);
+    if (isset($transaction['order_items'])) {
+        foreach ($transaction['order_items'] as &$item) {
+            $item['item_id'] = IdEncoder::encode($item['item_id']);
+            $item['order_id'] = IdEncoder::encode($item['order_id']);
+        }
+    }
+    if (isset($transaction['items'])) {
+        foreach ($transaction['items'] as &$item) {
+            if (isset($item['item_id'])) {
+                $item['item_id'] = IdEncoder::encode($item['item_id']);
+            }
+        }
+    }
+}
+
+echo json_encode(['success' => true, 'transaction' => $transaction]);

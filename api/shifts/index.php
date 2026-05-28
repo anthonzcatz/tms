@@ -46,14 +46,37 @@ $session = Database::fetch(
 
 if (!$session) { echo json_encode(['success' => false, 'error' => 'Session not found']); exit; }
 
-// Transactions in this session
+// Transactions in this session (from pos_orders) with pagination
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = isset($_GET['limit']) ? min(100, max(10, intval($_GET['limit']))) : 20;
+$offset = ($page - 1) * $limit;
+$search = $_GET['search'] ?? '';
+
+$whereClause = "po.cashier_session_id = :sid AND po.status = 'completed'";
+$params = ['sid' => $sessionId];
+
+if ($search) {
+    $whereClause .= " AND (po.order_code LIKE :search OR po.payment_method LIKE :search)";
+    $params['search'] = "%{$search}%";
+}
+
+// Get total count for pagination
+$totalCount = Database::fetch(
+    "SELECT COUNT(*) AS total FROM pos_orders po WHERE {$whereClause}",
+    $params
+)['total'];
+
+// Get paginated transactions
 $transactions = Database::fetchAll(
-    "SELECT st.*, stype.name AS service_type_name
-     FROM service_transactions st
-     LEFT JOIN service_types stype ON st.service_type_id = stype.service_type_id
-     WHERE st.cashier_session_id = :sid AND st.status = 'completed'
-     ORDER BY st.created_at ASC",
-    ['sid' => $sessionId]
+    "SELECT po.order_id, po.order_code, po.grand_total, po.amount_paid, po.change_amount,
+            po.payment_method, po.status, po.created_at,
+            po.cashier_name, po.cashier_user_id,
+            (SELECT COUNT(*) FROM pos_order_items WHERE order_id = po.order_id) AS item_count
+     FROM pos_orders po
+     WHERE {$whereClause}
+     ORDER BY po.created_at ASC
+     LIMIT {$limit} OFFSET {$offset}",
+    $params
 );
 
 // Payment breakdown by method (filter by session ID, not cashier ID)
@@ -89,4 +112,13 @@ foreach ($payments as $payment) {
 // Add expected cash to session data
 $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments;
 
-echo json_encode(['success' => true, 'data' => ['session' => $session, 'transactions' => $transactions, 'payments' => $payments]]);
+// Pagination metadata
+$totalPages = ceil($totalCount / $limit);
+$pagination = [
+    'current_page' => $page,
+    'per_page' => $limit,
+    'total' => $totalCount,
+    'total_pages' => $totalPages
+];
+
+echo json_encode(['success' => true, 'data' => ['session' => $session, 'transactions' => $transactions, 'payments' => $payments, 'pagination' => $pagination]]);

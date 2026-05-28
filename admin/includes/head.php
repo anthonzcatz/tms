@@ -11,6 +11,8 @@
     $systemSettings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
     $systemName = htmlspecialchars($systemSettings['system_name'] ?? 'Falcon', ENT_QUOTES, 'UTF-8');
     $systemLogo = $systemSettings['system_logo'] ?? null;
+    $companyAddress = htmlspecialchars($systemSettings['company_address'] ?? '', ENT_QUOTES, 'UTF-8');
+    $reportFooter = htmlspecialchars($systemSettings['report_footer'] ?? '', ENT_QUOTES, 'UTF-8');
     $encryptIds = (bool) ($systemSettings['encrypt_ids'] ?? true);
 
     // Validate logo URL to prevent XSS attacks
@@ -37,6 +39,9 @@
     <script>
       window.BASE_URL = '<?php echo BASE_URL; ?>';
       window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
+      window.systemName = '<?php echo htmlspecialchars($systemName ?? 'TMS', ENT_QUOTES, 'UTF-8'); ?>';
+      window.companyAddress = '<?php echo htmlspecialchars($companyAddress ?? '', ENT_QUOTES, 'UTF-8'); ?>';
+      window.reportFooter = '<?php echo htmlspecialchars($reportFooter ?? '', ENT_QUOTES, 'UTF-8'); ?>';
     </script>
 
     <!-- ===============================================-->

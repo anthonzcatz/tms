@@ -90,18 +90,34 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Toggle order summary collapse icon
-    const orderSummaryCollapse = document.getElementById('paymentCartItemsCollapse');
-    const orderSummaryToggleIcon = document.getElementById('orderSummaryToggleIcon');
-    if (orderSummaryCollapse && orderSummaryToggleIcon) {
-        orderSummaryCollapse.addEventListener('show.bs.collapse', () => {
-            orderSummaryToggleIcon.classList.remove('fa-chevron-down');
-            orderSummaryToggleIcon.classList.add('fa-chevron-up');
-        });
-        orderSummaryCollapse.addEventListener('hide.bs.collapse', () => {
-            orderSummaryToggleIcon.classList.remove('fa-chevron-up');
-            orderSummaryToggleIcon.classList.add('fa-chevron-down');
-        });
+    // Toggle order summary collapse icon - initialize when payment modal is shown
+    paymentModal._element.addEventListener('shown.bs.modal', function() {
+        const orderSummaryCollapse = document.getElementById('paymentCartItemsCollapse');
+        const orderSummaryToggleIcon = document.getElementById('orderSummaryToggleIcon');
+        if (orderSummaryCollapse && orderSummaryToggleIcon) {
+            // Remove existing listeners to avoid duplicates
+            orderSummaryCollapse.removeEventListener('show.bs.collapse', handleCollapseShow);
+            orderSummaryCollapse.removeEventListener('hide.bs.collapse', handleCollapseHide);
+            // Add listeners
+            orderSummaryCollapse.addEventListener('show.bs.collapse', handleCollapseShow);
+            orderSummaryCollapse.addEventListener('hide.bs.collapse', handleCollapseHide);
+        }
+    });
+
+    function handleCollapseShow() {
+        const icon = document.getElementById('orderSummaryToggleIcon');
+        if (icon) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        }
+    }
+
+    function handleCollapseHide() {
+        const icon = document.getElementById('orderSummaryToggleIcon');
+        if (icon) {
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
     }
 
     // Toggle session banner collapse icon
@@ -126,12 +142,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Don't render passengers on initial load - wait for search
     renderCustomers();
-    
+
     // Load discount types and accommodation types
     loadDiscountTypes();
     loadAccommodationTypes();
     loadProviderServiceFees();
-    
+
     // Initialize transaction type UI
     updateTransactionTypeUI();
 
@@ -959,7 +975,7 @@ function loadDiscountTypes() {
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data) {
-                select.innerHTML = '<option value="0">No Discount</option>';
+                select.innerHTML = '';
                 data.data.forEach(d => {
                     const option = document.createElement('option');
                     option.value = d.discount_id;
@@ -994,13 +1010,21 @@ function loadAccommodationTypes() {
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data) {
-                select.innerHTML = '<option value="">None</option>';
+                select.innerHTML = '';
                 data.data.forEach(a => {
                     const option = document.createElement('option');
                     option.value = a.accommodation_id;
                     option.textContent = `${a.name} (${a.code})`;
+                    if (a.is_default === 1) {
+                        option.dataset.isDefault = 'true';
+                    }
                     select.appendChild(option);
                 });
+                // Select default accommodation
+                const defaultOption = select.querySelector('[data-is-default="true"]');
+                if (defaultOption) {
+                    select.value = defaultOption.value;
+                }
             } else if (data.error && data.error.includes('Permission denied')) {
                 showAlert('error', data.error);
             }
@@ -1385,11 +1409,27 @@ async function submitOpenSession() {
 }
 
 async function openCloseSession() {
+    console.log('openCloseSession() called');
+    
     // Reset form
-    document.getElementById('closingCash').value = '';
-    document.getElementById('closingNotes').value = '';
-    document.getElementById('varianceDisplay').textContent = '₱0.00';
-    document.getElementById('varianceDisplay').className = 'fw-bold text-muted';
+    const closingCashEl = document.getElementById('closingCash');
+    const closingNotesEl = document.getElementById('closingNotes');
+    const varianceDisplayEl = document.getElementById('varianceDisplay');
+    const closeSummaryEl = document.getElementById('closeSummary');
+    
+    if (closingCashEl) closingCashEl.value = '';
+    if (closingNotesEl) closingNotesEl.value = '';
+    if (varianceDisplayEl) {
+        varianceDisplayEl.textContent = '₱0.00';
+        varianceDisplayEl.className = 'fw-bold text-muted';
+    }
+    
+    console.log('Elements found:', {
+        closingCash: !!closingCashEl,
+        closingNotes: !!closingNotesEl,
+        varianceDisplay: !!varianceDisplayEl,
+        closeSummary: !!closeSummaryEl
+    });
 
     // Check permission and set view-only mode if needed
     const canClose = window.POS_CAN_CLOSE;
@@ -1417,16 +1457,27 @@ async function openCloseSession() {
 
     // Fetch session summary
     try {
+        console.log('Loading close session data for POS_SESSION_ID:', window.POS_SESSION_ID);
         const encodedSessionId = IdEncoder.encode(window.POS_SESSION_ID);
+        console.log('Encoded session ID:', encodedSessionId);
         const response = await fetch(`${window.BASE_URL}/api/pos/sessions?id=${encodedSessionId}`);
         const result = await response.json();
+        console.log('Session API response:', result);
+        
         if (result.success) {
+            console.log('API returned success, updating UI...');
             const s = result.data.session;
             const payments = result.data.payments || [];
             const expected = parseFloat(s.expected_cash || 0);
-            document.getElementById('openingCash').textContent = '₱' + fmt(s.starting_cash);
-            document.getElementById('expectedCash').textContent = '₱' + fmt(expected);
-            document.getElementById('totalSales').textContent = '₱' + fmt(s.total_sales || 0);
+            
+            const expectedCashEl = document.getElementById('expectedCash');
+            const totalSalesEl = document.getElementById('totalSales');
+            const closeSummaryEl = document.getElementById('closeSummary');
+            
+            console.log('Updating elements:', { expectedCash: expected, totalSales: s.total_sales });
+            
+            if (expectedCashEl) expectedCashEl.textContent = '₱' + fmt(expected);
+            if (totalSalesEl) totalSalesEl.textContent = '₱' + fmt(s.total_sales || 0);
 
             const startedDate = new Date(s.started_at);
             const startedFmt = startedDate.toLocaleString('en-PH', {
@@ -1439,7 +1490,8 @@ async function openCloseSession() {
                 hour12: true
             });
 
-            document.getElementById('closeSummary').innerHTML = `
+            if (closeSummaryEl) {
+                closeSummaryEl.innerHTML = `
                 <div class="row g-3 align-items-center">
                   <div class="col-md-4">
                     <div class="text-muted small mb-1">Started</div>
@@ -1454,6 +1506,7 @@ async function openCloseSession() {
                     <div class="fw-bold">${s.txn_count || 0}</div>
                   </div>
                 </div>`;
+            }
 
             // Payment type breakdown with include_in_expected_cash indicator
             const totalRefunds = parseFloat(s.total_refunds || 0);
@@ -1461,7 +1514,7 @@ async function openCloseSession() {
 
             if (payments.length > 0) {
                 let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
-                html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0">';
+                html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0 table-hover">';
 
                 // Opening cash row
                 html += `
@@ -1481,7 +1534,7 @@ async function openCloseSession() {
                         : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
 
                     html += `
-                      <tr class="${borderClass}">
+                      <tr class="${borderClass}" style="cursor: default;">
                         <td class="ps-0">${p.method_name}${inCashBadge}
                           <div class="text-400 fw-normal fs-11 text-uppercase">${p.method_type}</div>
                         </td>
@@ -1517,12 +1570,18 @@ async function openCloseSession() {
               </div>
             </div>`;
 
-                // Add info note about expected cash calculation
+                // Add collapsible info note about expected cash calculation
                 html += `
-                <div class="alert alert-info fs-10 mb-4">
-                  <span class="fas fa-info-circle me-2"></span>
-                  <strong>How Expected Cash is calculated:</strong><br>
-                  <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)}) - Refunds (₱${fmt(totalRefunds)})</small>
+                <div class="mb-4">
+                  <button class="btn btn-link btn-sm text-decoration-none text-muted fs-10 p-0" type="button" data-bs-toggle="collapse" data-bs-target="#expectedCashCalcInfo" aria-expanded="false">
+                    <span class="fas fa-info-circle me-1"></span>Show how Expected Cash is calculated
+                  </button>
+                  <div class="collapse mt-2" id="expectedCashCalcInfo">
+                    <div class="alert alert-info fs-10 mb-0">
+                      <strong>How Expected Cash is calculated:</strong><br>
+                      <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)}) - Refunds (₱${fmt(totalRefunds)})</small>
+                    </div>
+                  </div>
                 </div>`;
 
                 // Add refund info note if there are refunds
@@ -1534,15 +1593,37 @@ async function openCloseSession() {
                     </div>`;
                 }
 
-                document.getElementById('paymentBreakdownSection').innerHTML = html;
+                const paymentBreakdownSectionEl = document.getElementById('paymentBreakdownSection');
+                if (paymentBreakdownSectionEl) paymentBreakdownSectionEl.innerHTML = html;
             } else {
-                document.getElementById('paymentBreakdownSection').innerHTML = `
+                const paymentBreakdownSectionEl = document.getElementById('paymentBreakdownSection');
+                if (paymentBreakdownSectionEl) paymentBreakdownSectionEl.innerHTML = `
                     <div class="alert alert-info fs-10 mb-4">
                         <span class="fas fa-info-circle me-2"></span>No payments recorded for this session.
                     </div>`;
             }
+        } else {
+            console.log('API returned success=false, error:', result.error);
+            const closeSummaryErrorEl = document.getElementById('closeSummary');
+            if (closeSummaryErrorEl) {
+                closeSummaryErrorEl.innerHTML = `
+                    <div class="alert alert-danger fs-10 mb-0">
+                        <span class="fas fa-exclamation-circle me-2"></span>
+                        ${result.error || 'Failed to load session data'}
+                    </div>`;
+            }
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('Error loading close session data:', e);
+        const closeSummaryErrorEl = document.getElementById('closeSummary');
+        if (closeSummaryErrorEl) {
+            closeSummaryErrorEl.innerHTML = `
+                <div class="alert alert-danger fs-10 mb-0">
+                    <span class="fas fa-exclamation-circle me-2"></span>
+                    Failed to load session data. Please try again.
+                </div>`;
+        }
+    }
 
     closeSessionModal.show();
 
@@ -2215,7 +2296,7 @@ function computeTicketTotal() {
     const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
     const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
     const discountSelect = document.getElementById('ticketDiscount');
-    const discountPercentage = discountSelect.value === '0' ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
+    const discountPercentage = (!discountSelect.value || discountSelect.value === '0') ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
     const discountAmount = (baseAmount * discountPercentage) / 100;
     const total = baseAmount + serviceFee - discountAmount;
     
@@ -2242,7 +2323,7 @@ function addTicketToCart() {
     const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
     const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
     const discountSelect = document.getElementById('ticketDiscount');
-    const discountPercentage = discountSelect.value === '0' ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
+    const discountPercentage = (!discountSelect.value || discountSelect.value === '0') ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
     const discountAmount = (baseAmount * discountPercentage) / 100;
     const total = baseAmount + serviceFee - discountAmount;
     const accommodationId = document.getElementById('ticketAccommodation').value || null;
@@ -2256,6 +2337,9 @@ function addTicketToCart() {
 
     if (!passengerId) { showToast('danger', 'Error', 'Please select a passenger.'); return; }
     if (!ticketNumber) { showToast('danger', 'Error', 'Please enter ticket number.'); return; }
+    if (!baseAmount || baseAmount <= 0) { showToast('danger', 'Error', 'Please enter a valid cost amount.'); return; }
+    if (!discountSelect.value) { showToast('danger', 'Error', 'Please select a discount.'); return; }
+    if (!accommodationId) { showToast('danger', 'Error', 'Please select an accommodation.'); return; }
     if (!walletId) { showToast('danger', 'Error', 'Please select a wallet.'); return; }
     // if (!origin) { showToast('danger', 'Error', 'Please enter origin.'); return; }
     // if (!destination) { showToast('danger', 'Error', 'Please enter destination.'); return; }
@@ -2298,7 +2382,8 @@ function addTicketToCart() {
     resetPassengerField();
     document.getElementById('ticketNumber').value = '';
     document.getElementById('ticketBaseAmount').value = '';
-    document.getElementById('ticketDiscount').value = '0';
+    document.getElementById('ticketDiscount').value = '';
+    document.getElementById('ticketAccommodation').value = '';
     document.getElementById('ticketServiceFee').value = '0';
     document.getElementById('ticketServiceFeeDisplay').textContent = '-';
     document.getElementById('ticketBaseAmountDisplay').textContent = '₱0.00';
@@ -2455,7 +2540,9 @@ function renderCart() {
                 <div class="text-muted" style="font-size:0.72rem;">
                   Ticket #${item.ticketNumber}
                   &nbsp;·&nbsp;Cost: ₱${fmt(item.baseAmount)}
-                  &nbsp;·&nbsp;Fee: ₱${fmt(item.serviceFee)}
+                </div>
+                <div class="text-muted" style="font-size:0.72rem;">
+                  Fee: ₱${fmt(item.serviceFee)}
                 </div>
               </div>
               <div class="d-flex align-items-center gap-1 flex-shrink-0">
@@ -2546,21 +2633,19 @@ function proceedToPayment() {
 function populatePaymentModalCart() {
     const cartItemsContainer = document.getElementById('paymentCartItems');
     const totalDueElement = document.getElementById('paymentTotalDue');
-    
+
     let html = '';
     let total = 0;
-    
+
     cart.forEach((item, idx) => {
         total += item.total;
         if (item.type === 'ticket') {
             html += `
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-start py-2 ${idx > 0 ? 'border-top' : ''}">
                     <div>
-                        <div class="fw-semibold text-primary">
-                            <span class="fas fa-ticket-alt me-2"></span>${item.passengerName}
-                        </div>
+                        <div class="fw-semibold text-dark">${item.passengerName || '-'}</div>
                         <div class="text-muted small">
-                            Ticket #: ${item.ticketNumber} • Cost: ₱${fmt(item.baseAmount)}${item.serviceFee > 0 ? ' + Fee: ₱' + fmt(item.serviceFee) : ''}${item.discountAmount > 0 ? ' - Discount: ₱' + fmt(item.discountAmount) : ''}
+                            Ticket #${item.ticketNumber} • Cost ₱${fmt(item.baseAmount)}
                         </div>
                     </div>
                     <div class="fw-bold">₱${fmt(item.total)}</div>
@@ -2568,13 +2653,11 @@ function populatePaymentModalCart() {
             `;
         } else {
             html += `
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-start py-2 ${idx > 0 ? 'border-top' : ''}">
                     <div>
-                        <div class="fw-semibold">
-                            <span class="fas fa-concierge-bell me-2 text-success"></span>${item.serviceName || item.name || 'Service'}
-                        </div>
+                        <div class="fw-semibold text-dark">${item.serviceName || item.name || 'Service'}</div>
                         <div class="text-muted small">
-                            Qty: ${item.qty} @ ₱${fmt(item.unitPrice)}${item.description ? ' • ' + item.description : ''}
+                            ${item.qty > 1 ? item.qty + ' × ' : ''}₱${fmt(item.unitPrice)}${item.description ? ' • ' + item.description : ''}
                         </div>
                     </div>
                     <div class="fw-bold">₱${fmt(item.total)}</div>
@@ -2582,8 +2665,8 @@ function populatePaymentModalCart() {
             `;
         }
     });
-    
-    cartItemsContainer.innerHTML = html;
+
+    cartItemsContainer.innerHTML = html || '<div class="text-muted text-center py-3">No items in cart</div>';
     totalDueElement.textContent = '₱' + fmt(total);
 }
 
@@ -3048,7 +3131,7 @@ function renderTransactionsTable(transactions) {
     const list = document.getElementById('recentTransactionsList');
 
     if (transactions.length === 0) {
-        list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No transactions found.</td></tr>';
+        list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5"><div class="d-flex flex-column align-items-center"><span class="fas fa-inbox mb-3" style="font-size: 2.5rem; color: #adb5bd;"></span><span class="fw-medium" style="color: #6c757d;">No transactions found</span><small class="text-muted mt-1">Try adjusting your filters or click Refresh</small></div></td></tr>';
         return;
     }
 
@@ -3284,11 +3367,42 @@ function renderTransactionsTable(transactions) {
         }
 
         // Display amount - show original amount and pending/refunded amount if applicable
-        const amountDisplay = hasPendingCancellation && txn.pending_refund_amount
-            ? `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.pending_refund_amount)} refund pending)</span>`
-            : (txn.total_refunded_amount && parseFloat(txn.total_refunded_amount) > 0
-                ? `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.total_refunded_amount)} refunded)</span>`
-                : `₱${fmt(txn.total_amount)}`);
+        // Use stored cash_refund_amount from database
+        const pendingRefundAmount = parseFloat(txn.pending_refund_amount || 0);
+        const pendingChargeAmount = parseFloat(txn.pending_charge_amount || 0);
+        const pendingCashRefundAmount = parseFloat(txn.pending_cash_refund_amount || 0);
+
+        let amountDisplay;
+        if (hasPendingCancellation && pendingRefundAmount > 0) {
+            // Show detailed refund breakdown using stored values
+            let refundBreakdown = '';
+            if (pendingChargeAmount > 0 && pendingCashRefundAmount > 0) {
+                // Mixed: both charge reversal and cash refund
+                refundBreakdown = `<div class="small text-danger mt-1">
+                    <div>Refund: ₱${fmt(pendingRefundAmount)}</div>
+                    <div class="text-muted">• Charge reversal (debt): ₱${fmt(pendingChargeAmount)}</div>
+                    <div class="fw-semibold">• Cash to give: ₱${fmt(pendingCashRefundAmount)}</div>
+                </div>`;
+            } else if (pendingChargeAmount > 0) {
+                // Only charge reversal (no cash)
+                refundBreakdown = `<div class="small text-danger mt-1">
+                    <div>Refund: ₱${fmt(pendingRefundAmount)}</div>
+                    <div class="text-muted">• Charge reversal (debt): ₱${fmt(pendingChargeAmount)}</div>
+                    <div class="text-muted">• Cash to give: ₱0.00</div>
+                </div>`;
+            } else {
+                // Only cash refund
+                refundBreakdown = `<div class="small text-danger mt-1">
+                    <div>Refund: ₱${fmt(pendingRefundAmount)}</div>
+                    <div class="fw-semibold">• Cash to give: ₱${fmt(pendingCashRefundAmount)}</div>
+                </div>`;
+            }
+            amountDisplay = `₱${fmt(txn.total_amount)} ${refundBreakdown}`;
+        } else if (txn.total_refunded_amount && parseFloat(txn.total_refunded_amount) > 0) {
+            amountDisplay = `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.total_refunded_amount)} refunded)</span>`;
+        } else {
+            amountDisplay = `₱${fmt(txn.total_amount)}`;
+        }
 
         html += `
             <tr>

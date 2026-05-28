@@ -77,36 +77,106 @@ try {
     );
 
     // Get sales by time bucket — bucket size depends on filter range
-    if ($today || $hours >= 24) {
+    if ($today) {
+        // Today: hourly buckets from 00:00 to current hour
+        $bucketMinutes = 60;
+        $currentHour = intval(date('H'));
+        $bucketCount = $currentHour + 1; // Include current hour (0 to current)
+        
+        $salesByMinute = [];
+        for ($i = 0; $i < $bucketCount; $i++) {
+            $hour = $i;
+            $bucketStart = date('Y-m-d H:i:s', strtotime(date('Y-m-d') . ' +' . $hour . ' hours'));
+            $bucketEnd = date('Y-m-d H:i:s', strtotime(date('Y-m-d') . ' +' . ($hour + 1) . ' hours'));
+
+            $bucketSales = Database::fetch(
+                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
+                        COUNT(*) as count
+                 FROM pos_orders po
+                 WHERE po.status = 'completed'
+                 AND DATE(po.created_at) = CURDATE()
+                 AND HOUR(po.created_at) = :hour",
+                ['hour' => $hour]
+            );
+
+            $salesByMinute[] = [
+                'time'   => sprintf('%02d:00', $hour),
+                'amount' => floatval($bucketSales['total']),
+                'count'  => intval($bucketSales['count']),
+            ];
+        }
+    } elseif ($hours >= 24) {
         $bucketMinutes = 60;  // 1-hour buckets → 24 bars
         $bucketCount   = 24;
+
+        $salesByMinute = [];
+        for ($i = $bucketCount - 1; $i >= 0; $i--) {
+            $bucketStart = date('Y-m-d H:i:s', strtotime('-' . (($i + 1) * $bucketMinutes) . ' minutes'));
+            $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
+
+            $bucketSales = Database::fetch(
+                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
+                        COUNT(*) as count
+                 FROM pos_orders po
+                 WHERE po.status = 'completed'
+                 AND po.created_at >= :start AND po.created_at < :end",
+                ['start' => $bucketStart, 'end' => $bucketEnd]
+            );
+
+            $salesByMinute[] = [
+                'time'   => date('H:i', strtotime('-' . ($i * $bucketMinutes) . ' minutes')),
+                'amount' => floatval($bucketSales['total']),
+                'count'  => intval($bucketSales['count']),
+            ];
+        }
     } elseif ($hours >= 6) {
         $bucketMinutes = 15;  // 15-min buckets → 24 bars
         $bucketCount   = 24;
+
+        $salesByMinute = [];
+        for ($i = $bucketCount - 1; $i >= 0; $i--) {
+            $bucketStart = date('Y-m-d H:i:s', strtotime('-' . (($i + 1) * $bucketMinutes) . ' minutes'));
+            $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
+
+            $bucketSales = Database::fetch(
+                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
+                        COUNT(*) as count
+                 FROM pos_orders po
+                 WHERE po.status = 'completed'
+                 AND po.created_at >= :start AND po.created_at < :end",
+                ['start' => $bucketStart, 'end' => $bucketEnd]
+            );
+
+            $salesByMinute[] = [
+                'time'   => date('H:i', strtotime('-' . ($i * $bucketMinutes) . ' minutes')),
+                'amount' => floatval($bucketSales['total']),
+                'count'  => intval($bucketSales['count']),
+            ];
+        }
     } else {
         $bucketMinutes = 3;   // 3-min buckets → 20 bars
         $bucketCount   = 20;
-    }
 
-    $salesByMinute = [];
-    for ($i = $bucketCount - 1; $i >= 0; $i--) {
-        $bucketStart = date('Y-m-d H:i:s', strtotime('-' . (($i + 1) * $bucketMinutes) . ' minutes'));
-        $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
+        $salesByMinute = [];
+        for ($i = $bucketCount - 1; $i >= 0; $i--) {
+            $bucketStart = date('Y-m-d H:i:s', strtotime('-' . (($i + 1) * $bucketMinutes) . ' minutes'));
+            $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
 
-        $bucketSales = Database::fetch(
-            "SELECT COALESCE(SUM(po.grand_total), 0) as total,
-                    COUNT(*) as count
-             FROM pos_orders po
-             WHERE po.status = 'completed'
-             AND po.created_at >= :start AND po.created_at < :end",
-            ['start' => $bucketStart, 'end' => $bucketEnd]
-        );
+            $bucketSales = Database::fetch(
+                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
+                        COUNT(*) as count
+                 FROM pos_orders po
+                 WHERE po.status = 'completed'
+                 AND po.created_at >= :start AND po.created_at < :end",
+                ['start' => $bucketStart, 'end' => $bucketEnd]
+            );
 
-        $salesByMinute[] = [
-            'time'   => date('H:i', strtotime('-' . ($i * $bucketMinutes) . ' minutes')),
-            'amount' => floatval($bucketSales['total']),
-            'count'  => intval($bucketSales['count']),
-        ];
+            $salesByMinute[] = [
+                'time'   => date('H:i', strtotime('-' . ($i * $bucketMinutes) . ' minutes')),
+                'amount' => floatval($bucketSales['total']),
+                'count'  => intval($bucketSales['count']),
+            ];
+        }
     }
 
     echo json_encode([
