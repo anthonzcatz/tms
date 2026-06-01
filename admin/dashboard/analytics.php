@@ -22,10 +22,18 @@ require_once __DIR__ . '/../_guard.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include __DIR__ . '/../includes/sidebar.php'; ?>
-        <div class="content">
-         <?php include __DIR__ . '/../includes/navbar.php'; ?>
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include __DIR__ . '/../includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include __DIR__ . '/../includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include __DIR__ . '/../includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content"><?php switch (NAVBAR_POSITION) { case 'combo':
+                  include __DIR__ . '/../includes/navbar-top.php';
+                  break;
+              case 'vertical':
+                  include __DIR__ . '/../includes/navbar.php';
+                  break;
+              case 'top':
+              case 'double-top':
+              default:
+                  break;
+          }
+          ?><?php endif; ?>
           
           <!-- Showing Data For Card -->
           <style>
@@ -54,6 +62,178 @@ require_once __DIR__ . '/../_guard.php';
               .col-md-auto.p-3 .col-auto { width: 100%; text-align: center; }
               #customDateRangeContainer .row { flex-direction: column; }
               #customDateRangeContainer .col-auto { width: 100%; }
+              
+              /* Analytics Chart Responsive */
+              .audience-chart-header .nav-tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: thin;
+              }
+              .audience-chart-header .nav-tabs::-webkit-scrollbar {
+                height: 3px;
+              }
+              .audience-chart-header .nav-tabs::-webkit-scrollbar-thumb {
+                background: #dee2e6;
+                border-radius: 3px;
+              }
+              .audience-tab-item {
+                min-width: 120px;
+                padding: 0.75rem 1rem !important;
+              }
+              .audience-tab-item h5 {
+                font-size: 1rem !important;
+              }
+              .audience-tab-item h6 {
+                font-size: 0.7rem !important;
+              }
+              #branchSalesChart,
+              #branchNetChart,
+              #branchRefundsChart,
+              #branchProfitChart,
+              #transactionsPerHourChart {
+                height: 200px !important;
+              }
+              #currentBranchName {
+                font-size: 0.8rem !important;
+              }
+              #currentBranchName h5 {
+                font-size: 0.8rem !important;
+              }
+              #currentBranchName span {
+                font-size: 0.7rem !important;
+              }
+              #currentBranchName .fas {
+                font-size: 0.7rem !important;
+              }
+              .card-body > .d-flex.justify-content-between {
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
+              }
+              .card-body > .d-flex.justify-content-between > h5 {
+                flex: 1 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+              }
+              .card-body > .d-flex.justify-content-between > select {
+                width: auto !important;
+                min-width: 100px !important;
+                max-width: 120px !important;
+              }
+              /* Cashier Performance card header */
+              .card-header.d-flex.flex-between-center {
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
+              }
+              .card-header.d-flex.flex-between-center h6 {
+                flex: 1 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                font-size: 0.8rem !important;
+              }
+              .card-header.d-flex.flex-between-center .d-flex.gap-2 {
+                flex-wrap: nowrap !important;
+              }
+              .card-header.d-flex.flex-between-center .d-flex.gap-2 select {
+                min-width: 80px !important;
+                max-width: 100px !important;
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
+              }
+              /* Provider Wallet card header */
+              #walletWidget .card-header.d-flex {
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
+              }
+              #walletWidget .card-header h6 {
+                flex: 1 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                font-size: 0.8rem !important;
+              }
+              #walletWidget .card-body > .d-flex {
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
+              }
+              #walletWidget .card-body > .d-flex h6 {
+                flex: 1 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                font-size: 0.75rem !important;
+              }
+              #walletWidget .card-body > .d-flex select {
+                min-width: 90px !important;
+                max-width: 110px !important;
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
+              }
+              /* Top Services card header */
+              .card-header .row.flex-between-center {
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
+              }
+              .card-header .row.flex-between-center h6 {
+                flex: 1 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                font-size: 0.8rem !important;
+              }
+              .card-header .row.flex-between-center select {
+                min-width: 80px !important;
+                max-width: 100px !important;
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
+              }
+              /* Transactions per Hour card header */
+              .card-header.bg-body-tertiary h6 {
+                font-size: 0.8rem !important;
+              }
+              /* Transactions per Hour card footer */
+              .card-footer .row.flex-between-center {
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
+              }
+              .card-footer .row.flex-between-center .col-auto {
+                flex: 0 0 auto !important;
+              }
+              .card-footer .row.flex-between-center select {
+                min-width: 80px !important;
+                max-width: 100px !important;
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
+              }
+              .card-footer .row.flex-between-center .btn-link {
+                font-size: 0.7rem !important;
+                white-space: nowrap !important;
+              }
+              #branchSelector,
+              #hourlyFilter,
+              #hourlyBranchFilter,
+              #paymentBreakdownFilter,
+              #branchAnalyticsRange {
+                width: 100% !important;
+                min-width: auto !important;
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
+                margin-bottom: 0.5rem;
+              }
+              .card-footer .row {
+                flex-direction: column;
+                gap: 0.5rem;
+              }
+              .card-footer .col-auto {
+                width: 100%;
+              }
+              .card-footer .btn-link {
+                font-size: 0.75rem !important;
+                text-align: center;
+                display: block;
+              }
             }
             
             /* Mobile landscape (576px-767px) */
@@ -74,6 +254,30 @@ require_once __DIR__ . '/../_guard.php';
               #globalBranchSelector { width: 100% !important; min-width: auto !important; }
               .col-md-auto.p-3 .row { flex-wrap: wrap; }
               .col-md-auto.p-3 .col-auto { flex: 0 0 auto; }
+              
+              /* Analytics Chart Responsive */
+              .audience-chart-header .nav-tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+              }
+              .audience-tab-item {
+                min-width: 110px;
+                padding: 0.75rem 1rem !important;
+              }
+              #branchSalesChart,
+              #branchNetChart,
+              #branchRefundsChart,
+              #branchProfitChart {
+                height: 240px !important;
+              }
+              #branchSelector {
+                width: 120px !important;
+                font-size: 0.85rem !important;
+              }
+              #branchAnalyticsRange {
+                width: 120px !important;
+                font-size: 0.85rem !important;
+              }
             }
             
             /* Tablet (768px-991px) */
@@ -84,13 +288,34 @@ require_once __DIR__ . '/../_guard.php';
               #dateRangeButtons .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
               #globalBranchSelector { min-width: 120px !important; }
               .col-md-auto.p-3 .row { flex-wrap: wrap; }
+              
+              /* Analytics Chart Responsive */
+              .audience-tab-item {
+                padding: 0.75rem 1.25rem !important;
+              }
+              #branchSalesChart,
+              #branchNetChart,
+              #branchRefundsChart,
+              #branchProfitChart {
+                height: 280px !important;
+              }
+              #branchSelector {
+                min-width: 140px !important;
+              }
             }
             
             /* Laptop (992px-1199px) */
             @media (min-width: 992px) and (max-width: 1199.98px) {
               .col-sm-auto.d-flex.align-items-center img { width: 80px !important; }
               #dateRangeButtons .btn { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
-              #globalBranchSelector { min-width: 140px !important; }
+              
+              /* Analytics Chart Responsive */
+              #branchSalesChart,
+              #branchNetChart,
+              #branchRefundsChart,
+              #branchProfitChart {
+                height: 300px !important;
+              }
             }
             
             /* Custom date range responsive */
@@ -132,16 +357,25 @@ require_once __DIR__ . '/../_guard.php';
             @media (max-width: 575.98px) {
               /* Mobile: Live Sales card adjustments */
               .bg-line-chart-gradient .card-header {
-                flex-direction: column !important;
-                align-items: flex-start !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                flex-wrap: nowrap !important;
+                gap: 0.5rem !important;
               }
               .bg-line-chart-gradient .card-header h5 {
-                font-size: 1rem;
-                margin-bottom: 0.5rem;
+                font-size: 0.8rem !important;
+                margin-bottom: 0 !important;
+                flex: 1 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
               }
               .bg-line-chart-gradient .card-header select {
-                width: 100% !important;
-                min-width: auto !important;
+                width: auto !important;
+                min-width: 90px !important;
+                max-width: 110px !important;
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
               }
               .bg-line-chart-gradient .display-4 {
                 font-size: 1.5rem !important;
@@ -152,6 +386,12 @@ require_once __DIR__ . '/../_guard.php';
               #liveTransactionsList {
                 max-height: 280px !important;
               }
+            }
+
+            /* Live Sales branch filter dropdown options styling */
+            #liveSalesBranchFilter option {
+              background-color: #1a68c0 !important;
+              color: #fff !important;
             }
 
             @media (min-width: 576px) and (max-width: 767.98px) {
@@ -195,7 +435,7 @@ require_once __DIR__ . '/../_guard.php';
                     </div>
                     <img class="ms-n4 d-md-none d-lg-block" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/crm-line-chart.png" alt="" width="150" />
                   </div>
-                  <div class="col-md-auto p-3">
+                  <div style="display: none;" class="col-md-auto p-3">
                     <div class="row align-items-center g-3">
                       <div class="col-auto">
                         <h6 class="text-700 mb-0">Showing Data For: </h6>
@@ -204,7 +444,7 @@ require_once __DIR__ . '/../_guard.php';
                         <div class="btn-group" role="group" id="dateRangeButtons">
                           <button type="button" class="btn btn-sm btn-outline-primary active" data-range="today">Today</button>
                           <button type="button" class="btn btn-sm btn-outline-primary" data-range="week">This Week</button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="month">This Month</button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="last30days">Last 30 Days</button>
                           <button type="button" class="btn btn-sm btn-outline-primary" data-range="year">This Year</button>
                           <button type="button" class="btn btn-sm btn-outline-primary" data-range="custom">Custom</button>
                         </div>
@@ -295,18 +535,6 @@ require_once __DIR__ . '/../_guard.php';
                       </a>
                     </li>
                     <li class="nav-item" role="presentation">
-                      <a class="nav-link mb-0" id="transactions-tab" data-bs-toggle="tab" href="#transactions" role="tab" aria-controls="transactions" aria-selected="false">
-                        <div class="audience-tab-item p-2 pe-4">
-                          <h6 class="text-800 fs-11 text-nowrap">Transactions</h6>
-                          <h5 class="text-800" id="tabTransactions">0</h5>
-                          <div class="d-flex align-items-center">
-                            <span class="fas fa-caret-up text-success" id="tabTxnTrendIcon"></span>
-                            <h6 class="fs-11 mb-0 ms-2 text-success" id="tabTxnTrend">0%</h6>
-                          </div>
-                        </div>
-                      </a>
-                    </li>
-                    <li class="nav-item" role="presentation">
                       <a class="nav-link mb-0" id="profit-tab" data-bs-toggle="tab" href="#profit" role="tab" aria-controls="profit" aria-selected="false">
                         <div class="audience-tab-item p-2 pe-4">
                           <h6 class="text-800 fs-11 text-nowrap">Profit</h6>
@@ -333,19 +561,16 @@ require_once __DIR__ . '/../_guard.php';
 
                   <div class="tab-content">
                     <div class="tab-pane active" id="sales" role="tabpanel" aria-labelledby="sales-tab">
-                      <div id="branchSalesChart" data-echart-responsive="true" style="height:320px;"></div>
+                      <div id="branchSalesChart" style="height:320px;"></div>
                     </div>
                     <div class="tab-pane" id="net" role="tabpanel" aria-labelledby="net-tab">
-                      <div id="branchNetChart" data-echart-responsive="true" style="height:320px;"></div>
+                      <div id="branchNetChart" style="height:320px;"></div>
                     </div>
                     <div class="tab-pane" id="refunds" role="tabpanel" aria-labelledby="refunds-tab">
-                      <div id="branchRefundsChart" data-echart-responsive="true" style="height:320px;"></div>
-                    </div>
-                    <div class="tab-pane" id="transactions" role="tabpanel" aria-labelledby="transactions-tab">
-                      <div id="branchTransactionsChart" data-echart-responsive="true" style="height:320px;"></div>
+                      <div id="branchRefundsChart" style="height:320px;"></div>
                     </div>
                     <div class="tab-pane" id="profit" role="tabpanel" aria-labelledby="profit-tab">
-                      <div id="branchProfitChart" data-echart-responsive="true" style="height:320px;"></div>
+                      <div id="branchProfitChart" style="height:320px;"></div>
                     </div>
                   </div>
                 </div>
@@ -355,13 +580,13 @@ require_once __DIR__ . '/../_guard.php';
                       <select class="form-select form-select-sm" id="branchAnalyticsRange">
                         <option value="today">Today</option>
                         <option value="week" selected="selected">Last 7 days</option>
-                        <option value="month">Last 30 days</option>
-                        <option value="year">Last 365 days</option>
+                        <option value="last30days">Last 30 days</option>
+                        <option value="year">This Year</option>
                       </select>
                     </div>
                     <div class="col-auto">
-                      <a class="btn btn-link btn-sm px-0 fw-medium" href="<?php echo BASE_URL; ?>/admin/pos/">
-                        <span class="fas fa-external-link-alt me-1"></span>View POS
+                      <a class="btn btn-link btn-sm px-0 fw-medium" href="<?php echo BASE_URL; ?>/admin/pos/transactions/">
+                        <span class="fas fa-external-link-alt me-1"></span>View Transactions
                       </a>
                     </div>
                   </div>
@@ -438,8 +663,11 @@ require_once __DIR__ . '/../_guard.php';
             <div class="col-12 col-md-6 col-lg-6 col-xl-6 col-xxl-4">
               <div class="card h-100 bg-line-chart-gradient">
                 <div class="card-header bg-transparent d-flex justify-content-between align-items-start pt-3" data-bs-theme="light">
-                  <div>
+                  <div class="d-flex gap-2">
                     <h5 class="text-white fw-bold mb-0">Live Sales</h5>
+                    <select class="form-select form-select-sm" id="liveSalesBranchFilter" style="width:auto;min-width:120px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#fff;">
+                      <option value="" style="background:#1a68c0;color:#fff;">All Branches</option>
+                    </select>
                   </div>
                   <select class="form-select form-select-sm" id="liveSalesFilter" style="width:auto;min-width:90px;background-color:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#fff;">
                     <option value="today"   style="background:#1a68c0;color:#fff;">Today</option>
@@ -463,7 +691,7 @@ require_once __DIR__ . '/../_guard.php';
                   </div>
                 </div>
                 <div class="card-footer bg-transparent text-end pt-0">
-                  <a class="text-white fs-10" href="<?php echo BASE_URL; ?>/admin/pos/">View POS <span class="fa fa-chevron-right ms-1"></span></a>
+                  <a class="text-white fs-10" href="<?php echo BASE_URL; ?>/admin/pos/transactions/">View Transactions <span class="fa fa-chevron-right ms-1"></span></a>
                 </div>
               </div>
             </div>
@@ -476,7 +704,7 @@ require_once __DIR__ . '/../_guard.php';
                   <div class="dropdown font-sans-serif btn-reveal-trigger">
                     <button class="btn btn-link text-600 btn-sm dropdown-toggle dropdown-caret-none btn-reveal" type="button" id="dropdown-cashier-report" data-bs-toggle="dropdown" data-boundary="viewport" aria-haspopup="true" aria-expanded="false"><span class="fas fa-ellipsis-h fs-11"></span></button>
                     <div class="dropdown-menu dropdown-menu-end border py-2" aria-labelledby="dropdown-cashier-report">
-                      <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/pos/">View POS</a>
+                      <a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/pos/transactions/">View Transactions</a>
                     </div>
                   </div>
                 </div>
@@ -503,12 +731,12 @@ require_once __DIR__ . '/../_guard.php';
                       <select class="form-select form-select-sm" id="cashierPerformanceFilter" style="width:120px;">
                         <option value="1">Today</option>
                         <option value="7" selected>Last 7 days</option>
-                        <option value="30">Last month</option>
-                        <option value="90">Last 3 months</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="365">This Year</option>
                       </select>
                     </div>
                     <div class="col-auto">
-                      <h6 class="mb-0"><a class="py-2" href="<?php echo BASE_URL; ?>/admin/pos/">POS Dashboard<span class="fas fa-chevron-right ms-1 fs-11"></span></a></h6>
+                      <h6 class="mb-0"><a class="py-2" href="<?php echo BASE_URL; ?>/admin/pos/transactions/">POS Transactions<span class="fas fa-chevron-right ms-1 fs-11"></span></a></h6>
                     </div>
                   </div>
                 </div>
@@ -547,7 +775,50 @@ require_once __DIR__ . '/../_guard.php';
                 </div>
               </div>
             </div>
-            <div class="col-lg-5">
+            <!-- Right column: Sales Target and Provider Wallet stacked -->
+            <div class="col-lg-5 d-flex flex-column gap-3">
+              <!-- Sales Target Card -->
+              <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center bg-body-tertiary py-2">
+                  <h6 class="mb-0">Sales Target</h6>
+                  <a class="btn btn-link btn-sm" href="<?php echo BASE_URL; ?>/admin/dashboard/sales-targets/">
+                    <span class="fas fa-cog"></span>
+                  </a>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-6 text-center border-end">
+                      <h6 class="text-700 mb-1 fs-11">Target</h6>
+                      <h4 class="fw-bold text-primary mb-0" id="todayTargetAmount">₱0</h4>
+                    </div>
+                    <div class="col-6 text-center">
+                      <h6 class="text-700 mb-1 fs-11">Net Sales</h6>
+                      <h4 class="fw-normal text-700 mb-0" id="todayActualSales">₱0</h4>
+                    </div>
+                  </div>
+                  <div class="mt-3">
+                    <div class="d-flex justify-content-between mb-1">
+                      <small class="text-700 fw-semibold">Achievement</small>
+                      <small class="text-700 fw-semibold" id="todayTargetPercent">0%</small>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                      <div class="progress-bar" id="todayTargetProgress" role="progressbar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                  <div class="text-center mt-2">
+                    <span class="badge bg-secondary" id="todayTargetStatus">No Target Set</span>
+                  </div>
+                  <div class="text-center mt-1" id="todayTargetNotesContainer" style="display: none;">
+                    <small class="text-muted" id="todayTargetNotes"></small>
+                  </div>
+                  <div class="mt-2 pt-2 border-top">
+                    <div class="d-flex justify-content-between fs-11 text-600">
+                      <span id="todayTargetBranch">All Branches</span>
+                      <span id="todayTargetDateRange">Today</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <!-- Provider Wallet Balances — Traffic Source style -->
               <div class="card h-100" id="walletWidget">
                 <div class="card-header d-flex flex-between-center bg-body-tertiary py-2">
@@ -621,9 +892,9 @@ require_once __DIR__ . '/../_guard.php';
                   <div class="row flex-between-center g-0">
                     <div class="col-auto">
                       <select class="form-select form-select-sm" id="hourlyFilter">
-                        <option value="today" selected="selected">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month">This Month</option>
+                        <option value="today">Today</option>
+                        <option value="week" selected="selected">Last 7 days</option>
+                        <option value="last30days">Last 30 days</option>
                         <option value="year">This Year</option>
                       </select>
                     </div>
@@ -662,11 +933,14 @@ require_once __DIR__ . '/../_guard.php';
                 </div>
                 <div class="card-footer bg-body-tertiary py-2">
                   <div class="row flex-between-center g-0">
-                    <div class="col-auto">
-                      <select class="form-select form-select-sm" id="paymentBreakdownFilter">
-                        <option value="today" selected="selected">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month">This Month</option>
+                    <div class="col-auto d-flex gap-2">
+                      <select class="form-select form-select-sm" id="paymentBreakdownBranchFilter" style="width:140px;">
+                        <option value="">All Branches</option>
+                      </select>
+                      <select class="form-select form-select-sm" id="paymentBreakdownFilter" style="width:120px;">
+                        <option value="today">Today</option>
+                        <option value="week" selected="selected">Last 7 days</option>
+                        <option value="last30days">Last 30 days</option>
                         <option value="year">This Year</option>
                       </select>
                     </div>
@@ -679,14 +953,17 @@ require_once __DIR__ . '/../_guard.php';
               <div class="card h-100">
                 <div class="card-header">
                   <div class="row flex-between-center">
-                    <div class="col-auto">
+                    <div class="col-auto d-flex gap-2">
                       <h6 class="mb-0 text-nowrap py-2 py-xl-0">Top Services Today</h6>
+                      <select class="form-select form-select-sm" id="topServicesBranchFilter" style="width:140px;">
+                        <option value="">All Branches</option>
+                      </select>
                     </div>
                     <div class="col-auto">
-                      <select class="form-select form-select-sm" id="topServicesFilter">
+                      <select class="form-select form-select-sm" id="topServicesFilter" style="width:120px;">
                         <option value="today" selected="selected">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month">This Month</option>
+                        <option value="week">Last 7 days</option>
+                        <option value="last30days">Last 30 days</option>
                         <option value="year">This Year</option>
                       </select>
                     </div>
@@ -799,6 +1076,9 @@ require_once __DIR__ . '/../_guard.php';
     <!-- ===============================================-->
     <!--    End of Main Content-->
     <!-- ===============================================-->
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include __DIR__ . '/../includes/footer.php'; ?>
 
     <!-- Suppress old Falcon audience chart init only (others are still valid) -->
@@ -906,6 +1186,7 @@ require_once __DIR__ . '/../_guard.php';
     const LIVE_SALES_API = window.BASE_URL + '/api/analytics/live-sales.php';
     let liveSalesChart = null;
     let liveSalesInterval = null;
+    let transactionsPerHourChart = null;
 
     function initLiveSalesChart() {
         const chartDom = document.getElementById('liveSalesChart');
@@ -966,12 +1247,23 @@ require_once __DIR__ . '/../_guard.php';
 
     function fetchLiveSales() {
         const filter = document.getElementById('liveSalesFilter').value;
+        const branchFilter = document.getElementById('liveSalesBranchFilter');
+        const branchId = branchFilter ? branchFilter.value : '';
 
         // Update subtitle label
         const labelEl = document.getElementById('liveFilterLabel');
         if (labelEl) labelEl.textContent = filterLabels[filter] || filter;
 
-        const apiUrl = LIVE_SALES_API + (filter === 'today' ? '?hours=24&today=true' : '?hours=' + filter);
+        let apiUrl = LIVE_SALES_API + (filter === 'today' ? '?hours=24&today=true' : '?hours=' + filter);
+        if (branchId) {
+            apiUrl += '&branch_id=' + branchId;
+        } else {
+            // If no local branch filter, use global branch selector
+            const globalBranchSelector = document.getElementById('globalBranchSelector');
+            if (globalBranchSelector && globalBranchSelector.value) {
+                apiUrl += '&branch_id=' + globalBranchSelector.value;
+            }
+        }
 
         fetch(apiUrl)
             .then(r => r.json())
@@ -1200,6 +1492,7 @@ require_once __DIR__ . '/../_guard.php';
             initLiveSalesChart();
             initGoalCharts(savedRange, savedBranch);
             initCashierPerformanceChart(savedRange, savedBranch);
+            initTransactionsPerHourChart();
         });
 
         // Restore filter from localStorage
@@ -1208,11 +1501,51 @@ require_once __DIR__ . '/../_guard.php';
             document.getElementById('liveSalesFilter').value = savedFilter;
         }
 
-        // Save filter to localStorage on change
+        // Restore hourly filter from localStorage
+        const savedHourlyFilter = localStorage.getItem('hourlyFilter') || 'week';
+        const hourlyFilterEl = document.getElementById('hourlyFilter');
+        if (hourlyFilterEl) {
+            hourlyFilterEl.value = savedHourlyFilter;
+        }
+
+        // Restore payment breakdown filter from localStorage
+        const savedPaymentFilter = localStorage.getItem('paymentBreakdownFilter') || 'week';
+        const paymentFilterEl = document.getElementById('paymentBreakdownFilter');
+        if (paymentFilterEl) {
+            paymentFilterEl.value = savedPaymentFilter;
+        }
+
+        // Fetch Transactions per Hour after filters are restored
+        setTimeout(() => {
+            fetchTransactionsPerHour();
+        }, 100);
+
+        // Live Sales filter change handler -> push to global
         document.getElementById('liveSalesFilter').addEventListener('change', function() {
             localStorage.setItem('liveSalesFilter', this.value);
-            fetchLiveSales();
+            // If it's a standard range, push to global so all cards stay in sync
+            if (['today','week','last30days','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
+                refreshAnalytics(this.value);
+                syncTopFilterButtons(this.value);
+            } else {
+                fetchLiveSales();
+            }
         });
+
+        // Live Sales branch filter change handler -> push to global
+        document.getElementById('liveSalesBranchFilter')?.addEventListener('change', function() {
+            const globalSelector = document.getElementById('globalBranchSelector');
+            if (globalSelector) {
+                globalSelector.value = this.value;
+                localStorage.setItem('analyticsBranchId', this.value);
+                // Trigger global change event so all cards refresh
+                globalSelector.dispatchEvent(new Event('change'));
+            } else {
+                fetchLiveSales();
+            }
+        });
+
+        // Save hourly filter to localStorage on change
 
         // Fetch critical data first
         fetchLiveSales();
@@ -1294,11 +1627,14 @@ require_once __DIR__ . '/../_guard.php';
                 const globalSelector = document.getElementById('globalBranchSelector');
                 if (globalSelector) {
                     globalSelector.value = this.value;
+                    localStorage.setItem('analyticsBranchId', this.value);
+                    // Trigger global change event so all cards refresh
+                    globalSelector.dispatchEvent(new Event('change'));
+                } else {
+                    localStorage.setItem('analyticsBranchId', this.value);
+                    const currentRange = localStorage.getItem('analyticsDateRange') || 'week';
+                    refreshAnalytics(currentRange);
                 }
-                localStorage.setItem('analyticsBranchId', this.value);
-                // Refresh all connected cards
-                const currentRange = localStorage.getItem('analyticsDateRange') || 'week';
-                refreshAnalytics(currentRange);
             });
         }
 
@@ -1323,6 +1659,18 @@ require_once __DIR__ . '/../_guard.php';
                 }, 60000);
             } catch (e) {
                 console.error('Error fetching Provider Wallet Balances:', e);
+            }
+
+            // Today's Sales Target widget
+            try {
+                console.log('Fetching Today\'s Sales Target...');
+                fetchTodaySalesTarget(savedBranch || null);
+                setInterval(() => {
+                    const currentBranch = localStorage.getItem('analyticsBranchId') || '';
+                    fetchTodaySalesTarget(currentBranch || null);
+                }, 60000);
+            } catch (e) {
+                console.error('Error fetching Today\'s Sales Target:', e);
             }
 
             // Transactions per Hour chart
@@ -1364,6 +1712,16 @@ require_once __DIR__ . '/../_guard.php';
 
             // Resize cashier performance chart
             if (cashierPerformanceChart) cashierPerformanceChart.resize();
+
+            // Resize branch analytics charts
+            Object.values(branchCharts).forEach(chart => {
+                if (chart && !chart.isDisposed()) chart.resize();
+            });
+
+            // Resize payment breakdown chart
+            if (paymentBreakdownChart && !paymentBreakdownChart.isDisposed()) {
+                paymentBreakdownChart.resize();
+            }
         });
     });
 
@@ -1373,25 +1731,42 @@ require_once __DIR__ . '/../_guard.php';
     });
 
     // ─── Transactions per Hour Chart ─────────────────────────────────────────────
-    let transactionsPerHourChart = null;
+    // Variable moved to top of script to avoid temporal dead zone issue
+
+    function initTransactionsPerHourChart() {
+        const chartDom = document.getElementById('transactionsPerHourChart');
+        if (!chartDom) return;
+        
+        // Prevent re-initialization
+        if (chartDom.dataset.initialized === 'true') return;
+        chartDom.dataset.initialized = 'true';
+        
+        transactionsPerHourChart = echarts.init(chartDom, null, { renderer: 'canvas' });
+    }
 
     async function fetchTransactionsPerHour() {
         try {
+            console.log('fetchTransactionsPerHour called');
             // Use global filter as the source of truth; sync local selectors visually
             const f = getGlobalFilters();
             const localHourly = document.getElementById('hourlyFilter');
             const localBranch = document.getElementById('hourlyBranchFilter');
-            if (localHourly && ['today','week','month','year'].includes(f.effectiveRange)) {
+            if (localHourly && ['today','week','month','last30days','year'].includes(f.effectiveRange)) {
                 localHourly.value = f.effectiveRange;
             }
             if (localBranch) localBranch.value = f.branchId || '';
 
             const url = `${window.BASE_URL}/api/analytics/transactions-per-hour.php?${buildFilterQuery()}`;
+            console.log('Fetching from URL:', url);
             const response = await fetch(url);
             const result = await response.json();
+            console.log('API response:', result);
 
             if (result.success) {
+                console.log('Calling renderTransactionsPerHourChart with:', result.data);
                 renderTransactionsPerHourChart(result.data);
+            } else {
+                console.error('API returned error:', result.error);
             }
         } catch (e) {
             console.error('Error fetching transactions per hour:', e);
@@ -1400,29 +1775,60 @@ require_once __DIR__ . '/../_guard.php';
 
     function renderTransactionsPerHourChart(data) {
         const chartDom = document.getElementById('transactionsPerHourChart');
-        if (!chartDom) return;
-
-        if (!transactionsPerHourChart) {
-            transactionsPerHourChart = echarts.init(chartDom);
-        }
-
-        // Check for empty data
-        const hasData = data.values && data.values.some(v => v > 0);
-        
-        if (!hasData) {
-            transactionsPerHourChart.clear();
-            transactionsPerHourChart.setOption({
-                grid: { left: 0, right: 0, top: 0, bottom: 0 },
-                xAxis: { show: false },
-                yAxis: { show: false },
-                series: []
-            });
+        if (!chartDom) {
+            console.error('transactionsPerHourChart element not found');
             return;
         }
+
+        console.log('Chart element found, dimensions:', chartDom.offsetWidth, 'x', chartDom.offsetHeight);
+
+        if (!transactionsPerHourChart) {
+            transactionsPerHourChart = echarts.init(chartDom, null, { renderer: 'canvas' });
+            console.log('Chart initialized');
+        }
+
+        console.log('Rendering Transactions per Hour chart with data:', data);
+
+        // Check for empty data
+        const hasData = data.data && data.data.some(v => v > 0);
+        console.log('Has data:', hasData, 'Data array:', data.data);
+        
+        if (!hasData) {
+            console.log('No data found, showing empty state');
+            // Show empty state
+            chartDom.innerHTML = `
+                <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
+                    <span class="fas fa-clock text-muted fs-2 mb-2"></span>
+                    <p class="text-muted fs-11 mb-0">No transaction data available</p>
+                    <p class="text-500 fs-10 mb-0">No transactions in selected period</p>
+                </div>
+            `;
+            if (transactionsPerHourChart) {
+                transactionsPerHourChart.clear();
+                transactionsPerHourChart.setOption({
+                    grid: { left: 0, right: 0, top: 0, bottom: 0 },
+                    xAxis: { show: false },
+                    yAxis: { show: false },
+                    series: []
+                });
+            }
+            return;
+        }
+        
+        console.log('Data found, rendering chart');
 
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
         const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
         const labelColor = isDark ? '#9da9bb' : '#748194';
+
+        // If chart exists, dispose it to clear any previous state
+        if (transactionsPerHourChart) {
+            transactionsPerHourChart.dispose();
+            transactionsPerHourChart = null;
+        }
+
+        // Re-initialize chart
+        transactionsPerHourChart = echarts.init(chartDom, null, { renderer: 'canvas' });
 
         transactionsPerHourChart.setOption({
             tooltip: {
@@ -1472,11 +1878,19 @@ require_once __DIR__ . '/../_guard.php';
                 backgroundStyle: { color: 'rgba(0,0,0,0.05)' }
             }]
         });
+
+        // Force resize after a short delay to ensure proper rendering
+        setTimeout(() => {
+            if (transactionsPerHourChart) {
+                transactionsPerHourChart.resize();
+                console.log('Chart resized after render');
+            }
+        }, 100);
     }
 
     // Hourly filter change handler -> push to global filter
     document.getElementById('hourlyFilter')?.addEventListener('change', function() {
-        if (['today','week','month','year'].includes(this.value)) {
+        if (['today','week','last30days','year'].includes(this.value)) {
             // Push to global so all cards stay in sync
             if (typeof refreshAnalytics === 'function') {
                 refreshAnalytics(this.value);
@@ -1503,44 +1917,29 @@ require_once __DIR__ . '/../_guard.php';
         }
     });
 
-    // Populate branch filter
-    async function populateHourlyBranchFilter() {
-        try {
-            const response = await fetch(`${window.BASE_URL}/api/analytics/branches.php`);
-            const result = await response.json();
-            
-            if (result.success && result.data) {
-                const branchFilter = document.getElementById('hourlyBranchFilter');
-                if (branchFilter) {
-                    // Clear existing options except "All Branches"
-                    branchFilter.innerHTML = '<option value="" selected="selected">All Branches</option>';
-                    
-                    result.data.forEach(branch => {
-                        const opt = document.createElement('option');
-                        opt.value = branch.branch_id;
-                        opt.textContent = branch.branch_name;
-                        branchFilter.appendChild(opt);
-                    });
-                }
-            }
-        } catch (e) {
-            console.error('Error fetching branches:', e);
-        }
-    }
-
-    // Call populate branch filter on load
-    populateHourlyBranchFilter();
-
     // ─── Top Services Table ───────────────────────────────────────────────────────
     async function fetchTopServices() {
         try {
             const f = getGlobalFilters();
             // Sync local selector visually
             const local = document.getElementById('topServicesFilter');
+            const branchFilter = document.getElementById('topServicesBranchFilter');
             if (local && ['today','week','month','year'].includes(f.effectiveRange)) {
                 local.value = f.effectiveRange;
             }
-            const response = await fetch(`${window.BASE_URL}/api/analytics/top-services.php?${buildFilterQuery()}`);
+            
+            // Use local branch filter if set, otherwise use global
+            const branchId = branchFilter ? branchFilter.value : f.branchId;
+            
+            let query = 'range=' + (f.effectiveRange || 'today');
+            if (branchId) {
+                query += '&branch_id=' + branchId;
+            }
+            if (f.isCustom && f.startDate && f.endDate) {
+                query += '&start_date=' + f.startDate + '&end_date=' + f.endDate;
+            }
+            
+            const response = await fetch(`${window.BASE_URL}/api/analytics/top-services.php?${query}`);
             const result = await response.json();
 
             if (result.success) {
@@ -1555,9 +1954,22 @@ require_once __DIR__ . '/../_guard.php';
 
     // Top Services filter change handler -> push to global
     document.getElementById('topServicesFilter')?.addEventListener('change', function() {
-        if (['today','week','month','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
+        if (['today','week','last30days','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
             refreshAnalytics(this.value);
             syncTopFilterButtons(this.value);
+        } else {
+            fetchTopServices();
+        }
+    });
+
+    // Top Services branch filter change handler -> push to global
+    document.getElementById('topServicesBranchFilter')?.addEventListener('change', function() {
+        const globalSelector = document.getElementById('globalBranchSelector');
+        if (globalSelector) {
+            globalSelector.value = this.value;
+            localStorage.setItem('analyticsBranchId', this.value);
+            // Trigger global change event so all cards refresh
+            globalSelector.dispatchEvent(new Event('change'));
         } else {
             fetchTopServices();
         }
@@ -1570,10 +1982,23 @@ require_once __DIR__ . '/../_guard.php';
         try {
             const f = getGlobalFilters();
             const local = document.getElementById('paymentBreakdownFilter');
-            if (local && ['today','week','month','year'].includes(f.effectiveRange)) {
+            const branchFilter = document.getElementById('paymentBreakdownBranchFilter');
+            if (local && ['today','week','last30days','year'].includes(f.effectiveRange)) {
                 local.value = f.effectiveRange;
             }
-            const response = await fetch(`${window.BASE_URL}/api/analytics/payment-breakdown.php?${buildFilterQuery()}`);
+            
+            // Use local branch filter if set, otherwise use global
+            const branchId = branchFilter ? branchFilter.value : f.branchId;
+            
+            let query = 'range=' + (f.effectiveRange || 'today');
+            if (branchId) {
+                query += '&branch_id=' + branchId;
+            }
+            if (f.isCustom && f.startDate && f.endDate) {
+                query += '&start_date=' + f.startDate + '&end_date=' + f.endDate;
+            }
+            
+            const response = await fetch(`${window.BASE_URL}/api/analytics/payment-breakdown.php?${query}`);
             const result = await response.json();
 
             if (result.success) {
@@ -1589,11 +2014,11 @@ require_once __DIR__ . '/../_guard.php';
         const chartDom = document.getElementById('paymentBreakdownChart');
         if (!chartDom) return;
 
-        if (!paymentBreakdownChart) {
-            paymentBreakdownChart = echarts.init(chartDom);
-        }
+        // Check dimensions
+        const rect = chartDom.getBoundingClientRect();
+        console.log('Payment chart: dimensions', { width: rect.width, height: rect.height });
 
-        // Build chart data from dynamic breakdown
+        // Build chart data
         const chartData = Object.entries(data.breakdown || {})
             .filter(([name, item]) => item.amount > 0)
             .map(([name, item], index) => ({
@@ -1602,31 +2027,38 @@ require_once __DIR__ . '/../_guard.php';
                 itemStyle: { color: ['#2c7be5', '#00d97e', '#0091e9', '#f6c343', '#e63757', '#6c757d', '#39afd1', '#727cf5'][index % 8] }
             }));
 
-        // Check for empty data
+        console.log('Payment chart: data items', chartData.length, chartData);
+
         if (chartData.length === 0) {
-            paymentBreakdownChart.clear();
-            paymentBreakdownChart.setOption({
-                grid: { left: 0, right: 0, top: 0, bottom: 0 },
-                xAxis: { show: false },
-                yAxis: { show: false },
-                series: []
-            });
+            chartDom.innerHTML = `
+                <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
+                    <span class="fas fa-credit-card text-muted fs-2 mb-2"></span>
+                    <p class="text-muted fs-11 mb-0">No payment data available</p>
+                </div>
+            `;
             return;
         }
 
-        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        const tooltipBg = isDark ? '#0b1727' : '#fff';
-        const tooltipBorder = isDark ? '#344050' : '#d8e2ef';
-        const tooltipText = isDark ? '#d8e2ef' : '#344050';
+        // Dispose and re-create chart for clean state
+        if (paymentBreakdownChart && !paymentBreakdownChart.isDisposed()) {
+            paymentBreakdownChart.dispose();
+        }
+        paymentBreakdownChart = echarts.init(chartDom);
 
-        paymentBreakdownChart.setOption({
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+
+        const opt = {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
+            animationDelay: (idx) => idx * 100,
             tooltip: {
                 trigger: 'item',
-                backgroundColor: tooltipBg,
-                borderColor: tooltipBorder,
+                backgroundColor: isDark ? '#0b1727' : '#fff',
+                borderColor: isDark ? '#344050' : '#d8e2ef',
                 borderWidth: 1,
                 padding: [8, 12],
-                textStyle: { color: tooltipText, fontSize: 12 },
+                textStyle: { color: isDark ? '#d8e2ef' : '#344050', fontSize: 12 },
                 formatter: function(params) {
                     return `<div style="display:flex;align-items:center;gap:6px">
                         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${params.color}"></span>
@@ -1636,32 +2068,30 @@ require_once __DIR__ . '/../_guard.php';
                     </div>`;
                 }
             },
-            legend: {
-                show: false
-            },
             series: [{
                 type: 'pie',
                 radius: ['40%', '70%'],
+                center: ['50%', '50%'],
                 avoidLabelOverlap: false,
                 itemStyle: {
                     borderRadius: 4,
                     borderColor: isDark ? '#0b1727' : '#fff',
                     borderWidth: 2
                 },
-                label: {
-                    show: false
-                },
+                label: { show: false },
                 emphasis: {
-                    label: {
-                        show: true,
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                        color: tooltipText
-                    }
+                    label: { show: true, fontSize: 12, fontWeight: 'bold' }
                 },
                 data: chartData
             }]
-        });
+        };
+
+        try {
+            paymentBreakdownChart.setOption(opt, true);
+            console.log('Payment chart: rendered successfully');
+        } catch (e) {
+            console.error('Payment chart: render failed:', e);
+        }
     }
 
     function updatePaymentBreakdownTable(data) {
@@ -1719,9 +2149,22 @@ require_once __DIR__ . '/../_guard.php';
 
     // Payment Breakdown filter change handler -> push to global
     document.getElementById('paymentBreakdownFilter')?.addEventListener('change', function() {
-        if (['today','week','month','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
+        if (['today','week','last30days','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
             refreshAnalytics(this.value);
             syncTopFilterButtons(this.value);
+        } else {
+            fetchPaymentBreakdown();
+        }
+    });
+
+    // Payment Breakdown branch filter change handler -> push to global
+    document.getElementById('paymentBreakdownBranchFilter')?.addEventListener('change', function() {
+        const globalSelector = document.getElementById('globalBranchSelector');
+        if (globalSelector) {
+            globalSelector.value = this.value;
+            localStorage.setItem('analyticsBranchId', this.value);
+            // Trigger global change event so all cards refresh
+            globalSelector.dispatchEvent(new Event('change'));
         } else {
             fetchPaymentBreakdown();
         }
@@ -1746,9 +2189,11 @@ require_once __DIR__ . '/../_guard.php';
             tableBody.innerHTML = `
                 <tr>
                     <td class="align-middle white-space-nowrap text-center text-muted" colspan="4">
-                        <span class="fas fa-concierge-bell text-muted fs-2 mb-2 d-block"></span>
-                        <p class="text-muted fs-11 mb-0">No services data available</p>
-                        <p class="text-500 fs-10 mb-0">No transactions in selected period</p>
+                        <div class="d-flex flex-column align-items-center justify-content-center py-4">
+                            <span class="fas fa-concierge-bell text-muted fs-2 mb-2"></span>
+                            <p class="text-muted fs-11 mb-0">No services data available</p>
+                            <p class="text-500 fs-10 mb-0">No transactions in selected period</p>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1800,7 +2245,16 @@ require_once __DIR__ . '/../_guard.php';
         const chartDom = document.getElementById('cashierPerformanceChart');
         
         if (!data || !data.cashiers || data.cashiers.length === 0) {
-            // Show empty state
+            // Show empty state - modify parent column to span full width
+            const legendParent = legendEl.closest('.col-auto');
+            const chartCol = legendParent.nextElementSibling;
+            
+            if (legendParent && chartCol) {
+                legendParent.style.width = '100%';
+                legendParent.style.flex = '1';
+                chartCol.style.display = 'none';
+            }
+            
             legendEl.innerHTML = `
                 <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
                     <span class="fas fa-user-clock text-muted fs-2 mb-2"></span>
@@ -1822,6 +2276,16 @@ require_once __DIR__ . '/../_guard.php';
         }
 
         cashierPerformanceData = data;
+
+        // Restore layout when data is available
+        const legendParent = legendEl.closest('.col-auto');
+        const chartCol = legendParent.nextElementSibling;
+        
+        if (legendParent && chartCol) {
+            legendParent.style.width = '';
+            legendParent.style.flex = '';
+            chartCol.style.display = '';
+        }
 
         // Update legend with top 3 cashiers
         const topCashiers = data.cashiers.slice(0, 3);
@@ -1920,9 +2384,20 @@ require_once __DIR__ . '/../_guard.php';
         switch(range) {
             case 'today': return 1;
             case 'week': return 7;
-            case 'month': return 30;
+            case 'last30days': return 30;
+            case 'month': return 30; // Keep for backward compatibility
             case 'year': return 365;
             default: return 7; // Default to week
+        }
+    }
+
+    function daysToRange(days) {
+        switch(parseInt(days)) {
+            case 1: return 'today';
+            case 7: return 'week';
+            case 30: return 'last30days';
+            case 90: return 'year';
+            default: return 'week';
         }
     }
 
@@ -1956,8 +2431,15 @@ require_once __DIR__ . '/../_guard.php';
             dateFilter.addEventListener('change', async function() {
                 const days = parseInt(this.value);
                 const branchId = document.getElementById('cashierPerformanceBranchFilter')?.value || null;
-                const newData = await fetchCashierPerformance(days, branchId);
-                renderCashierPerformanceChart(newData);
+                // Push to global filter for consistency
+                const range = daysToRange(days);
+                if (['today','week','last30days','year'].includes(range) && typeof refreshAnalytics === 'function') {
+                    refreshAnalytics(range);
+                    syncTopFilterButtons(range);
+                } else {
+                    const newData = await fetchCashierPerformance(days, branchId);
+                    renderCashierPerformanceChart(newData);
+                }
             });
         }
 
@@ -2133,6 +2615,10 @@ require_once __DIR__ . '/../_guard.php';
         const globalSelector = document.getElementById('globalBranchSelector');
         const cashierBranchFilter = document.getElementById('cashierPerformanceBranchFilter');
         const walletBranchFilter = document.getElementById('walletBranchSelector');
+        const paymentBreakdownBranchFilter = document.getElementById('paymentBreakdownBranchFilter');
+        const liveSalesBranchFilter = document.getElementById('liveSalesBranchFilter');
+        const topServicesBranchFilter = document.getElementById('topServicesBranchFilter');
+        const hourlyBranchFilter = document.getElementById('hourlyBranchFilter');
         
         // Build options: All Branches first (only for multi-branch users)
         let html = '';
@@ -2162,6 +2648,30 @@ require_once __DIR__ . '/../_guard.php';
         if (walletBranchFilter && walletBranchFilter.dataset.populated !== 'true') {
             walletBranchFilter.innerHTML = html;
             walletBranchFilter.dataset.populated = 'true';
+        }
+        
+        // Populate Payment Breakdown branch filter (only once)
+        if (paymentBreakdownBranchFilter && paymentBreakdownBranchFilter.dataset.populated !== 'true') {
+            paymentBreakdownBranchFilter.innerHTML = html;
+            paymentBreakdownBranchFilter.dataset.populated = 'true';
+        }
+        
+        // Populate Live Sales branch filter (only once)
+        if (liveSalesBranchFilter && liveSalesBranchFilter.dataset.populated !== 'true') {
+            liveSalesBranchFilter.innerHTML = html;
+            liveSalesBranchFilter.dataset.populated = 'true';
+        }
+        
+        // Populate Top Services branch filter (only once)
+        if (topServicesBranchFilter && topServicesBranchFilter.dataset.populated !== 'true') {
+            topServicesBranchFilter.innerHTML = html;
+            topServicesBranchFilter.dataset.populated = 'true';
+        }
+        
+        // Populate Transactions per Hour branch filter (only once)
+        if (hourlyBranchFilter && hourlyBranchFilter.dataset.populated !== 'true') {
+            hourlyBranchFilter.innerHTML = html;
+            hourlyBranchFilter.dataset.populated = 'true';
         }
         
         // Populate local selector (only once)
@@ -2211,7 +2721,7 @@ require_once __DIR__ . '/../_guard.php';
         safeUpdateTrend('tabRefundTrend', 'tabRefundTrendIcon', -summary.period_change); // Inverse for refunds
         safeUpdateTrend('tabTxnTrend', 'tabTxnTrendIcon', summary.sales_trend);
         safeUpdateTrend('tabProfitTrend', 'tabProfitTrendIcon', summary.profit_margin);
-        
+
         // Add profit margin indicator if available
         if (summary.profit_margin !== null && summary.profit_margin !== undefined) {
             const profitTab = document.getElementById('tabProfit');
@@ -2224,7 +2734,7 @@ require_once __DIR__ . '/../_guard.php';
 
     // Initialize branch charts
     function initBranchCharts() {
-        const chartIds = ['branchSalesChart', 'branchNetChart', 'branchRefundsChart', 'branchTransactionsChart', 'branchProfitChart'];
+        const chartIds = ['branchSalesChart', 'branchNetChart', 'branchRefundsChart', 'branchProfitChart'];
 
         chartIds.forEach(id => {
             try {
@@ -2240,7 +2750,7 @@ require_once __DIR__ . '/../_guard.php';
         // Handle resize
         window.addEventListener('resize', () => {
             Object.values(branchCharts).forEach(chart => {
-                if (chart) chart.resize();
+                if (chart && !chart.isDisposed()) chart.resize();
             });
         });
     }
@@ -2254,7 +2764,7 @@ require_once __DIR__ . '/../_guard.php';
 
         const data = branchAnalyticsData.chart_data;
         const dates = data.map(d => d.display_date);
-        
+
         // Validate data integrity
         if (!Array.isArray(data) || data.length === 0) {
             console.warn('Invalid chart data structure');
@@ -2266,10 +2776,9 @@ require_once __DIR__ . '/../_guard.php';
             { name: 'Sales', fn: renderSalesChart },
             { name: 'Net', fn: renderNetChart },
             { name: 'Refunds', fn: renderRefundsChart },
-            { name: 'Transactions', fn: renderTransactionsChart },
             { name: 'Profit', fn: renderProfitChart }
         ];
-        
+
         charts.forEach(chart => {
             try {
                 chart.fn(dates, data);
@@ -2287,6 +2796,10 @@ require_once __DIR__ . '/../_guard.php';
     // Shared base chart config matching Falcon template style
     function baseChartOption(dates) {
         return {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
+            animationDelay: 0,
             tooltip: {
                 trigger: 'axis',
                 axisPointer: { type: 'none' },
@@ -2304,9 +2817,9 @@ require_once __DIR__ . '/../_guard.php';
                 data: dates,
                 axisLine: { show: false },
                 axisTick: { show: false },
-                axisLabel: { 
-                    color: '#9da9bb', 
-                    fontSize: 11, 
+                axisLabel: {
+                    color: '#9da9bb',
+                    fontSize: 11,
                     margin: 8,
                     interval: 'auto'
                 },
@@ -2369,6 +2882,9 @@ require_once __DIR__ . '/../_guard.php';
         const chart = branchCharts['branchSalesChart'];
         if (!chart || typeof echarts === 'undefined') return;
 
+        // Clear chart to force animation on re-render
+        chart.clear();
+
         const opt = baseChartOption(dates);
         opt.yAxis.axisLabel.formatter = pesoFormatter;
         opt.tooltip.formatter = function(params) {
@@ -2413,6 +2929,9 @@ require_once __DIR__ . '/../_guard.php';
         const chart = branchCharts['branchNetChart'];
         if (!chart || typeof echarts === 'undefined') return;
 
+        // Clear chart to force animation on re-render
+        chart.clear();
+
         const opt = baseChartOption(dates);
         opt.yAxis.axisLabel.formatter = pesoFormatter;
         opt.tooltip.formatter = function(params) {
@@ -2433,6 +2952,9 @@ require_once __DIR__ . '/../_guard.php';
         const chart = branchCharts['branchRefundsChart'];
         if (!chart || typeof echarts === 'undefined') return;
 
+        // Clear chart to force animation on re-render
+        chart.clear();
+
         const opt = baseChartOption(dates);
         opt.yAxis.axisLabel.formatter = pesoFormatter;
         opt.tooltip.formatter = function(params) {
@@ -2448,130 +2970,192 @@ require_once __DIR__ . '/../_guard.php';
         chart.setOption(opt, true);
     }
 
-    // Transactions Chart
-    function renderTransactionsChart(dates, data) {
-        const chart = branchCharts['branchTransactionsChart'];
-        if (!chart || typeof echarts === 'undefined') return;
-
-        const opt = baseChartOption(dates);
-        opt.yAxis.axisLabel.formatter = v => v;
-        opt.tooltip.formatter = function(params) {
-            const p = params[0];
-            return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
-                    <div style="display:flex;justify-content:space-between;gap:16px">
-                        <span style="color:${p.color}">Transactions</span>
-                        <span style="font-weight:600">${p.value}</span>
-                    </div>`;
-        };
-        opt.series = [ lineSeries('Transactions', data.map(d => d.transactions), '#27bcfd', false) ];
-
-        chart.setOption(opt, true);
-    }
-
-    // Profit Chart (optimized for new pos_orders profit structure)
+    // Profit Chart - Multi-Bar Chart showing Revenue, Cost, Service Fees, Add-ons, Profit
     function renderProfitChart(dates, data) {
-        const chart = branchCharts['branchProfitChart'];
-        if (!chart || typeof echarts === 'undefined') return;
-
-        // Validate profit data exists
-        const hasProfitData = data.some(d => d.profit > 0 || d.service_fees > 0 || d.add_ons > 0);
-        if (!hasProfitData) {
-            chart.clear();
-            chart.setOption({
-                title: {
-                    text: 'No profit data available',
-                    left: 'center',
-                    top: 'center',
-                    textStyle: { color: '#9da9bb', fontSize: 14 }
-                }
-            });
+        const dom = document.getElementById('branchProfitChart');
+        if (!dom || typeof echarts === 'undefined') {
+            console.warn('Profit chart: DOM or echarts not available');
             return;
         }
 
-        const opt = baseChartOption(dates);
-        opt.yAxis.axisLabel.formatter = v => pesoFormatter(v);
-        opt.tooltip.formatter = function(params) {
-            const d = data[params[0].dataIndex];
-            let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].axisValue}</div>`;
-            params.forEach(p => {
-                if (p.value > 0) { // Only show non-zero values
-                    html += `<div style="display:flex;justify-content:space-between;gap:16px">
-                            <span style="color:${p.color}">${p.seriesName}</span>
-                            <span style="font-weight:600">${formatPeso(p.value)}</span>
-                        </div>`;
-                }
-            });
-            html += `<div style="font-size:11px;color:#6e7891;margin-top:4px">
-                        Margin: ${d.profit_margin || 0}% | Revenue: ${formatPeso(d.revenue || 0)}
-                    </div>`;
-            return html;
-        };
+        // Check if container has zero dimensions (tab not visible)
+        const rect = dom.getBoundingClientRect();
+        console.log('Profit chart: dimensions check', { width: rect.width, height: rect.height });
 
-        // Show Cost, Service Fees, Add-ons, and Profit with proper data validation
-        opt.series = [
-            {
-                name: 'Cost',
-                type: 'line',
-                data: data.map(d => d.cost || 0),
-                smooth: false,
-                symbol: 'none',
-                lineStyle: { width: 2, color: '#e63757', type: 'dashed' },
-                itemStyle: { color: '#e63757' }
-            },
-            {
-                name: 'Service Fees',
-                type: 'line',
-                data: data.map(d => d.service_fees || 0),
-                smooth: false,
-                symbol: 'none',
-                lineStyle: { width: 2, color: '#f5803e' },
-                itemStyle: { color: '#f5803e' }
-            },
-            {
-                name: 'Add-ons',
-                type: 'line',
-                data: data.map(d => d.add_ons || 0),
-                smooth: false,
-                symbol: 'none',
-                lineStyle: { width: 2, color: '#27bcfd' },
-                itemStyle: { color: '#27bcfd' }
-            },
-            {
-                name: 'Profit',
-                type: 'line',
-                data: data.map(d => d.profit || 0),
-                smooth: false,
-                symbol: 'none',
-                lineStyle: { width: 3, color: '#00d27a' },
-                itemStyle: { color: '#00d27a' },
-                areaStyle: {
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(0,210,122,0.25)' },
-                        { offset: 1, color: 'rgba(0,210,122,0.02)' }
-                    ])
+        if (rect.width === 0 || rect.height === 0) {
+            console.log('Profit chart: Zero dimensions, deferring render');
+            return;
+        }
+
+        // Always dispose and re-create for clean state
+        let chart = branchCharts['branchProfitChart'];
+        if (chart && !chart.isDisposed()) {
+            chart.dispose();
+        }
+        chart = echarts.init(dom);
+        branchCharts['branchProfitChart'] = chart;
+
+        // Validate profit data exists
+        const hasProfitData = data.some(d => (d.profit && d.profit > 0) || (d.cost && d.cost > 0) || (d.revenue && d.revenue > 0));
+        if (!hasProfitData) {
+            dom.innerHTML = `
+                <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
+                    <span class="fas fa-chart-line text-muted fs-2 mb-2"></span>
+                    <p class="text-muted fs-11 mb-0">No profit data available</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Multi-bar chart configuration
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const tooltipBg = isDark ? '#0b1727' : '#fff';
+        const tooltipText = isDark ? '#d8e2ef' : '#344050';
+
+        const opt = {
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
+            animationDelay: (idx) => idx * 100,
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: tooltipBg,
+                borderColor: isDark ? '#344050' : '#d8e2ef',
+                borderWidth: 1,
+                padding: [8, 12],
+                textStyle: { color: tooltipText, fontSize: 12 },
+                formatter: function(params) {
+                    const d = data[params[0].dataIndex];
+                    let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].axisValue}</div>`;
+                    params.forEach(p => {
+                        if (p.value > 0) {
+                            html += `<div style="display:flex;justify-content:space-between;gap:16px">
+                                    <span style="color:${p.color}">${p.seriesName}</span>
+                                    <span style="font-weight:600">${formatPeso(p.value)}</span>
+                                </div>`;
+                        }
+                    });
+                    if (d.profit_margin !== undefined) {
+                        html += `<div style="font-size:11px;color:#6e7891;margin-top:4px">
+                                    Margin: ${d.profit_margin}%
+                                </div>`;
+                    }
+                    return html;
                 }
+            },
+            grid: { left: 60, right: 20, top: 20, bottom: 60 },
+            xAxis: {
+                type: 'category',
+                data: dates,
+                axisLabel: { color: '#6e7891', fontSize: 11, rotate: dates.length > 10 ? 45 : 0 },
+                axisLine: { lineStyle: { color: '#e2e8f0' } }
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: { formatter: v => pesoFormatter(v), color: '#6e7891', fontSize: 11 },
+                splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
+            },
+            series: [
+                {
+                    name: 'Revenue',
+                    type: 'bar',
+                    data: data.map(d => d.revenue || 0),
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#2c7be5' },
+                            { offset: 1, color: '#27bcfd' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    }
+                },
+                {
+                    name: 'Cost',
+                    type: 'bar',
+                    data: data.map(d => d.cost || 0),
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#e63757' },
+                            { offset: 1, color: '#f5803e' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    }
+                },
+                {
+                    name: 'Service Fees',
+                    type: 'bar',
+                    data: data.map(d => d.service_fees || 0),
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#f5803e' },
+                            { offset: 1, color: '#fbc77d' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    }
+                },
+                {
+                    name: 'Add-ons',
+                    type: 'bar',
+                    data: data.map(d => d.add_ons || 0),
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#27bcfd' },
+                            { offset: 1, color: '#82d9f5' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    }
+                },
+                {
+                    name: 'Profit',
+                    type: 'bar',
+                    data: data.map(d => d.profit || 0),
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#00d27a' },
+                            { offset: 1, color: '#82f5b5' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    }
+                }
+            ],
+            legend: {
+                data: ['Revenue', 'Cost', 'Service Fees', 'Add-ons', 'Profit'],
+                bottom: 10,
+                textStyle: { color: '#6e7891', fontSize: 11 }
             }
-        ];
-        opt.legend = {
-            data: ['Cost', 'Service Fees', 'Add-ons', 'Profit'],
-            bottom: 0,
-            textStyle: { color: '#6e7891', fontSize: 11 }
         };
 
-        chart.setOption(opt, true);
+        try {
+            chart.setOption(opt, true);
+            console.log('Profit chart: rendered successfully with multi-bar');
+        } catch (e) {
+            console.error('Profit chart: render failed:', e);
+        }
     }
 
-    // Tab change event - resize branch charts and save state
+    // Tab change event - render charts to trigger animation (no fetch, use existing data)
     document.querySelectorAll('#audience-chart-tab .nav-link').forEach(tab => {
         tab.addEventListener('shown.bs.tab', function() {
             // Save selected tab to localStorage
             localStorage.setItem('branchAnalyticsTab', this.id);
-            
+
+            // Re-render the specific chart for the active tab with delay to ensure tab is visible
+            setTimeout(() => {
+                if (branchAnalyticsData) {
+                    const data = branchAnalyticsData.chart_data;
+                    const dates = data.map(d => d.display_date);
+
+                    if (this.id === 'sales-tab') renderSalesChart(dates, data);
+                    if (this.id === 'net-tab') renderNetChart(dates, data);
+                    if (this.id === 'refunds-tab') renderRefundsChart(dates, data);
+                    if (this.id === 'profit-tab') renderProfitChart(dates, data);
+                }
+            }, 300);
+
             setTimeout(() => {
                 Object.values(branchCharts).forEach(chart => {
-                    if (chart) chart.resize();
+                    if (chart && !chart.isDisposed()) chart.resize();
                 });
-            }, 100);
+            }, 400);
         });
     });
     
@@ -2582,6 +3166,35 @@ require_once __DIR__ . '/../_guard.php';
         if (tabElement) {
             const tabInstance = new bootstrap.Tab(tabElement);
             tabInstance.show();
+
+            // If profit tab is restored, render the chart after a delay with disposal
+            if (savedTab === 'profit-tab' && branchAnalyticsData) {
+                setTimeout(() => {
+                    const chart = branchCharts['branchProfitChart'];
+                    const dom = document.getElementById('branchProfitChart');
+                    const data = branchAnalyticsData.chart_data;
+                    const dates = data.map(d => d.display_date);
+
+                    // Dispose if needed
+                    if (chart && !chart.isDisposed() && dom) {
+                        const rect = dom.getBoundingClientRect();
+                        if (rect.width === 0 || rect.height === 0) {
+                            chart.dispose();
+                            branchCharts['branchProfitChart'] = null;
+                        }
+                    }
+
+                    renderProfitChart(dates, data);
+
+                    // Multiple resize attempts
+                    [200, 500, 800].forEach(delay => {
+                        setTimeout(() => {
+                            const c = branchCharts['branchProfitChart'];
+                            if (c && !c.isDisposed()) c.resize();
+                        }, delay);
+                    });
+                }, 400);
+            }
         }
     }
 
@@ -2595,6 +3208,189 @@ require_once __DIR__ . '/../_guard.php';
         '#2c7be5', '#27bcfd', '#748cf7', '#6e94f5',
         '#a8cbff', '#c9dcf8', '#91c4f2', '#5ea3de'
     ];
+
+    // Helper function to convert range to date range
+    function getRangeDates(range) {
+        const today = new Date();
+        let startDate, endDate;
+        
+        switch (range) {
+            case 'today':
+                startDate = endDate = today.toISOString().slice(0, 10);
+                break;
+            case 'week':
+                // Last 7 days (6 days ago to today)
+                startDate = new Date(today.setDate(today.getDate() - 6)).toISOString().slice(0, 10);
+                endDate = new Date().toISOString().slice(0, 10);
+                break;
+            case 'last30days':
+                startDate = new Date(today.setDate(today.getDate() - 29)).toISOString().slice(0, 10);
+                endDate = new Date().toISOString().slice(0, 10);
+                break;
+            case 'year':
+                startDate = new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10);
+                endDate = new Date(today.getFullYear(), 11, 31).toISOString().slice(0, 10);
+                break;
+            default:
+                startDate = endDate = new Date().toISOString().slice(0, 10);
+        }
+        
+        return { startDate, endDate };
+    }
+
+    async function fetchTodaySalesTarget(branchId = null) {
+        try {
+            const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
+            const customStartDate = localStorage.getItem('analyticsCustomStartDate');
+            const customEndDate = localStorage.getItem('analyticsCustomEndDate');
+            
+            let startDate, endDate;
+            
+            // If custom date range is set, use it
+            if ((savedRange === 'custom' || savedRange.startsWith('custom-')) && customStartDate && customEndDate) {
+                startDate = customStartDate;
+                endDate = customEndDate;
+            } else {
+                // Convert standard range to date range
+                const dates = getRangeDates(savedRange);
+                startDate = dates.startDate;
+                endDate = dates.endDate;
+            }
+            
+            let url = `${window.BASE_URL}/api/sales-targets/targets.php?start_date=${startDate}&end_date=${endDate}`;
+            
+            if (branchId) {
+                url += `&branch_id=${branchId}`;
+            }
+            
+            console.log('Fetching sales target from:', url);
+            
+            const res = await fetch(url);
+            const result = await res.json();
+            
+            console.log('Sales target API response:', result);
+            
+            if (result.success && result.targets && result.targets.length > 0) {
+                // For date range, aggregate all targets
+                let totalTargetAmount = 0;
+                let totalActualSales = 0;
+                let notes = '';
+                
+                // Check if there's a TOTAL entry (from API)
+                const totalEntry = result.targets.find(t => t.target_date === 'TOTAL');
+                
+                if (totalEntry) {
+                    // Use the TOTAL entry values
+                    totalTargetAmount = parseFloat(totalEntry.target_amount) || 0;
+                    totalActualSales = parseFloat(totalEntry.actual_sales) || 0;
+                    notes = totalEntry.notes || '';
+                } else if (result.targets.length === 1) {
+                    // Single target (today or specific date)
+                    const target = result.targets[0];
+                    totalTargetAmount = parseFloat(target.target_amount) || 0;
+                    totalActualSales = parseFloat(target.actual_sales) || 0;
+                    notes = target.notes || '';
+                } else {
+                    // Multiple targets without TOTAL entry - aggregate (legacy)
+                    result.targets.forEach(target => {
+                        totalTargetAmount += parseFloat(target.target_amount) || 0;
+                        // Only add actual_sales once since API assigns total to all targets
+                        if (totalActualSales === 0) {
+                            totalActualSales = parseFloat(target.actual_sales) || 0;
+                        }
+                    });
+                    notes = `Range: ${result.targets.length} day(s)`;
+                }
+                
+                const percent = totalTargetAmount > 0 ? ((totalActualSales / totalTargetAmount) * 100).toFixed(1) : 0;
+                
+                document.getElementById('todayTargetAmount').textContent = '₱' + totalTargetAmount.toLocaleString('en-PH', {minimumFractionDigits: 2});
+                document.getElementById('todayActualSales').textContent = '₱' + totalActualSales.toLocaleString('en-PH', {minimumFractionDigits: 2});
+                document.getElementById('todayTargetPercent').textContent = percent + '%';
+                
+                const progressBar = document.getElementById('todayTargetProgress');
+                const statusBadge = document.getElementById('todayTargetStatus');
+                const notesContainer = document.getElementById('todayTargetNotesContainer');
+                const notesElement = document.getElementById('todayTargetNotes');
+                const branchElement = document.getElementById('todayTargetBranch');
+                const dateRangeElement = document.getElementById('todayTargetDateRange');
+                
+                progressBar.style.width = Math.min(percent, 100) + '%';
+                progressBar.className = 'progress-bar';
+                statusBadge.className = 'badge';
+                
+                // Update branch display
+                if (branchId) {
+                    const globalSelector = document.getElementById('globalBranchSelector');
+                    if (globalSelector) {
+                        const branchName = globalSelector.options[globalSelector.selectedIndex]?.text || 'Selected Branch';
+                        branchElement.textContent = branchName;
+                    } else {
+                        branchElement.textContent = 'Selected Branch';
+                    }
+                } else {
+                    branchElement.textContent = 'All Branches';
+                }
+                
+                // Update date range display
+                const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
+                const customStartDate = localStorage.getItem('analyticsCustomStartDate');
+                const customEndDate = localStorage.getItem('analyticsCustomEndDate');
+                
+                if ((savedRange === 'custom' || savedRange.startsWith('custom-')) && customStartDate && customEndDate) {
+                    dateRangeElement.textContent = `${customStartDate} - ${customEndDate}`;
+                } else {
+                    const rangeLabels = {
+                        'today': 'Today',
+                        'week': 'Last 7 Days',
+                        'last30days': 'Last 30 Days',
+                        'year': 'This Year'
+                    };
+                    dateRangeElement.textContent = rangeLabels[savedRange] || savedRange;
+                }
+                
+                if (percent >= 100) {
+                    progressBar.classList.add('bg-success');
+                    statusBadge.classList.add('bg-success');
+                    statusBadge.textContent = 'Exceeded';
+                } else if (percent >= 80) {
+                    progressBar.classList.add('bg-warning');
+                    statusBadge.classList.add('bg-warning');
+                    statusBadge.textContent = 'On Target';
+                } else {
+                    progressBar.classList.add('bg-danger');
+                    statusBadge.classList.add('bg-danger');
+                    statusBadge.textContent = 'Below Target';
+                }
+                
+                // Display notes if available
+                if (notes) {
+                    notesContainer.style.display = 'block';
+                    notesElement.textContent = 'Note: ' + notes;
+                } else if (result.targets.length > 1) {
+                    // Always show note for date range with specific details
+                    notesContainer.style.display = 'block';
+                    const branchName = branchElement.textContent;
+                    const dateRangeText = dateRangeElement.textContent;
+                    notesElement.textContent = `Note: Total for ${branchName} (${dateRangeText})`;
+                } else {
+                    notesContainer.style.display = 'none';
+                }
+            } else {
+                console.log('No targets found or API error:', result);
+                document.getElementById('todayTargetAmount').textContent = '₱0';
+                document.getElementById('todayActualSales').textContent = '₱0';
+                document.getElementById('todayTargetPercent').textContent = '0%';
+                document.getElementById('todayTargetProgress').style.width = '0%';
+                document.getElementById('todayTargetProgress').className = 'progress-bar bg-secondary';
+                document.getElementById('todayTargetStatus').className = 'badge bg-secondary';
+                document.getElementById('todayTargetStatus').textContent = 'No Target Set';
+                document.getElementById('todayTargetNotesContainer').style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error fetching sales target:', error);
+        }
+    }
 
     async function fetchProviderWallets(branchId = null) {
         try {
@@ -2650,8 +3446,8 @@ require_once __DIR__ . '/../_guard.php';
             if (branchSet.length === 0 && (!d.providers || d.providers.length === 0)) {
                 const legendEl = document.getElementById('walletLegend');
                 legendEl.innerHTML = `
-                    <div class="text-center py-4">
-                        <span class="fas fa-wallet text-muted fs-2 mb-2 d-block"></span>
+                    <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
+                        <span class="fas fa-wallet text-muted fs-2 mb-2"></span>
                         <p class="text-muted fs-11 mb-0">No wallet data available</p>
                         <p class="text-500 fs-10 mb-0">No provider wallets configured</p>
                     </div>
@@ -2939,6 +3735,18 @@ require_once __DIR__ . '/../_guard.php';
             const hourlyBranchFilter = document.getElementById('hourlyBranchFilter');
             if (hourlyBranchFilter) hourlyBranchFilter.value = branchId;
             
+            // Sync with Payment Breakdown branch filter
+            const paymentBreakdownBranchFilter = document.getElementById('paymentBreakdownBranchFilter');
+            if (paymentBreakdownBranchFilter) paymentBreakdownBranchFilter.value = branchId;
+            
+            // Sync with Live Sales branch filter
+            const liveSalesBranchFilter = document.getElementById('liveSalesBranchFilter');
+            if (liveSalesBranchFilter) liveSalesBranchFilter.value = branchId;
+            
+            // Sync with Top Services branch filter
+            const topServicesBranchFilter = document.getElementById('topServicesBranchFilter');
+            if (topServicesBranchFilter) topServicesBranchFilter.value = branchId;
+            
             // Refresh all connected cards
             fetchBranchAnalytics();
             fetchTMSMetrics(currentRange || 'month', branchId || null);
@@ -2946,6 +3754,7 @@ require_once __DIR__ . '/../_guard.php';
                 renderCashierPerformanceChart(data);
             });
             fetchProviderWallets(branchId || null);
+            fetchTodaySalesTarget(branchId || null);
             // Branch-aware cards
             try { fetchTransactionsPerHour(); } catch (e) { console.warn(e); }
             try { fetchPaymentBreakdown();   } catch (e) { console.warn(e); }
@@ -3052,8 +3861,14 @@ require_once __DIR__ . '/../_guard.php';
         
         // Sync branch analytics range selector (if not custom)
         const branchRangeSelector = document.getElementById('branchAnalyticsRange');
-        if (branchRangeSelector && ['today', 'week', 'month', 'year'].includes(range)) {
+        if (branchRangeSelector && ['today', 'week', 'last30days', 'year'].includes(range)) {
             branchRangeSelector.value = range;
+        }
+        
+        // Sync Top Services range selector (if not custom)
+        const topServicesFilter = document.getElementById('topServicesFilter');
+        if (topServicesFilter && ['today', 'week', 'last30days', 'year'].includes(range)) {
+            topServicesFilter.value = range;
         }
         
         // Refresh Branch Analytics with new range
@@ -3063,9 +3878,14 @@ require_once __DIR__ . '/../_guard.php';
         fetchTMSMetrics(range);
         
         // Refresh Cashier Performance with new range
-        if (['today', 'week', 'month', 'year'].includes(range)) {
+        if (['today', 'week', 'last30days', 'year'].includes(range)) {
             const days = rangeToDays(range);
             const branchId = document.getElementById('globalBranchSelector')?.value || null;
+            // Sync Cashier Performance dropdown UI
+            const cashierFilter = document.getElementById('cashierPerformanceFilter');
+            if (cashierFilter) {
+                cashierFilter.value = days;
+            }
             fetchCashierPerformance(days, branchId).then(data => {
                 renderCashierPerformanceChart(data);
             });
@@ -3074,6 +3894,9 @@ require_once __DIR__ . '/../_guard.php';
         // Refresh Provider Wallet Balances with new branch
         const globalBranchId = document.getElementById('globalBranchSelector')?.value || '';
         fetchProviderWallets(globalBranchId);
+        
+        // Refresh Today's Sales Target
+        fetchTodaySalesTarget(globalBranchId || null);
 
         // Refresh Transactions per Hour, Payment Breakdown, Top Services
         try { fetchTransactionsPerHour(); } catch (e) { console.warn(e); }
@@ -3151,14 +3974,14 @@ require_once __DIR__ . '/../_guard.php';
         
         // Sync Branch Analytics range selector (if not custom)
         const branchRangeSelector = document.getElementById('branchAnalyticsRange');
-        if (branchRangeSelector && ['today', 'week', 'month', 'year'].includes(savedRange)) {
+        if (branchRangeSelector && ['today', 'week', 'last30days', 'year'].includes(savedRange)) {
             branchRangeSelector.value = savedRange;
         }
         
         // Sync Cashier Performance filters
         const cashierFilter = document.getElementById('cashierPerformanceFilter');
         const cashierBranchFilter = document.getElementById('cashierPerformanceBranchFilter');
-        if (cashierFilter && ['today', 'week', 'month', 'year'].includes(savedRange)) {
+        if (cashierFilter && ['today', 'week', 'last30days', 'year'].includes(savedRange)) {
             cashierFilter.value = rangeToDays(savedRange);
         }
         if (cashierBranchFilter) {
@@ -3181,18 +4004,24 @@ require_once __DIR__ . '/../_guard.php';
             ? savedRange
             : ({
                 'custom-daily': 'week',
-                'custom-weekly': 'month',
-                'custom-monthly': 'month',
+                'custom-weekly': 'last30days',
+                'custom-monthly': 'last30days',
                 'custom-annual': 'year'
-            }[savedRange] || 'month');
+            }[savedRange] || 'last30days');
         const hourlyFilter = document.getElementById('hourlyFilter');
         const hourlyBranchFilter = document.getElementById('hourlyBranchFilter');
         const pbFilter = document.getElementById('paymentBreakdownFilter');
+        const pbBranchFilter = document.getElementById('paymentBreakdownBranchFilter');
         const tsFilter = document.getElementById('topServicesFilter');
-        if (hourlyFilter && ['today','week','month','year'].includes(effectiveRange)) hourlyFilter.value = effectiveRange;
+        const tsBranchFilter = document.getElementById('topServicesBranchFilter');
+        const lsBranchFilter = document.getElementById('liveSalesBranchFilter');
+        if (hourlyFilter && ['today','week','last30days','year'].includes(effectiveRange)) hourlyFilter.value = effectiveRange;
         if (hourlyBranchFilter) hourlyBranchFilter.value = savedBranch;
-        if (pbFilter && ['today','week','month','year'].includes(effectiveRange)) pbFilter.value = effectiveRange;
-        if (tsFilter && ['today','week','month','year'].includes(effectiveRange)) tsFilter.value = effectiveRange;
+        if (pbFilter && ['today','week','last30days','year'].includes(effectiveRange)) pbFilter.value = effectiveRange;
+        if (pbBranchFilter) pbBranchFilter.value = savedBranch;
+        if (tsFilter && ['today','week','last30days','year'].includes(effectiveRange)) tsFilter.value = effectiveRange;
+        if (tsBranchFilter) tsBranchFilter.value = savedBranch;
+        if (lsBranchFilter) lsBranchFilter.value = savedBranch;
         
         // Refresh all connected cards with restored filter values
         // This ensures charts load with correct saved filters instead of defaults
@@ -3237,6 +4066,8 @@ require_once __DIR__ . '/../_guard.php';
         return `${year}-${month}-${day}`;
     }
     </script>
+  <?php include __DIR__ . '/../includes/body-top.php'; ?>
   </body>
 
+</html>
 </html>

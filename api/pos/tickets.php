@@ -220,11 +220,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             Database::execute(
                 "INSERT INTO pos_order_items
                     (order_id, item_type, reference_id, transaction_code, ticket_number,
-                     accommodation_id, wallet_id, passenger_id, description,
+                     accommodation_id, discount_id, wallet_id, passenger_id, description,
                      unit_price, service_fee, discount_amount, total_amount,
                      origin, destination, travel_date, created_at)
                  VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                         :accommodation_id, :wallet_id, :passenger_id, :description,
+                         :accommodation_id, :discount_id, :wallet_id, :passenger_id, :description,
                          :unit_price, :service_fee, :discount_amount, :total,
                          :origin, :destination, :travel_date, :created_at)",
                 [
@@ -233,6 +233,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     'code'             => $txnCode,
                     'ticket_number'    => $ticket['ticket_number'] ?? $txnCode,
                     'accommodation_id' => !empty($ticket['accommodation_id']) ? intval($ticket['accommodation_id']) : null,
+                    'discount_id'      => !empty($ticket['discount_id']) ? intval($ticket['discount_id']) : null,
                     'wallet_id'        => $ticket['wallet_id'] ?? null,
                     'passenger_id'     => $ticket['passenger_id'] ?? null,
                     'description'      => $ticket['description'] ?? null,

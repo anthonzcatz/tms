@@ -1,157 +1,518 @@
-# System Features Documentation
+# TMS - KEY FEATURES
 
-This document tracks all implemented system features, organized by module and functionality.
+## 1. AUTHENTICATION & SECURITY
 
-## Bank Account Management
+### Description
+Responsible for securing the system, managing user access, authentication, authorization, and activity monitoring.
 
-### Overview
+### Features
+• User registration and management
+• Secure login using JWT + Refresh Tokens
+• Role-based access control (Super Admin, Admin, Manager, Cashier)
+• Permission-based access control
+• Password hashing and encryption
+• Session management
+• Device session tracking
+• Login history monitoring
+• Audit trail for all critical actions
+
+---
+
+## 2. DASHBOARD & ANALYTICS
+
+### Description
+Provides a real-time overview of business operations, sales performance, key business metrics, and sales target tracking.
+
+### Features
+• Today's, Weekly, Monthly, and Yearly Sales
+• Sales Trend Charts
+• Cashier Performance Tracking
+• Total Orders, Revenue, and Average Order Value
+• Transactions per Hour Analysis
+• Sales Target Widget with Achievement Status
+• Date Range Filtering (Today, Last 7 Days, Last 30 Days, This Year)
+• Branch-wise Analytics
+• Payment Method Breakdown
+• Recent Activities Feed
+
+---
+
+## 3. BANK ACCOUNT MANAGEMENT
+
+### Description
 Comprehensive bank account tracking with balance management, transaction logging, and deposit confirmation workflow.
 
-### Features Implemented
+### Features
+• Bank Account Registration and Maintenance
+• Real-time Balance Tracking
+• Bank Transaction Logging
+• Transaction Types: RECEIPT, DISBURSEMENT, DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT, ADJUSTMENT
+• Balance Before/After Tracking
+• Transaction Reference Linking
+• Confirmation Workflow (PENDING, CONFIRMED, REJECTED)
+• Audit Trail (created_by, confirmed_by)
+• Unique Transaction Code Generation
 
-#### 1. Bank Account Balance Tracking
-- **File**: `database/migrations/add_current_balance_to_bank_accounts.sql`
-- **Description**: Added `current_balance` column to `bank_accounts` table
-- **Purpose**: Track real-time balance of each bank account
-- **Default Value**: 0.00
+---
 
-#### 2. Bank Transactions Logging
-- **File**: `database/migrations/create_bank_transactions_table.sql`
-- **Description**: Created `bank_transactions` table to log all bank movements
-- **Columns**:
-  - `bank_txn_id` - Primary key
-  - `bank_account_id` - Foreign key to bank_accounts
-  - `txn_code` - Unique transaction code (format: BANK-YYYYMMDD-HHII-XXXXX)
-  - `txn_type` - Transaction type (RECEIPT, DISBURSEMENT, DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT, ADJUSTMENT)
-  - `direction` - IN or OUT
-  - `amount` - Transaction amount
-  - `balance_before` - Account balance before transaction
-  - `balance_after` - Account balance after transaction
-  - `reference_table` - Source table (transaction_payments, cashier_sessions, etc.)
-  - `reference_id` - Source record ID
-  - `remarks` - Transaction notes
-  - `created_by` - User who created the transaction
-  - `created_at` - Timestamp
-  - `confirmation_status` - PENDING, CONFIRMED, REJECTED
-  - `confirmed_by` - User who confirmed the transaction
-  - `confirmed_at` - Confirmation timestamp
+## 4. BANK TRANSFER & E-WALLET PAYMENT CONFIRMATION
 
-#### 3. Bank Transfer / E-Wallet Payment Confirmation
-- **File**: `api/charges/index.php`
-- **Description**: When a cashier records a bank transfer or e-wallet payment, a bank transaction is created upon confirmation
-- **Flow**:
-  1. Cashier records payment via bank transfer/e-wallet
-  2. Payment is marked as PENDING confirmation
-  3. Manager confirms the payment in bank-confirmations
-  4. Bank transaction is created (RECEIPT type)
-  5. Bank account balance is updated
+### Description
+Manages bank transfer and e-wallet payment confirmation workflow to ensure funds are properly recorded in bank accounts.
 
-#### 4. Shift Cash Deposit Tracking
-- **File**: `database/migrations/add_current_balance_to_bank_accounts.sql`
-- **Description**: Added columns to `cashier_sessions` table to track cash deposits
-- **Columns**:
-  - `cash_deposit_bank_id` - Bank account where cash was deposited
-  - `deposit_status` - PENDING, DEPOSITED, NOT_APPLICABLE
-  - `deposited_at` - Deposit timestamp
-  - `deposited_by` - User who recorded the deposit
+### Features
+• Bank Transfer Payment Recording
+• E-Wallet Payment Recording (GCash, Maya)
+• PENDING Confirmation Status
+• Manager Approval Workflow
+• Automatic Bank Transaction Creation on Confirmation
+• Bank Account Balance Updates
+• Payment Rejection Support
+• Transaction Notes and Remarks
 
-#### 5. POS Session Close with Deposit Options
-- **File**: `admin/pos/views/modals/close_session.php`, `api/pos/sessions.php`
-- **Description**: Added deposit options to session close modal
-- **Features**:
-  - Bank account selection dropdown
-  - "Deposit Now" checkbox
-  - If "Deposit Now" is checked: Creates bank transaction as CONFIRMED, updates balance immediately
-  - If not checked: Marks session as PENDING deposit, can be recorded later
+---
 
-#### 6. Delayed Deposit Recording
-- **File**: `admin/shifts/views/modals/record_deposit.php`, `api/pos/sessions.php`
-- **Description**: Allows recording deposits after session closure
-- **Flow**:
-  1. Manager views closed sessions in shifts page
-  2. Clicks "Record Deposit" on PENDING sessions
-  3. Selects bank account and amount
-  4. Creates bank transaction as PENDING (requires confirmation)
-  5. Bank balance NOT updated until confirmation
+## 5. CASH DEPOSIT TRACKING
 
-#### 7. Deposit Confirmation Workflow
-- **File**: `admin/bank-confirmations/` (controller, view, API)
-- **Description**: Unified confirmation page for both bank transfers and cash deposits
-- **Features**:
-  - Shows both PAYMENT (bank transfers) and DEPOSIT (cash deposits) items
-  - PENDING status for both types
-  - Manager can confirm or reject
-  - On CONFIRM: Bank account balance is updated
-  - On REJECT: Transaction is marked as rejected, balance unchanged
-- **API Endpoints**:
-  - `PUT /api/bank-confirmations` with `payment_id` for payments
-  - `PUT /api/bank-confirmations` with `deposit_id` for deposits
+### Description
+Tracks cash deposits from cashier shifts to bank accounts with confirmation workflow.
 
-#### 8. Shifts Page Deposit Status Display
-- **File**: `admin/shifts/views/index.php`
-- **Description**: Shows deposit status badges on session cards
-- **Features**:
-  - PENDING badge (yellow) for sessions awaiting deposit
-  - DEPOSITED badge (green) for completed deposits
-  - "Record Deposit" button for PENDING sessions
-  - Deposit info in session detail modal
+### Features
+• Shift Cash Deposit Recording
+• Deposit Status Tracking (PENDING, DEPOSITED, NOT_APPLICABLE)
+• Bank Account Selection for Deposits
+• Deposit Now Option (Immediate Confirmation)
+• Delayed Deposit Recording
+• Deposit Confirmation Workflow
+• Deposit Timestamp and User Tracking
+• Deposit History in Shifts Page
 
-### API Endpoints
+---
 
-#### Charges API
-- `POST /api/charges` - Accept payments, creates bank transaction for bank/e-wallet on confirmation
+## 6. BANK CONFIRMATIONS
 
-#### Bank Confirmations API
-- `PUT /api/bank-confirmations` - Confirm or reject payments and deposits
-  - Parameters: `payment_id` OR `deposit_id`, `action` (CONFIRMED/REJECTED), `notes`
+### Description
+Unified confirmation page for both bank transfers/e-wallet payments and cash deposits requiring manager approval.
 
-#### POS Sessions API
-- `PUT /api/pos/sessions` - Close session with deposit options
-  - Parameters: `session_id`, `action: close`, `cash_deposit_bank_id`, `deposit_now`
-  - Parameters: `session_id`, `action: record_deposit`, `bank_account_id`, `deposit_amount`
+### Features
+• Unified View for PAYMENT and DEPOSIT Items
+• PENDING Status Display
+• Type Badges (PAYMENT/DEPOSIT)
+• Confirm or Reject Actions
+• Balance Updates on Confirmation
+• Transaction Notes Support
+• Confirmation History
+• Manager Approval Workflow
 
-### Database Tables
+---
 
-#### bank_accounts
-- Added: `current_balance` (DECIMAL 12,2)
+## 7. SALES TARGETS MANAGEMENT
 
-#### bank_transactions
-- Created: Full transaction logging table
-- Added: `confirmation_status`, `confirmed_by`, `confirmed_at`
+### Description
+Allows setting and tracking daily sales targets per branch with actual sales comparison and achievement status.
 
-#### cashier_sessions
-- Added: `cash_deposit_bank_id`, `deposit_status`, `deposited_at`, `deposited_by`
+### Features
+• Daily Sales Target Setting
+• Monthly Target Configuration
+• Same Target for Whole Month Mode
+• Manual Per-Day Target Mode
+• Branch-wise Targets
+• Date Range Filtering
+• Actual Sales Aggregation
+• Achievement Status (Exceeded, On Target, Below Target)
+• Progress Bar Visualization
+• Target Notes Support
+• Summary Display (Days Set, Total Target)
 
-### User Interface Changes
+---
 
-#### Bank Accounts Settings
-- Display current balance for each account
-- Add/edit accounts with balance tracking
+## 8. PAYMENT MANAGEMENT
 
-#### Shifts Page
-- Deposit status badges
-- Record Deposit modal
-- Deposit info in session detail
+### Description
+Handles all payment transactions including cash, digital wallets, bank payments, split payments, and partial payments.
 
-#### POS Session Close
-- Bank account selection
-- Deposit now checkbox
+### Features
+• Cash Payments
+• GCash Payments
+• Maya Payments
+• Bank Transfer Payments
+• Credit/Debit Cards
+• Split Payments
+• Partial Payments
+• Payment History
+• Payment Confirmation Workflow
+• Payment Method Configuration
 
-#### Bank Confirmations
-- Unified view for payments and deposits
-- Type badges (PAYMENT/DEPOSIT)
-- Confirmation modal for both types
+---
 
-### Security & Permissions
+## 9. POS SESSION MANAGEMENT
 
-- All bank transaction operations require appropriate permissions
-- Confirmation workflow ensures manager approval for deposits
-- Atomic database operations for financial data consistency
-- Audit trail via `created_by`, `confirmed_by` fields
+### Description
+Tracks cashier shifts, cash drawer activities, cash reconciliation, and daily balancing.
 
-### Future Enhancements
+### Features
+• Cash Drawer Control
+• Open/Close Shift
+• Cash In / Cash Out
+• Cash Reconciliation
+• Variance Monitoring
+• Shift Deposit Options
+• Deposit Status Tracking
+• Session History
+• Shift Summary Reports
 
-- Bank transactions history page
-- Bank account statements/reports
-- Transfer between bank accounts
-- Bank reconciliation features
+---
+
+## 10. POS TRANSACTIONS
+
+### Description
+The primary cashier module used to process customer transactions quickly and efficiently.
+
+### Features
+• Touchscreen-Friendly POS Interface
+• Barcode Scanning
+• Product Search
+• Add-ons and Variants Support
+• Discounts
+• Hold and Resume Transactions
+• Receipt Printing
+• Multiple Payment Methods
+• Refund Processing
+• Transaction History
+
+---
+
+## 11. REFUND CONFIRMATIONS
+
+### Description
+Manages refund request confirmation workflow to ensure proper approval and tracking.
+
+### Features
+• Refund Request Recording
+• PENDING Confirmation Status
+• Manager Approval Workflow
+• Refund Reason Tracking
+• Refund Amount Validation
+• Confirmation History
+• Refund Status Updates
+
+---
+
+## 12. BRANCH MANAGEMENT
+
+### Description
+Manages multiple business branches with location tracking and configuration.
+
+### Features
+• Branch Registration
+• Branch Information Management
+• Branch Location Settings
+• Branch Assignment to Users
+• Branch-wise Data Filtering
+• Branch Performance Analytics
+
+---
+
+## 13. PROVIDER WALLET MANAGEMENT
+
+### Description
+Tracks service provider wallet balances and transactions for third-party payment processing.
+
+### Features
+• Provider Wallet Registration
+• Wallet Balance Tracking
+• Wallet Transaction Logging
+• Service Fee Deduction
+• Balance Monitoring
+• Low Balance Alerts
+• Provider Assignment
+• Wallet Transaction History
+
+---
+
+## 14. USER MANAGEMENT
+
+### Description
+Manages system users, roles, permissions, and access control.
+
+### Features
+• User Registration
+• User Profile Management
+• Role Assignment (Super Admin, Admin, Manager, Cashier)
+• Permission Configuration
+• Branch Assignment
+• User Status Management
+• User Activity Tracking
+• Password Management
+
+---
+
+## 15. SYSTEM SETTINGS
+
+### Description
+Provides centralized configuration of business information, payment methods, and application behavior.
+
+### Features
+• Business Information Setup
+• Payment Method Configuration
+• Discount Type Configuration
+• Service Type Configuration
+• Email Settings
+• Branch Configuration
+• Role Dashboard Configuration
+• System-wide Settings
+
+---
+
+## 16. CHARGES & PAYMENTS
+
+### Description
+API endpoint for processing payments and charges with bank transaction integration.
+
+### Features
+• Payment Processing
+• Bank Transaction Creation
+• Payment Confirmation
+• Reference Tracking
+• Transaction Logging
+• Payment Status Updates
+
+---
+
+## 17. ANALYTICS API
+
+### Description
+Provides data endpoints for dashboard analytics and reporting.
+
+### Features
+• Sales Data Aggregation
+• Branch Sales Reporting
+• Date Range Filtering
+• Performance Metrics Calculation
+• Chart Data Generation
+• Real-time Analytics
+
+---
+
+## 18. SALES TARGETS API
+
+### Description
+API endpoints for sales targets CRUD operations and actual sales aggregation.
+
+### Features
+• Target Creation
+• Target Update
+• Target Deletion
+• Date Range Filtering
+• Branch Filtering
+• Actual Sales Calculation
+• Target Aggregation
+• Notes Support
+
+---
+
+## 19. WALLET TRANSACTIONS API
+
+### Description
+API endpoints for provider wallet transaction management.
+
+### Features
+• Wallet Transaction Logging
+• Balance Updates
+• Transaction History
+• Provider Filtering
+• Transaction Type Support
+
+---
+
+## 20. BANK TRANSACTIONS API
+
+### Description
+API endpoints for bank transaction management and balance tracking.
+
+### Features
+• Transaction Creation
+• Balance Updates
+• Transaction History
+• Confirmation Status Management
+• Bank Account Filtering
+• Transaction Type Support
+
+---
+
+## 21. DISCOUNT TYPES MANAGEMENT
+
+### Description
+Manages discount types and configurations for the system.
+
+### Features
+• Discount Type Registration
+• Default Discount Type Setting
+• Discount Type Configuration
+• Discount Type Assignment
+• Discount Type Filtering
+
+---
+
+## 22. EMAIL SETTINGS
+
+### Description
+Configures email settings for system notifications and communications.
+
+### Features
+• SMTP Configuration
+• Email Template Setup
+• Notification Settings
+• Email Testing
+• Email History
+
+---
+
+## 23. PERMISSIONS MANAGEMENT
+
+### Description
+Manages system permissions and access control for different user roles.
+
+### Features
+• Permission Definition
+• Role-Based Permissions
+• Module Access Control
+• Permission Assignment
+• Permission Groups
+
+---
+
+## 24. ROLE DASHBOARDS
+
+### Description
+Configures default dashboards for different user roles.
+
+### Features
+• Role Dashboard Assignment
+• Dashboard Configuration
+• Role-Based Dashboard Routing
+• Dashboard Customization
+
+---
+
+## 25. SERVICE TYPES
+
+### Description
+Manages service types for the system.
+
+### Features
+• Service Type Registration
+• Service Type Configuration
+• Service Type Assignment
+• Service Type Filtering
+
+---
+
+## 26. ACCOMMODATION TYPES
+
+### Description
+Manages accommodation types for the system.
+
+### Features
+• Accommodation Type Registration
+• Accommodation Type Configuration
+• Accommodation Type Assignment
+• Accommodation Type Filtering
+
+---
+
+## 27. CASHIER PROVIDER ASSIGNMENTS
+
+### Description
+Manages assignment of cashiers to payment providers.
+
+### Features
+• Cashier-Provider Assignment
+• Provider Selection
+• Cashier Assignment
+• Assignment History
+• Assignment Filtering
+
+---
+
+## 28. DEVICES MANAGEMENT
+
+### Description
+Manages devices and terminals for the system.
+
+### Features
+• Device Registration
+• Device Configuration
+• Terminal Assignment
+• Device Status Tracking
+• Device History
+
+---
+
+## 29. PROVIDER SERVICE FEES
+
+### Description
+Manages service fees for payment providers.
+
+### Features
+• Service Fee Configuration
+• Provider Fee Setup
+• Fee Calculation Rules
+• Fee History
+• Fee Reporting
+
+---
+
+## 30. TICKET PROVIDERS
+
+### Description
+Manages ticket providers for the system.
+
+### Features
+• Ticket Provider Registration
+• Provider Configuration
+• Provider Assignment
+• Provider Status Tracking
+• Provider History
+
+---
+
+## 31. ROLES MANAGEMENT
+
+### Description
+Manages user roles and role-based access control.
+
+### Features
+• Role Registration
+• Role Configuration
+• Role Assignment
+• Role Permissions
+• Role History
+
+---
+
+## 32. IMAGES API
+
+### Description
+API endpoints for image upload and management.
+
+### Features
+• Image Upload
+• Image Storage
+• Image Retrieval
+• Image Deletion
+• Image Compression
+
+---
+
+## 33. PSGC API
+
+### Description
+API endpoints for Philippine Standard Geographic Code data.
+
+### Features
+• Region Data
+• Province Data
+• City/Municipality Data
+• Barangay Data
+• Geographic Code Lookup

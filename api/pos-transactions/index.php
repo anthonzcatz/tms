@@ -224,6 +224,10 @@ $rows = Database::fetchAll(
          FROM pos_order_items oi9
          LEFT JOIN accommodation_types at ON oi9.accommodation_id = at.accommodation_id
          WHERE oi9.order_id = o.order_id AND oi9.accommodation_id IS NOT NULL) AS accommodation_names,
+        (SELECT GROUP_CONCAT(DISTINCT dt.name SEPARATOR ', ')
+         FROM pos_order_items oi10
+         LEFT JOIN discount_types dt ON oi10.discount_id = dt.discount_id
+         WHERE oi10.order_id = o.order_id AND oi10.discount_id IS NOT NULL) AS discount_names,
         (SELECT COUNT(*)
          FROM pos_order_items oi7
          LEFT JOIN ticket_transactions tt7 ON oi7.reference_id = tt7.transaction_id AND oi7.item_type = 'TICKET'

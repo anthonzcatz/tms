@@ -245,7 +245,8 @@
                 <div class="col-4"><a class="d-block hover-bg-200 px-2 py-3 rounded-3 text-center text-decoration-none" href="<?php echo BASE_URL; ?>/admin/user/">
                     <div class="avatar avatar-2xl">
                       <?php if ($profileImage): ?>
-                        <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="" />
+                        <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                        <div class="avatar-name rounded-circle" style="display:none;"><span><?php echo $initials; ?></span></div>
                       <?php else: ?>
                         <div class="avatar-name rounded-circle"><span><?php echo $initials; ?></span></div>
                       <?php endif; ?>
@@ -322,7 +323,10 @@
     <li class="nav-item dropdown"><a class="nav-link pe-0 ps-2" id="navbarDropdownUserTopIcons" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
       <div class="avatar avatar-xl">
         <?php if ($profileImage): ?>
-          <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" style="width: 40px; height: 40px; object-fit: cover;" />
+          <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" style="width: 40px; height: 40px; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+          <div class="avatar-name rounded-circle bg-primary-subtle text-primary align-items-center justify-content-center fw-bold" style="width: 40px; height: 40px; display:none !important;">
+            <?php echo $initials; ?>
+          </div>
         <?php else: ?>
           <div class="avatar-name rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold" style="width: 40px; height: 40px;">
             <?php echo $initials; ?>

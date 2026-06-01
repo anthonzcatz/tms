@@ -99,6 +99,10 @@ try {
                 $startDate = date('Y-m-01'); // First day of current month
                 $days = (int)date('t'); // Days in current month
                 break;
+            case 'last30days':
+                $startDate = date('Y-m-d', strtotime('-29 days')); // Last 30 days including today
+                $days = 30;
+                break;
             case 'year':
                 $startDate = date('Y-01-01'); // January 1st of current year
                 $days = (int)date('z') + 1; // Day of year (1-365/366)

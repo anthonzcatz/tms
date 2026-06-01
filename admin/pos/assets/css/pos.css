@@ -51,12 +51,17 @@
 /* Tablet and below - stack layout */
 @media (max-width: 991px) {
     .pos-layout {
-        grid-template-columns: 1fr;
+        display: flex !important;
+        flex-direction: column !important;
+        grid-template-columns: none;
     }
     .cart-panel {
         position: relative !important;
         top: 0 !important;
-        order: -1;
+        width: 100% !important;
+    }
+    .cart-panel .card {
+        width: 100% !important;
     }
 }
 
@@ -123,6 +128,90 @@
     .cart-panel .card-body {
         min-height: 120px;
         max-height: 250px;
+    }
+
+    /* Header buttons responsive */
+    .card-header .col-auto.d-flex.gap-2 {
+        gap: 0.35rem !important;
+    }
+
+    .card-header .col-auto.d-flex.gap-2 .btn,
+    .card-header .col-auto.d-flex.gap-2 a {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* Session banner responsive */
+    .session-banner .card-body .row {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+
+    .session-banner .card-body .col {
+        width: 100%;
+    }
+
+    /* Transaction type buttons */
+    #btnTicketType,
+    #btnServiceType,
+    #btnTransactionType {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    /* Cart totals responsive */
+    .cart-totals {
+        padding: 0.75rem;
+    }
+
+    .cart-totals .grand-total {
+        font-size: 1rem;
+    }
+
+    /* Payment method buttons */
+    .payment-method-btn {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    /* Alert responsive */
+    .alert.d-flex {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+
+    .alert .flex-grow-1 {
+        width: 100%;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 576px) {
+    /* Transaction section cards */
+    #ticketSection,
+    #serviceSection,
+    #transactionSection {
+        min-height: auto;
+    }
+
+    /* Icon circles */
+    .icon-circle {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+
+    /* Cart panel */
+    .cart-panel .card-body {
+        max-height: 200px;
+    }
+
+    /* Numpad buttons */
+    .numpad-btn {
+        padding: 10px 0;
+        font-size: 1rem;
     }
 }
 

@@ -64,14 +64,7 @@ if (!defined('NAVBAR_POSITION')) {
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(__DIR__) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(__DIR__) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(__DIR__) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(__DIR__) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(__DIR__) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(__DIR__) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -85,7 +78,7 @@ if (!defined('NAVBAR_POSITION')) {
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
         <!-- Maintenance Content -->
         <div class="row g-3 mb-3">
           <div class="col-12">
@@ -157,6 +150,9 @@ if (!defined('NAVBAR_POSITION')) {
       </div>
     </main>
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
     <?php include dirname(__DIR__) . '/includes/scripts.php'; ?>
     <script>
@@ -192,5 +188,6 @@ if (!defined('NAVBAR_POSITION')) {
         setInterval(updateCountdown, 1000);
         <?php endif; ?>
     </script>
+    <?php include __DIR__ . '/body-top.php'; ?>
   </body>
 </html>

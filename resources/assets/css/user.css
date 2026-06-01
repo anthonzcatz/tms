@@ -33,11 +33,15 @@ body {
   object-fit: contain;
 }
 
-/* Ensure the top navbar stays sticky at the top across all screen sizes and configurations */
-.navbar-top {
+/* Ensure container allows sticky positioning for vertical navbar */
+.container[data-layout="container"] {
+  overflow: visible !important;
+}
+
+/* Ensure navbar-top is sticky in vertical layout */
+.navbar-vertical.navbar-expand-xl + .content .navbar-top {
   position: sticky !important;
   top: 0 !important;
-  z-index: 1020 !important;
 }
 
 /* Base for all top-bar logos */

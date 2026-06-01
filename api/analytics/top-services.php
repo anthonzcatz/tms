@@ -72,6 +72,9 @@ try {
     } elseif ($range === 'week') {
         $posDateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
         $ticketDateWhere = "AND tt.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+    } elseif ($range === 'last30days') {
+        $posDateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        $ticketDateWhere = "AND tt.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
     } elseif ($range === 'month') {
         $posDateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
         $ticketDateWhere = "AND tt.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";

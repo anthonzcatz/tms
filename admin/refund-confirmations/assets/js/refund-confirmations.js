@@ -287,34 +287,27 @@ function renderTable(rows) {
                  })}' onclick="handleReviewClick(this)"><span class="fas fa-check-double me-1"></span>Review</button>`
             : `<span class="text-muted small">Reviewed</span>`;
 
-        const ticketNumberDisplay = c.ticket_number ? `<div class="small text-info"><i class="fas fa-ticket-alt me-1"></i>Ticket #: ${esc(c.ticket_number)}</div>` : '';
+        const ticketNumberDisplay = c.ticket_number ? `<div class="small text-info"><i class="fas fa-ticket-alt me-1"></i>${esc(c.ticket_number)}</div>` : '';
+        const amountDisplay = c.refund_amount ? `<div class="fw-semibold text-success">₱${parseFloat(c.refund_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>` : '';
         return `<tr>
             <td class="ps-3 py-3">
                 <div class="fw-semibold">${esc(c.transaction_code)}</div>
                 ${ticketNumberDisplay}
-                <div class="text-muted small">${esc(c.provider_name || '—')}</div>
-                <div class="text-muted" style="font-size:.75rem">${esc(c.branch_name || '—')}</div>
-                <div class="text-muted" style="font-size:.75rem">${requestedAt}</div>
             </td>
             <td class="py-3">
                 <div class="fw-semibold small">${esc(c.passenger_name || '—')}</div>
-                ${c.origin && c.destination ? `<div class="text-muted small">${esc(c.origin)} → ${esc(c.destination)}</div>` : ''}
-                ${travelDate ? `<div class="text-muted" style="font-size:.75rem">Travel: ${travelDate}</div>` : ''}
             </td>
             <td class="py-3">
-                ${refundBreakdown}
+                ${amountDisplay}
                 <div class="small mt-1"><span class="badge bg-soft-primary text-primary">${esc(c.cancellation_type)}</span></div>
-                ${c.reason ? `<div class="mt-1 text-muted small text-truncate" style="max-width:200px" title="${esc(c.reason)}">${esc(c.reason)}</div>` : '<div class="text-muted small">No reason</div>'}
             </td>
             <td class="py-3">
                 <div class="fw-semibold small">${esc(c.requested_by_name || '—')}</div>
-                ${approvedAt ? `<div class="text-muted" style="font-size:.75rem">By: ${esc(c.approved_by_name || '—')}</div><div class="text-muted" style="font-size:.75rem">${approvedAt}</div>` : ''}
             </td>
             <td class="py-3">
                 <span class="badge status-badge-${c.status} fs-10 px-3 py-2">
                     <span class="fas ${icon} me-1"></span>${c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                 </span>
-                ${c.rejection_reason ? `<div class="text-muted small mt-1 text-truncate" style="max-width:120px" title="${esc(c.rejection_reason)}">${esc(c.rejection_reason)}</div>` : ''}
             </td>
             <td class="py-3 text-end pe-3">${reviewBtn}</td>
         </tr>`;
@@ -327,8 +320,6 @@ function renderPagination(pg) {
     document.getElementById('tableInfo').textContent = total > 0
         ? `Showing ${from}–${to} of ${total} request${total !== 1 ? 's' : ''}`
         : 'No requests found';
-    document.getElementById('paginationInfo').textContent = total > 0
-        ? `Page ${current_page} of ${total_pages}` : '';
 
     const ul = document.getElementById('pagination');
     if (total_pages <= 1) { ul.innerHTML = ''; return; }

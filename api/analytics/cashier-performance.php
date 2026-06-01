@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -21,8 +22,16 @@ try {
     if ($days > 90) $days = 90; // Max 3 months
     if ($days < 1) $days = 7;
 
-    // Get branch filter
-    $branchId = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
+    // Get branch filter and decode it
+    $branchIdRaw = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
+    $branchId = null;
+    
+    if ($branchIdRaw) {
+        $decodedBranchId = IdEncoder::decode($branchIdRaw);
+        if ($decodedBranchId !== false) {
+            $branchId = $decodedBranchId;
+        }
+    }
 
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
@@ -172,9 +181,15 @@ try {
     // Get branches for filter dropdown
     $branches = [];
     if ($userRoleCode === 'SUPER_ADMIN') {
-        $branches = Database::fetchAll(
+        $rawBranches = Database::fetchAll(
             "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
         );
+        $branches = array_map(function($b) {
+            return [
+                'id' => IdEncoder::encode($b['branch_id']),
+                'name' => $b['branch_name']
+            ];
+        }, $rawBranches);
     } elseif ($userBranchId) {
         $branchIds = array_map('trim', explode(',', $userBranchId));
         $namedParams = [];
@@ -182,10 +197,16 @@ try {
             $namedParams['bid_' . $i] = $bid;
         }
         $placeholders = implode(',', array_keys($namedParams));
-        $branches = Database::fetchAll(
+        $rawBranches = Database::fetchAll(
             "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders) AND status = 'active' ORDER BY branch_name",
             $namedParams
         );
+        $branches = array_map(function($b) {
+            return [
+                'id' => IdEncoder::encode($b['branch_id']),
+                'name' => $b['branch_name']
+            ];
+        }, $rawBranches);
     }
 
     echo json_encode([

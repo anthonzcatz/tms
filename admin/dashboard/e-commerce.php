@@ -24,15 +24,7 @@ require_once __DIR__ . '/../_guard.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include __DIR__ . '/../includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include __DIR__ . '/../includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include __DIR__ . '/../includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
-          <?php
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include __DIR__ . '/../includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include __DIR__ . '/../includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include __DIR__ . '/../includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content"><?php
           switch (NAVBAR_POSITION) {
               case 'combo':
                   include __DIR__ . '/../includes/navbar-top.php';
@@ -45,7 +37,7 @@ require_once __DIR__ . '/../_guard.php';
               default:
                   break;
           }
-          ?>
+          ?><?php endif; ?>
           <div class="row g-3 mb-3">
             <div class="col-xxl-6 col-xl-12">
               <div class="row g-3">
@@ -1073,7 +1065,9 @@ require_once __DIR__ . '/../_guard.php';
     <!-- ===============================================-->
     <!--    End of Main Content-->
     <!-- ===============================================-->
-
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 
 
@@ -1092,7 +1086,7 @@ require_once __DIR__ . '/../_guard.php';
     <script src="<?php echo BASE_URL; ?>/resources/vendors/lodash/lodash.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/resources/vendors/list.js/list.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/resources/assets/js/theme.js"></script>
-
+    <?php include __DIR__ . '/../includes/body-top.php'; ?>
   </body>
 
 </html>

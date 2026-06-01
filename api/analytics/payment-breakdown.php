@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -18,7 +19,16 @@ try {
 
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
-    $filterBranchId = isset($_GET['branch_id']) && $_GET['branch_id'] !== '' ? $_GET['branch_id'] : null;
+    $filterBranchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== '' ? $_GET['branch_id'] : null;
+
+    // Decode branch_id if provided
+    $filterBranchId = null;
+    if ($filterBranchIdRaw) {
+        $decodedBranchId = IdEncoder::decode($filterBranchIdRaw);
+        if ($decodedBranchId !== false) {
+            $filterBranchId = $decodedBranchId;
+        }
+    }
 
     // Build branch restriction
     $branchWhere = '';
@@ -63,6 +73,8 @@ try {
         $dateWhere = "AND DATE(po.created_at) = CURDATE()";
     } elseif ($range === 'week') {
         $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+    } elseif ($range === 'last30days') {
+        $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
     } elseif ($range === 'month') {
         $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
     } elseif ($range === 'year') {

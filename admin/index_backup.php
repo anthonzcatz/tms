@@ -17,9 +17,7 @@
  container.classList.remove('container');
  container.classList.add('container-fluid');
  }
- </script>
- <?php include 'includes/sidebar.php'; ?>
- <div class="content"><?php include 'includes/navbar.php'; ?>
+ </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include 'includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include 'includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include 'includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content"><?php include 'includes/navbar.php'; ?>
  <div class="row g-3 mb-3">
  <div class="col-xxl-8">
  <div class="card overflow-hidden mb-3">
@@ -777,6 +775,7 @@
  </div>
  </div>
  </div>
+ </div>
  </main>
  <!-- ===============================================-->
  <!-- End of Main Content-->
@@ -898,7 +897,9 @@
  <!-- ===============================================-->
  <!-- JavaScripts-->
  <!-- ===============================================-->
+<?php endif; ?>
 <?php include 'includes/scripts.php'; ?>
+<?php include 'includes/body-top.php'; ?>
 
  </body>
 

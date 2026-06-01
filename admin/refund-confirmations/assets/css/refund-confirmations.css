@@ -75,3 +75,95 @@
 .cancellation-row:hover {
     background-color: #f8f9fa;
 }
+
+/* Mobile-first responsive styles */
+@media (max-width: 576px) {
+    /* Stats cards */
+    .card-header h6 {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+    }
+
+    .card-body .fs-5 {
+        font-size: 1.1rem;
+    }
+
+    .card-body .fs-6 {
+        font-size: 0.95rem;
+    }
+
+    .card-body .fs-4 {
+        font-size: 1.25rem;
+    }
+
+    .card-body .mt-n4 {
+        margin-top: -0.25rem;
+    }
+
+    .card-body {
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Filter card */
+    .card-body.py-3 {
+        padding: 0.75rem 1rem;
+    }
+
+    .form-label {
+        font-size: 0.75rem;
+    }
+
+    .form-select,
+    .form-control {
+        font-size: 0.85rem;
+        padding: 0.375rem 0.75rem;
+    }
+
+    /* Table card header */
+    .card-header.bg-body-tertiary {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .search-box {
+        min-width: 100%;
+    }
+
+    .search-input {
+        font-size: 0.85rem;
+        padding: 0.375rem 0.75rem 0.375rem 2.25rem;
+    }
+
+    .search-icon {
+        left: 0.75rem;
+        font-size: 0.75rem;
+    }
+
+    /* Table */
+    .table th,
+    .table td {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Pagination */
+    .card-footer {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .pagination-sm .page-link {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* How it works card */
+    .card-body ul li {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Stats cards - 2 per row on tablet */
+    .col-sm-6 {
+        width: 50%;
+    }
+}

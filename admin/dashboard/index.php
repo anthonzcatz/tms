@@ -23,10 +23,20 @@ require_once dirname(__DIR__) . '/admin/_guard.php';
                     container.classList.remove('container');
                     container.classList.add('container-fluid');
                 }
-            </script>
-            <?php include __DIR__ . '/../includes/sidebar.php'; ?>
-            <div class="content">
-          <?php include __DIR__ . '/../includes/navbar.php'; ?>
+            </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include __DIR__ . '/../includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include __DIR__ . '/../includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include __DIR__ . '/../includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content"><?php
+              switch (NAVBAR_POSITION) {
+                  case 'combo':
+                      include __DIR__ . '/../includes/navbar-top.php';
+                      break;
+                  case 'vertical':
+                      include __DIR__ . '/../includes/navbar.php';
+                      break;
+                  case 'top':
+                  case 'double-top':
+                  default:
+                      break;
+              }
+              ?><?php endif; ?>
                 <div class="row g-3 mb-3">
                     <div class="col-xxl-8">
                         <div class="card overflow-hidden mb-3">
@@ -905,6 +915,9 @@ require_once dirname(__DIR__) . '/admin/_guard.php';
     <!-- ===============================================-->
     <!-- End of Main Content-->
     <!-- ===============================================-->
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
 
 
     <div class="offcanvas offcanvas-end settings-panel border-0" id="settings-offcanvas" tabindex="-1"
@@ -1073,6 +1086,7 @@ require_once dirname(__DIR__) . '/admin/_guard.php';
     <!-- JavaScripts-->
     <!-- ===============================================-->
     <?php include 'includes/scripts.php'; ?>
+    <?php include 'includes/body-top.php'; ?>
 
 </body>
 

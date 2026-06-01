@@ -7,10 +7,10 @@ $navMenu = SidebarHelper::renderTopNav();
     <div class="d-flex flex-between-center">
       <div class="d-flex align-items-center">
         <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarDoubleTop" aria-controls="navbarDoubleTop" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
-        <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">
+        <a class="navbar-brand me-1 me-sm-3" href="#">
           <div class="d-flex align-items-center">
-            <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" />
-            <span class="font-sans-serif text-primary"><?php echo $systemName; ?></span>
+            <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" />
+            <span class="font-sans-serif text-primary d-none d-sm-block"><?php echo $systemName; ?></span>
           </div>
         </a>
       </div>

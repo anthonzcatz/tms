@@ -323,6 +323,9 @@ function renderTable(rows) {
         const accommodationLine = txn.accommodation_names
             ? `<div class="text-muted" style="font-size:.7rem"><span class="fas fa-bed me-1"></span>${esc(txn.accommodation_names)}</div>`
             : '';
+        const discountLine = txn.discount_names
+            ? `<div class="text-success" style="font-size:.7rem"><span class="fas fa-percent me-1"></span>${esc(txn.discount_names)}</div>`
+            : '';
         const providerLine = txn.provider_names
             ? `<div class="text-muted" style="font-size:.72rem">${esc(txn.provider_names)}</div>`
             : '';
@@ -370,6 +373,7 @@ function renderTable(rows) {
             <td class="py-2">
                 ${passengerLine}
                 ${accommodationLine}
+                ${discountLine}
                 ${providerLine}
                 ${routeLine}
             </td>
@@ -483,6 +487,7 @@ function renderDetailModal(txn) {
                         ${item.origin && item.destination ? `<div class="text-muted small mb-1"><span class="fas fa-route me-1"></span>${esc(item.origin)} → ${esc(item.destination)}</div>` : ''}
                         ${item.travel_date ? `<div class="text-muted small mb-1"><span class="fas fa-calendar me-1"></span>Travel: ${formatDate(item.travel_date)}</div>` : ''}
                         ${item.accommodation_name ? `<div class="text-muted small mb-1"><span class="fas fa-bed me-1"></span>${esc(item.accommodation_name)}</div>` : ''}
+                        ${item.discount_name ? `<div class="text-success small mb-1"><span class="fas fa-percent me-1"></span>${esc(item.discount_name)}</div>` : ''}
                         ${item.provider_name ? `<div class="text-muted small mb-1"><span class="fas fa-building me-1"></span>${esc(item.provider_name)}</div>` : ''}
                         ${item.service_name ? `<div class="text-muted small mb-1"><span class="fas fa-cog me-1"></span>${esc(item.service_name)}</div>` : ''}
                         ${item.ticket_status ? `<span class="badge status-badge-${item.ticket_status} mt-1" style="font-size:0.65rem">${esc(item.ticket_status)}</span>` : ''}
@@ -893,7 +898,7 @@ function printTransactions() {
             <img src="${window.BASE_URL}/api/images/logo/logo_1779670787_4364a51c.png" alt="Logo" onerror="this.style.display='none'" />
         </div>
         <div class="text-section">
-            <h2>POS TRANSACTIONS REPORT</h2>
+            <h2 style="font-family: Arial, sans-serif; font-weight: normal;">POS TRANSACTIONS REPORT</h2>
             <div class="description">Comprehensive report of all point-of-sale transactions</div>
             <div class="meta">${filterDisplay}</div>
         </div>

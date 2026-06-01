@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -17,9 +18,18 @@ try {
     }
 
     $range = isset($_GET['range']) ? $_GET['range'] : 'today';
-    $branchId = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
+    $branchIdRaw = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
+
+    // Decode branch_id if provided
+    $branchId = null;
+    if ($branchIdRaw) {
+        $decodedBranchId = IdEncoder::decode($branchIdRaw);
+        if ($decodedBranchId !== false) {
+            $branchId = $decodedBranchId;
+        }
+    }
 
     // Build branch restriction
     $branchWhere = '';
@@ -85,8 +95,13 @@ try {
         }
     } elseif ($range === 'week') {
         $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-        for ($i = 6; $i >= 0; $i--) {
+        for ($i = 0; $i <= 6; $i++) {
             $labels[] = date('D', strtotime("-$i days"));
+        }
+    } elseif ($range === 'last30days') {
+        $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        for ($i = 29; $i >= 0; $i--) {
+            $labels[] = date('M d', strtotime("-$i days"));
         }
     } elseif ($range === 'month') {
         $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
@@ -174,6 +189,11 @@ try {
             }
         } elseif ($range === 'week') {
             for ($i = 6; $i >= 0; $i--) {
+                $date = date('Y-m-d', strtotime("-$i days"));
+                $data[] = $dataMap[$date] ?? 0;
+            }
+        } elseif ($range === 'last30days') {
+            for ($i = 29; $i >= 0; $i--) {
                 $date = date('Y-m-d', strtotime("-$i days"));
                 $data[] = $dataMap[$date] ?? 0;
             }

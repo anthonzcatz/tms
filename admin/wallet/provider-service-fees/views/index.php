@@ -16,14 +16,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -37,7 +30,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
         <!-- Header Card -->
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -47,10 +40,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <!--/.bg-holder-->
               <div class="card-header z-1">
                 <div class="row flex-between-center gx-0">
-                  <div class="col-lg-auto d-flex align-items-center"><img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                  <div class="col-lg-auto d-flex align-items-center"><img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Provider <span class="text-info fw-medium">Service Fees</span></h4>
-                      <h6 class="mb-1 text-primary">
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a>Home</a></li>
@@ -63,7 +56,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   </div>
                   <div class="col-lg-auto mt-3 mt-lg-0">
                     <button class="btn btn-primary" onclick="openAddFeeModal()">
-                      <span class="fas fa-plus me-2"></span>Add Service Fee
+                      <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Service Fee</span>
                     </button>
                   </div>
                 </div>
@@ -188,7 +181,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <div class="card mb-3">
           <div class="card-body py-3">
             <div class="row g-3 align-items-center">
-              <div class="col-md-3">
+              <div class="col-12 col-md-3">
                 <div class="search-box">
                   <input type="text" class="form-control search-input" id="filterSearch" placeholder="Search fees..." onkeyup="applyFilters()">
                   <span class="fas fa-search search-icon"></span>
@@ -310,7 +303,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 
     <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-service-fees/assets/js/provider-service-fees.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-service-fees.js'); ?>"></script>
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
   </body>
 </html>

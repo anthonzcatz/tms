@@ -33,7 +33,7 @@ $showSidebar = in_array($navbarPosition, ['vertical', 'combo'], true);
             </div>
             <a class="navbar-brand" href="<?php echo BASE_URL; ?>/admin">
               <div class="d-flex align-items-center py-3">
-                <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" />
+                <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" />
                 <span class="font-sans-serif text-primary"><?php echo $systemName; ?></span>
               </div>
             </a>

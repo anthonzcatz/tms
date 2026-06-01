@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -21,7 +22,16 @@ try {
 
     // Get filter parameters
     $range = $_GET['range'] ?? 'month'; // today, week, month, year
-    $branchId = $_GET['branch_id'] ?? null;
+    $branchIdRaw = $_GET['branch_id'] ?? null;
+
+    // Decode branch_id if provided
+    $branchId = null;
+    if ($branchIdRaw) {
+        $decodedBranchId = IdEncoder::decode($branchIdRaw);
+        if ($decodedBranchId !== false) {
+            $branchId = $decodedBranchId;
+        }
+    }
 
     // Build branch restriction
     $branchWhere = '';
@@ -90,6 +100,10 @@ try {
             case 'week':
                 $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
                 $trendDays = 7;
+                break;
+            case 'last30days':
+                $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+                $trendDays = 30;
                 break;
             case 'month':
                 $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";

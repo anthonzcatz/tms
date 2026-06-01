@@ -16,14 +16,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -37,7 +30,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
         <!-- Header Card -->
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -47,10 +40,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <!--/.bg-holder-->
               <div class="card-header z-1">
                 <div class="row flex-between-center gx-0">
-                  <div class="col-lg-auto d-flex align-items-center"><img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                  <div class="col-lg-auto d-flex align-items-center"><img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Business <span class="text-info fw-medium">Branches</span></h4>
-                      <h6 class="mb-1 text-primary">
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a>Home</a></li>
@@ -63,7 +56,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   </div>
                   <div class="col-lg-auto d-flex align-items-center mt-3 mt-lg-0">
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBranchModal">
-                      <span class="fas fa-plus me-2"></span>Add Branch
+                      <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Branch</span>
                     </button>
                   </div>
                 </div>
@@ -375,7 +368,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 
     <script src="<?php echo BASE_URL; ?>/admin/settings/branches/assets/js/branches.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/branches.js'); ?>"></script>
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
   </body>
 </html>

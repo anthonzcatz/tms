@@ -22,14 +22,7 @@ if (!defined('NAVBAR_POSITION')) {
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -43,7 +36,7 @@ if (!defined('NAVBAR_POSITION')) {
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
           
           <div class="row g-4 mb-4">
             <!-- Header Card -->
@@ -56,10 +49,10 @@ if (!defined('NAVBAR_POSITION')) {
                 <div class="card-header z-1">
                   <div class="row flex-between-center gx-0">
                     <div class="col-lg-auto d-flex align-items-center">
-                      <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                      <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                       <div class="ms-x1">
                         <h4 class="mb-0 text-primary fw-bold">Permission <span class="text-info fw-medium">Management</span></h4>
-                        <h6 class="mb-1 text-primary">
+                        <h6 class="mb-1 text-primary d-none d-sm-block">
                           <nav aria-label="breadcrumb">
                             <ol class="breadcrumb mb-0">
                               <li class="breadcrumb-item"><a>Home</a></li>
@@ -307,7 +300,7 @@ if (!defined('NAVBAR_POSITION')) {
                         <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
                           <h5 class="mb-0 fw-bold">User Roles</h5>
                           <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addRoleModal">
-                            <span class="fas fa-plus me-1"></span> Add Role
+                            <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Role</span>
                           </button>
                         </div>
                         <div class="card-body">
@@ -361,7 +354,7 @@ if (!defined('NAVBAR_POSITION')) {
                               <small class="text-muted">Manage permissions organized by module</small>
                             </div>
                             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPermissionModal">
-                              <span class="fas fa-plus me-1"></span> Add Permission
+                              <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Permission</span>
                             </button>
                           </div>
                         </div>
@@ -516,6 +509,9 @@ if (!defined('NAVBAR_POSITION')) {
 
           </div>
 
+          <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+          </div>
+          <?php endif; ?>
           <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
         </div>
       </div>
@@ -658,5 +654,6 @@ if (!defined('NAVBAR_POSITION')) {
     </script>
 
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
   </body>
 </html>

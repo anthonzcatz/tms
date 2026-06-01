@@ -15,13 +15,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
 
       <div class="content">
         <?php
@@ -31,7 +25,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             case 'vertical':
                 include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Header Card -->
         <div class="row g-4 mb-4">
@@ -41,10 +35,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header z-1">
                 <div class="row flex-between-center gx-0">
                   <div class="col-lg-auto d-flex align-items-center">
-                    <img class="me-2" style="max-height: 48px; max-width: 48px; object-fit: contain;" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" onerror="this.src='<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/falcon.png'" alt="" />
+                    <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
-                      <h4 class="mb-0 text-primary fw-bold"><span class="text-info fw-medium"><?php echo $systemName; ?></span> POS Transactions</h4>
-                      <h6 class="mb-1 text-primary">
+                      <h4 class="mb-0 text-primary fw-bold">POS Transactions</h4>
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a>Home</a></li>
@@ -271,6 +265,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     </div>
   </div>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
   <script>
@@ -281,5 +278,6 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     };
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/transactions/assets/js/pos-transactions.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos-transactions.js'); ?>"></script>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

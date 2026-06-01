@@ -14,14 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
@@ -29,7 +22,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
             case 'vertical':
                 include dirname(dirname(__DIR__)) . '/includes/navbar.php'; break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Header Card -->
         <div class="row g-4 mb-4">
@@ -39,10 +32,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           <div class="card-header z-1">
             <div class="row flex-between-center gx-0">
               <div class="col-lg-auto d-flex align-items-center">
-                <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                 <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Refund <span class="text-info fw-medium">Confirmations</span></h4>
-                  <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
+                  <h6 class="mb-1 text-primary d-none d-sm-block">  <nav aria-label="breadcrumb">
                   <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a >Home</a></li>
                     <li class="breadcrumb-item active">Refund Confirmations</li>
@@ -59,7 +52,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
         <!-- Stats Cards (populated via AJAX) -->
         <div class="row g-3 mb-3">
-          <div class="col-sm-6 col-md-3">
+          <div class="col-12 col-md-3">
             <div class="card h-md-100">
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Pending</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
@@ -70,7 +63,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               </div>
             </div>
           </div>
-          <div class="col-sm-6 col-md-3">
+          <div class="col-12 col-md-3">
             <div class="card h-md-100">
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Pending Amount</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
@@ -81,7 +74,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               </div>
             </div>
           </div>
-          <div class="col-sm-6 col-md-3">
+          <div class="col-12 col-md-3">
             <div class="card h-md-100">
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Approved</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
@@ -92,7 +85,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               </div>
             </div>
           </div>
-          <div class="col-sm-6 col-md-3">
+          <div class="col-12 col-md-3">
             <div class="card h-md-100">
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Rejected</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
@@ -128,15 +121,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           <div class="card-body py-3">
             <div id="filterForm">
               <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                  <label class="form-label small fw-semibold mb-1">Search</label>
-                  <div class="search-box">
-                    <input type="text" class="form-control search-input" id="filterSearch"
-                           placeholder="Transaction, passenger, cashier...">
-                    <span class="fas fa-search search-icon"></span>
-                  </div>
-                </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                   <label class="form-label small fw-semibold mb-1">Status</label>
                   <select class="form-select" id="filterStatus">
                     <option value="pending" selected>Pending</option>
@@ -147,7 +132,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   </select>
                 </div>
                 <?php if ($userRoleCode === 'SUPER_ADMIN'): ?>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                   <label class="form-label small fw-semibold mb-1">Branch</label>
                   <select class="form-select" id="filterBranch">
                     <option value="">All Branches</option>
@@ -158,7 +143,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                   <label class="form-label small fw-semibold mb-1">Wallet</label>
                   <select class="form-select" id="filterWallet">
                     <option value="">All Wallets</option>
@@ -170,17 +155,17 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   </select>
                 </div>
                 <?php endif; ?>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                   <label class="form-label small fw-semibold mb-1">Cashier</label>
                   <input type="text" class="form-control" id="filterCashier" placeholder="Cashier name...">
                 </div>
-                <div class="col-md-<?php echo $userRoleCode === 'SUPER_ADMIN' ? '3' : '3'; ?>">
+                <div class="col-12 col-md-<?php echo $userRoleCode === 'SUPER_ADMIN' ? '3' : '3'; ?>">
                   <label class="form-label small fw-semibold mb-1">Date Range</label>
                   <input type="text" class="form-control" id="filterDateRange" placeholder="Select date range...">
                   <input type="hidden" id="filterDateFrom">
                   <input type="hidden" id="filterDateTo">
                 </div>
-                <div class="col-md-1 d-flex gap-2">
+                <div class="col-12 col-md-1 d-flex gap-2">
                   <button type="button" class="btn btn-primary w-100" onclick="loadCancellations(1)" title="Apply Filters">
                     <span class="fas fa-filter"></span>
                   </button>
@@ -196,12 +181,21 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         <!-- Cancellations Table -->
         <div class="card">
           <div class="card-header bg-body-tertiary py-2">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <span class="text-muted small" id="tableInfo">Loading...</span>
-              <div class="d-flex align-items-center gap-2">
-                <label class="text-muted small mb-0">Per page:</label>
-                <select class="form-select form-select-sm" id="perPageSelect" style="width:80px;" onchange="loadCancellations(1)">
-                  <option value="10">10</option>
+            <div class="row g-2 align-items-center">
+              <div class="col-12 col-md-6">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <div class="search-box flex-grow-1" style="min-width: 200px;">
+                    <input type="text" class="form-control search-input" id="filterSearch"
+                           placeholder="Search transaction, passenger, cashier...">
+                    <span class="fas fa-search search-icon"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <div class="d-flex align-items-center gap-2 justify-content-md-end">
+                  <label class="text-muted small mb-0">Per page:</label>
+                  <select class="form-select form-select-sm" id="perPageSelect" style="width:80px;" onchange="loadCancellations(1)">
+                    <option value="10">10</option>
                   <option value="15" selected>15</option>
                   <option value="25">25</option>
                   <option value="50">50</option>
@@ -215,8 +209,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                 <thead class="table-light">
                   <tr>
                     <th class="ps-3">Transaction</th>
-                    <th>Passenger / Route</th>
-                    <th>Refund Details</th>
+                    <th>Passenger</th>
+                    <th>Refund Amount</th>
                     <th>Cashier</th>
                     <th>Status</th>
                     <th class="text-end pe-3">Actions</th>
@@ -232,7 +226,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           </div>
           <div class="card-footer bg-body-tertiary" id="paginationContainer">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <span class="text-muted small" id="paginationInfo"></span>
+              <span class="text-muted small" id="tableInfo">Loading...</span>
               <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
             </div>
           </div>
@@ -245,6 +239,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
     <!-- Include Modals -->
     <?php include __DIR__ . '/modals/confirm_cancellation.php'; ?>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
   <script>
@@ -254,5 +251,6 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
     };
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/refund-confirmations/assets/js/refund-confirmations.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/refund-confirmations.js'); ?>"></script>
+  <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>

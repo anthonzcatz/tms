@@ -14,14 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
@@ -29,7 +22,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
             case 'vertical':
                 include dirname(dirname(dirname(__DIR__))) . '/admin/includes/navbar.php'; break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Success/Error Messages (Legacy - for backward compatibility) -->
         <?php if (isset($_SESSION['success_message'])): ?>
@@ -56,10 +49,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
           <div class="card-header z-1">
             <div class="row flex-between-center gx-0">
               <div class="col-lg-auto d-flex align-items-center">
-                <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                 <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">System <span class="text-info fw-medium">Settings</span></h4>
-                  <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
+                  <h6 class="mb-1 text-primary d-none d-sm-block">  <nav aria-label="breadcrumb">
                   <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a >Home</a></li>
                     <li class="breadcrumb-item active">System Settings</li>
@@ -968,6 +961,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
     </div>
   </div>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/scripts.php'; ?>
   <script src="<?php echo BASE_URL; ?>/admin/system-settings/assets/js/system-settings.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/system-settings.js'); ?>"></script>
@@ -1081,5 +1077,6 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
     </div>
   </div>
 </div>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/body-top.php'; ?>
 </body>
 </html>

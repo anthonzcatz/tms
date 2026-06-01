@@ -14,5 +14,6 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
         </a>
     </div>
+    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

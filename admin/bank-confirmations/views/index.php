@@ -14,14 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
@@ -29,7 +22,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
             case 'vertical':
                 include dirname(dirname(__DIR__)) . '/includes/navbar.php'; break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Header Card -->
         <div class="row g-4 mb-4">
@@ -39,10 +32,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           <div class="card-header z-1">
             <div class="row flex-between-center gx-0">
               <div class="col-lg-auto d-flex align-items-center">
-                <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                 <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Bank Transfer, Deposit <span class="text-info fw-medium">& Charge Confirmations</span></h4>
-                  <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
+                  <h6 class="mb-1 text-primary d-none d-sm-block">  <nav aria-label="breadcrumb">
                   <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a >Home</a></li>
                     <li class="breadcrumb-item active">Bank Confirmations</li>
@@ -76,7 +69,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
                   <div class="col-auto align-self-end"><div class="fs-6 fw-bold font-sans-serif lh-1 mb-1 text-warning">₱<?php echo number_format($statCounts['pending_amount'] ?? 0, 2); ?></div></div>
-                  <div class="col-auto ps-0 mt-n4"><span class="fas fa-peso-sign text-warning fs-4"></span></div>
+                  <div class="col-auto ps-0 mt-n4"><span class="fas fa-coins text-warning fs-4"></span></div>
                 </div>
               </div>
             </div>
@@ -130,13 +123,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         <div class="card mb-3">
           <div class="card-body py-3">
             <div class="row g-3 align-items-center">
-              <div class="col-md-4">
+              <div class="col-12 col-md-4">
                 <div class="search-box">
                   <input type="text" class="form-control search-input" id="filterSearch" placeholder="Search reference, cashier, bank..." onkeyup="applyFilters()">
                   <span class="fas fa-search search-icon"></span>
                 </div>
               </div>
-              <div class="col-md-3">
+              <div class="col-6 col-md-3">
                 <select class="form-select" id="filterStatus" onchange="applyFilters()">
                   <option value="PENDING" <?php echo $statusFilter === 'PENDING' ? 'selected' : ''; ?>>Pending</option>
                   <option value="CONFIRMED" <?php echo $statusFilter === 'CONFIRMED' ? 'selected' : ''; ?>>Confirmed</option>
@@ -144,10 +137,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                   <option value="ALL" <?php echo $statusFilter === 'ALL' ? 'selected' : ''; ?>>All</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-6 col-md-3">
                 <input type="date" class="form-control" id="filterDate" onchange="applyFilters()">
               </div>
-              <div class="col-md-2">
+              <div class="col-12 col-md-2">
                 <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">
                   <span class="fas fa-undo me-1"></span>Reset
                 </button>
@@ -295,8 +288,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
     <!-- Include Modals -->
     <?php include __DIR__ . '/modals/confirm_payment.php'; ?>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
   <script src="<?php echo BASE_URL; ?>/admin/bank-confirmations/assets/js/bank-confirmations.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/bank-confirmations.js'); ?>"></script>
+  <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>

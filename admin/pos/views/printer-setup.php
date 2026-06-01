@@ -94,10 +94,10 @@
               <div class="card-header z-1">
                 <div class="row align-items-center">
                   <div class="col d-flex align-items-center">
-                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">POS <span class="text-info fw-medium">Printer Setup</span></h4>
-                      <h6 class="mb-1 text-primary">
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>

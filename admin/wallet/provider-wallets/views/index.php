@@ -16,14 +16,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -37,7 +30,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
         <!-- Header Card -->
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -47,10 +40,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <!--/.bg-holder-->
               <div class="card-header z-1">
                 <div class="row flex-between-center gx-0">
-                  <div class="col-lg-auto d-flex align-items-center"><img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                  <div class="col-lg-auto d-flex align-items-center"><img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Provider <span class="text-info fw-medium">Wallets</span></h4>
-                      <h6 class="mb-1 text-primary">
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a>Home</a></li>
@@ -64,7 +57,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <div class="col-lg-auto d-flex align-items-center mt-3 mt-lg-0">
                     <?php if ($canCreateWallet): ?>
                     <button class="btn btn-primary" onclick="openAddWalletModal()">
-                      <span class="fas fa-plus me-2"></span>Add Wallet
+                      <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Wallet</span>
                     </button>
                     <?php endif; ?>
                   </div>
@@ -179,7 +172,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             <form method="GET" id="filterForm">
               <!-- Quick Search (client-side) -->
               <div class="row g-3 mb-3">
-                <div class="col-md-4">
+                <div class="col-12 col-md-4">
                   <label class="form-label small text-muted mb-1">Quick Search</label>
                   <div class="search-box position-relative">
                     <input type="text" class="form-control ps-4" id="walletSearch" placeholder="Search wallet name...">
@@ -189,7 +182,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               </div>
 
               <div class="row g-3">
-                <div class="col-md-3">
+                <div class="col-12 col-md-3">
                   <label class="form-label small text-muted mb-1">Provider</label>
                 <select class="form-select" name="provider" onchange="this.form.submit()">
                   <option value="">All Providers</option>
@@ -200,7 +193,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-12 col-md-3">
                 <label class="form-label small text-muted mb-1">Branch</label>
                 <select class="form-select" name="branch" onchange="this.form.submit()">
                   <option value="">All Branches</option>
@@ -211,7 +204,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-2">
+              <div class="col-12 col-md-2">
                 <label class="form-label small text-muted mb-1">Status</label>
                 <select class="form-select" name="status" onchange="this.form.submit()">
                   <option value="">All Status</option>
@@ -219,7 +212,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <option value="inactive" <?php echo $filterStatus === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-12 col-md-4">
                 <label class="form-label small text-muted mb-1">Actions</label>
                 <div class="d-flex gap-2">
                   <button type="submit" class="btn btn-primary">
@@ -358,7 +351,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 
         <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/assets/js/provider-wallets.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-wallets.js'); ?>"></script>
 
+        <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+        </div>
+        <?php endif; ?>
         <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
         <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
       </body>
     </html>

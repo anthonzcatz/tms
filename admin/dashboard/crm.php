@@ -24,28 +24,20 @@ require_once __DIR__ . '/../_guard.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php
-        require_once __DIR__ . '/../includes/sidebar.php';
-        ?>
-        <div class="content">
-          <?php
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include __DIR__ . '/../includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include __DIR__ . '/../includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include __DIR__ . '/../includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content"><?php
           switch (NAVBAR_POSITION) {
-              case 'top':
-                  require_once __DIR__ . '/../includes/navbar-top.php';
-                  break;
               case 'combo':
-                  require_once __DIR__ . '/../includes/navbar-top.php';
-                  break;
-              case 'double-top':
-                  require_once __DIR__ . '/../includes/navbar-double-top.php';
+                  include __DIR__ . '/../includes/navbar-top.php';
                   break;
               case 'vertical':
+                  include __DIR__ . '/../includes/navbar.php';
+                  break;
+              case 'top':
+              case 'double-top':
               default:
-                  require_once __DIR__ . '/../includes/navbar.php';
                   break;
           }
-          ?>
+          ?><?php endif; ?>
           <div class="row mb-3">
             <div class="col">
               <div class="card bg-100 shadow-none border">
@@ -952,12 +944,16 @@ require_once __DIR__ . '/../_guard.php';
     <!-- ===============================================-->
 
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
    <?php include __DIR__ . '/../includes/footer.php'; ?>
 
     <!-- ===============================================-->
     <!--    JavaScripts-->
     <!-- ===============================================-->
       <?php include __DIR__ . '/../includes/scripts.php'; ?>
+      <?php include __DIR__ . '/../includes/body-top.php'; ?>
   </body>
 
 </html>

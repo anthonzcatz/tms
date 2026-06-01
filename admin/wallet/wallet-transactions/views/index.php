@@ -16,14 +16,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -37,7 +30,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
         <!-- Header Card (Standard Pattern) -->
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -46,10 +39,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header z-1">
                 <div class="row flex-between-center gx-0">
                   <div class="col-lg-auto d-flex align-items-center">
-                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Wallet <span class="text-info fw-medium">Transactions</span></h4>
-                      <h6 class="mb-1 text-primary">
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a>Home</a></li>
@@ -61,10 +54,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   </div>
                   <div class="col-lg-auto d-flex gap-2">
                     <button type="button" class="btn btn-outline-primary" onclick="openWalletManagementModal()">
-                      <span class="fas fa-wallet me-2"></span>Wallet Management
+                      <span class="fas fa-wallet"></span><span class="ms-2 d-none d-sm-inline">Wallet Management</span>
                     </button>
                     <button type="button" class="btn btn-primary" onclick="openAddTransactionModal()">
-                      <span class="fas fa-plus-circle me-2"></span>Add Transaction
+                      <span class="fas fa-plus-circle"></span><span class="ms-2 d-none d-sm-inline">Add Transaction</span>
                     </button>
                   </div>
                 </div>
@@ -183,13 +176,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             <div class="card">
               <div class="card-body py-3">
                 <div class="row g-3 align-items-center">
-                  <div class="col-md-3">
+                  <div class="col-12 col-md-3">
                     <div class="search-box">
                       <input type="text" class="form-control search-input" id="transactionSearch" placeholder="Search transactions...">
                       <span class="fas fa-search search-icon"></span>
                     </div>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-6 col-md-2">
                     <select class="form-select" id="walletFilter">
                       <option value="">All Wallets</option>
                       <?php foreach ($wallets as $wallet): ?>
@@ -199,7 +192,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       <?php endforeach; ?>
                     </select>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-6 col-md-2">
                     <select class="form-select" id="txnTypeFilter">
                       <option value="">All Types</option>
                       <option value="TOPUP">Topup</option>
@@ -208,17 +201,17 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       <option value="ADJUSTMENT">Adjustment</option>
                     </select>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-6 col-md-2">
                     <select class="form-select" id="directionFilter">
                       <option value="">All Directions</option>
                       <option value="IN">In</option>
                       <option value="OUT">Out</option>
                     </select>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-6 col-md-2">
                     <input type="text" class="form-control" id="dateFilter" placeholder="Date range...">
                   </div>
-                  <div class="col-md-1">
+                  <div class="col-12 col-md-1">
                     <button type="button" class="btn btn-outline-secondary w-100" onclick="resetFilters()">
                       <span class="fas fa-redo"></span>
                     </button>
@@ -293,8 +286,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 
     <script src="<?php echo BASE_URL; ?>/admin/wallet/wallet-transactions/assets/js/wallet-transactions.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/wallet-transactions.js'); ?>"></script>
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
     <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+    <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
   </body>
 </html>
 

@@ -1,32 +1,13 @@
 <?php
 require_once __DIR__ . '/navbar-context.php';
 ?>
-<?php if (session_status() === PHP_SESSION_NONE) session_start(); ?>
-<?php if (isset($_SESSION['success'])): ?>
-<div class="alert alert-success alert-dismissible fade show" role="alert">
-  <span class="fas fa-check-circle me-2"></span>
-  <?php echo htmlspecialchars($_SESSION['success']); ?>
-  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-<?php unset($_SESSION['success']); ?>
-<?php endif; ?>
-
-<?php if (isset($_SESSION['error'])): ?>
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-  <span class="fas fa-exclamation-circle me-2"></span>
-  <?php echo htmlspecialchars($_SESSION['error']); ?>
-  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-<?php unset($_SESSION['error']); ?>
-<?php endif; ?>
-
 <nav class="navbar navbar-light navbar-glass navbar-top navbar-expand">
 
             <button class="btn navbar-toggler-humburger-icon navbar-toggler me-1 me-sm-3" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVerticalCollapse" aria-controls="navbarVerticalCollapse" aria-expanded="false" aria-label="Toggle Navigation"><span class="navbar-toggle-icon"><span class="toggle-line"></span></span></button>
-            <a class="navbar-brand me-1 me-sm-3" href="<?php echo BASE_URL; ?>/admin">
+            <a class="navbar-brand me-1 me-sm-3" href="#">
               <div class="d-flex align-items-center">
-                <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" />
-                <span class="font-sans-serif text-primary"><?php echo $systemName; ?></span>
+                <img class="me-2 navbar-brand-logo" src="<?php echo $systemLogo ? BASE_URL . $systemLogo : BASE_URL . '/resources/assets/img/icons/spot-illustrations/falcon.png'; ?>" alt="" width="40" />
+                <span class="font-sans-serif text-primary d-none d-sm-block"><?php echo $systemName; ?></span>
               </div>
             </a>
             <ul class="navbar-nav align-items-center d-none d-lg-flex">
@@ -279,7 +260,8 @@ require_once __DIR__ . '/navbar-context.php';
                           <div class="col-4"><a class="d-block hover-bg-200 px-2 py-3 rounded-3 text-center text-decoration-none" href="<?php echo BASE_URL; ?>/admin/user/">
                               <div class="avatar avatar-2xl">
                                 <?php if ($profileImage): ?>
-                                  <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="" />
+                                  <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                  <div class="avatar-name rounded-circle" style="display:none;"><span><?php echo $initials; ?></span></div>
                                 <?php else: ?>
                                   <div class="avatar-name rounded-circle"><span><?php echo $initials; ?></span></div>
                                 <?php endif; ?>
@@ -357,7 +339,8 @@ require_once __DIR__ . '/navbar-context.php';
               <li class="nav-item dropdown d-flex align-items-center"><a class="nav-link pe-0 ps-2" id="navbarDropdownUser" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <div class="avatar avatar-xl">
                     <?php if ($profileImage): ?>
-                      <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" />
+                      <img class="rounded-circle" src="<?php echo BASE_URL . $profileImage; ?>" alt="User Avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                      <div class="avatar-name rounded-circle bg-primary-subtle text-primary align-items-center justify-content-center fw-bold" style="display:none !important;"><?php echo $initials; ?></div>
                     <?php else: ?>
                       <div class="avatar-name rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold"><?php echo $initials; ?></div>
                     <?php endif; ?>

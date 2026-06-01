@@ -143,16 +143,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-
-      <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
@@ -166,7 +157,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             default:
                 break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Header Card (Standard Pattern) -->
         <div class="row g-4 mb-4">
@@ -176,7 +167,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header z-1">
                 <div class="row flex-between-center gx-0">
                   <div class="col-lg-auto d-flex align-items-center">
-                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Module <span class="text-info fw-medium">Title</span></h4>
                       <h6 class="mb-1 text-primary">
@@ -204,8 +195,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     </div>
   </main>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>
 ```
@@ -220,6 +215,31 @@ if (!defined('NAVBAR_POSITION')) {
 ```
 
 > **Why:** The global `admin/_guard.php` already defines `NAVBAR_POSITION` from `$_SESSION['navbarPosition']`. Adding this fallback forces "vertical" on every page load, breaking the Settings panel.
+
+### ⚠️ IMPORTANT: Sticky Navbar Positioning
+
+The navbar structure pattern above (with conditional includes and no whitespace between script and navbar) is critical for **sticky positioning** to work correctly when `NAVBAR_POSITION` is set to `top` or `double-top`.
+
+**CSS Requirements:**
+The following CSS is already in `resources/assets/css/user.css` and must be present:
+
+```css
+.navbar-top {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1030 !important;
+}
+
+.container[data-layout="container"] {
+  overflow: visible !important;
+}
+```
+
+**Why this structure matters:**
+- No whitespace between `</script>` and navbar include prevents layout shift
+- Navbar is placed directly after the script block for top/double-top layouts
+- The conditional `div.content` wrapper only wraps content for vertical/combo layouts
+- This allows the navbar to be sticky within the container viewport
 
 ---
 

@@ -10,16 +10,23 @@
 // Use global $userProfile from navbar-context.php
 $up = $userProfile ?? [];
 $profileImagePath = !empty($up['profile_image']) ? BASE_URL . $up['profile_image'] : '';
-$fullname = htmlspecialchars($up['fullname'] ?? $user['fullname'] ?? 'User');
 $firstName = htmlspecialchars($up['first_name'] ?? '');
+$middleName = htmlspecialchars($up['middle_name'] ?? '');
 $lastName = htmlspecialchars($up['last_name'] ?? '');
 $email = htmlspecialchars($up['email'] ?? '');
 $phone = htmlspecialchars($up['phone'] ?? '');
 $position = htmlspecialchars($up['position'] ?? '');
 $department = htmlspecialchars($up['department'] ?? '');
-$location = htmlspecialchars($up['location'] ?? '');
+$permanentAddress = htmlspecialchars($up['address'] ?? ''); // Use b_permanent_address from employees table
 $roleName = htmlspecialchars($up['role_name'] ?? '');
 $upInitials = htmlspecialchars($up['initials'] ?? 'U');
+
+// Format name as "First Name M. Last Name"
+$fullname = $firstName;
+if ($middleName) {
+    $fullname .= ' ' . strtoupper(substr($middleName, 0, 1)) . '.';
+}
+$fullname .= ' ' . $lastName;
 
 // Build subtitle: "Position at Department"
 $subtitle = '';
@@ -41,12 +48,15 @@ $currentView = $currentView ?? 'profile';
   <div class="card-header position-relative min-vh-25 mb-7">
     <div class="bg-holder rounded-3 rounded-bottom-0" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/generic/4.jpg);"></div>
     <!--/.bg-holder-->
-    <div class="avatar avatar-5xl avatar-profile">
+    <div class="avatar avatar-5xl avatar-profile position-relative">
       <?php if ($profileImagePath): ?>
         <img class="rounded-circle img-thumbnail shadow-sm" src="<?php echo $profileImagePath; ?>" width="200" alt="" />
       <?php else: ?>
         <div class="avatar-name rounded-circle img-thumbnail shadow-sm"><span><?php echo $upInitials; ?></span></div>
       <?php endif; ?>
+      <button class="btn btn-sm btn-light rounded-circle position-absolute" style="bottom: 5px; right: 5px; width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="triggerProfileImageUpload()" title="Edit Profile Image">
+        <span class="fas fa-camera fs-9"></span>
+      </button>
     </div>
   </div>
   <div class="card-body">
@@ -54,7 +64,7 @@ $currentView = $currentView ?? 'profile';
       <div class="col-lg-8">
         <h4 class="mb-1"><?php echo $fullname; ?><span data-bs-toggle="tooltip" data-bs-placement="right" title="Verified"><small class="fa fa-check-circle text-primary" data-fa-transform="shrink-4 down-2"></small></span></h4>
         <h5 class="fs-9 fw-normal"><?php echo $subtitle ?: 'No position assigned'; ?></h5>
-        <p class="text-500"><?php echo $location ?: 'No location set'; ?></p>
+        <p class="text-500"><?php echo $permanentAddress ?: 'No address set'; ?></p>
         <?php if ($currentView === 'settings'): ?>
           <a class="btn btn-falcon-default btn-sm px-3" href="<?php echo BASE_URL; ?>/admin/user/">
             <span class="fas fa-user me-1"></span>Profile

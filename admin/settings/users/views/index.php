@@ -13,14 +13,7 @@
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
@@ -34,7 +27,7 @@
             default:
                 break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Page Header -->
         <div class="row g-3 mb-3">
@@ -42,7 +35,7 @@
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <h2 class="mb-1">User Management</h2>
-                <nav aria-label="breadcrumb">
+                <nav aria-label="breadcrumb d-none d-sm-block">
                   <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
                     <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/settings">Settings</a></li>
@@ -52,7 +45,7 @@
               </div>
               <div>
                 <button type="button" class="btn btn-primary" onclick="openAddUserModal()">
-                  <span class="fas fa-user-plus me-2"></span>Add New User
+                  <span class="fas fa-user-plus"></span><span class="ms-2 d-none d-sm-inline">Add New User</span>
                 </button>
               </div>
             </div>
@@ -63,15 +56,19 @@
         <div class="row g-3 mb-3">
           <div class="col-12">
             <div class="card">
-              <div class="card-body py-3">
+              <div class="card-header py-2 d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleFilters()">
+                <h6 class="mb-0"><span class="fas fa-filter me-2"></span>Filters</h6>
+                <span class="fas fa-chevron-down" id="filterToggleIcon"></span>
+              </div>
+              <div class="card-body py-3" id="filterCardBody">
                 <div class="row g-3 align-items-center">
-                  <div class="col-md-3">
+                  <div class="col-12 col-md-3">
                     <div class="search-box">
                       <input type="text" class="form-control search-input" id="userSearch" placeholder="Search users...">
                       <span class="fas fa-search search-icon"></span>
                     </div>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-12 col-md-2">
                     <select class="form-select" id="roleFilter">
                       <option value="">All Roles</option>
                       <?php foreach ($roles as $role): ?>
@@ -79,14 +76,14 @@
                       <?php endforeach; ?>
                     </select>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-12 col-md-2">
                     <select class="form-select" id="statusFilter">
                       <option value="">All Status</option>
                       <option value="1">Active</option>
                       <option value="0">Inactive</option>
                     </select>
                   </div>
-                  <div class="col-md-2">
+                  <div class="col-12 col-md-2">
                     <select class="form-select" id="branchFilter">
                       <option value="">All Branches</option>
                       <?php
@@ -208,6 +205,9 @@
           </div>
         </div>
 
+        <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+        </div>
+        <?php endif; ?>
         <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
       </div>
     </div>
@@ -249,5 +249,6 @@
   <script src="<?php echo BASE_URL; ?>/admin/settings/users/assets/js/users.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/users.js'); ?>"></script>
 
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

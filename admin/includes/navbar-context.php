@@ -31,10 +31,10 @@ if ($currentUser) {
                    ua.user_code, ua.status, ua.last_login_at, ua.created_at, ua.updated_at,
                    ua.branch_id, ua.has_restricted_transport, ua.is_time_restricted,
                    ua.allowed_login_start, ua.allowed_login_end, ua.allowed_days,
-                   ua.password_changed_at, ua.require_password_change,
+                   ua.password_changed_at, ua.require_password_change, ua.password_hash,
                    e.first_name, e.last_name, e.middle_name,
-                   e.b_email, e.b_cont_no, e.b_address, e.b_permanent_address,
-                   e.emp_province_code, e.emp_city_code, e.emp_barangay_code,
+                   e.b_email, e.b_cont_no, b_sex, b_address, b_permanent_address,
+                   e.emp_street_address, e.emp_province_code, e.emp_city_code, e.emp_barangay_code,
                    p.position_name,
                    d.department_name,
                    prov.province_name,
@@ -55,7 +55,18 @@ if ($currentUser) {
         ['user_id' => $currentUser['user_id']]
     );
     if ($user) {
-        $profileImage = $user['profile_image'];
+        $profileImage = trim($user['profile_image'] ?? '');
+        // If profile image is just a filename (not a full path), prepend the uploads path
+        if ($profileImage && !preg_match('/^\/|https?:\/\//i', $profileImage)) {
+            $profileImage = '/resources/profile-images/' . $profileImage;
+        }
+        // Verify the image file actually exists before using it
+        if ($profileImage) {
+            $fullPath = dirname(dirname(__DIR__)) . $profileImage;
+            if (!file_exists($fullPath)) {
+                $profileImage = null; // File doesn't exist, use initials instead
+            }
+        }
         if ($user['first_name'] || $user['last_name']) {
             $initials = strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1));
         }
@@ -86,7 +97,13 @@ if ($currentUser) {
             'position'        => $user['position_name'] ?? '',
             'department'      => $user['department_name'] ?? '',
             'role_name'       => $user['role_name'] ?? ($currentUser['role_name'] ?? ''),
-            'address'         => $user['b_address'] ?? $user['b_permanent_address'] ?? '',
+            'address'         => $user['b_permanent_address'] ?? $user['b_address'] ?? '',
+            'b_sex'           => $user['b_sex'] ?? '',
+            'b_landmark'      => '',
+            'emp_street_address' => $user['emp_street_address'] ?? '',
+            'emp_province_code' => $user['emp_province_code'] ?? '',
+            'emp_city_code'   => $user['emp_city_code'] ?? '',
+            'emp_barangay_code' => $user['emp_barangay_code'] ?? '',
             'province'        => $user['province_name'] ?? '',
             'city'            => $user['city_municipality_name'] ?? '',
             'location'        => $location,

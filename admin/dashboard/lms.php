@@ -23,10 +23,19 @@ require_once __DIR__ . '/../_guard.php';
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-           <?php include __DIR__ . '/../includes/sidebar.php'; ?>
-        <div class="content">
-             <?php include __DIR__ . '/../includes/navbar.php'; ?>
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include __DIR__ . '/../includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include __DIR__ . '/../includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include __DIR__ . '/../includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content"><?php switch (NAVBAR_POSITION) {
+              case 'combo':
+                  include __DIR__ . '/../includes/navbar-top.php';
+                  break;
+              case 'vertical':
+                  include __DIR__ . '/../includes/navbar.php';
+                  break;
+              case 'top':
+              case 'double-top':
+              default:
+                  break;
+          }
+          ?><?php endif; ?>
           <div class="card mb-3">
             <div class="card-body px-xxl-0 pt-4">
               <div class="row g-0">
@@ -884,6 +893,9 @@ require_once __DIR__ . '/../_guard.php';
     <!-- ===============================================-->
 
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include_once '../includes/footer.php'; ?>
 
 
@@ -903,7 +915,7 @@ require_once __DIR__ . '/../_guard.php';
     <script src="<?php echo BASE_URL; ?>/resources/vendors/lodash/lodash.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/resources/vendors/list.js/list.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/resources/assets/js/theme.js"></script>
-
+    <?php include __DIR__ . '/../includes/body-top.php'; ?>
   </body>
 
 </html>

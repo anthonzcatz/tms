@@ -38,14 +38,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
@@ -59,7 +52,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
             default:
                 break;
         }
-        ?>
+        ?><?php endif; ?>
 
         <!-- Page Header -->
         <div class="row g-3 mb-3">
@@ -70,10 +63,10 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
               <div class="card-header z-1">
                 <div class="row align-items-center">
                   <div class="col d-flex align-items-center">
-                    <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                    <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                     <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Cashier <span class="text-info fw-medium">POS</span></h4>
-                      <h6 class="mb-1 text-primary">
+                      <h6 class="mb-1 text-primary d-none d-sm-block">
                         <nav aria-label="breadcrumb">
                           <ol class="breadcrumb mb-0">
                             <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>/admin/dashboard">Home</a></li>
@@ -83,26 +76,27 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                       </h6>
                     </div>
                   </div>
-                  <div class="col-auto d-flex gap-2">
+                  <div class="col-auto d-flex gap-2 flex-wrap justify-content-end">
                     <a href="<?php echo BASE_URL; ?>/admin/pos/printer-setup" class="btn btn-outline-info btn-sm rounded-2 d-flex align-items-center">
-                      <span class="fas fa-print me-1"></span>Printer Setup
+                      <span class="fas fa-print"></span><span class="ms-1 d-none d-sm-inline">Printer Setup</span>
                     </a>
                     <?php if ($activeSession): ?>
-                      <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-2 bg-success bg-opacity-10 border border-success" style="cursor: pointer;" onclick="toggleSessionBanner()">
+                      <div class="d-flex align-items-center gap-2 px-2 py-1 rounded-2 bg-success bg-opacity-10 border border-success" style="cursor: pointer;" onclick="toggleSessionBanner()">
                         <span class="fas fa-circle text-success session-active-pulse" style="font-size: 8px;"></span>
-                        <span class="text-success fw-semibold">Session Active</span>
+                        <span class="text-success fw-semibold d-none d-sm-inline">Session Active</span>
                         <span class="fas fa-chevron-down text-success ms-1" id="sessionBannerToggleIcon"></span>
                       </div>
                       <button class="btn btn-outline-danger btn-sm rounded-2" onclick="openCloseSession()">
-                        <span class="fas fa-stop-circle me-1"></span>Close
+                        <span class="fas fa-stop-circle"></span><span class="ms-1 d-none d-sm-inline">Close</span>
                       </button>
                     <?php else: ?>
-                      <div class="d-flex align-items-center px-3 py-2 rounded-2 bg-secondary bg-opacity-10 border border-secondary">
-                        <span class="text-secondary fw-semibold">No Active Session</span>
+                      <div class="d-flex align-items-center px-2 py-1 rounded-2 bg-secondary bg-opacity-10 border border-secondary">
+                        <span class="text-secondary fw-semibold d-none d-sm-inline">No Active Session</span>
+                        <span class="fas fa-circle text-secondary d-sm-none" style="font-size: 8px;"></span>
                       </div>
                       <?php if ($canOpenSession): ?>
                       <button class="btn btn-success btn-sm rounded-2" onclick="openSessionModal.show()">
-                        <span class="fas fa-play-circle me-1"></span>Open
+                        <span class="fas fa-play-circle"></span><span class="ms-1 d-none d-sm-inline">Open</span>
                       </button>
                       <?php endif; ?>
                     <?php endif; ?>
@@ -121,7 +115,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
             <span class="fw-medium">No Active Session.</span> You must open a cashier session before processing transactions.
             <?php if ($canOpenSession): ?>
             <button class="btn btn-sm btn-warning ms-2" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;" onclick="openSessionModal.show()">
-              <span class="fas fa-play-circle me-1"></span>Open Session Now
+              <span class="fas fa-play-circle"></span><span class="ms-1 d-none d-sm-inline">Open Session Now</span>
             </button>
             <?php else: ?>
             <span class="text-muted ms-2" style="font-size: 0.8rem;"><span class="fas fa-lock me-1"></span>Contact your manager to open a session.</span>
@@ -172,17 +166,17 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                 <div class="row g-3">
                   <div class="col-4">
                     <button type="button" class="btn btn-outline-primary d-block w-100 py-3 rounded-4 active position-relative" id="btnTicketType" onclick="switchTransactionType('ticket')">
-                      <span class="fas fa-ticket-alt me-2"></span>Ticket Booking
+                      <span class="fas fa-ticket-alt"></span><span class="ms-2 d-none d-sm-inline">Ticket Booking</span>
                     </button>
                   </div>
                   <div class="col-4">
                     <button type="button" class="btn btn-outline-success d-block w-100 py-3 rounded-4 position-relative" id="btnServiceType" onclick="switchTransactionType('service')">
-                      <span class="fas fa-concierge-bell me-2"></span>Service Add-ons
+                      <span class="fas fa-concierge-bell"></span><span class="ms-2 d-none d-sm-inline">Service Add-ons</span>
                     </button>
                   </div>
                   <div class="col-4">
                     <button type="button" class="btn btn-outline-info d-block w-100 py-3 rounded-4 position-relative" id="btnTransactionType" onclick="switchTransactionType('transaction')">
-                      <span class="fas fa-history me-2"></span>Transactions
+                      <span class="fas fa-history"></span><span class="ms-2 d-none d-sm-inline">Transactions</span>
                     </button>
                   </div>
                 </div>
@@ -287,7 +281,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   </div>
                   <div class="col-12">
                     <button class="btn btn-primary w-100" onclick="addTicketToCart()">
-                      <span class="fas fa-plus me-1"></span>Add Ticket to Cart
+                      <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Ticket to Cart</span>
                     </button>
                   </div>
                 </div>
@@ -350,7 +344,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <h6 class="mb-0 fw-bold"><span class="fas fa-history me-2 text-primary"></span>Transaction History</h6>
                   <button class="btn btn-sm btn-outline-primary" onclick="loadRecentTransactions()">
-                    <span class="fas fa-sync-alt me-1"></span>Refresh
+                    <span class="fas fa-sync-alt"></span><span class="ms-1 d-none d-sm-inline">Refresh</span>
                   </button>
                 </div>
                 <!-- Filters -->
@@ -378,7 +372,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   </div>
                   <div class="col-md-3">
                     <button class="btn btn-sm btn-outline-secondary w-100" onclick="clearFilters()">
-                      <span class="fas fa-times me-1"></span>Clear Filters
+                      <span class="fas fa-times"></span><span class="ms-1 d-none d-sm-inline">Clear Filters</span>
                     </button>
                   </div>
                 </div>
@@ -445,13 +439,13 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
             </div>
 
           <!-- RIGHT: Cart Panel -->
-          <div class="cart-panel">
+          <div class="cart-panel col-12">
             <div class="card">
               <div class="card-header py-2 bg-light">
                 <div class="d-flex justify-content-between align-items-center">
                   <h6 class="mb-0 fw-bold"><span class="fas fa-shopping-cart me-2 text-primary"></span>Cart  </h6>
                   <button class="btn btn-sm btn-outline-danger" onclick="clearCart()" id="clearCartBtn" style="display:none;">
-                    <span class="fas fa-trash me-1"></span>Clear
+                    <span class="fas fa-trash"></span><span class="ms-1 d-none d-sm-inline">Clear</span>
                   </button>
                 </div>
               </div>
@@ -473,7 +467,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                 <!-- Actions -->
                 <div class="d-grid gap-2 mt-3" id="cartActions">
                   <button class="btn btn-success btn-lg" onclick="proceedToPayment()" id="payBtn" disabled>
-                    <span class="fas fa-money-bill-wave me-2"></span>Proceed to Payment
+                    <span class="fas fa-money-bill-wave"></span><span class="ms-2 d-none d-sm-inline">Proceed to Payment</span>
                   </button>
                 </div>
               </div>
@@ -500,6 +494,9 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     <?php include __DIR__ . '/modals/cancel_ticket.php'; ?>
     <?php include __DIR__ . '/modals/reprint_receipt.php'; ?>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
   <script>
@@ -585,5 +582,6 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js"></script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js"></script>
+  <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>

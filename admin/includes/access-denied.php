@@ -31,14 +31,7 @@ if ($user && isset($user['default_dashboard']) && !empty($user['default_dashboar
             container.classList.remove('container');
             container.classList.add('container-fluid');
           }
-        </script>
-        <?php include dirname(__DIR__) . '/includes/sidebar.php'; ?>
-        <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(__DIR__) . '/includes/navbar-top.php'; ?>
-        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(__DIR__) . '/includes/navbar-double-top.php'; ?>
-        <?php endif; ?>
-        <div class="content">
+        </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(__DIR__) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(__DIR__) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(__DIR__) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
          <?php
          switch (NAVBAR_POSITION) {
              case 'combo':
@@ -52,7 +45,7 @@ if ($user && isset($user['default_dashboard']) && !empty($user['default_dashboar
              default:
                  break;
          }
-         ?>
+         ?><?php endif; ?>
         <!-- Access Denied Content -->
         <div class="row g-3 mb-3">
           <div class="col-12">
@@ -85,7 +78,11 @@ if ($user && isset($user['default_dashboard']) && !empty($user['default_dashboar
       </div>
     </main>
 
+    <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+    </div>
+    <?php endif; ?>
     <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
     <?php include dirname(__DIR__) . '/includes/scripts.php'; ?>
+    <?php include __DIR__ . '/body-top.php'; ?>
   </body>
 </html>

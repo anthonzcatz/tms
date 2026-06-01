@@ -661,7 +661,7 @@ function clearSelection() {
 function toggleSelectAll() {
     const selectAllCheckbox = document.getElementById('selectAllUsers');
     const isChecked = selectAllCheckbox.checked;
-    
+
     document.querySelectorAll('.user-checkbox').forEach(cb => {
         cb.checked = isChecked;
         const userId = cb.dataset.userId;
@@ -671,8 +671,26 @@ function toggleSelectAll() {
             selectedUsers.delete(userId);
         }
     });
-    
+
     updateQuickActionsBar();
+}
+
+/**
+ * Toggle filter section visibility
+ */
+function toggleFilters() {
+    const filterCardBody = document.getElementById('filterCardBody');
+    const filterToggleIcon = document.getElementById('filterToggleIcon');
+
+    if (filterCardBody.style.display === 'none') {
+        filterCardBody.style.display = 'block';
+        filterToggleIcon.classList.remove('fa-chevron-up');
+        filterToggleIcon.classList.add('fa-chevron-down');
+    } else {
+        filterCardBody.style.display = 'none';
+        filterToggleIcon.classList.remove('fa-chevron-down');
+        filterToggleIcon.classList.add('fa-chevron-up');
+    }
 }
 
 /**

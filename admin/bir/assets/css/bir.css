@@ -1,0 +1,70 @@
+/**
+ * BIR Module Styles
+ * BIR Accredited System - Custom Styles
+ */
+
+/* Hover shadow for cards */
+.hover-shadow {
+    transition: box-shadow 0.3s ease;
+}
+
+.hover-shadow:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Status badges */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Card headers */
+.card-header {
+    font-weight: 600;
+}
+
+/* Table styles */
+.table-sm th,
+.table-sm td {
+    font-size: 0.875rem;
+}
+
+/* Quick stats cards */
+.fs-4.fs-md-5 {
+    font-size: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .fs-md-5 {
+        font-size: 1.75rem;
+    }
+}
+
+/* Border boxes for BIR settings */
+.border.rounded.p-3 {
+    background-color: #f8f9fa;
+    border-color: #dee2e6 !important;
+}
+
+/* Module menu icons */
+.fa-3x {
+    opacity: 0.8;
+}
+
+/* Alert in header */
+.card-header .alert {
+    font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .card-header .d-flex.gap-2 {
+        flex-direction: column;
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    
+    .card-header .alert {
+        width: 100%;
+    }
+}

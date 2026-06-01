@@ -14,20 +14,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           container.classList.remove('container');
           container.classList.add('container-fluid');
         }
-      </script>
-      <?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
-      <?php if (NAVBAR_POSITION === 'top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?>
-      <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-        <?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?>
-      <?php endif; ?>
-      <div class="content">
+      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php else: ?><?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?><?php endif; ?><?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><div class="content">
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':    include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; break;
             case 'vertical': include dirname(dirname(__DIR__)) . '/includes/navbar.php';    break;
         }
-        ?>
+        ?><?php endif; ?>
 
 
         <!-- Header Card -->
@@ -38,10 +31,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           <div class="card-header z-1">
             <div class="row flex-between-center gx-0">
               <div class="col-lg-auto d-flex align-items-center">
-                <img class="img-fluid" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
+                <img class="img-fluid" style="max-height: 60px; max-width: 60px; object-fit: contain;" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/reports-greeting.png" alt="" />
                 <div class="ms-x1">
                       <h4 class="mb-0 text-primary fw-bold">Cashier <span class="text-info fw-medium">Shift Reports</span></h4>
-                  <h6 class="mb-1 text-primary">  <nav aria-label="breadcrumb">
+                  <h6 class="mb-1 text-primary d-none d-sm-block">  <nav aria-label="breadcrumb">
                   <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a >Home</a></li>
                     <li class="breadcrumb-item active">Cashier Shifts</li>
@@ -312,8 +305,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
     <?php include __DIR__ . '/modals/manager_session.php'; ?>
     <?php endif; ?>
 
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
   <script src="<?php echo BASE_URL; ?>/admin/shifts/assets/js/shifts.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/shifts.js'); ?>"></script>
+  <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>
