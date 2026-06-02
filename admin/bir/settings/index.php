@@ -4,12 +4,8 @@
  * Manage BIR accreditation and system settings
  */
 
-require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
-require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
-require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/_guard.php';
-
-Auth::requireLogin();
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
@@ -39,27 +35,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'bir_vat_rate' => $_POST['bir_vat_rate'] ?? 12.00,
             'bir_auto_or_assignment' => isset($_POST['bir_auto_or_assignment']) ? 1 : 0
         ];
-        
+
         $fields = [];
         $values = [];
         foreach ($updateData as $key => $value) {
             $fields[] = "$key = :$key";
             $values[$key] = $value;
         }
-        
+
         $sql = "UPDATE system_settings SET " . implode(', ', $fields) . " WHERE setting_id = 1";
         Database::execute($sql, $values);
-        
-        $message = 'BIR settings updated successfully!';
-        
-        // Reload settings
-        $birSettings = Database::fetch(
-            "SELECT * FROM system_settings WHERE setting_id = 1"
-        );
+
+        header('Location: ' . BASE_URL . '/admin/bir/settings/?success=' . urlencode('BIR settings updated successfully!'));
+        exit;
     } catch (Exception $e) {
-        $error = 'Error updating settings: ' . $e->getMessage();
+        header('Location: ' . BASE_URL . '/admin/bir/settings/?error=' . urlencode('Error updating settings: ' . $e->getMessage()));
+        exit;
     }
 }
+
+// Check for success/error messages from redirect
+$message = $_GET['success'] ?? '';
+$error = $_GET['error'] ?? '';
 
 // Fetch current settings
 $birSettings = Database::fetch(

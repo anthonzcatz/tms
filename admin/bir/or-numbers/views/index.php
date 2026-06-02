@@ -3,7 +3,7 @@
 <?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
@@ -302,21 +302,29 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                 <option value="<?php echo $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
                 <?php endforeach; ?>
               </select>
+              <small class="text-muted">OR series are per branch</small>
             </div>
-            
+
             <div class="mb-3">
               <label class="form-label">Year</label>
               <input type="number" name="year" class="form-control" value="<?php echo date('Y'); ?>" min="2020" max="2099" required>
+              <small class="text-muted">Tax year for this OR series</small>
             </div>
-            
+
             <div class="mb-3">
               <label class="form-label">Start Number</label>
-              <input type="number" name="start_number" class="form-control" value="1" min="1" required>
+              <input type="number" name="start_number" class="form-control" value="1" min="1" required placeholder="e.g., 1">
+              <small class="text-muted">First OR number in this series (e.g., 001)</small>
             </div>
-            
+
             <div class="mb-3">
               <label class="form-label">End Number</label>
-              <input type="number" name="end_number" class="form-control" value="999999" min="1" required>
+              <input type="number" name="end_number" class="form-control" value="999999" min="1" required placeholder="e.g., 999999">
+              <small class="text-muted">Last OR number in this series (e.g., 999999)</small>
+            </div>
+
+            <div class="alert alert-info">
+              <small><strong>OR Format:</strong> BranchCode-Year-Sequence (e.g., 001-2024-000001)</small>
             </div>
           </div>
           <div class="modal-footer">
@@ -360,9 +368,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
   </div>
   <?php endif; ?>
-  
+
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
   
   <script>
     // Void OR Modal

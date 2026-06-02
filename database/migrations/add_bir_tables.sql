@@ -228,18 +228,10 @@ CREATE TABLE IF NOT EXISTS `bir_submissions` (
 -- MODIFICATIONS TO EXISTING TABLES
 -- ============================================================
 
--- Add BIR-related columns to pos_orders
+-- Add BIR-related columns to pos_orders (only OR number reference, VAT data in separate table)
 ALTER TABLE `pos_orders`
 ADD COLUMN `or_number_id` bigint(20) DEFAULT NULL AFTER `order_id`,
-ADD COLUMN `vat_amount` decimal(15,2) NOT NULL DEFAULT 0.00 AFTER `grand_total`,
-ADD COLUMN `vat_type` enum('12_percent','exempt','zero_rated') NOT NULL DEFAULT '12_percent' AFTER `vat_amount`,
-ADD COLUMN `taxable_amount` decimal(15,2) NOT NULL DEFAULT 0.00 AFTER `vat_type`,
-ADD COLUMN `non_taxable_amount` decimal(15,2) NOT NULL DEFAULT 0.00 AFTER `taxable_amount`,
-ADD COLUMN `exemption_type` enum('senior_citizen','pwd','agricultural','export','educational','others') DEFAULT NULL AFTER `non_taxable_amount`,
-ADD COLUMN `exemption_id_number` varchar(50) DEFAULT NULL AFTER `exemption_type`,
-ADD COLUMN `exemption_name` varchar(255) DEFAULT NULL AFTER `exemption_id_number`,
 ADD INDEX `idx_or_number_id` (`or_number_id`),
-ADD INDEX `idx_vat_type` (`vat_type`),
 ADD CONSTRAINT `fk_order_or_number` FOREIGN KEY (`or_number_id`) REFERENCES `bir_or_numbers` (`or_id`) ON DELETE SET NULL;
 
 -- Add BIR-related columns to system_settings
@@ -254,12 +246,8 @@ ADD COLUMN `bir_machine_serial` varchar(100) DEFAULT NULL AFTER `bir_min`,
 ADD COLUMN `bir_auto_or_assignment` tinyint(1) NOT NULL DEFAULT 1 AFTER `bir_machine_serial`,
 ADD COLUMN `bir_vat_rate` decimal(5,2) NOT NULL DEFAULT 12.00 AFTER `bir_auto_or_assignment`;
 
--- Add BIR-related columns to pos_order_items (for VAT breakdown per item)
-ALTER TABLE `pos_order_items`
-ADD COLUMN `vat_amount` decimal(15,2) NOT NULL DEFAULT 0.00 AFTER `unit_price`,
-ADD COLUMN `vat_type` enum('12_percent','exempt','zero_rated') NOT NULL DEFAULT '12_percent' AFTER `vat_amount`,
-ADD COLUMN `taxable_amount` decimal(15,2) NOT NULL DEFAULT 0.00 AFTER `vat_type`,
-ADD INDEX `idx_vat_type` (`vat_type`);
+-- Note: VAT breakdown per item can be calculated from bir_vat_transactions if needed
+-- No columns added to pos_order_items to avoid redundancy
 
 -- ============================================================
 -- TRIGGERS FOR AUTOMATIC AUDIT TRAIL

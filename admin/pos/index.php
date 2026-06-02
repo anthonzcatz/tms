@@ -128,7 +128,13 @@ $printerSettings = Database::fetch(
             company_contact_number,
             company_email,
             company_tin,
-            system_logo
+            system_logo,
+            bir_permit_number,
+            bir_accreditation_number,
+            bir_validity_from,
+            bir_validity_to,
+            bir_min,
+            bir_machine_serial
      FROM system_settings
      WHERE setting_id = 1"
 );

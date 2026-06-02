@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BIRHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -138,42 +139,88 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         }
 
         // --- Create pos_orders record ---
-        Database::execute(
-            "INSERT INTO pos_orders
-                (order_code, branch_id, cashier_session_id, created_by,
-                 subtotal, discount_total, total_cost, total_service_fees, total_add_ons, total_profit,
-                 grand_total, original_grand_total, amount_paid, change_amount,
-                 payment_method, cashier_name, cashier_user_id,
-                 payment_method_ids, payment_methods_json, status, created_at)
-             VALUES (:code, :branch, :session, :uid,
-                     :subtotal, :discount, :total_cost, :total_service_fees, :total_add_ons, :total_profit,
-                     :grand, :original, :paid, :change,
-                     :payment_method, :cashier_name, :cashier_user_id,
-                     :payment_method_ids, :payment_methods_json, 'completed', :created_at)",
-            [
-                'code'                => $orderCode,
-                'branch'              => $branchId,
-                'session'             => $sessionId,
-                'uid'                 => $user['user_id'],
-                'subtotal'            => $orderTotal + $discountTotal,
-                'discount'            => $discountTotal,
-                'total_cost'          => $totalCost,
-                'total_service_fees'  => $totalServiceFees,
-                'total_add_ons'       => $totalAddOns,
-                'total_profit'        => $totalProfit,
-                'grand'               => $orderTotal,
-                'original'            => $orderTotal,
-                'paid'                => $totalPaid,
-                'change'              => $totalPaid - $orderTotal,
-                'payment_method'      => $primaryPaymentMethod,
-                'cashier_name'        => $cashierName,
-                'cashier_user_id'     => $cashierUserId,
-                'payment_method_ids'  => $paymentMethodIds,
-                'payment_methods_json'=> $paymentMethodsJson,
-                'created_at'          => date('Y-m-d H:i:s'),
-            ]
-        );
+        try {
+            Database::execute(
+                "INSERT INTO pos_orders
+                    (order_code, branch_id, cashier_session_id, created_by,
+                     subtotal, discount_total, total_cost, total_service_fees, total_add_ons, total_profit,
+                     grand_total, original_grand_total, amount_paid, change_amount,
+                     payment_method, cashier_name, cashier_user_id,
+                     payment_method_ids, payment_methods_json, status, created_at)
+                 VALUES (:code, :branch, :session, :uid,
+                         :subtotal, :discount, :total_cost, :total_service_fees, :total_add_ons, :total_profit,
+                         :grand, :original, :paid, :change,
+                         :payment_method, :cashier_name, :cashier_user_id,
+                         :payment_method_ids, :payment_methods_json, 'completed', :created_at)",
+                [
+                    'code'                => $orderCode,
+                    'branch'              => $branchId,
+                    'session'             => $sessionId,
+                    'uid'                 => $user['user_id'],
+                    'subtotal'            => $orderTotal + $discountTotal,
+                    'discount'            => $discountTotal,
+                    'total_cost'          => $totalCost,
+                    'total_service_fees'  => $totalServiceFees,
+                    'total_add_ons'       => $totalAddOns,
+                    'total_profit'        => $totalProfit,
+                    'grand'               => $orderTotal,
+                    'original'            => $orderTotal,
+                    'paid'                => $totalPaid,
+                    'change'              => $totalPaid - $orderTotal,
+                    'payment_method'      => $primaryPaymentMethod,
+                    'cashier_name'        => $cashierName,
+                    'cashier_user_id'     => $cashierUserId,
+                    'payment_method_ids'  => $paymentMethodIds,
+                    'payment_methods_json'=> $paymentMethodsJson,
+                    'created_at'          => date('Y-m-d H:i:s'),
+                ]
+            );
+        } catch (Exception $e) {
+            Database::connection()->rollBack();
+            error_log("Failed to insert into pos_orders: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Failed to create order: ' . $e->getMessage()]); exit;
+        }
+
         $orderId = Database::connection()->lastInsertId();
+
+        // Verify order was created successfully by querying it back
+        $createdOrder = Database::fetch(
+            "SELECT order_id, order_code FROM pos_orders WHERE order_id = :oid",
+            ['oid' => $orderId]
+        );
+
+        if (!$createdOrder) {
+            Database::connection()->rollBack();
+            error_log("Order creation failed. lastInsertId returned: $orderId, but order not found in database.");
+            echo json_encode(['success' => false, 'error' => 'Failed to create order record. Order was not persisted to database.']); exit;
+        }
+
+        // --- BIR Integration: Assign OR Number and Create VAT Transaction ---
+        $orData = null;
+        $vatData = null;
+        
+        // Get VAT type from input (default to 12_percent)
+        $vatType = $input['vat_type'] ?? '12_percent';
+        $exemptionType = $input['exemption_type'] ?? null;
+        $exemptionIdNumber = $input['exemption_id_number'] ?? null;
+        $exemptionName = $input['exemption_name'] ?? null;
+        
+        // Assign OR number if auto-assignment is enabled
+        if (BIRHelper::isAutoORAssignmentEnabled()) {
+            $orData = BIRHelper::assignORNumber($orderId, $branchId, $user['user_id']);
+            if (!$orData) {
+                error_log("Failed to assign OR number for order $orderId");
+            }
+        }
+        
+        // Create VAT transaction
+        $vatData = BIRHelper::createVATTransaction($orderId, $orderTotal, $vatType, $exemptionType, $exemptionIdNumber, $exemptionName);
+        if (!$vatData) {
+            error_log("Failed to create VAT transaction for order $orderId");
+        }
+        
+        // Log audit trail for order creation
+        BIRHelper::logAuditTrail($orderId, $user['user_id'], 'create', 'pos_orders', $orderId, null, null, null, 'POS ticket order created');
 
         // --- Process each ticket ---
         $ticketTxnIds = [];
@@ -183,70 +230,83 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $txnCode = 'TKT-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
             if (!$firstTxnCode) $firstTxnCode = $txnCode;
 
-            Database::execute(
-                "INSERT INTO ticket_transactions
-                    (transaction_code, wallet_id, branch_id, passenger_id, accommodation_id, discount_id,
-                     origin, destination, travel_date, ticket_number,
-                     base_amount, service_fee, discount_amount, total_amount, status,
-                     cashier_session_id, created_by, created_at)
-                 VALUES (:code, :wallet, :branch, :passenger, :accommodation_id, :discount_id,
-                         :origin, :destination, :travel_date, :ticket_number,
-                         :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
-                         :session, :uid, :created_at)",
-                [
-                    'code'            => $txnCode,
-                    'wallet'          => $ticket['wallet_id'] ?? null,
-                    'branch'          => $branchId,
-                    'passenger'       => $ticket['passenger_id'] ?? null,
-                    'accommodation_id'=> $ticket['accommodation_id'] ?? null,
-                    'discount_id'     => $ticket['discount_id'] ?? null,
-                    'origin'          => $ticket['origin'] ?? null,
-                    'destination'     => $ticket['destination'] ?? null,
-                    'travel_date'     => $ticket['travel_date'] ?? null,
-                    'ticket_number'   => $ticket['ticket_number'] ?? null,
-                    'base_amount'     => floatval($ticket['base_amount'] ?? 0),
-                    'service_fee'     => floatval($ticket['service_fee'] ?? 0),
-                    'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
-                    'total_amount'    => floatval($ticket['total_amount'] ?? 0),
-                    'session'         => $sessionId,
-                    'uid'             => $user['user_id'],
-                    'created_at'      => date('Y-m-d H:i:s'),
-                ]
-            );
+            try {
+                Database::execute(
+                    "INSERT INTO ticket_transactions
+                        (transaction_code, wallet_id, branch_id, passenger_id, accommodation_id, discount_id,
+                         origin, destination, travel_date, ticket_number,
+                         base_amount, service_fee, discount_amount, total_amount, status,
+                         cashier_session_id, created_by, created_at)
+                     VALUES (:code, :wallet, :branch, :passenger, :accommodation_id, :discount_id,
+                             :origin, :destination, :travel_date, :ticket_number,
+                             :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
+                             :session, :uid, :created_at)",
+                    [
+                        'code'            => $txnCode,
+                        'wallet'          => $ticket['wallet_id'] ?? null,
+                        'branch'          => $branchId,
+                        'passenger'       => $ticket['passenger_id'] ?? null,
+                        'accommodation_id'=> $ticket['accommodation_id'] ?? null,
+                        'discount_id'     => $ticket['discount_id'] ?? null,
+                        'origin'          => $ticket['origin'] ?? null,
+                        'destination'     => $ticket['destination'] ?? null,
+                        'travel_date'     => $ticket['travel_date'] ?? null,
+                        'ticket_number'   => $ticket['ticket_number'] ?? null,
+                        'base_amount'     => floatval($ticket['base_amount'] ?? 0),
+                        'service_fee'     => floatval($ticket['service_fee'] ?? 0),
+                        'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
+                        'total_amount'    => floatval($ticket['total_amount'] ?? 0),
+                        'session'         => $sessionId,
+                        'uid'             => $user['user_id'],
+                        'created_at'      => date('Y-m-d H:i:s'),
+                    ]
+                );
+            } catch (Exception $e) {
+                Database::connection()->rollBack();
+                error_log("Failed to insert into ticket_transactions: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Failed to create ticket transaction: ' . $e->getMessage()]); exit;
+            }
+
             $ticketTxnId = Database::connection()->lastInsertId();
             $ticketTxnIds[] = $ticketTxnId;
 
             // --- Write order item for this ticket ---
-            Database::execute(
-                "INSERT INTO pos_order_items
-                    (order_id, item_type, reference_id, transaction_code, ticket_number,
-                     accommodation_id, discount_id, wallet_id, passenger_id, description,
-                     unit_price, service_fee, discount_amount, total_amount,
-                     origin, destination, travel_date, created_at)
-                 VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                         :accommodation_id, :discount_id, :wallet_id, :passenger_id, :description,
-                         :unit_price, :service_fee, :discount_amount, :total,
-                         :origin, :destination, :travel_date, :created_at)",
-                [
-                    'oid'              => $orderId,
-                    'ref'              => $ticketTxnId,
-                    'code'             => $txnCode,
-                    'ticket_number'    => $ticket['ticket_number'] ?? $txnCode,
-                    'accommodation_id' => !empty($ticket['accommodation_id']) ? intval($ticket['accommodation_id']) : null,
-                    'discount_id'      => !empty($ticket['discount_id']) ? intval($ticket['discount_id']) : null,
-                    'wallet_id'        => $ticket['wallet_id'] ?? null,
-                    'passenger_id'     => $ticket['passenger_id'] ?? null,
-                    'description'      => $ticket['description'] ?? null,
-                    'unit_price'       => floatval($ticket['base_amount'] ?? 0),
-                    'service_fee'      => floatval($ticket['service_fee'] ?? 0),
-                    'discount_amount'  => floatval($ticket['discount_amount'] ?? 0),
-                    'total'            => floatval($ticket['total_amount'] ?? 0),
-                    'origin'           => $ticket['origin'] ?? null,
-                    'destination'      => $ticket['destination'] ?? null,
-                    'travel_date'      => $ticket['travel_date'] ?? null,
-                    'created_at'       => date('Y-m-d H:i:s'),
-                ]
-            );
+            try {
+                Database::execute(
+                    "INSERT INTO pos_order_items
+                        (order_id, item_type, reference_id, transaction_code, ticket_number,
+                         accommodation_id, discount_id, wallet_id, passenger_id, description,
+                         unit_price, service_fee, discount_amount, total_amount,
+                         origin, destination, travel_date, created_at)
+                     VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
+                             :accommodation_id, :discount_id, :wallet_id, :passenger_id, :description,
+                             :unit_price, :service_fee, :discount_amount, :total,
+                             :origin, :destination, :travel_date, :created_at)",
+                    [
+                        'oid'              => $orderId,
+                        'ref'              => $ticketTxnId,
+                        'code'             => $txnCode,
+                        'ticket_number'    => $ticket['ticket_number'] ?? $txnCode,
+                        'accommodation_id' => !empty($ticket['accommodation_id']) ? intval($ticket['accommodation_id']) : null,
+                        'discount_id'      => !empty($ticket['discount_id']) ? intval($ticket['discount_id']) : null,
+                        'wallet_id'        => $ticket['wallet_id'] ?? null,
+                        'passenger_id'     => $ticket['passenger_id'] ?? null,
+                        'description'      => $ticket['description'] ?? null,
+                        'unit_price'       => floatval($ticket['base_amount'] ?? 0),
+                        'service_fee'      => floatval($ticket['service_fee'] ?? 0),
+                        'discount_amount'  => floatval($ticket['discount_amount'] ?? 0),
+                        'total'            => floatval($ticket['total_amount'] ?? 0),
+                        'origin'           => $ticket['origin'] ?? null,
+                        'destination'      => $ticket['destination'] ?? null,
+                        'travel_date'      => $ticket['travel_date'] ?? null,
+                        'created_at'       => date('Y-m-d H:i:s'),
+                    ]
+                );
+            } catch (Exception $e) {
+                Database::connection()->rollBack();
+                error_log("Failed to insert into pos_order_items for ticket. Order ID: $orderId, Ticket Txn ID: $ticketTxnId. Error: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => 'Failed to create order item for ticket: ' . $e->getMessage()]); exit;
+            }
 
             logActivity($user['user_id'], 'CREATE_TICKET_TRANSACTION', 'POS', $txnCode, null,
                 ['order_code' => $orderCode, 'ticket_id' => $ticketTxnId, 'wallet_id' => $ticket['wallet_id'] ?? null]);
@@ -439,6 +499,9 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             'total'            => $orderTotal,
             'paid'             => $totalPaid,
             'change'           => $totalPaid - $orderTotal,
+            'or_number'        => $orData['or_full_number'] ?? null,
+            'or_id'            => $orData['or_id'] ?? null,
+            'vat_data'         => $vatData ?? null,
         ]);
 
         exit;

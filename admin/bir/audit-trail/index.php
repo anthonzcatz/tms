@@ -4,12 +4,8 @@
  * View comprehensive audit logs
  */
 
-require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
-require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
-require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/_guard.php';
-
-Auth::requireLogin();
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
@@ -28,7 +24,7 @@ $dateFrom = $_GET['date_from'] ?? date('Y-m-d', strtotime('-7 days'));
 $dateTo = $_GET['date_to'] ?? date('Y-m-d');
 
 $query = "
-    SELECT at.*, u.fullname as user_name, po.order_code, bb.branch_name
+    SELECT at.*, u.username as user_name, po.order_code, bb.branch_name
     FROM bir_audit_trail at
     LEFT JOIN user_accounts u ON at.user_id = u.user_id
     LEFT JOIN pos_orders po ON at.order_id = po.order_id
@@ -55,7 +51,7 @@ $query .= " ORDER BY at.created_at DESC LIMIT 200";
 $auditTrail = Database::fetchAll($query, $params);
 
 // Fetch users for filter
-$users = Database::fetchAll("SELECT user_id, fullname FROM user_accounts WHERE status = 'active' ORDER BY fullname");
+$users = Database::fetchAll("SELECT user_id, username FROM user_accounts WHERE status = 'active' ORDER BY username");
 
 $viewData = ['auditTrail' => $auditTrail, 'users' => $users, 'filters' => compact('actionFilter', 'tableFilter', 'userFilter', 'dateFrom', 'dateTo'), 'userRoleCode' => $userRoleCode];
 extract($viewData);

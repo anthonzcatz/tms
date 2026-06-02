@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BIRHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -164,6 +165,33 @@ try {
             ]
         );
         $orderId = Database::connection()->lastInsertId();
+
+        // --- BIR Integration: Assign OR Number and Create VAT Transaction ---
+        $orData = null;
+        $vatData = null;
+        
+        // Get VAT type from input (default to 12_percent)
+        $vatType = $input['vat_type'] ?? '12_percent';
+        $exemptionType = $input['exemption_type'] ?? null;
+        $exemptionIdNumber = $input['exemption_id_number'] ?? null;
+        $exemptionName = $input['exemption_name'] ?? null;
+        
+        // Assign OR number if auto-assignment is enabled
+        if (BIRHelper::isAutoORAssignmentEnabled()) {
+            $orData = BIRHelper::assignORNumber($orderId, $branchId, $user['user_id']);
+            if (!$orData) {
+                error_log("Failed to assign OR number for order $orderId");
+            }
+        }
+        
+        // Create VAT transaction
+        $vatData = BIRHelper::createVATTransaction($orderId, $orderTotal, $vatType, $exemptionType, $exemptionIdNumber, $exemptionName);
+        if (!$vatData) {
+            error_log("Failed to create VAT transaction for order $orderId");
+        }
+        
+        // Log audit trail for order creation
+        BIRHelper::logAuditTrail($orderId, $user['user_id'], 'create', 'pos_orders', $orderId, null, null, null, 'POS order created');
 
         // --- BEGIN: Process each item as a service_transaction ---
         $createdTxnIds = [];
@@ -350,6 +378,9 @@ try {
             'total'            => $orderTotal,
             'paid'             => $totalPaid,
             'change'           => $totalPaid - $orderTotal,
+            'or_number'        => $orData['or_full_number'] ?? null,
+            'or_id'            => $orData['or_id'] ?? null,
+            'vat_data'         => $vatData ?? null,
         ]);
 
         exit;

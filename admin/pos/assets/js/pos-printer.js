@@ -51,7 +51,14 @@
             contact: '',
             email: '',
             tin: '',
-            logo: ''
+            logo: '',
+            // BIR accreditation details
+            birPermitNumber: '',
+            birAccreditationNumber: '',
+            birValidityFrom: '',
+            birValidityTo: '',
+            birMin: '',
+            birSerialNumber: ''
         },
 
         // ESC/POS Commands
@@ -429,6 +436,12 @@
                 ? String(receiptId).padStart(3, '0')
                 : (transaction.transaction_code || 'N/A');
             data.push(`Receipt No.: ${paddedId}\n`);
+            
+            // BIR: OR Number (if available)
+            if (transaction.or_number) {
+                data.push(`OR Number  : ${transaction.or_number}\n`);
+            }
+            
             if (this.config.showCashier && transaction.cashier_name) {
                 data.push(`Cashier    : ${transaction.cashier_name}\n`);
             }
@@ -499,7 +512,27 @@
             if (this.config.showDiscount && discountTotal > 0) {
                 data.push(this.formatLine('Discount         :', '-' + discountTotal.toFixed(2), width));
             }
-            if (taxTotal > 0) {
+            
+            // BIR: VAT breakdown
+            if (transaction.vat_data) {
+                const vatAmount = parseFloat(transaction.vat_data.vat_amount || 0);
+                const vatType = transaction.vat_data.vat_type || '12_percent';
+                const taxableAmount = parseFloat(transaction.vat_data.taxable_amount || 0);
+                const nonTaxableAmount = parseFloat(transaction.vat_data.non_taxable_amount || 0);
+                
+                if (vatAmount > 0) {
+                    let vatTypeLabel = '12% VAT';
+                    if (vatType === 'exempt') vatTypeLabel = 'VAT-Exempt';
+                    else if (vatType === 'zero_rated') vatTypeLabel = 'Zero-Rated';
+                    
+                    data.push(this.formatLine(`${vatTypeLabel}       :`, vatAmount.toFixed(2), width));
+                    data.push(this.formatLine('Taxable Sales    :', taxableAmount.toFixed(2), width));
+                }
+                if (nonTaxableAmount > 0) {
+                    data.push(this.formatLine('Non-Taxable      :', nonTaxableAmount.toFixed(2), width));
+                }
+            } else if (taxTotal > 0) {
+                // Fallback to legacy tax field
                 data.push(this.formatLine('VAT/Tax          :', taxTotal.toFixed(2), width));
             }
 
@@ -536,6 +569,29 @@
             data.push(this.repeatChar('=', width) + '\n');
             data.push(cmd.ALIGN_CENTER);
 
+            // BIR: Accreditation details
+            if (this.companyInfo.birPermitNumber) {
+                data.push(`Permit No: ${this.companyInfo.birPermitNumber}\n`);
+            }
+            if (this.companyInfo.birAccreditationNumber) {
+                data.push(`Accreditation No: ${this.companyInfo.birAccreditationNumber}\n`);
+            }
+            if (this.companyInfo.birValidityFrom && this.companyInfo.birValidityTo) {
+                data.push(`Valid: ${this.companyInfo.birValidityFrom} to ${this.companyInfo.birValidityTo}\n`);
+            }
+            if (this.companyInfo.birMin) {
+                data.push(`MIN: ${this.companyInfo.birMin}\n`);
+            }
+            if (this.companyInfo.birSerialNumber) {
+                data.push(`Serial No: ${this.companyInfo.birSerialNumber}\n`);
+            }
+            
+            // BIR: Official Receipt disclaimer
+            data.push('\n');
+            data.push(cmd.BOLD_ON);
+            data.push('This serves as Official Receipt\n');
+            data.push(cmd.BOLD_OFF);
+            
             // Custom footer (from System Settings) takes precedence, then default footer text
             const footerLine = this.config.customFooter || this.config.footerText || 'Thank you for your business!';
             data.push(footerLine + '\n');

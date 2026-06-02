@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_abbreviation' => trim($_POST['company_abbreviation'] ?? ''),
             'company_address' => trim($_POST['company_address'] ?? ''),
             'company_contact_number' => trim($_POST['company_contact_number'] ?? ''),
-            'company_tin' => trim($_POST['company_tin'] ?? ''),
+            // company_tin moved to BIR Settings - removed from System Settings
             'company_email' => filter_var(trim($_POST['company_email'] ?? ''), FILTER_SANITIZE_EMAIL),
             'company_tagline' => trim($_POST['company_tagline'] ?? ''),
             'system_name' => $systemName,
@@ -131,7 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 company_abbreviation = :company_abbreviation,
                 company_address = :company_address,
                 company_contact_number = :company_contact_number,
-                company_tin = :company_tin,
                 company_email = :company_email,
                 company_tagline = :company_tagline,
                 system_name = :system_name,

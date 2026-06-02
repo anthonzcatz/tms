@@ -4,12 +4,8 @@
  * VAT computation, exemption types, and VAT transaction tracking
  */
 
-require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
-require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
-require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/_guard.php';
-
-Auth::requireLogin();
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';

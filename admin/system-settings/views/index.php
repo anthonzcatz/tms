@@ -239,13 +239,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                         <input type="text" class="form-control" name="company_contact_number" value="<?php echo htmlspecialchars($settings['company_contact_number'] ?? ''); ?>" placeholder="e.g., +63 912 345 6789">
                       </div>
                       <div class="col-md-6">
-                        <label class="form-label fw-semibold">Tax Identification Number (TIN)</label>
-                        <input type="text" class="form-control" name="company_tin" value="<?php echo htmlspecialchars($settings['company_tin'] ?? ''); ?>" placeholder="e.g., 123-456-789-000">
-                        <small class="text-muted">TIN to display on official receipts</small>
-                      </div>
-                      <div class="col-md-6">
                         <label class="form-label fw-semibold">Email Address</label>
                         <input type="email" class="form-control" name="company_email" value="<?php echo htmlspecialchars($settings['company_email'] ?? ''); ?>" placeholder="e.g., info@company.com">
+                      </div>
+                      <div class="col-md-12">
+                        <div class="alert alert-info d-flex align-items-center">
+                          <span class="fas fa-info-circle me-2"></span>
+                          <div>
+                            <strong>TIN (Tax Identification Number)</strong> is now managed in <a href="<?php echo BASE_URL; ?>/admin/bir/settings/">BIR Settings</a>.
+                          </div>
+                        </div>
                       </div>
                       <div class="col-md-12">
                         <label class="form-label fw-semibold">Company Tagline</label>

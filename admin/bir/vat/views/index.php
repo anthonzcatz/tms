@@ -3,7 +3,7 @@
 <?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
@@ -264,8 +264,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
   </div>
   <?php endif; ?>
-  
+
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

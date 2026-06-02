@@ -3,15 +3,33 @@
 <?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
       <script>var isFluid = JSON.parse(localStorage.getItem('isFluid')); if (isFluid) { var container = document.querySelector('[data-layout]'); container.classList.remove('container'); container.classList.add('container-fluid'); }</script>
-      
-      <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+
+      <?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?>
+        <?php if (NAVBAR_POSITION === 'top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
+        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
+        <?php endif; ?>
+      <?php else: ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+      <?php endif; ?>
+
+      <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
       <div class="content">
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; ?>
+        <?php
+        switch (NAVBAR_POSITION) {
+            case 'combo':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; break;
+            case 'vertical':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; break;
+        }
+        ?>
+      <?php endif; ?>
 
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -116,16 +134,61 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           <div class="modal-body">
             <input type="hidden" name="action" value="add_machine">
             <div class="row g-3">
-              <div class="col-md-6"><label class="form-label">Machine Name</label><input type="text" name="machine_name" class="form-control" required></div>
-              <div class="col-md-6"><label class="form-label">Branch</label><select name="branch_id" class="form-select" required><option value="">Select Branch</option><?php foreach ($branches as $b): ?><option value="<?php echo $b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?></option><?php endforeach; ?></select></div>
-              <div class="col-md-6"><label class="form-label">Serial Number</label><input type="text" name="serial_number" class="form-control" required></div>
-              <div class="col-md-6"><label class="form-label">Machine Type</label><select name="machine_type" class="form-select"><option value="POS">POS</option><option value="CAS">CAS</option></select></div>
-              <div class="col-md-6"><label class="form-label">MIN (Machine ID)</label><input type="text" name="min" class="form-control"></div>
-              <div class="col-md-6"><label class="form-label">Accreditation Number</label><input type="text" name="accreditation_number" class="form-control"></div>
-              <div class="col-md-6"><label class="form-label">Accreditation Expiry</label><input type="date" name="accreditation_expiry" class="form-control"></div>
-              <div class="col-md-6"><label class="form-label">Permit Number</label><input type="text" name="permit_number" class="form-control"></div>
-              <div class="col-md-6"><label class="form-label">Validity From</label><input type="date" name="validity_from" class="form-control"></div>
-              <div class="col-md-6"><label class="form-label">Validity To</label><input type="date" name="validity_to" class="form-control"></div>
+              <div class="col-md-6">
+                <label class="form-label">Machine Name</label>
+                <input type="text" name="machine_name" class="form-control" required placeholder="e.g., Counter 1 POS">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Branch</label>
+                <select name="branch_id" class="form-select" required>
+                  <option value="">Select Branch</option>
+                  <?php foreach ($branches as $b): ?>
+                  <option value="<?php echo $b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Serial Number</label>
+                <input type="text" name="serial_number" class="form-control" required placeholder="e.g., SN123456789">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Machine Type</label>
+                <select name="machine_type" class="form-select">
+                  <option value="POS">POS - Point of Sale Terminal</option>
+                  <option value="CAS">CAS - Computerized Accounting System</option>
+                </select>
+                <small class="text-muted">POS: For sales transactions | CAS: For accounting/bookkeeping</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">MIN (Machine Identification Number)</label>
+                <input type="text" name="min" class="form-control" placeholder="e.g., 123456789012">
+                <small class="text-muted">Unique ID issued by BIR for this machine</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Accreditation Number</label>
+                <input type="text" name="accreditation_number" class="form-control" placeholder="e.g., ACC-2024-001">
+                <small class="text-muted">BIR accreditation certificate number</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Accreditation Expiry</label>
+                <input type="date" name="accreditation_expiry" class="form-control">
+                <small class="text-muted">When the BIR accreditation expires</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Permit Number</label>
+                <input type="text" name="permit_number" class="form-control" placeholder="e.g., PERMIT-2024-001">
+                <small class="text-muted">BIR permit to use machine</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Validity From</label>
+                <input type="date" name="validity_from" class="form-control">
+                <small class="text-muted">Start date of permit validity</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Validity To</label>
+                <input type="date" name="validity_to" class="form-control">
+                <small class="text-muted">End date of permit validity</small>
+              </div>
             </div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Add Machine</button></div>
@@ -134,7 +197,87 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     </div>
   </div>
 
+  <?php foreach ($machines as $m): ?>
+  <!-- Edit Machine Modal -->
+  <div class="modal fade" id="editMachineModal<?php echo $m['machine_id']; ?>" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Edit POS Machine</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="POST">
+          <div class="modal-body">
+            <input type="hidden" name="action" value="update_machine">
+            <input type="hidden" name="machine_id" value="<?php echo $m['machine_id']; ?>">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Machine Name</label>
+                <input type="text" name="machine_name" class="form-control" required value="<?php echo htmlspecialchars($m['machine_name']); ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Branch</label>
+                <select name="branch_id" class="form-select" required>
+                  <?php foreach ($branches as $b): ?>
+                  <option value="<?php echo $b['branch_id']; ?>" <?php echo $b['branch_id'] == $m['branch_id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($b['branch_name']); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Serial Number</label>
+                <input type="text" name="serial_number" class="form-control" required value="<?php echo htmlspecialchars($m['serial_number']); ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Machine Type</label>
+                <select name="machine_type" class="form-select">
+                  <option value="POS" <?php echo $m['machine_type'] === 'POS' ? 'selected' : ''; ?>>POS - Point of Sale Terminal</option>
+                  <option value="CAS" <?php echo $m['machine_type'] === 'CAS' ? 'selected' : ''; ?>>CAS - Computerized Accounting System</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">MIN (Machine Identification Number)</label>
+                <input type="text" name="min" class="form-control" value="<?php echo htmlspecialchars($m['min'] ?? ''); ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Accreditation Number</label>
+                <input type="text" name="accreditation_number" class="form-control" value="<?php echo htmlspecialchars($m['accreditation_number'] ?? ''); ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Accreditation Expiry</label>
+                <input type="date" name="accreditation_expiry" class="form-control" value="<?php echo $m['accreditation_expiry'] ?? ''; ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Permit Number</label>
+                <input type="text" name="permit_number" class="form-control" value="<?php echo htmlspecialchars($m['permit_number'] ?? ''); ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Validity From</label>
+                <input type="date" name="validity_from" class="form-control" value="<?php echo $m['validity_from'] ?? ''; ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Validity To</label>
+                <input type="date" name="validity_to" class="form-control" value="<?php echo $m['validity_to'] ?? ''; ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                  <option value="active" <?php echo $m['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
+                  <option value="expired" <?php echo $m['status'] === 'expired' ? 'selected' : ''; ?>>Expired</option>
+                  <option value="suspended" <?php echo $m['status'] === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Update Machine</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
+
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

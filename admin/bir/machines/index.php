@@ -4,12 +4,8 @@
  * Manage POS machine accreditation details
  */
 
-require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
-require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
-require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/_guard.php';
-
-Auth::requireLogin();
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
@@ -28,8 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     try {
         if ($_POST['action'] === 'add_machine') {
             Database::execute(
-                "INSERT INTO bir_pos_machines (branch_id, machine_name, serial_number, accreditation_number, 
-                 accreditation_expiry, machine_type, min, permit_number, validity_from, validity_to, status, created_by) 
+                "INSERT INTO bir_pos_machines (branch_id, machine_name, serial_number, accreditation_number,
+                 accreditation_expiry, machine_type, min, permit_number, validity_from, validity_to, status, created_by)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)",
                 [
                     $_POST['branch_id'], $_POST['machine_name'], $_POST['serial_number'],
@@ -38,12 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $_POST['validity_from'], $_POST['validity_to'], $user['user_id']
                 ]
             );
-            $message = 'POS Machine added successfully!';
+            header('Location: ' . BASE_URL . '/admin/bir/machines/?success=' . urlencode('POS Machine added successfully!'));
+            exit;
         }
-        
+
         if ($_POST['action'] === 'update_machine') {
             Database::execute(
-                "UPDATE bir_pos_machines 
+                "UPDATE bir_pos_machines
                  SET branch_id = ?, machine_name = ?, serial_number = ?, accreditation_number = ?,
                      accreditation_expiry = ?, machine_type = ?, min = ?, permit_number = ?,
                      validity_from = ?, validity_to = ?, status = ?
@@ -56,21 +53,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $_POST['machine_id']
                 ]
             );
-            $message = 'POS Machine updated successfully!';
+            header('Location: ' . BASE_URL . '/admin/bir/machines/?success=' . urlencode('POS Machine updated successfully!'));
+            exit;
         }
-        
+
         if ($_POST['action'] === 'delete_machine') {
             Database::execute("DELETE FROM bir_pos_machines WHERE machine_id = ?", [$_POST['machine_id']]);
-            $message = 'POS Machine deleted successfully!';
+            header('Location: ' . BASE_URL . '/admin/bir/machines/?success=' . urlencode('POS Machine deleted successfully!'));
+            exit;
         }
     } catch (Exception $e) {
-        $error = 'Error: ' . $e->getMessage();
+        header('Location: ' . BASE_URL . '/admin/bir/machines/?error=' . urlencode('Error: ' . $e->getMessage()));
+        exit;
     }
 }
 
+// Check for success/error messages from redirect
+$message = $_GET['success'] ?? '';
+$error = $_GET['error'] ?? '';
+
 // Fetch machines
 $machines = Database::fetchAll(
-    "SELECT m.*, bb.branch_name, u.fullname as created_by_name
+    "SELECT m.*, bb.branch_name, u.username as created_by_name
      FROM bir_pos_machines m
      LEFT JOIN business_branches bb ON m.branch_id = bb.branch_id
      LEFT JOIN user_accounts u ON m.created_by = u.user_id

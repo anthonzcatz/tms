@@ -10,24 +10,21 @@ USE `tms_db`;
 -- ============================================================
 
 -- Add BIR permissions
-INSERT INTO `permissions` (`permission_code`, `permission_name`, `module_name`, `menu_url`, `menu_icon`, `menu_order`) VALUES
-('BIR_ACCESS', 'Access BIR Module', 'BIR', '/admin/bir/', 'fa-building', 100),
-('BIR_SETTINGS', 'Manage BIR Settings', 'BIR', '/admin/bir/settings/', 'fa-cog', 101),
-('BIR_OR_NUMBERS_VIEW', 'View OR Numbers', 'BIR', '/admin/bir/or-numbers/', 'fa-receipt', 102),
-('BIR_OR_NUMBERS_MANAGE', 'Manage OR Numbers', 'BIR', '/admin/bir/or-numbers/', 'fa-receipt', 103),
-('BIR_VAT_VIEW', 'View VAT', 'BIR', '/admin/bir/vat/', 'fa-percentage', 104),
-('BIR_REPORTS_VIEW', 'View BIR Reports', 'BIR', '/admin/bir/reports/', 'fa-chart-bar', 105),
-('BIR_REPORTS_GENERATE', 'Generate BIR Reports', 'BIR', '/admin/bir/reports/', 'fa-chart-bar', 106),
-('BIR_MACHINES_VIEW', 'View POS Machines', 'BIR', '/admin/bir/machines/', 'fa-desktop', 107),
-('BIR_MACHINES_MANAGE', 'Manage POS Machines', 'BIR', '/admin/bir/machines/', 'fa-desktop', 108),
-('BIR_AUDIT_VIEW', 'View Audit Trail', 'BIR', '/admin/bir/audit-trail/', 'fa-history', 109),
-('BIR_BACKUPS_VIEW', 'View Backups', 'BIR', '/admin/bir/backups/', 'fa-database', 110),
-('BIR_BACKUPS_MANAGE', 'Manage Backups', 'BIR', '/admin/bir/backups/', 'fa-database', 111)
+INSERT INTO `permissions` (`permission_code`, `permission_name`, `module_name`, `parent_permission_id`, `menu_url`, `menu_icon`, `menu_order`, `is_menu_item`) VALUES
+('BIR_ACCESS', 'BIR Module', 'BIR', NULL, '/admin/bir/', 'fa-building', 100, 1),
+('BIR_SETTINGS', 'BIR Settings', 'BIR', NULL, '/admin/bir/settings/', 'fa-cog', 101, 1),
+('BIR_OR_NUMBERS', 'OR Numbers', 'BIR', NULL, '/admin/bir/or-numbers/', 'fa-receipt', 102, 1),
+('BIR_VAT', 'VAT Management', 'BIR', NULL, '/admin/bir/vat/', 'fa-percentage', 103, 1),
+('BIR_REPORTS', 'BIR Reports', 'BIR', NULL, '/admin/bir/reports/', 'fa-chart-bar', 104, 1),
+('BIR_MACHINES', 'POS Machines', 'BIR', NULL, '/admin/bir/machines/', 'fa-desktop', 105, 1),
+('BIR_AUDIT_TRAIL', 'Audit Trail', 'BIR', NULL, '/admin/bir/audit-trail/', 'fa-history', 106, 1),
+('BIR_BACKUPS', 'Backups', 'BIR', NULL, '/admin/bir/backups/', 'fa-database', 107, 1)
 ON DUPLICATE KEY UPDATE 
     permission_name = VALUES(permission_name),
     module_name = VALUES(module_name),
     menu_url = VALUES(menu_url),
-    menu_icon = VALUES(menu_icon);
+    menu_icon = VALUES(menu_icon),
+    is_menu_item = VALUES(is_menu_item);
 
 -- ============================================================
 -- ASSIGN PERMISSIONS TO ROLES

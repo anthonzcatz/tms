@@ -18,6 +18,10 @@
 
 require_once __DIR__ . '/env.php';
 
+if (class_exists('Database')) {
+    return;
+}
+
 final class Database
 {
     private static ?PDO $instance = null;

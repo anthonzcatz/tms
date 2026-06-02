@@ -4,12 +4,8 @@
  * Manage Official Receipt numbering, void tracking, and series management
  */
 
-require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
-require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
-require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/_guard.php';
-
-Auth::requireLogin();
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
@@ -33,47 +29,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $year = $_POST['year'] ?? date('Y');
             $startNumber = $_POST['start_number'] ?? 1;
             $endNumber = $_POST['end_number'] ?? 999999;
-            
+
             $seriesCode = sprintf('%03d-%d', $branchId, $year);
-            
+
             // Check if series already exists
             $existing = Database::fetch(
                 "SELECT series_id FROM bir_or_series WHERE branch_id = ? AND year = ?",
                 [$branchId, $year]
             );
-            
+
             if ($existing) {
-                $error = 'OR Series already exists for this branch and year.';
+                header('Location: ' . BASE_URL . '/admin/bir/or-numbers/?error=' . urlencode('OR Series already exists for this branch and year.'));
+                exit;
             } else {
                 Database::execute(
-                    "INSERT INTO bir_or_series (branch_id, year, series_code, start_number, current_number, end_number, status, created_by) 
+                    "INSERT INTO bir_or_series (branch_id, year, series_code, start_number, current_number, end_number, status, created_by)
                      VALUES (?, ?, ?, ?, 0, ?, 'active', ?)",
                     [$branchId, $year, $seriesCode, $startNumber, $endNumber, $user['user_id']]
                 );
-                $message = 'OR Series created successfully!';
+                header('Location: ' . BASE_URL . '/admin/bir/or-numbers/?success=' . urlencode('OR Series created successfully!'));
+                exit;
             }
         }
-        
+
         if ($_POST['action'] === 'void_or') {
             $orId = $_POST['or_id'] ?? null;
             $reason = $_POST['void_reason'] ?? '';
-            
+
             if (empty($reason)) {
-                $error = 'Void reason is required.';
+                header('Location: ' . BASE_URL . '/admin/bir/or-numbers/?error=' . urlencode('Void reason is required.'));
+                exit;
             } else {
                 Database::execute(
-                    "UPDATE bir_or_numbers 
-                     SET status = 'void', voided_at = NOW(), voided_by = ?, void_reason = ? 
+                    "UPDATE bir_or_numbers
+                     SET status = 'void', voided_at = NOW(), voided_by = ?, void_reason = ?
                      WHERE or_id = ? AND status = 'issued'",
                     [$user['user_id'], $reason, $orId]
                 );
-                $message = 'OR Number voided successfully!';
+                header('Location: ' . BASE_URL . '/admin/bir/or-numbers/?success=' . urlencode('OR Number voided successfully!'));
+                exit;
             }
         }
     } catch (Exception $e) {
-        $error = 'Error: ' . $e->getMessage();
+        header('Location: ' . BASE_URL . '/admin/bir/or-numbers/?error=' . urlencode('Error: ' . $e->getMessage()));
+        exit;
     }
 }
+
+// Check for success/error messages from redirect
+$message = $_GET['success'] ?? '';
+$error = $_GET['error'] ?? '';
 
 // Fetch OR numbers with filters
 $branchFilter = $_GET['branch_id'] ?? '';
@@ -83,7 +88,7 @@ $dateTo = $_GET['date_to'] ?? '';
 $search = $_GET['search'] ?? '';
 
 $query = "
-    SELECT orn.*, bb.branch_name, u.fullname as voided_by_name, po.order_code
+    SELECT orn.*, bb.branch_name, u.username as voided_by_name, po.order_code
     FROM bir_or_numbers orn
     LEFT JOIN business_branches bb ON orn.branch_id = bb.branch_id
     LEFT JOIN user_accounts u ON orn.voided_by = u.user_id
@@ -124,7 +129,7 @@ $orNumbers = Database::fetchAll($query, $params);
 
 // Fetch OR series
 $orSeries = Database::fetchAll(
-    "SELECT s.*, bb.branch_name, u.fullname as created_by_name
+    "SELECT s.*, bb.branch_name, u.username as created_by_name
      FROM bir_or_series s
      LEFT JOIN business_branches bb ON s.branch_id = bb.branch_id
      LEFT JOIN user_accounts u ON s.created_by = u.user_id

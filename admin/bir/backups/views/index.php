@@ -1,14 +1,33 @@
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php'; ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
       <script>var isFluid = JSON.parse(localStorage.getItem('isFluid')); if (isFluid) { var container = document.querySelector('[data-layout]'); container.classList.remove('container'); container.classList.add('container-fluid'); }</script>
-      <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+
+      <?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?>
+        <?php if (NAVBAR_POSITION === 'top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
+        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
+        <?php endif; ?>
+      <?php else: ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+      <?php endif; ?>
+
+      <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
       <div class="content">
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; ?>
+        <?php
+        switch (NAVBAR_POSITION) {
+            case 'combo':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; break;
+            case 'vertical':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; break;
+        }
+        ?>
+      <?php endif; ?>
 
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -49,16 +68,56 @@
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <h5 class="mb-1">Create New Backup</h5>
-                <p class="text-muted mb-0">Create a full database backup for BIR compliance.</p>
+                <p class="text-muted mb-0">Create a full database backup (structure + data) for BIR compliance.</p>
               </div>
-              <form method="POST" class="mb-0"><input type="hidden" name="action" value="create_backup"><button type="submit" class="btn btn-primary"><span class="fas fa-database me-2"></span>Create Backup</button></form>
+              <form method="POST" class="mb-0" id="backupForm">
+                <input type="hidden" name="action" value="create_backup">
+                <button type="submit" class="btn btn-primary" id="createBackupBtn">
+                  <span class="fas fa-database me-2"></span>Create Backup
+                </button>
+              </form>
             </div>
           </div>
         </div>
 
         <!-- Backup History -->
         <div class="card">
-          <div class="card-header bg-body-tertiary"><h6 class="mb-0"><span class="fas fa-history me-2"></span>Backup History</h6></div>
+          <div class="card-header bg-body-tertiary">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-0"><span class="fas fa-history me-2"></span>Backup History</h6>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                <span class="fas fa-filter me-1"></span>Filters
+              </button>
+            </div>
+          </div>
+          <div class="collapse <?php echo (isset($_GET['status']) || isset($_GET['date_from']) || isset($_GET['date_to'])) ? 'show' : ''; ?>" id="filterCollapse">
+            <div class="card-body border-bottom">
+              <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">Status</label>
+                  <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="success" <?php echo (isset($_GET['status']) && $_GET['status'] === 'success') ? 'selected' : ''; ?>>Success</option>
+                    <option value="failed" <?php echo (isset($_GET['status']) && $_GET['status'] === 'failed') ? 'selected' : ''; ?>>Failed</option>
+                    <option value="corrupted" <?php echo (isset($_GET['status']) && $_GET['status'] === 'corrupted') ? 'selected' : ''; ?>>Corrupted</option>
+                    <option value="deleted" <?php echo (isset($_GET['status']) && $_GET['status'] === 'deleted') ? 'selected' : ''; ?>>Deleted</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Date From</label>
+                  <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($_GET['date_from'] ?? ''); ?>">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Date To</label>
+                  <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($_GET['date_to'] ?? ''); ?>">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                  <button type="submit" class="btn btn-primary me-2"><span class="fas fa-search me-1"></span>Filter</button>
+                  <a href="<?php echo BASE_URL; ?>/admin/bir/backups/" class="btn btn-outline-secondary"><span class="fas fa-times me-1"></span>Clear</a>
+                </div>
+              </form>
+            </div>
+          </div>
           <div class="card-body p-0">
             <div class="table-responsive">
               <table class="table table-hover table-sm mb-0">
@@ -76,10 +135,19 @@
                       <td><span class="badge bg-<?php echo match($b['status']) { 'success' => 'success', 'failed' => 'danger', 'corrupted' => 'warning', default => 'secondary' }; ?>"><?php echo ucfirst($b['status']); ?></span></td>
                       <td><?php echo htmlspecialchars($b['created_by_name']); ?></td>
                       <td>
-                        <form method="POST" class="d-inline"><input type="hidden" name="action" value="verify_backup"><input type="hidden" name="backup_id" value="<?php echo $b['backup_id']; ?>"><button type="submit" class="btn btn-sm btn-outline-primary" title="Verify"><span class="fas fa-check-circle"></span></button></form>
+                        <form method="POST" class="d-inline" onsubmit="return confirm('Verify this backup?');" data-backup-id="<?php echo $b['backup_id']; ?>" data-action="verify">
+                          <input type="hidden" name="action" value="verify_backup">
+                          <input type="hidden" name="backup_id" value="<?php echo $b['backup_id']; ?>">
+                          <button type="submit" class="btn btn-sm btn-outline-primary action-btn" title="Verify"><span class="fas fa-check-circle"></span></button>
+                        </form>
                         <?php if ($b['file_path'] && file_exists($b['file_path'])): ?>
-                        <a href="<?php echo str_replace(dirname(dirname(dirname(__DIR__))), BASE_URL, $b['file_path']); ?>" class="btn btn-sm btn-outline-success" download title="Download"><span class="fas fa-download"></span></a>
+                        <a href="?action=download&backup_id=<?php echo $b['backup_id']; ?>" class="btn btn-sm btn-outline-success" title="Download"><span class="fas fa-download"></span></a>
                         <?php endif; ?>
+                        <form method="POST" class="d-inline" onsubmit="return confirm('Delete this backup? This cannot be undone.');" data-backup-id="<?php echo $b['backup_id']; ?>" data-action="delete">
+                          <input type="hidden" name="action" value="delete_backup">
+                          <input type="hidden" name="backup_id" value="<?php echo $b['backup_id']; ?>">
+                          <button type="submit" class="btn btn-sm btn-outline-danger action-btn" title="Delete"><span class="fas fa-trash"></span></button>
+                        </form>
                       </td>
                     </tr>
                     <?php endforeach; ?>
@@ -93,7 +161,50 @@
       </div>
     </div>
   </main>
+
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
+
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
+
+  <script>
+    // Backup form with loading state
+    document.getElementById('backupForm').addEventListener('submit', function(e) {
+      const btn = document.getElementById('createBackupBtn');
+      const originalText = btn.innerHTML;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Creating Backup...';
+
+      // Form will submit normally, button will reset on page reload
+    });
+
+    // Action buttons (verify, delete) with loading state
+    document.querySelectorAll('.action-btn').forEach(function(btn) {
+      btn.closest('form').addEventListener('submit', function(e) {
+        const action = this.dataset.action;
+        const originalIcon = btn.innerHTML;
+
+        btn.disabled = true;
+        if (action === 'verify') {
+          btn.innerHTML = '<span class="fas fa-spinner fa-spin"></span>';
+        } else if (action === 'delete') {
+          btn.innerHTML = '<span class="fas fa-spinner fa-spin"></span>';
+        }
+      });
+    });
+
+    // Auto-dismiss alerts after 5 seconds
+    setTimeout(function() {
+      const alerts = document.querySelectorAll('.alert');
+      alerts.forEach(function(alert) {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+      });
+    }, 5000);
+  </script>
 </body>
 </html>

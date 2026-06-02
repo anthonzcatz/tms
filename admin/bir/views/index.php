@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
+require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 ?>
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
@@ -17,12 +18,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
       
       <?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?>
         <?php if (NAVBAR_POSITION === 'top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
+          <?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?>
         <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
-          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
+          <?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?>
         <?php endif; ?>
       <?php else: ?>
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+        <?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
       <?php endif; ?>
       
       <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
@@ -30,9 +31,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <?php
         switch (NAVBAR_POSITION) {
             case 'combo':
-                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; break;
+                include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; break;
             case 'vertical':
-                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; break;
+                include dirname(dirname(__DIR__)) . '/includes/navbar.php'; break;
         }
         ?>
       <?php endif; ?>
@@ -379,9 +380,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   </div>
   <?php endif; ?>
   
-  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
-  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
+  <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
   <script src="<?php echo BASE_URL; ?>/admin/bir/assets/js/bir.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/bir.js'); ?>"></script>
-  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
+  <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>

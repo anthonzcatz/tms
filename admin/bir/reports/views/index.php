@@ -3,7 +3,7 @@
 <?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
@@ -61,7 +61,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </div>
                   </div>
                   <div class="col-lg-auto">
-                    <a href="<?php echo BASE_URL; ?>/admin/bir/" class="btn btn-sm btn-outline-secondary">
+                    <a href="<?php echo BASE_URL; ?>/admin/bir/reports/" class="btn btn-sm btn-outline-secondary">
                       <span class="fas fa-arrow-left me-1"></span>Back
                     </a>
                   </div>
@@ -102,6 +102,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <option value="DSR">Daily Sales Report (DSR)</option>
                   <option value="Monthly">Monthly Sales Report</option>
                   <option value="SLS">Summary List of Sales (SLS)</option>
+                  <option value="Alphalist">Alphalist of Purchases</option>
                   <option value="2550M">VAT Return (2550M)</option>
                 </select>
               </div>
@@ -128,7 +129,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               
               <div class="col-md-2">
                 <label class="form-label">&nbsp;</label>
-                <button type="submit" class="btn btn-primary w-100">
+                <button type="submit" id="generateReportBtn" class="btn btn-primary w-100">
                   <span class="fas fa-cog me-1"></span>Generate
                 </button>
               </div>
@@ -141,41 +142,248 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <div class="card mb-4 border-primary">
           <div class="card-header bg-primary text-white">
             <div class="d-flex justify-content-between align-items-center">
-              <h6 class="mb-0"><?php echo $reportData['report_type']; ?> Report Preview</h6>
+              <h6 class="mb-0"><?php echo htmlspecialchars($reportData['report_type'] ?? ''); ?> Report Preview</h6>
               <button class="btn btn-sm btn-light" onclick="window.print()">
                 <span class="fas fa-print me-1"></span>Print
               </button>
             </div>
           </div>
           <div class="card-body">
-            <?php if ($reportData['report_type'] === 'DSR'): ?>
+            <?php if (($reportData['report_type'] ?? '') === 'DSR'): ?>
               <!-- DSR Preview -->
-              <h6 class="border-bottom pb-2 mb-3">Daily Summary - <?php echo date('F d, Y', strtotime($reportData['date'])); ?></h6>
+              <h6 class="border-bottom pb-2 mb-3">Daily Summary - <?php echo date('F d, Y', strtotime($reportData['date'] ?? '')); ?></h6>
               <div class="row mb-4">
                 <div class="col-md-3">
                   <div class="border rounded p-3 text-center">
-                    <h4 class="text-primary"><?php echo number_format($reportData['summary']['total_transactions']); ?></h4>
+                    <h4 class="text-primary"><?php echo number_format($reportData['summary']['total_transactions'] ?? 0); ?></h4>
                     <small class="text-muted">Transactions</small>
                   </div>
                 </div>
                 <div class="col-md-3">
                   <div class="border rounded p-3 text-center">
-                    <h4 class="text-success">₱<?php echo number_format($reportData['summary']['total_sales'], 2); ?></h4>
+                    <h4 class="text-success">₱<?php echo number_format($reportData['summary']['total_sales'] ?? 0, 2); ?></h4>
                     <small class="text-muted">Total Sales</small>
                   </div>
                 </div>
                 <div class="col-md-3">
                   <div class="border rounded p-3 text-center">
-                    <h4 class="text-info">₱<?php echo number_format($reportData['summary']['total_vat'], 2); ?></h4>
+                    <h4 class="text-info">₱<?php echo number_format($reportData['summary']['total_vat'] ?? 0, 2); ?></h4>
                     <small class="text-muted">VAT</small>
                   </div>
                 </div>
                 <div class="col-md-3">
                   <div class="border rounded p-3 text-center">
-                    <h4 class="text-warning"><?php echo number_format($reportData['summary']['void_count'] + $reportData['summary']['cancelled_count']); ?></h4>
-                    <small class="text-muted">Void/Cancelled</small>
+                    <h4 class="text-warning"><?php echo number_format(($reportData['summary']['refunded_count'] ?? 0) + ($reportData['summary']['cancelled_count'] ?? 0)); ?></h4>
+                    <small class="text-muted">Refunded/Cancelled</small>
                   </div>
                 </div>
+              </div>
+            <?php elseif (($reportData['report_type'] ?? '') === 'Alphalist'): ?>
+              <!-- Alphalist Preview -->
+              <h6 class="border-bottom pb-2 mb-3">Alphalist of Purchases - <?php echo date('F d, Y', strtotime($reportData['period_start'] ?? '')) . ' to ' . date('F d, Y', strtotime($reportData['period_end'] ?? '')); ?></h6>
+              <div class="row mb-4">
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-primary"><?php echo number_format($reportData['summary']['transaction_count'] ?? 0); ?></h4>
+                    <small class="text-muted">Purchases</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-success">₱<?php echo number_format($reportData['summary']['total_purchases'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">Total Purchases</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-info">₱<?php echo number_format($reportData['summary']['total_vat_input'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">VAT Input</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-warning">₱<?php echo number_format($reportData['summary']['total_non_vat'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">Non-VAT</small>
+                  </div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Transaction Code</th>
+                      <th>Type</th>
+                      <th>Bank/Account</th>
+                      <th>Amount</th>
+                      <th>VAT Input</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($reportData['purchases'] ?? [] as $purchase): ?>
+                    <tr>
+                      <td><?php echo date('M d, Y', strtotime($purchase['created_at'] ?? '')); ?></td>
+                      <td><?php echo htmlspecialchars($purchase['txn_code'] ?? ''); ?></td>
+                      <td><?php echo htmlspecialchars($purchase['txn_type'] ?? ''); ?></td>
+                      <td><?php echo htmlspecialchars(($purchase['bank_name'] ?? '') . ' - ' . ($purchase['account_name'] ?? '')); ?></td>
+                      <td>₱<?php echo number_format($purchase['amount'] ?? 0, 2); ?></td>
+                      <td>₱<?php echo number_format((($purchase['amount'] ?? 0) / 1.12 * 0.12), 2); ?></td>
+                      <td><?php echo htmlspecialchars($purchase['remarks'] ?? '-'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php elseif (($reportData['report_type'] ?? '') === 'Monthly'): ?>
+              <!-- Monthly Report Preview -->
+              <h6 class="border-bottom pb-2 mb-3">Monthly Sales Report - <?php echo date('F d, Y', strtotime($reportData['period_start'] ?? '')) . ' to ' . date('F d, Y', strtotime($reportData['period_end'] ?? '')); ?></h6>
+              <div class="row mb-4">
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-primary"><?php echo number_format($reportData['summary']['total_transactions'] ?? 0); ?></h4>
+                    <small class="text-muted">Transactions</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-success">₱<?php echo number_format($reportData['summary']['total_sales'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">Total Sales</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-info">₱<?php echo number_format($reportData['summary']['total_vat'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">VAT</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-warning">₱<?php echo number_format($reportData['summary']['taxable_sales'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">Taxable Sales</small>
+                  </div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Transactions</th>
+                      <th>Total Sales</th>
+                      <th>VAT Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($reportData['daily_breakdown'] ?? [] as $day): ?>
+                    <tr>
+                      <td><?php echo date('M d, Y', strtotime($day['date'] ?? '')); ?></td>
+                      <td><?php echo number_format($day['transaction_count'] ?? 0); ?></td>
+                      <td>₱<?php echo number_format($day['total_sales'] ?? 0, 2); ?></td>
+                      <td>₱<?php echo number_format($day['vat_amount'] ?? 0, 2); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php elseif (($reportData['report_type'] ?? '') === 'SLS'): ?>
+              <!-- SLS Preview -->
+              <h6 class="border-bottom pb-2 mb-3">Summary List of Sales - <?php echo date('F d, Y', strtotime($reportData['period_start'] ?? '')) . ' to ' . date('F d, Y', strtotime($reportData['period_end'] ?? '')); ?></h6>
+              <div class="row mb-4">
+                <div class="col-md-4">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-primary"><?php echo number_format($reportData['summary']['total_transactions'] ?? 0); ?></h4>
+                    <small class="text-muted">Transactions</small>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-success">₱<?php echo number_format($reportData['summary']['total_sales'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">Total Sales</small>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-info">₱<?php echo number_format($reportData['summary']['total_vat'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">VAT</small>
+                  </div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Order Code</th>
+                      <th>Branch</th>
+                      <th>Total</th>
+                      <th>VAT</th>
+                      <th>VAT Type</th>
+                      <th>Status</th>
+                      <th>OR Number</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($reportData['transactions'] ?? [] as $txn): ?>
+                    <tr>
+                      <td><?php echo date('M d, Y H:i', strtotime($txn['created_at'] ?? '')); ?></td>
+                      <td><?php echo htmlspecialchars($txn['order_code'] ?? ''); ?></td>
+                      <td><?php echo htmlspecialchars($txn['branch_name'] ?? ''); ?></td>
+                      <td>₱<?php echo number_format($txn['grand_total'] ?? 0, 2); ?></td>
+                      <td>₱<?php echo number_format($txn['vat_amount'] ?? 0, 2); ?></td>
+                      <td><?php echo htmlspecialchars($txn['vat_type'] ?? ''); ?></td>
+                      <td><?php echo htmlspecialchars($txn['status'] ?? ''); ?></td>
+                      <td><?php echo htmlspecialchars($txn['or_full_number'] ?? '-'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php elseif (($reportData['report_type'] ?? '') === '2550M'): ?>
+              <!-- 2550M Preview -->
+              <h6 class="border-bottom pb-2 mb-3">VAT Return (2550M) - <?php echo date('F d, Y', strtotime($reportData['period_start'] ?? '')) . ' to ' . date('F d, Y', strtotime($reportData['period_end'] ?? '')); ?></h6>
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-success">₱<?php echo number_format($reportData['output_vat']['output_vat'] ?? 0, 2); ?></h4>
+                    <small class="text-muted">Output VAT</small>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="border rounded p-3 text-center">
+                    <h4 class="text-info">Total Transactions: <?php echo count($reportData['vat_breakdown'] ?? []); ?></h4>
+                    <small class="text-muted">VAT Breakdown Entries</small>
+                  </div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>VAT Type</th>
+                      <th>Transactions</th>
+                      <th>Total Sales</th>
+                      <th>VAT Amount</th>
+                      <th>Taxable Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($reportData['vat_breakdown'] ?? [] as $vat): ?>
+                    <tr>
+                      <td><?php echo htmlspecialchars($vat['vat_type'] ?? ''); ?></td>
+                      <td><?php echo number_format($vat['transaction_count'] ?? 0); ?></td>
+                      <td>₱<?php echo number_format($vat['total_sales'] ?? 0, 2); ?></td>
+                      <td>₱<?php echo number_format($vat['vat_amount'] ?? 0, 2); ?></td>
+                      <td>₱<?php echo number_format($vat['taxable_amount'] ?? 0, 2); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php else: ?>
+              <div class="alert alert-info">
+                <h6 class="alert-heading">Report Type: <?php echo htmlspecialchars($reportData['report_type'] ?? 'Unknown'); ?></h6>
+                <p class="mb-0">This report type does not have a preview template yet. Please download the JSON file to view the full data.</p>
               </div>
             <?php endif; ?>
           </div>
@@ -211,6 +419,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                             'DSR' => 'primary',
                             'Monthly' => 'success',
                             'SLS' => 'info',
+                            'Alphalist' => 'secondary',
                             '2550M' => 'warning',
                             default => 'secondary'
                           };
@@ -236,11 +445,28 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         </span>
                       </td>
                       <td>
-                        <button class="btn btn-sm btn-outline-primary" title="View">
+                        <?php $displayId = !empty($report['encoded_id']) ? $report['encoded_id'] : $report['report_id']; ?>
+                        <button class="btn btn-sm btn-outline-primary view-report-btn" data-report-id="<?php echo htmlspecialchars($displayId); ?>" title="View">
                           <span class="fas fa-eye"></span>
                         </button>
-                        <button class="btn btn-sm btn-outline-success" title="Export">
-                          <span class="fas fa-download"></span>
+                        <div class="btn-group">
+                          <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Download">
+                            <span class="fas fa-download"></span>
+                          </button>
+                          <ul class="dropdown-menu">
+                            <li><a class="dropdown-item download-report-btn" href="#" data-report-id="<?php echo htmlspecialchars($displayId); ?>" data-format="json">
+                              <span class="fas fa-file-code me-2"></span>JSON
+                            </a></li>
+                            <li><a class="dropdown-item download-report-btn" href="#" data-report-id="<?php echo htmlspecialchars($displayId); ?>" data-format="csv">
+                              <span class="fas fa-file-csv me-2"></span>CSV (Excel)
+                            </a></li>
+                            <li><a class="dropdown-item download-report-btn" href="#" data-report-id="<?php echo htmlspecialchars($displayId); ?>" data-format="html">
+                              <span class="fas fa-file-alt me-2"></span>HTML (Print)
+                            </a></li>
+                          </ul>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger delete-report-btn" data-report-id="<?php echo htmlspecialchars($displayId); ?>" title="Delete">
+                          <span class="fas fa-trash"></span>
                         </button>
                       </td>
                     </tr>
@@ -263,8 +489,102 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
   </div>
   <?php endif; ?>
-  
+
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Report generation form with loading state
+      const form = document.querySelector('form');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          const btn = document.getElementById('generateReportBtn');
+          if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="fas fa-spinner fa-spin me-1"></span>Generating...';
+          }
+        });
+      }
+
+      // View report button functionality
+      document.querySelectorAll('.view-report-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const reportId = this.getAttribute('data-report-id');
+
+          if (!reportId) {
+            alert('Invalid report ID');
+            return;
+          }
+
+          // Redirect to view the report
+          window.location.href = '<?php echo BASE_URL; ?>/admin/bir/reports/?view=' + encodeURIComponent(reportId);
+        });
+      });
+
+      // Download report button functionality
+      document.querySelectorAll('.download-report-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const reportId = this.getAttribute('data-report-id');
+          const format = this.getAttribute('data-format') || 'json';
+
+          if (!reportId) {
+            alert('Invalid report ID');
+            return;
+          }
+
+          // Redirect to download the report with format
+          window.location.href = '<?php echo BASE_URL; ?>/admin/bir/reports/?download=' + encodeURIComponent(reportId) + '&format=' + format;
+        });
+      });
+
+      // Delete report button functionality
+      document.querySelectorAll('.delete-report-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const reportId = this.getAttribute('data-report-id');
+          const originalIcon = this.innerHTML;
+
+          if (confirm('Are you sure you want to delete this report?')) {
+            // Show loading state
+            this.disabled = true;
+            this.innerHTML = '<span class="fas fa-spinner fa-spin"></span>';
+
+            // Create a form to send POST request
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '<?php echo BASE_URL; ?>/admin/bir/reports/';
+
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'delete';
+
+            const reportIdInput = document.createElement('input');
+            reportIdInput.type = 'hidden';
+            reportIdInput.name = 'report_id';
+            reportIdInput.value = reportId;
+
+            form.appendChild(actionInput);
+            form.appendChild(reportIdInput);
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
+      });
+
+      // Auto-dismiss alerts after 5 seconds
+      setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(function(alert) {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        });
+      }, 5000);
+    });
+  </script>
 </body>
 </html>

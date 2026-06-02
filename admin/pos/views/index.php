@@ -566,7 +566,14 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         contact: '<?php echo htmlspecialchars($printerSettings['company_contact_number'] ?? ''); ?>',
         email: '<?php echo htmlspecialchars($printerSettings['company_email'] ?? ''); ?>',
         tin: '<?php echo htmlspecialchars($printerSettings['company_tin'] ?? ''); ?>',
-        logo: '<?php echo !empty($printerSettings['system_logo']) ? BASE_URL . htmlspecialchars($printerSettings['system_logo']) : ''; ?>'
+        logo: '<?php echo !empty($printerSettings['system_logo']) ? BASE_URL . htmlspecialchars($printerSettings['system_logo']) : ''; ?>',
+        // BIR accreditation details
+        birPermitNumber: '<?php echo htmlspecialchars($printerSettings['bir_permit_number'] ?? ''); ?>',
+        birAccreditationNumber: '<?php echo htmlspecialchars($printerSettings['bir_accreditation_number'] ?? ''); ?>',
+        birValidityFrom: '<?php echo htmlspecialchars($printerSettings['bir_validity_from'] ?? ''); ?>',
+        birValidityTo: '<?php echo htmlspecialchars($printerSettings['bir_validity_to'] ?? ''); ?>',
+        birMin: '<?php echo htmlspecialchars($printerSettings['bir_min'] ?? ''); ?>',
+        birSerialNumber: '<?php echo htmlspecialchars($printerSettings['bir_machine_serial'] ?? ''); ?>'
     };
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/qz-tray.min.js"></script>

@@ -1,14 +1,33 @@
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
 <?php require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php'; ?>
-<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css">
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/bir/assets/css/bir.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/css/bir.css'); ?>">
 <body>
   <main class="main" id="top">
     <div class="container" data-layout="container">
       <script>var isFluid = JSON.parse(localStorage.getItem('isFluid')); if (isFluid) { var container = document.querySelector('[data-layout]'); container.classList.remove('container'); container.classList.add('container-fluid'); }</script>
-      <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+
+      <?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?>
+        <?php if (NAVBAR_POSITION === 'top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; ?>
+        <?php elseif (NAVBAR_POSITION === 'double-top'): ?>
+          <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-double-top.php'; ?>
+        <?php endif; ?>
+      <?php else: ?>
+        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/sidebar.php'; ?>
+      <?php endif; ?>
+
+      <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
       <div class="content">
-        <?php include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; ?>
+        <?php
+        switch (NAVBAR_POSITION) {
+            case 'combo':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php'; break;
+            case 'vertical':
+                include dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; break;
+        }
+        ?>
+      <?php endif; ?>
 
         <div class="row g-4 mb-4">
           <div class="col-12">
@@ -46,7 +65,7 @@
             <form method="GET" class="row g-2 align-items-end">
               <div class="col-md-2"><label class="form-label small">Action</label><select name="action" class="form-select form-select-sm"><option value="">All</option><option value="create" <?php echo $filters['actionFilter'] === 'create' ? 'selected' : ''; ?>>Create</option><option value="modify" <?php echo $filters['actionFilter'] === 'modify' ? 'selected' : ''; ?>>Modify</option><option value="void" <?php echo $filters['actionFilter'] === 'void' ? 'selected' : ''; ?>>Void</option><option value="cancel" <?php echo $filters['actionFilter'] === 'cancel' ? 'selected' : ''; ?>>Cancel</option></select></div>
               <div class="col-md-2"><label class="form-label small">Table</label><select name="table" class="form-select form-select-sm"><option value="">All</option><option value="pos_orders" <?php echo $filters['tableFilter'] === 'pos_orders' ? 'selected' : ''; ?>>POS Orders</option><option value="bir_or_numbers" <?php echo $filters['tableFilter'] === 'bir_or_numbers' ? 'selected' : ''; ?>>OR Numbers</option></select></div>
-              <div class="col-md-2"><label class="form-label small">User</label><select name="user_id" class="form-select form-select-sm"><option value="">All Users</option><?php foreach ($users as $u): ?><option value="<?php echo $u['user_id']; ?>" <?php echo $filters['userFilter'] == $u['user_id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($u['fullname']); ?></option><?php endforeach; ?></select></div>
+              <div class="col-md-2"><label class="form-label small">User</label><select name="user_id" class="form-select form-select-sm"><option value="">All Users</option><?php foreach ($users as $u): ?><option value="<?php echo $u['user_id']; ?>" <?php echo $filters['userFilter'] == $u['user_id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($u['username']); ?></option><?php endforeach; ?></select></div>
               <div class="col-md-2"><label class="form-label small">Date From</label><input type="date" name="date_from" class="form-control form-control-sm" value="<?php echo $filters['dateFrom']; ?>"></div>
               <div class="col-md-2"><label class="form-label small">Date To</label><input type="date" name="date_to" class="form-control form-control-sm" value="<?php echo $filters['dateTo']; ?>"></div>
               <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><span class="fas fa-filter me-1"></span>Filter</button></div>
@@ -88,8 +107,14 @@
       </div>
     </div>
   </main>
+
+  <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
+  </div>
+  <?php endif; ?>
+
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
   <script>var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]')); var popoverList = popoverTriggerList.map(function (popoverTriggerEl) { return new bootstrap.Popover(popoverTriggerEl); });</script>
 </body>
 </html>

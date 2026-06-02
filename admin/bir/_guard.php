@@ -4,7 +4,7 @@
  * Checks if user has access to BIR module
  */
 
-require_once dirname(__DIR__) . '/app/helpers/Auth.php';
+require_once dirname(__DIR__) . '/_guard.php';  // Global admin guard
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
@@ -13,7 +13,7 @@ $userRoleCode = $user['role_code'] ?? '';
 $allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT'];
 
 if (!in_array($userRoleCode, $allowedRoles)) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Access denied. You do not have permission to access the BIR module.']);
+    $message = 'You do not have permission to access the BIR module.';
+    include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }

@@ -4,13 +4,8 @@
  * BIR Accredited System Dashboard
  */
 
-require_once dirname(__DIR__) . '/config/bootstrap.php';
-require_once dirname(__DIR__) . '/app/helpers/Auth.php';
-require_once dirname(__DIR__) . '/app/helpers/SecurityHelper.php';
-require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/_guard.php';
-
-Auth::requireLogin();
 
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
@@ -48,10 +43,11 @@ $todaySales = Database::fetch(
     "SELECT 
         COUNT(DISTINCT po.order_id) as total_orders,
         COALESCE(SUM(po.grand_total), 0) as total_sales,
-        COALESCE(SUM(po.vat_amount), 0) as total_vat,
-        COALESCE(SUM(po.taxable_amount), 0) as taxable_amount,
-        COALESCE(SUM(po.non_taxable_amount), 0) as non_taxable_amount
+        COALESCE(SUM(vt.vat_amount), 0) as total_vat,
+        COALESCE(SUM(vt.taxable_amount), 0) as taxable_amount,
+        COALESCE(SUM(vt.non_taxable_amount), 0) as non_taxable_amount
      FROM pos_orders po
+     LEFT JOIN bir_vat_transactions vt ON po.order_id = vt.order_id
      WHERE DATE(po.created_at) = CURDATE()
      AND po.status = 'completed'"
 );

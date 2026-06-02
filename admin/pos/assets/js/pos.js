@@ -2964,6 +2964,9 @@ async function confirmOrder() {
                             total: total,
                             amount_tendered: paid,
                             change_amount: paid - total,
+                            // BIR: OR number and VAT data
+                            or_number: result.or_number || null,
+                            vat_data: result.vat_data || null,
                             items: cart.map(item => ({
                                 name: (item.type === 'ticket' ? item.ticketNumber : null) || item.description || item.passengerName || item.serviceName || item.type,
                                 quantity: item.qty || 1,
@@ -3521,6 +3524,9 @@ async function confirmReprintReceipt() {
             total: parseFloat(txn.grand_total || txn.total_amount || 0),
             amount_tendered: parseFloat(txn.amount_paid || txn.grand_total || txn.total_amount || 0),
             change_amount: parseFloat(txn.change_amount || 0),
+            // BIR: OR number and VAT data
+            or_number: txn.or_full_number || txn.or_number || null,
+            vat_data: txn.vat_data || null,
             items: txn.items || []
         };
 
