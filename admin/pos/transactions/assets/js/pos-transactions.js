@@ -530,6 +530,13 @@ function renderDetailModal(txn) {
                         <span class="small">${txn.created_at ? formatDateTime(txn.created_at) : '—'}</span>
                     </div>
                 </div>
+                ${txn.or_full_number ? `<div class="mb-3">
+                    <label class="text-muted small fw-bold text-uppercase mb-1">Official Receipt No.</label>
+                    <div class="d-flex align-items-center">
+                        <span class="fas fa-file-invoice me-2 text-success"></span>
+                        <span class="small fw-semibold text-success">${esc(txn.or_full_number)}</span>
+                    </div>
+                </div>` : ''}
             </div>
             <div class="col-md-6">
                 <div class="mb-3">
@@ -573,6 +580,10 @@ function renderDetailModal(txn) {
                             ${refunded > 0 ? `<div class="d-flex justify-content-between text-danger mt-2">
                                 <span>Refunded</span>
                                 <span>-₱${fmt(refunded)}</span>
+                            </div>` : ''}
+                            ${txn.vat_amount != null ? `<div class="d-flex justify-content-between text-muted border-top pt-2 mt-2" style="font-size:.78rem">
+                                <span>VAT (${esc(txn.vat_type === '12_percent' ? '12%' : txn.vat_type === 'zero_rated' ? 'Zero-rated' : 'Exempt')})</span>
+                                <span>₱${fmt(txn.vat_amount)}</span>
                             </div>` : ''}
                         </div>
                     </div>

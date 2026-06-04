@@ -160,7 +160,9 @@ $whereClause = implode(' AND ', $where);
 $baseFrom = "FROM pos_orders o
     LEFT JOIN business_branches b ON o.branch_id = b.branch_id
     LEFT JOIN user_accounts ua ON o.created_by = ua.user_id
-    LEFT JOIN employees e ON ua.emp_id = e.emp_id";
+    LEFT JOIN employees e ON ua.emp_id = e.emp_id
+    LEFT JOIN bir_or_numbers orn ON o.or_number_id = orn.or_id
+    LEFT JOIN bir_vat_transactions vt ON o.order_id = vt.order_id";
 
 // --- Total count ---
 $countRow   = Database::fetch("SELECT COUNT(DISTINCT o.order_id) as total $baseFrom WHERE $whereClause", $params);
@@ -238,7 +240,10 @@ $rows = Database::fetchAll(
          LEFT JOIN ticket_transactions tt8 ON oi8.reference_id = tt8.transaction_id AND oi8.item_type = 'TICKET'
          LEFT JOIN ticket_cancellations tc8 ON tt8.transaction_id = tc8.transaction_id
          WHERE oi8.order_id = o.order_id AND tc8.cancellation_id IS NOT NULL
-         ORDER BY tc8.requested_at DESC LIMIT 1) AS cancellation_status
+         ORDER BY tc8.requested_at DESC LIMIT 1) AS cancellation_status,
+        orn.or_full_number,
+        vt.vat_type,
+        vt.vat_amount
     $baseFrom
     WHERE $whereClause
     GROUP BY o.order_id

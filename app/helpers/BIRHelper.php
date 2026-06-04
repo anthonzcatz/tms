@@ -17,15 +17,13 @@ class BIRHelper {
      */
     public static function assignORNumber($orderId, $branchId, $userId) {
         try {
-            Database::connection()->beginTransaction();
-            
             $year = date('Y');
             
             // Get or create OR series for this branch and year
+            // Note: runs inside the caller's transaction — no nested beginTransaction
             $series = Database::fetch(
                 "SELECT * FROM bir_or_series 
-                 WHERE branch_id = ? AND year = ? AND status = 'active' 
-                 FOR UPDATE",
+                 WHERE branch_id = ? AND year = ? AND status = 'active'",
                 [$branchId, $year]
             );
             
@@ -35,7 +33,7 @@ class BIRHelper {
                 Database::execute(
                     "INSERT INTO bir_or_series (branch_id, year, series_code, start_number, current_number, end_number, status, created_by) 
                      VALUES (?, ?, ?, 1, 0, 999999, 'active', ?)",
-                    [$branchId, $year, $userId]
+                    [$branchId, $year, $seriesCode, $userId]
                 );
                 $series = Database::fetch(
                     "SELECT * FROM bir_or_series WHERE series_code = ?",
@@ -74,8 +72,6 @@ class BIRHelper {
                 [$orId, $orderId]
             );
             
-            Database::connection()->commit();
-            
             return [
                 'or_id' => $orId,
                 'or_number' => $nextNumber,
@@ -84,7 +80,6 @@ class BIRHelper {
             ];
             
         } catch (Exception $e) {
-            Database::connection()->rollBack();
             error_log("BIRHelper::assignORNumber Error: " . $e->getMessage());
             return false;
         }
@@ -186,7 +181,7 @@ class BIRHelper {
      */
     public static function voidORNumber($orId, $userId, $reason) {
         try {
-            Database::connection()->beginTransaction();
+            Database::connection()->beginTransaction(); // voidORNumber is a standalone operation — nested transaction is intentional here
             
             // Get OR details
             $or = Database::fetch("SELECT * FROM bir_or_numbers WHERE or_id = ?", [$orId]);

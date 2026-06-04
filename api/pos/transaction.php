@@ -91,11 +91,16 @@ if ($useOrdersTable) {
                     ELSE CONCAT(e.first_name, ' ', e.last_name)
                 END,
                 ua.username
-            ) as cashier_name
+            ) as cashier_name,
+            orn.or_full_number, orn.or_number, orn.or_series, orn.status as or_status,
+            vt.vat_type, vt.vat_amount, vt.taxable_amount, vt.non_taxable_amount,
+            vt.exemption_type, vt.exemption_id_number, vt.exemption_name
              FROM pos_orders o
              LEFT JOIN business_branches b ON o.branch_id = b.branch_id
              LEFT JOIN user_accounts ua ON o.created_by = ua.user_id
              LEFT JOIN employees e ON ua.emp_id = e.emp_id
+             LEFT JOIN bir_or_numbers orn ON o.or_number_id = orn.or_id
+             LEFT JOIN bir_vat_transactions vt ON o.order_id = vt.order_id
              WHERE o.order_id = :id",
             ['id' => $id]
         );
@@ -108,11 +113,16 @@ if ($useOrdersTable) {
                     ELSE CONCAT(e.first_name, ' ', e.last_name)
                 END,
                 ua.username
-            ) as cashier_name
+            ) as cashier_name,
+            orn.or_full_number, orn.or_number, orn.or_series, orn.status as or_status,
+            vt.vat_type, vt.vat_amount, vt.taxable_amount, vt.non_taxable_amount,
+            vt.exemption_type, vt.exemption_id_number, vt.exemption_name
              FROM pos_orders o
              LEFT JOIN business_branches b ON o.branch_id = b.branch_id
              LEFT JOIN user_accounts ua ON o.created_by = ua.user_id
              LEFT JOIN employees e ON ua.emp_id = e.emp_id
+             LEFT JOIN bir_or_numbers orn ON o.or_number_id = orn.or_id
+             LEFT JOIN bir_vat_transactions vt ON o.order_id = vt.order_id
              WHERE o.order_code = :code",
             ['code' => $code]
         );

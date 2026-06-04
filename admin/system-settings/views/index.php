@@ -667,6 +667,27 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                         </div>
                         <small class="text-muted">When enabled, managers can close POS sessions on behalf of cashiers.</small>
                       </div>
+                      <div class="col-md-12"><hr class="my-2"></div>
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">Provider Wallet Settings</h6>
+                      </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="pos_allow_insufficient_wallet" id="posAllowInsufficientWallet" <?php echo ($settings['pos_allow_insufficient_wallet'] ?? 0) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="posAllowInsufficientWallet">
+                            Allow Ticket Sale When Provider Wallet Balance is Insufficient
+                          </label>
+                        </div>
+                        <small class="text-muted">
+                          When <strong>enabled</strong>, cashiers can still process ticket sales even if the provider's wallet has insufficient balance.
+                          The wallet will go negative and must be topped up later by management.
+                          <br>When <strong>disabled</strong>, the system will block the sale and show an error: <em>"Insufficient wallet balance."</em>
+                        </small>
+                        <div class="alert alert-warning mt-2 py-2 fs-10 <?php echo ($settings['pos_allow_insufficient_wallet'] ?? 0) ? '' : 'd-none'; ?>" id="insufficientWarning">
+                          <span class="fas fa-exclamation-triangle me-1"></span>
+                          <strong>Warning:</strong> Insufficient wallet override is currently <strong>enabled</strong>. Monitor provider wallet balances regularly to avoid large negative balances.
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1081,5 +1102,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
   </div>
 </div>
   <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/body-top.php'; ?>
+<script>
+(function() {
+  var cb = document.getElementById('posAllowInsufficientWallet');
+  var warn = document.getElementById('insufficientWarning');
+  if (cb && warn) {
+    cb.addEventListener('change', function() {
+      warn.classList.toggle('d-none', !this.checked);
+    });
+  }
+})();
+</script>
 </body>
 </html>

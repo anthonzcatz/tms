@@ -54,6 +54,10 @@ if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No p
 $session = Database::fetch("SELECT * FROM cashier_sessions WHERE session_id = :id AND status = 'OPEN'", ['id' => $sessionId]);
 if (!$session) { echo json_encode(['success' => false, 'error' => 'No active session found.']); exit; }
 
+// Read system settings once — used inside the transaction loop
+$sysSettings = Database::fetch("SELECT pos_allow_insufficient_wallet FROM system_settings WHERE setting_id = 1") ?? [];
+$allowWalletOverdraft = !empty($sysSettings['pos_allow_insufficient_wallet']);
+
 // Process transaction with retry for duplicate key errors
 $maxRetries = 50;
 $lastError = null;
@@ -324,9 +328,9 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive.']); exit;
                 }
-                if ($wallet['current_balance'] < $baseAmount) {
+                if ($wallet['current_balance'] < $baseAmount && !$allowWalletOverdraft) {
                     Database::connection()->rollBack();
-                    echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Required: ₱' . number_format($baseAmount, 2) . ', Available: ₱' . number_format($wallet['current_balance'], 2)]); exit;
+                    echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Required: ₱' . number_format($baseAmount, 2) . ', Available: ₱' . number_format($wallet['current_balance'], 2) . '. Contact your manager to top up the provider wallet or enable overdraft in System Settings > POS Settings.']); exit;
                 }
 
                 $balanceBefore = $wallet['current_balance'];

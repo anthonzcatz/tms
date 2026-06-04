@@ -40,6 +40,10 @@ if (!Auth::check()) {
     exit;
 }
 
+// Read system settings for wallet overdraft allowance
+$sysSettings = Database::fetch("SELECT pos_allow_insufficient_wallet FROM system_settings WHERE setting_id = 1") ?? [];
+$allowWalletOverdraft = !empty($sysSettings['pos_allow_insufficient_wallet']);
+
 // Check permission - SUPER_ADMIN or users with VIEW_WALLET_TRANSACTIONS permission
 $user = Auth::user();
 $canViewTransactions = ($user['role_code'] === 'SUPER_ADMIN');
@@ -342,9 +346,10 @@ function handlePost() {
     if ($direction === 'IN') {
         $balanceAfter = $currentBalance + (float)$amount;
     } else {
-        // Check if sufficient balance for OUT transactions
-        if ($currentBalance < (float)$amount) {
-            echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance']);
+        // Check if sufficient balance for OUT transactions (unless overdraft is allowed)
+        global $allowWalletOverdraft;
+        if ($currentBalance < (float)$amount && !$allowWalletOverdraft) {
+            echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Enable overdraft in System Settings > POS Settings to allow negative balances.']);
             return;
         }
         $balanceAfter = $currentBalance - (float)$amount;
