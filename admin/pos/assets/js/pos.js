@@ -7,6 +7,82 @@ function fmt(n) {
     return parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * Show a nice confirmation modal asking if the user wants to print the receipt.
+ * Used in manual print mode (when autoPrint is disabled).
+ * @param {string} transactionCode
+ * @param {number} changeAmount
+ * @returns {Promise<{shouldPrint: boolean, copies: number}>}
+ */
+function showPrintConfirmationModal(transactionCode, changeAmount) {
+    return new Promise((resolve) => {
+        const defaultCopies = window.PRINTER_SETTINGS?.copies || 1;
+        const copiesText = defaultCopies > 1 ? ` (${defaultCopies} copies)` : '';
+
+        const modalHtml = `
+            <div class="modal fade" id="printConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title"><span class="fas fa-check-circle me-2"></span>Transaction Complete</h5>
+                        </div>
+                        <div class="modal-body py-4">
+                            <div class="text-center mb-3">
+                                <span class="fas fa-receipt text-success fa-3x mb-2"></span>
+                                <h5 class="fw-bold mb-1">Receipt #${transactionCode}</h5>
+                                <p class="text-muted small mb-0">Transaction processed successfully.</p>
+                                <p class="text-muted small">Change: <span class="fw-bold text-success">₱${fmt(changeAmount)}</span></p>
+                            </div>
+                            <div class="border rounded-3 p-3 bg-light">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold small">
+                                        <span class="fas fa-copy me-1"></span>Number of Copies
+                                    </label>
+                                    <select class="form-select" id="printConfirmCopies">
+                                        <option value="1" ${defaultCopies === 1 ? 'selected' : ''}>1 copy</option>
+                                        <option value="2" ${defaultCopies === 2 ? 'selected' : ''}>2 copies</option>
+                                        <option value="3" ${defaultCopies === 3 ? 'selected' : ''}>3 copies</option>
+                                    </select>
+                                    <small class="text-muted">Default from System Settings: ${defaultCopies}.</small>
+                                </div>
+                                <p class="mb-0 text-center fw-semibold">Would you like to print the receipt?</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer justify-content-center border-0">
+                            <button type="button" class="btn btn-outline-secondary px-4" onclick="window._printConfirmResult(false)">
+                                <span class="fas fa-times me-2"></span>No, Skip
+                            </button>
+                            <button type="button" class="btn btn-success px-4" onclick="window._printConfirmResult(true)">
+                                <span class="fas fa-print me-2"></span>Yes, Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const container = document.createElement('div');
+        container.innerHTML = modalHtml;
+        document.body.appendChild(container);
+
+        window._printConfirmResult = (shouldPrint) => {
+            const copiesEl = document.getElementById('printConfirmCopies');
+            const copies = copiesEl ? parseInt(copiesEl.value) || 1 : 1;
+            const modalEl = document.getElementById('printConfirmModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+            setTimeout(() => {
+                if (container.parentNode) document.body.removeChild(container);
+                delete window._printConfirmResult;
+            }, 300);
+            resolve({ shouldPrint, copies });
+        };
+
+        const modal = new bootstrap.Modal(document.getElementById('printConfirmModal'));
+        modal.show();
+    });
+}
+
 let cart = [];            // Array of cart items
 let paymentLines = [];    // Array of payment method entries
 let activeServiceType = null;
@@ -2980,12 +3056,20 @@ async function confirmOrder() {
 
                         // Print based on settings
                         if (window.PRINTER_SETTINGS.showPreview) {
+                            // Preview mode: show receipt preview with Print / Cancel
                             const shouldPrint = await window.PosPrinter.showPreview(transactionData);
                             if (shouldPrint) {
                                 await window.PosPrinter.printReceipt(transactionData);
                             }
                         } else if (window.PRINTER_SETTINGS.autoPrint) {
+                            // Auto print: send to printer immediately
                             await window.PosPrinter.printReceipt(transactionData);
+                        } else {
+                            // Manual mode: show nice confirmation popup with copies selector
+                            const printConfirm = await showPrintConfirmationModal(result.transaction_code, paid - total);
+                            if (printConfirm.shouldPrint) {
+                                await window.PosPrinter.printReceipt(transactionData, { copies: printConfirm.copies });
+                            }
                         }
                     } else {
                         console.warn('Printer not ready:', printerStatus);
@@ -3524,6 +3608,15 @@ async function confirmReprintReceipt() {
             total: parseFloat(txn.grand_total || txn.total_amount || 0),
             amount_tendered: parseFloat(txn.amount_paid || txn.grand_total || txn.total_amount || 0),
             change_amount: parseFloat(txn.change_amount || 0),
+            // Branch address for reprint (original transaction's branch)
+            street_address: txn.street_address || '',
+            barangay_name: txn.barangay_name || '',
+            city_municipality_name: txn.city_municipality_name || '',
+            province_name: txn.province_name || '',
+            region_name: txn.region_name || '',
+            zip_code: txn.zip_code || '',
+            landmark: txn.landmark || '',
+            branch_contact: txn.branch_contact || '',
             // BIR: OR number and VAT data
             or_number: txn.or_full_number || txn.or_number || null,
             vat_data: txn.vat_data || null,

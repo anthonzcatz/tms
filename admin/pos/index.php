@@ -49,6 +49,26 @@ if ($userRoleCode === 'SUPER_ADMIN' || !$hasValidBranchId) {
     );
 }
 
+// Determine active branch for receipt address
+$activeBranchId = null;
+if (!empty($activeSession) && !empty($activeSession['branch_id'])) {
+    $activeBranchId = (int)$activeSession['branch_id'];
+} elseif ($hasValidBranchId) {
+    $activeBranchId = (int)$userBranchId;
+}
+
+// Fetch full branch details for receipt address
+$branchDetails = null;
+if ($activeBranchId) {
+    $branchDetails = Database::fetch(
+        "SELECT branch_name, region_name, province_name, city_municipality_name,
+                barangay_name, street_address, landmark, zip_code, contact_number
+         FROM business_branches
+         WHERE branch_id = :bid",
+        ['bid' => $activeBranchId]
+    );
+}
+
 // Fetch active bank accounts for bank transfer/e-wallet methods
 $bankAccounts = Database::fetchAll(
     "SELECT ba.*, pm.method_code, pm.method_name
@@ -151,6 +171,7 @@ $viewData = [
     'posSettings' => $posSettings,
     'printerSettings' => $printerSettings,
     'userRoleCode' => $userRoleCode,
+    'branchDetails' => $branchDetails,
     'depositBankAccounts' => Database::fetchAll(
         "SELECT bank_account_id, bank_name, account_name, account_number
          FROM bank_accounts

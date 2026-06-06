@@ -16,6 +16,19 @@ require_once dirname(__DIR__) . '/_guard.php';
 Auth::requireLogin();
 
 $user = Auth::user();
+$userBranchId = $user['branch_id'] ?? null;
+
+// Fetch branch details for receipt address
+$branchDetails = null;
+if (!empty($userBranchId) && $userBranchId !== '0' && $userBranchId !== '') {
+    $branchDetails = Database::fetch(
+        "SELECT branch_name, region_name, province_name, city_municipality_name,
+                barangay_name, street_address, landmark, zip_code, contact_number
+         FROM business_branches
+         WHERE branch_id = :bid",
+        ['bid' => (int)$userBranchId]
+    );
+}
 
 // Only allow access to users with POS access
 $userRoleCode = $user['role_code'] ?? '';
@@ -28,6 +41,7 @@ if ($userRoleCode !== 'SUPER_ADMIN' && $userRoleCode !== 'MANAGER' && $userRoleC
 // Get global printer settings from database
 $printerSettings = Database::fetch(
     "SELECT receipt_printing_enabled, receipt_paper_width, printer_type, system_logo,
+            receipt_auto_print, receipt_show_preview, receipt_copies,
             receipt_show_tin, receipt_show_service_fee, receipt_show_base_amount,
             receipt_show_discount, receipt_show_cashier, receipt_show_payment_method,
             receipt_show_branch, receipt_logo_enabled, receipt_qr_code_enabled,
@@ -46,7 +60,8 @@ $viewData = [
     'printingEnabled' => $printingEnabled,
     'paperWidth' => $paperWidth,
     'printerType' => $printerType,
-    'userRoleCode' => $userRoleCode
+    'userRoleCode' => $userRoleCode,
+    'branchDetails' => $branchDetails
 ];
 
 extract($viewData);

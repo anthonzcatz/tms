@@ -146,6 +146,24 @@
                 this.config.copies = parseInt(window.PRINTER_SETTINGS.copies) || 1;
                 this.config.customerCopy = !!window.PRINTER_SETTINGS.customerCopy;
                 this.config.merchantCopy = window.PRINTER_SETTINGS.merchantCopy !== undefined ? !!window.PRINTER_SETTINGS.merchantCopy : true;
+
+                // Apply terminal overrides (take precedence over global)
+                const autoPrintOverride = localStorage.getItem('tms_pos_auto_print_override');
+                console.log('[PosPrinter] autoPrint override raw:', autoPrintOverride);
+                if (autoPrintOverride !== null) {
+                    window.PRINTER_SETTINGS.autoPrint = autoPrintOverride === '1';
+                    console.log('[PosPrinter] autoPrint overridden to:', window.PRINTER_SETTINGS.autoPrint);
+                } else {
+                    console.log('[PosPrinter] autoPrint using global:', window.PRINTER_SETTINGS.autoPrint);
+                }
+                const copiesOverride = localStorage.getItem('tms_pos_copies_override');
+                if (copiesOverride !== null) {
+                    const c = parseInt(copiesOverride);
+                    if (c > 0) {
+                        window.PRINTER_SETTINGS.copies = c;
+                        this.config.copies = c;
+                    }
+                }
             }
 
             // Load company info
@@ -314,8 +332,8 @@
                     }
                 }
 
-                // Print copies based on settings
-                const copies = this.config.copies || 1;
+                // Print copies based on settings (options.copies takes precedence)
+                const copies = options.copies || this.config.copies || 1;
                 const customerCopy = this.config.customerCopy;
                 const merchantCopy = this.config.merchantCopy !== false;
 
@@ -383,15 +401,46 @@
             }
 
             // ── COMPANY HEADER ─────────────────────────────────────
+            // For reprints: use the original transaction's branch info (options.branchInfo)
+            // For new transactions: use current POS branch (window.POS_BRANCH_INFO)
+            // Falls back to system_settings company address if no branch info
+            const branchInfo = options.branchInfo
+                || ((typeof window !== 'undefined' && window.POS_BRANCH_INFO) ? window.POS_BRANCH_INFO : null);
+
             data.push(cmd.ALIGN_CENTER);
             data.push(cmd.BOLD_ON);
             data.push((this.companyInfo.name || 'TMS POS') + '\n');
             data.push(cmd.BOLD_OFF);
-            if (this.companyInfo.address) {
+
+            if (branchInfo && branchInfo.branch_name) {
+                // Build branch address from business_branches fields
+                const addrParts = [];
+                if (branchInfo.street_address) addrParts.push(branchInfo.street_address);
+                if (branchInfo.barangay_name) addrParts.push(branchInfo.barangay_name);
+                if (addrParts.length > 0) {
+                    data.push(addrParts.join(', ') + '\n');
+                }
+                const cityProvParts = [];
+                if (branchInfo.city_municipality_name) cityProvParts.push(branchInfo.city_municipality_name);
+                if (branchInfo.province_name) cityProvParts.push(branchInfo.province_name);
+                if (cityProvParts.length > 0) {
+                    data.push(cityProvParts.join(', ') + '\n');
+                }
+                if (branchInfo.region_name) {
+                    data.push(branchInfo.region_name + '\n');
+                }
+                if (branchInfo.zip_code) {
+                    data.push(branchInfo.zip_code + '\n');
+                }
+                if (branchInfo.contact_number) {
+                    data.push('Contact: ' + branchInfo.contact_number + '\n');
+                }
+            } else if (this.companyInfo.address) {
+                // Fallback to system_settings company address
                 data.push(this.companyInfo.address + '\n');
-            }
-            if (this.companyInfo.contact) {
-                data.push('Contact: ' + this.companyInfo.contact + '\n');
+                if (this.companyInfo.contact) {
+                    data.push('Contact: ' + this.companyInfo.contact + '\n');
+                }
             }
             if (this.config.showTin && this.companyInfo.tin) {
                 data.push('TIN: ' + this.companyInfo.tin + '\n');
@@ -768,10 +817,24 @@
             // Reload config to ensure terminal override is applied
             this.loadSavedConfig();
 
+            // Build branch info from transaction data (original transaction's branch)
+            const branchInfo = transaction.branch_name ? {
+                branch_name: transaction.branch_name,
+                street_address: transaction.street_address || '',
+                barangay_name: transaction.barangay_name || '',
+                city_municipality_name: transaction.city_municipality_name || '',
+                province_name: transaction.province_name || '',
+                region_name: transaction.region_name || '',
+                zip_code: transaction.zip_code || '',
+                landmark: transaction.landmark || '',
+                contact_number: transaction.branch_contact || transaction.contact_number || ''
+            } : null;
+
             const options = {
                 isReprint: true,
                 reprintReason: reason,
-                skipPreview: false
+                skipPreview: false,
+                branchInfo: branchInfo
             };
             await this.printReceipt(transaction, options);
         }

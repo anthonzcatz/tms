@@ -31,10 +31,26 @@
           logo: '<?php echo !empty($printerSettings['system_logo']) ? BASE_URL . htmlspecialchars($printerSettings['system_logo']) : ''; ?>'
         };
 
+        // Branch info for test print receipt address
+        window.POS_BRANCH_INFO = {
+            branch_name: '<?php echo !empty($branchDetails) && isset($branchDetails['branch_name']) ? htmlspecialchars($branchDetails['branch_name']) : ''; ?>',
+            street_address: '<?php echo !empty($branchDetails) && isset($branchDetails['street_address']) ? htmlspecialchars($branchDetails['street_address']) : ''; ?>',
+            barangay_name: '<?php echo !empty($branchDetails) && isset($branchDetails['barangay_name']) ? htmlspecialchars($branchDetails['barangay_name']) : ''; ?>',
+            city_municipality_name: '<?php echo !empty($branchDetails) && isset($branchDetails['city_municipality_name']) ? htmlspecialchars($branchDetails['city_municipality_name']) : ''; ?>',
+            province_name: '<?php echo !empty($branchDetails) && isset($branchDetails['province_name']) ? htmlspecialchars($branchDetails['province_name']) : ''; ?>',
+            region_name: '<?php echo !empty($branchDetails) && isset($branchDetails['region_name']) ? htmlspecialchars($branchDetails['region_name']) : ''; ?>',
+            zip_code: '<?php echo !empty($branchDetails) && isset($branchDetails['zip_code']) ? htmlspecialchars($branchDetails['zip_code']) : ''; ?>',
+            landmark: '<?php echo !empty($branchDetails) && isset($branchDetails['landmark']) ? htmlspecialchars($branchDetails['landmark']) : ''; ?>',
+            contact_number: '<?php echo !empty($branchDetails) && isset($branchDetails['contact_number']) ? htmlspecialchars($branchDetails['contact_number']) : ''; ?>'
+        };
+
         // Printer Settings
         window.PRINTER_SETTINGS = {
           enabled: <?php echo ($printerSettings['receipt_printing_enabled'] ?? 1) ? 'true' : 'false'; ?>,
           paperWidth: '<?php echo $printerSettings['receipt_paper_width'] ?? '80mm'; ?>',
+          autoPrint: <?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'true' : 'false'; ?>,
+          showPreview: <?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'true' : 'false'; ?>,
+          copies: <?php echo intval($printerSettings['receipt_copies'] ?? 1); ?>,
           showTin: <?php echo ($printerSettings['receipt_show_tin'] ?? 1) ? 'true' : 'false'; ?>,
           showServiceFee: <?php echo ($printerSettings['receipt_show_service_fee'] ?? 1) ? 'true' : 'false'; ?>,
           showBaseAmount: <?php echo ($printerSettings['receipt_show_base_amount'] ?? 1) ? 'true' : 'false'; ?>,
@@ -223,6 +239,34 @@
                 <small class="text-muted">Override the global paper width for this terminal only. Leave empty to use global setting from System Settings.</small>
               </div>
 
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Print Mode (Override)</label>
+                  <?php
+                  $globalAutoPrint = ($printerSettings['receipt_auto_print'] ?? 1) ? 'Auto Print' : 'Manual Confirmation';
+                  ?>
+                  <select class="form-select" id="terminalAutoPrint">
+                    <option value="">Use Global Setting (<?php echo $globalAutoPrint; ?>)</option>
+                    <option value="1">Auto Print — receipt prints automatically</option>
+                    <option value="0">Manual Confirmation — ask before printing</option>
+                  </select>
+                  <small class="text-muted">Override the global print mode for this terminal only.</small>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Number of Copies (Override)</label>
+                  <?php
+                  $globalCopies = intval($printerSettings['receipt_copies'] ?? 1);
+                  ?>
+                  <select class="form-select" id="terminalCopies">
+                    <option value="">Use Global Setting (<?php echo $globalCopies; ?> copy<?php echo $globalCopies > 1 ? 'ies' : 'y'; ?>)</option>
+                    <option value="1">1 copy</option>
+                    <option value="2">2 copies</option>
+                    <option value="3">3 copies</option>
+                  </select>
+                  <small class="text-muted">Override the global copies for this terminal only.</small>
+                </div>
+              </div>
+
               <div class="d-grid gap-2 d-md-flex justify-content-md-center">
                 <button type="button" class="btn btn-success" id="btnSave" onclick="savePrinterConfig()" disabled>
                   <span class="fas fa-save me-2"></span>Save Configuration
@@ -257,6 +301,74 @@
 Waiting for test print...
               </div>
             </div>
+            </div>
+          </div>
+
+          <!-- Global Print Settings Card -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><span class="fas fa-sliders-h me-2"></span>Global Print Settings</h5>
+                <a href="<?php echo BASE_URL; ?>/admin/system-settings/#printer" class="btn btn-sm btn-outline-primary" target="_blank">
+                  <span class="fas fa-cog me-1"></span>Edit in System Settings
+                </a>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-info fs-10 mb-3">
+                  <span class="fas fa-info-circle me-2"></span>
+                  These settings are configured globally in <strong>System Settings &gt; Printer Settings</strong> and apply to all POS terminals.
+                </div>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 p-3 border rounded-3 bg-light">
+                      <div class="bg-primary bg-opacity-10 rounded-3 p-2">
+                        <span class="fas fa-<?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'print' : 'hand-pointer'; ?> text-primary fs-4"></span>
+                      </div>
+                      <div>
+                        <div class="fw-semibold small">Print Mode</div>
+                        <div class="text-<?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'success' : 'warning'; ?> fw-bold">
+                          <?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'Auto Print' : 'Manual Confirmation'; ?>
+                        </div>
+                        <small class="text-muted">
+                          <?php echo ($printerSettings['receipt_auto_print'] ?? 1)
+                            ? 'Receipt prints automatically after each transaction.'
+                            : 'Cashier is asked to confirm before printing.'; ?>
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 p-3 border rounded-3 bg-light">
+                      <div class="bg-info bg-opacity-10 rounded-3 p-2">
+                        <span class="fas fa-copy text-info fs-4"></span>
+                      </div>
+                      <div>
+                        <div class="fw-semibold small">Default Copies</div>
+                        <div class="text-dark fw-bold fs-5"><?php echo intval($printerSettings['receipt_copies'] ?? 1); ?></div>
+                        <small class="text-muted">Number of copies printed per transaction.</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 p-3 border rounded-3 bg-light">
+                      <div class="bg-secondary bg-opacity-10 rounded-3 p-2">
+                        <span class="fas fa-eye text-secondary fs-4"></span>
+                      </div>
+                      <div>
+                        <div class="fw-semibold small">Preview Mode</div>
+                        <div class="text-<?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'primary' : 'muted'; ?> fw-bold">
+                          <?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'Enabled' : 'Disabled'; ?>
+                        </div>
+                        <small class="text-muted">
+                          <?php echo ($printerSettings['receipt_show_preview'] ?? 0)
+                            ? 'Receipt preview shown before printing.'
+                            : 'No preview dialog shown.'; ?>
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

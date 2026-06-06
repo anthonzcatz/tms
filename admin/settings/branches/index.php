@@ -45,16 +45,8 @@ if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
     $params['user_branch_id'] = $userBranchId;
 }
 
-$sql = "SELECT bb.*,
-           r.region_name,
-           p.province_name,
-           c.city_municipality_name,
-           b.barangay_name
+$sql = "SELECT bb.*
     FROM business_branches bb
-    LEFT JOIN psgc_regions r ON bb.region_code = r.region_code
-    LEFT JOIN psgc_provinces p ON bb.province_code = p.province_code
-    LEFT JOIN psgc_cities_municipalities c ON bb.city_municipality_code = c.city_municipality_code
-    LEFT JOIN psgc_barangays b ON bb.barangay_code = b.barangay_code
     $branchFilter
     ORDER BY bb.branch_name";
 

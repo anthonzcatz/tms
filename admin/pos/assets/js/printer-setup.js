@@ -48,6 +48,8 @@ const connectionStatus = document.getElementById('connectionStatus');
 const printerList = document.getElementById('printerList');
 const savedPrinterName = document.getElementById('savedPrinterName');
 const terminalPaperWidth = document.getElementById('terminalPaperWidth');
+const terminalAutoPrint = document.getElementById('terminalAutoPrint');
+const terminalCopies = document.getElementById('terminalCopies');
 const connectionLog = document.getElementById('connectionLog');
 const receiptPreview = document.getElementById('receiptPreview');
 
@@ -68,6 +70,18 @@ document.addEventListener('DOMContentLoaded', function() {
   const savedPaperWidth = localStorage.getItem('tms_pos_paper_width_override');
   if (savedPaperWidth) {
     terminalPaperWidth.value = savedPaperWidth;
+  }
+
+  // Load saved terminal print mode override
+  const savedAutoPrint = localStorage.getItem('tms_pos_auto_print_override');
+  if (savedAutoPrint !== null && terminalAutoPrint) {
+    terminalAutoPrint.value = savedAutoPrint;
+  }
+
+  // Load saved terminal copies override
+  const savedCopies = localStorage.getItem('tms_pos_copies_override');
+  if (savedCopies !== null && terminalCopies) {
+    terminalCopies.value = savedCopies;
   }
 
   // Initialize PosPrinter module if available
@@ -266,12 +280,28 @@ function selectPrinter(printerName) {
 // Save printer configuration
 function savePrinterConfig() {
   if (!selectedPrinter) {
-    alert('Please select a printer first.');
+    const err = document.createElement('div');
+    err.className = 'alert alert-warning alert-dismissible fade show mt-3 shadow-sm';
+    err.innerHTML = `
+      <span class="fas fa-exclamation-triangle me-2"></span>
+      <strong>Please select a printer first.</strong> Click a printer from the list above, then click Save.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    const container = document.getElementById('printerConfigContainer') || document.querySelector('.card-body');
+    if (container) {
+      container.insertBefore(err, container.firstChild);
+      setTimeout(() => {
+        const bsAlert = bootstrap.Alert.getOrCreateInstance(err);
+        if (bsAlert) bsAlert.close();
+      }, 4000);
+    }
     return;
   }
 
-  // Get terminal paper width override
+  // Get terminal overrides
   const terminalWidth = terminalPaperWidth.value || paperWidth;
+  const autoPrintOverride = terminalAutoPrint ? terminalAutoPrint.value : '';
+  const copiesOverride = terminalCopies ? terminalCopies.value : '';
 
   // Save to localStorage
   localStorage.setItem('tms_pos_printer', selectedPrinter);
@@ -280,11 +310,50 @@ function savePrinterConfig() {
   localStorage.setItem('tms_pos_printer_type', printerType);
   localStorage.setItem('tms_pos_paper_width_override', terminalPaperWidth.value || '');
 
+  // Save terminal overrides
+  if (autoPrintOverride !== '') {
+    localStorage.setItem('tms_pos_auto_print_override', autoPrintOverride);
+  } else {
+    localStorage.removeItem('tms_pos_auto_print_override');
+  }
+  if (copiesOverride !== '') {
+    localStorage.setItem('tms_pos_copies_override', copiesOverride);
+  } else {
+    localStorage.removeItem('tms_pos_copies_override');
+  }
+
   // Update display
   savedPrinterName.value = selectedPrinter;
 
   log(`Configuration saved: ${selectedPrinter} (Paper: ${terminalWidth})`, 'success');
-  alert(`Printer configuration saved successfully!\n\nPrinter: ${selectedPrinter}\nTerminal: ${terminalName}\nPaper Width: ${terminalWidth}`);
+
+  // Show nice inline success message
+  const saveAlert = document.createElement('div');
+  saveAlert.className = 'alert alert-success alert-dismissible fade show mt-3 shadow-sm';
+  saveAlert.innerHTML = `
+    <div class="d-flex align-items-start">
+      <span class="fas fa-check-circle fa-lg me-2 mt-1"></span>
+      <div>
+        <strong>Configuration Saved!</strong>
+        <div class="small text-muted mt-1">
+          <span class="fas fa-print me-1"></span>${selectedPrinter}<br>
+          <span class="fas fa-desktop me-1"></span>${terminalName}<br>
+          <span class="fas fa-ruler me-1"></span>Paper: ${terminalWidth}
+          ${autoPrintOverride !== '' ? '<br><span class="fas fa-sliders-h me-1"></span>Mode: ' + (autoPrintOverride === '1' ? 'Auto Print' : 'Manual') : ''}
+          ${copiesOverride !== '' ? '<br><span class="fas fa-copy me-1"></span>Copies: ' + copiesOverride : ''}
+        </div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  `;
+  const container = document.getElementById('printerConfigContainer') || document.querySelector('.card-body');
+  if (container) {
+    container.insertBefore(saveAlert, container.firstChild);
+    setTimeout(() => {
+      const bsAlert = bootstrap.Alert.getOrCreateInstance(saveAlert);
+      if (bsAlert) bsAlert.close();
+    }, 4000);
+  }
 }
 
 // Clear printer configuration
@@ -297,10 +366,14 @@ function clearPrinterConfig() {
   localStorage.removeItem('tms_pos_terminal');
   localStorage.removeItem('tms_qz_autoconnect');
   localStorage.removeItem('tms_pos_paper_width_override');
+  localStorage.removeItem('tms_pos_auto_print_override');
+  localStorage.removeItem('tms_pos_copies_override');
 
   selectedPrinter = null;
   savedPrinterName.value = 'No printer configured';
   terminalPaperWidth.value = '';
+  if (terminalAutoPrint) terminalAutoPrint.value = '';
+  if (terminalCopies) terminalCopies.value = '';
   btnSave.disabled = true;
   btnTestPrint.disabled = true;
 
@@ -337,11 +410,15 @@ async function testPrint() {
   try {
     log('Sending test print...', 'info');
 
+    // Use real branch info for test print if available
+    const branchInfo = (typeof window !== 'undefined' && window.POS_BRANCH_INFO) ? window.POS_BRANCH_INFO : null;
+    const branchName = branchInfo && branchInfo.branch_name ? branchInfo.branch_name : 'Test Branch';
+
     // Create test transaction data
     const testTransaction = {
       id: 'TEST-' + Date.now(),
       transaction_code: 'TEST-' + Date.now(),
-      branch_name: 'Test Branch',
+      branch_name: branchName,
       cashier_name: 'Test Cashier',
       payment_method: 'Cash',
       amount_tendered: 175.00,

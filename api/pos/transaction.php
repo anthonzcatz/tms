@@ -84,7 +84,11 @@ if ($useOrdersTable) {
     // Fetch from pos_orders
     if ($id) {
         $transaction = Database::fetch(
-            "SELECT o.*, b.branch_name, COALESCE(
+            "SELECT o.*, b.branch_name,
+                b.region_name, b.province_name, b.city_municipality_name,
+                b.barangay_name, b.street_address, b.landmark, b.zip_code,
+                b.contact_number as branch_contact,
+                COALESCE(
                 CASE
                     WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                     THEN CONCAT(e.first_name, ' ', SUBSTRING(e.middle_name, 1, 1), '. ', e.last_name)
@@ -106,7 +110,11 @@ if ($useOrdersTable) {
         );
     } else {
         $transaction = Database::fetch(
-            "SELECT o.*, b.branch_name, COALESCE(
+            "SELECT o.*, b.branch_name,
+                b.region_name, b.province_name, b.city_municipality_name,
+                b.barangay_name, b.street_address, b.landmark, b.zip_code,
+                b.contact_number as branch_contact,
+                COALESCE(
                 CASE
                     WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                     THEN CONCAT(e.first_name, ' ', SUBSTRING(e.middle_name, 1, 1), '. ', e.last_name)
@@ -156,7 +164,11 @@ if ($useOrdersTable) {
     if ($code) {
         // Try tickets first
         $transaction = Database::fetch(
-            "SELECT t.*, b.branch_name, COALESCE(
+            "SELECT t.*, b.branch_name,
+                b.region_name, b.province_name, b.city_municipality_name,
+                b.barangay_name, b.street_address, b.landmark, b.zip_code,
+                b.contact_number as branch_contact,
+                COALESCE(
                 CASE
                     WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                     THEN CONCAT(e.first_name, ' ', SUBSTRING(e.middle_name, 1, 1), '. ', e.last_name)
@@ -176,7 +188,11 @@ if ($useOrdersTable) {
         if (!$transaction) {
             // Try service transactions
             $transaction = Database::fetch(
-                "SELECT st.*, b.branch_name, COALESCE(
+                "SELECT st.*, b.branch_name,
+                    b.region_name, b.province_name, b.city_municipality_name,
+                    b.barangay_name, b.street_address, b.landmark, b.zip_code,
+                    b.contact_number as branch_contact,
+                    COALESCE(
                     CASE
                         WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                         THEN CONCAT(e.first_name, ' ', SUBSTRING(e.middle_name, 1, 1), '. ', e.last_name)
@@ -196,7 +212,11 @@ if ($useOrdersTable) {
     } elseif ($id) {
         // Try by ID - need to determine if it's ticket or service
         $transaction = Database::fetch(
-            "SELECT t.*, b.branch_name, COALESCE(
+            "SELECT t.*, b.branch_name,
+                b.region_name, b.province_name, b.city_municipality_name,
+                b.barangay_name, b.street_address, b.landmark, b.zip_code,
+                b.contact_number as branch_contact,
+                COALESCE(
                 CASE
                     WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                     THEN CONCAT(e.first_name, ' ', SUBSTRING(e.middle_name, 1, 1), '. ', e.last_name)
@@ -215,7 +235,11 @@ if ($useOrdersTable) {
 
         if (!$transaction) {
             $transaction = Database::fetch(
-                "SELECT st.*, b.branch_name, COALESCE(
+                "SELECT st.*, b.branch_name,
+                    b.region_name, b.province_name, b.city_municipality_name,
+                    b.barangay_name, b.street_address, b.landmark, b.zip_code,
+                    b.contact_number as branch_contact,
+                    COALESCE(
                     CASE
                         WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                         THEN CONCAT(e.first_name, ' ', SUBSTRING(e.middle_name, 1, 1), '. ', e.last_name)

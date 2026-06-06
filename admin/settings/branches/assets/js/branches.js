@@ -29,7 +29,7 @@ function initializeSearchDropdowns() {
     searchConfigs.forEach(config => {
         const select = document.getElementById(config.selectId);
         if (select) {
-            select.setAttribute('list', config.datalist);
+            select.setAttribute('list', config.datalistId);
             
             // Create datalist if it doesn't exist
             let datalist = document.getElementById(config.datalistId);
@@ -42,6 +42,12 @@ function initializeSearchDropdowns() {
             // Add search functionality
             select.addEventListener('input', function() {
                 handleSearchDropdown(this, datalist, config.api, config.searchParam);
+            });
+
+            // Cache selected text on change so we can reliably read it later
+            select.addEventListener('change', function() {
+                const text = this.options[this.selectedIndex]?.text?.trim() || '';
+                this.setAttribute('data-selected-text', text);
             });
         }
     });
@@ -137,12 +143,15 @@ async function loadProvinces(regionCode, provinceSelectId, citySelectId, baranga
     provinceSelect.innerHTML = '<option value="">Select Province</option>';
     provinceSelect.disabled = !regionCode;
     provinceSelect.setAttribute('data-parent-value', regionCode);
+    provinceSelect.setAttribute('data-selected-text', '');
     citySelect.innerHTML = '<option value="">Select City</option>';
     citySelect.disabled = true;
     citySelect.removeAttribute('data-parent-value');
+    citySelect.setAttribute('data-selected-text', '');
     barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
     barangaySelect.disabled = true;
     barangaySelect.removeAttribute('data-parent-value');
+    barangaySelect.setAttribute('data-selected-text', '');
     
     if (!regionCode) return;
     
@@ -187,9 +196,11 @@ async function loadCities(provinceCode, citySelectId, barangaySelectId) {
     citySelect.innerHTML = '<option value="">Select City</option>';
     citySelect.disabled = !provinceCode;
     citySelect.setAttribute('data-parent-value', provinceCode);
+    citySelect.setAttribute('data-selected-text', '');
     barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
     barangaySelect.disabled = true;
     barangaySelect.removeAttribute('data-parent-value');
+    barangaySelect.setAttribute('data-selected-text', '');
     
     if (!provinceCode) return;
     
@@ -232,6 +243,7 @@ async function loadBarangays(cityCode, barangaySelectId) {
     barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
     barangaySelect.disabled = !cityCode;
     barangaySelect.setAttribute('data-parent-value', cityCode);
+    barangaySelect.setAttribute('data-selected-text', '');
     
     if (!cityCode) return;
     
@@ -258,6 +270,11 @@ function openAddBranchModal() {
     document.getElementById('addProvinceCode').disabled = true;
     document.getElementById('addCityCode').disabled = true;
     document.getElementById('addBarangayCode').disabled = true;
+    // Clear cached selected texts
+    ['addRegionCode', 'addProvinceCode', 'addCityCode', 'addBarangayCode'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.setAttribute('data-selected-text', '');
+    });
     // Reset wizard to step 1
     goToAddStep(1);
     addBranchModal.show();
@@ -293,14 +310,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Helper to get selected option text from a select element
+function getSelectedText(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return '';
+
+    const val = select.value;
+    if (!val) return '';
+
+    // Try cached text from change listener first
+    const cached = select.getAttribute('data-selected-text');
+    if (cached && !cached.startsWith('Select ')) {
+        return cached;
+    }
+
+    // Fallback: find option by value
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === val) {
+            const text = select.options[i].text.trim();
+            return text.startsWith('Select ') ? '' : text;
+        }
+    }
+    return '';
+}
+
 // Save branch
 async function saveBranch() {
     const branchCode = document.getElementById('addBranchCode').value.trim();
     const branchName = document.getElementById('addBranchName').value.trim();
     const regionCode = document.getElementById('addRegionCode').value;
+    const regionName = getSelectedText('addRegionCode');
     const provinceCode = document.getElementById('addProvinceCode').value;
+    const provinceName = getSelectedText('addProvinceCode');
     const cityCode = document.getElementById('addCityCode').value;
+    const cityName = getSelectedText('addCityCode');
     const barangayCode = document.getElementById('addBarangayCode').value;
+    const barangayName = getSelectedText('addBarangayCode');
     const streetAddress = document.getElementById('addStreetAddress').value;
     const landmark = document.getElementById('addLandmark').value;
     const zipCode = document.getElementById('addZipCode').value;
@@ -382,9 +427,13 @@ async function saveBranch() {
             branch_code: branchCode,
             branch_name: branchName,
             region_code: regionCode,
+            region_name: regionName,
             province_code: provinceCode,
+            province_name: provinceName,
             city_municipality_code: cityCode,
+            city_municipality_name: cityName,
             barangay_code: barangayCode,
+            barangay_name: barangayName,
             street_address: streetAddress,
             landmark: landmark,
             zip_code: zipCode,
@@ -392,7 +441,12 @@ async function saveBranch() {
             email: email,
             status: status
         };
-        
+
+        console.log('saveBranch location values:', {
+            regionCode, regionName, provinceCode, provinceName,
+            cityCode, cityName, barangayCode, barangayName
+        });
+
         // Only add operating hours if the elements exist
         if (document.getElementById('addMondayOpen')) {
             requestBody.monday_open = mondayOpen + ':00';
@@ -483,7 +537,11 @@ async function editBranch(branchId) {
                     
                     if (branch.city_municipality_code) {
                         await loadBarangays(branch.city_municipality_code, 'editBarangayCode');
-                        document.getElementById('editBarangayCode').value = branch.barangay_code;
+                        const editBarangaySelect = document.getElementById('editBarangayCode');
+                        editBarangaySelect.value = branch.barangay_code || '';
+                        if (!branch.barangay_code) {
+                            editBarangaySelect.setAttribute('data-selected-text', '');
+                        }
                     }
                 }
             }
@@ -583,9 +641,13 @@ async function updateBranch() {
     const branchCode = document.getElementById('editBranchCode').value.trim();
     const branchName = document.getElementById('editBranchName').value.trim();
     const regionCode = document.getElementById('editRegionCode').value;
+    const regionName = getSelectedText('editRegionCode');
     const provinceCode = document.getElementById('editProvinceCode').value;
+    const provinceName = getSelectedText('editProvinceCode');
     const cityCode = document.getElementById('editCityCode').value;
+    const cityName = getSelectedText('editCityCode');
     const barangayCode = document.getElementById('editBarangayCode').value;
+    const barangayName = getSelectedText('editBarangayCode');
     const streetAddress = document.getElementById('editStreetAddress').value;
     const landmark = document.getElementById('editLandmark').value;
     const zipCode = document.getElementById('editZipCode').value;
@@ -669,9 +731,13 @@ async function updateBranch() {
             branch_code: branchCode,
             branch_name: branchName,
             region_code: regionCode,
+            region_name: regionName,
             province_code: provinceCode,
+            province_name: provinceName,
             city_municipality_code: cityCode,
+            city_municipality_name: cityName,
             barangay_code: barangayCode,
+            barangay_name: barangayName,
             street_address: streetAddress,
             landmark: landmark,
             zip_code: zipCode,
@@ -679,7 +745,12 @@ async function updateBranch() {
             email: email,
             status: status
         };
-        
+
+        console.log('updateBranch location values:', {
+            regionCode, regionName, provinceCode, provinceName,
+            cityCode, cityName, barangayCode, barangayName
+        });
+
         // Only add operating hours if the elements exist
         if (document.getElementById('editMondayOpen')) {
             requestBody.monday_open = mondayOpen + ':00';

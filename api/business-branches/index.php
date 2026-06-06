@@ -108,16 +108,8 @@ function handleGet() {
 
     // Get single branch
     if ($branchId) {
-        $sql = "SELECT bb.*,
-                       r.region_name,
-                       p.province_name,
-                       c.city_municipality_name,
-                       b.barangay_name
+        $sql = "SELECT bb.*
                 FROM business_branches bb
-                LEFT JOIN psgc_regions r ON bb.region_code = r.region_code
-                LEFT JOIN psgc_provinces p ON bb.province_code = p.province_code
-                LEFT JOIN psgc_cities_municipalities c ON bb.city_municipality_code = c.city_municipality_code
-                LEFT JOIN psgc_barangays b ON bb.barangay_code = b.barangay_code
                 WHERE bb.branch_id = :branch_id";
         
         $branch = Database::fetch($sql, ['branch_id' => (int)$branchId]);
@@ -141,16 +133,8 @@ function handleGet() {
         $params['user_branch_id'] = $userBranchId;
     }
 
-    $sql = "SELECT bb.*,
-                   r.region_name,
-                   p.province_name,
-                   c.city_municipality_name,
-                   b.barangay_name
+    $sql = "SELECT bb.*
             FROM business_branches bb
-            LEFT JOIN psgc_regions r ON bb.region_code = r.region_code
-            LEFT JOIN psgc_provinces p ON bb.province_code = p.province_code
-            LEFT JOIN psgc_cities_municipalities c ON bb.city_municipality_code = c.city_municipality_code
-            LEFT JOIN psgc_barangays b ON bb.barangay_code = b.barangay_code
             $branchFilter
             ORDER BY bb.branch_name";
 
@@ -187,9 +171,13 @@ function handlePost() {
     $branchCode = $input['branch_code'] ?? null;
     $branchName = $input['branch_name'] ?? null;
     $regionCode = $input['region_code'] ?? null;
+    $regionName = $input['region_name'] ?? null;
     $provinceCode = $input['province_code'] ?? null;
+    $provinceName = $input['province_name'] ?? null;
     $cityCode = $input['city_municipality_code'] ?? null;
+    $cityName = $input['city_municipality_name'] ?? null;
     $barangayCode = $input['barangay_code'] ?? null;
+    $barangayName = $input['barangay_name'] ?? null;
     $streetAddress = $input['street_address'] ?? null;
     $landmark = $input['landmark'] ?? null;
     $zipCode = $input['zip_code'] ?? null;
@@ -257,16 +245,20 @@ function handlePost() {
     }
     
     // Insert new branch
-    $sql = "INSERT INTO business_branches (branch_code, branch_name, region_code, province_code, city_municipality_code, barangay_code, street_address, landmark, zip_code, contact_number, email, status, monday_open, monday_close, monday_closed, monday_break_start, monday_break_end, tuesday_open, tuesday_close, tuesday_closed, tuesday_break_start, tuesday_break_end, wednesday_open, wednesday_close, wednesday_closed, wednesday_break_start, wednesday_break_end, thursday_open, thursday_close, thursday_closed, thursday_break_start, thursday_break_end, friday_open, friday_close, friday_closed, friday_break_start, friday_break_end, saturday_open, saturday_close, saturday_closed, saturday_break_start, saturday_break_end, sunday_open, sunday_close, sunday_closed, sunday_break_start, sunday_break_end, is_24_hours, max_capacity, manager_name, manager_contact, notes, created_at)
-            VALUES (:branch_code, :branch_name, :region_code, :province_code, :city_municipality_code, :barangay_code, :street_address, :landmark, :zip_code, :contact_number, :email, :status, :monday_open, :monday_close, :monday_closed, :monday_break_start, :monday_break_end, :tuesday_open, :tuesday_close, :tuesday_closed, :tuesday_break_start, :tuesday_break_end, :wednesday_open, :wednesday_close, :wednesday_closed, :wednesday_break_start, :wednesday_break_end, :thursday_open, :thursday_close, :thursday_closed, :thursday_break_start, :thursday_break_end, :friday_open, :friday_close, :friday_closed, :friday_break_start, :friday_break_end, :saturday_open, :saturday_close, :saturday_closed, :saturday_break_start, :saturday_break_end, :sunday_open, :sunday_close, :sunday_closed, :sunday_break_start, :sunday_break_end, :is_24_hours, :max_capacity, :manager_name, :manager_contact, :notes, NOW())";
-    
+    $sql = "INSERT INTO business_branches (branch_code, branch_name, region_code, region_name, province_code, province_name, city_municipality_code, city_municipality_name, barangay_code, barangay_name, street_address, landmark, zip_code, contact_number, email, status, monday_open, monday_close, monday_closed, monday_break_start, monday_break_end, tuesday_open, tuesday_close, tuesday_closed, tuesday_break_start, tuesday_break_end, wednesday_open, wednesday_close, wednesday_closed, wednesday_break_start, wednesday_break_end, thursday_open, thursday_close, thursday_closed, thursday_break_start, thursday_break_end, friday_open, friday_close, friday_closed, friday_break_start, friday_break_end, saturday_open, saturday_close, saturday_closed, saturday_break_start, saturday_break_end, sunday_open, sunday_close, sunday_closed, sunday_break_start, sunday_break_end, is_24_hours, max_capacity, manager_name, manager_contact, notes, created_at)
+            VALUES (:branch_code, :branch_name, :region_code, :region_name, :province_code, :province_name, :city_municipality_code, :city_municipality_name, :barangay_code, :barangay_name, :street_address, :landmark, :zip_code, :contact_number, :email, :status, :monday_open, :monday_close, :monday_closed, :monday_break_start, :monday_break_end, :tuesday_open, :tuesday_close, :tuesday_closed, :tuesday_break_start, :tuesday_break_end, :wednesday_open, :wednesday_close, :wednesday_closed, :wednesday_break_start, :wednesday_break_end, :thursday_open, :thursday_close, :thursday_closed, :thursday_break_start, :thursday_break_end, :friday_open, :friday_close, :friday_closed, :friday_break_start, :friday_break_end, :saturday_open, :saturday_close, :saturday_closed, :saturday_break_start, :saturday_break_end, :sunday_open, :sunday_close, :sunday_closed, :sunday_break_start, :sunday_break_end, :is_24_hours, :max_capacity, :manager_name, :manager_contact, :notes, NOW())";
+
     Database::execute($sql, [
         'branch_code' => $branchCode,
         'branch_name' => $branchName,
         'region_code' => $regionCode ?: null,
+        'region_name' => $regionName ?: null,
         'province_code' => $provinceCode ?: null,
+        'province_name' => $provinceName ?: null,
         'city_municipality_code' => $cityCode ?: null,
+        'city_municipality_name' => $cityName ?: null,
         'barangay_code' => $barangayCode ?: null,
+        'barangay_name' => $barangayName ?: null,
         'street_address' => $streetAddress ?: null,
         'landmark' => $landmark ?: null,
         'zip_code' => $zipCode ?: null,
@@ -388,17 +380,33 @@ function handlePut() {
         $updateFields[] = "region_code = :region_code";
         $params['region_code'] = $input['region_code'] ?: null;
     }
+    if (isset($input['region_name'])) {
+        $updateFields[] = "region_name = :region_name";
+        $params['region_name'] = $input['region_name'] ?: null;
+    }
     if (isset($input['province_code'])) {
         $updateFields[] = "province_code = :province_code";
         $params['province_code'] = $input['province_code'] ?: null;
+    }
+    if (isset($input['province_name'])) {
+        $updateFields[] = "province_name = :province_name";
+        $params['province_name'] = $input['province_name'] ?: null;
     }
     if (isset($input['city_municipality_code'])) {
         $updateFields[] = "city_municipality_code = :city_municipality_code";
         $params['city_municipality_code'] = $input['city_municipality_code'] ?: null;
     }
+    if (isset($input['city_municipality_name'])) {
+        $updateFields[] = "city_municipality_name = :city_municipality_name";
+        $params['city_municipality_name'] = $input['city_municipality_name'] ?: null;
+    }
     if (isset($input['barangay_code'])) {
         $updateFields[] = "barangay_code = :barangay_code";
         $params['barangay_code'] = $input['barangay_code'] ?: null;
+    }
+    if (isset($input['barangay_name'])) {
+        $updateFields[] = "barangay_name = :barangay_name";
+        $params['barangay_name'] = $input['barangay_name'] ?: null;
     }
     if (isset($input['street_address'])) {
         $updateFields[] = "street_address = :street_address";

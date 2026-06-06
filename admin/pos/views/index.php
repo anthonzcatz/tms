@@ -509,8 +509,23 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     window.POS_SESSION_ID   = <?php echo $debugSessionId ? $debugSessionId : 'null'; ?>;
     window.POS_BRANCH_ID    = <?php echo !empty($activeSession) && isset($activeSession['branch_id']) ? (int)$activeSession['branch_id'] : (isset($userBranchId) && $userBranchId ? (int)$userBranchId : 'null'); ?>;
     window.POS_USER_ID      = <?php echo isset($currentUser) && isset($currentUser['user_id']) ? (int)$currentUser['user_id'] : 'null'; ?>;
+    window.POS_USER_NAME    = '<?php echo isset($currentUser) && isset($currentUser['fullname']) ? htmlspecialchars($currentUser['fullname']) : ''; ?>';
     window.POS_HAS_SESSION  = <?php echo $debugActive ? 'true' : 'false'; ?>;
     window.POS_SESSION_START = <?php echo !empty($activeSession) && isset($activeSession['started_at']) ? "'" . $activeSession['started_at'] . "'" : 'null'; ?>;
+
+    // Branch info for receipt address (from business_branches, not system_settings)
+    window.POS_BRANCH_NAME  = '<?php echo !empty($branchDetails) && isset($branchDetails['branch_name']) ? htmlspecialchars($branchDetails['branch_name']) : ''; ?>';
+    window.POS_BRANCH_INFO  = {
+        branch_name: '<?php echo !empty($branchDetails) && isset($branchDetails['branch_name']) ? htmlspecialchars($branchDetails['branch_name']) : ''; ?>',
+        street_address: '<?php echo !empty($branchDetails) && isset($branchDetails['street_address']) ? htmlspecialchars($branchDetails['street_address']) : ''; ?>',
+        barangay_name: '<?php echo !empty($branchDetails) && isset($branchDetails['barangay_name']) ? htmlspecialchars($branchDetails['barangay_name']) : ''; ?>',
+        city_municipality_name: '<?php echo !empty($branchDetails) && isset($branchDetails['city_municipality_name']) ? htmlspecialchars($branchDetails['city_municipality_name']) : ''; ?>',
+        province_name: '<?php echo !empty($branchDetails) && isset($branchDetails['province_name']) ? htmlspecialchars($branchDetails['province_name']) : ''; ?>',
+        region_name: '<?php echo !empty($branchDetails) && isset($branchDetails['region_name']) ? htmlspecialchars($branchDetails['region_name']) : ''; ?>',
+        zip_code: '<?php echo !empty($branchDetails) && isset($branchDetails['zip_code']) ? htmlspecialchars($branchDetails['zip_code']) : ''; ?>',
+        landmark: '<?php echo !empty($branchDetails) && isset($branchDetails['landmark']) ? htmlspecialchars($branchDetails['landmark']) : ''; ?>',
+        contact_number: '<?php echo !empty($branchDetails) && isset($branchDetails['contact_number']) ? htmlspecialchars($branchDetails['contact_number']) : ''; ?>'
+    };
 
     // Cancellation settings
     window.CANCELLATION_SETTINGS = {
@@ -587,8 +602,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
       file_get_contents(dirname(__DIR__) . '/views/private-key.pem')
     ); ?>;
   </script>
-  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js"></script>
-  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos-printer.js'); ?>"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>
