@@ -49,36 +49,7 @@ if ($userRoleCode === 'SUPER_ADMIN' || !$hasValidBranchId) {
     );
 }
 
-// Determine active branch for receipt address
-$activeBranchId = null;
-if (!empty($activeSession) && !empty($activeSession['branch_id'])) {
-    $activeBranchId = (int)$activeSession['branch_id'];
-} elseif ($hasValidBranchId) {
-    $activeBranchId = (int)$userBranchId;
-}
-
-// Fetch full branch details for receipt address
-$branchDetails = null;
-if ($activeBranchId) {
-    $branchDetails = Database::fetch(
-        "SELECT branch_name, region_name, province_name, city_municipality_name,
-                barangay_name, street_address, landmark, zip_code, contact_number
-         FROM business_branches
-         WHERE branch_id = :bid",
-        ['bid' => $activeBranchId]
-    );
-}
-
-// Fetch active bank accounts for bank transfer/e-wallet methods
-$bankAccounts = Database::fetchAll(
-    "SELECT ba.*, pm.method_code, pm.method_name
-     FROM bank_accounts ba
-     LEFT JOIN payment_methods pm ON ba.payment_method_id = pm.method_id
-     WHERE ba.is_active = 1
-     ORDER BY ba.bank_name ASC"
-);
-
-// Fetch open session for this cashier (any date)
+// Fetch open session for this cashier (any date) - BEFORE determining activeBranchId
 $todaySessions = Database::fetchAll(
     "SELECT cs.*, bb.branch_name
      FROM cashier_sessions cs
@@ -91,6 +62,43 @@ $todaySessions = Database::fetchAll(
 
 // Active session (not closed)
 $activeSession = $todaySessions[0] ?? null;
+
+// Determine active branch for receipt address
+$activeBranchId = null;
+if (!empty($activeSession) && !empty($activeSession['branch_id'])) {
+    $activeBranchId = (int)$activeSession['branch_id'];
+} elseif ($hasValidBranchId) {
+    $activeBranchId = (int)$userBranchId;
+}
+
+error_log('[POS Controller] userBranchId: ' . var_export($userBranchId, true));
+error_log('[POS Controller] hasValidBranchId: ' . var_export($hasValidBranchId, true));
+error_log('[POS Controller] activeSession branch_id: ' . (!empty($activeSession) && !empty($activeSession['branch_id']) ? $activeSession['branch_id'] : 'none'));
+error_log('[POS Controller] activeBranchId: ' . var_export($activeBranchId, true));
+
+// Fetch full branch details for receipt address
+$branchDetails = null;
+if ($activeBranchId) {
+    $branchDetails = Database::fetch(
+        "SELECT branch_name, region_name, province_name, city_municipality_name,
+                barangay_name, street_address, landmark, zip_code, contact_number
+         FROM business_branches
+         WHERE branch_id = :bid",
+        ['bid' => $activeBranchId]
+    );
+    error_log('[POS Controller] branchDetails: ' . var_export($branchDetails, true));
+} else {
+    error_log('[POS Controller] No activeBranchId, branchDetails will be null');
+}
+
+// Fetch active bank accounts for bank transfer/e-wallet methods
+$bankAccounts = Database::fetchAll(
+    "SELECT ba.*, pm.method_code, pm.method_name
+     FROM bank_accounts ba
+     LEFT JOIN payment_methods pm ON ba.payment_method_id = pm.method_id
+     WHERE ba.is_active = 1
+     ORDER BY ba.bank_name ASC"
+);
 
 // Fetch passengers for CHARGE payment selection
 $passengers = Database::fetchAll(
@@ -142,6 +150,7 @@ $printerSettings = Database::fetch(
             receipt_footer_text,
             receipt_footer,
             receipt_custom_footer,
+            receipt_address_source,
             printer_type,
             company_name,
             company_address,

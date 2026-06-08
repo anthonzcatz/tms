@@ -51,6 +51,7 @@
           autoPrint: <?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'true' : 'false'; ?>,
           showPreview: <?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'true' : 'false'; ?>,
           copies: <?php echo intval($printerSettings['receipt_copies'] ?? 1); ?>,
+          addressSource: '<?php echo $printerSettings['receipt_address_source'] ?? 'company'; ?>',
           showTin: <?php echo ($printerSettings['receipt_show_tin'] ?? 1) ? 'true' : 'false'; ?>,
           showServiceFee: <?php echo ($printerSettings['receipt_show_service_fee'] ?? 1) ? 'true' : 'false'; ?>,
           showBaseAmount: <?php echo ($printerSettings['receipt_show_base_amount'] ?? 1) ? 'true' : 'false'; ?>,

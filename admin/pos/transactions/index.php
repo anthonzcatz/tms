@@ -19,6 +19,31 @@ $systemSettings = Database::fetch("SELECT * FROM system_settings WHERE setting_i
 $systemName = htmlspecialchars($systemSettings['system_name'] ?? 'TMS', ENT_QUOTES, 'UTF-8');
 $systemLogo = $systemSettings['system_logo'] ?? null;
 
+// Fetch printer settings
+$printerSettings = Database::fetch(
+    "SELECT receipt_printing_enabled, receipt_paper_width, printer_type, system_logo,
+            receipt_auto_print, receipt_show_preview, receipt_copies,
+            receipt_show_tin, receipt_show_service_fee, receipt_show_base_amount,
+            receipt_show_discount, receipt_show_cashier, receipt_show_payment_method,
+            receipt_show_branch, receipt_logo_enabled, receipt_qr_code_enabled,
+            receipt_qr_format, receipt_footer, receipt_custom_footer, receipt_address_source,
+            company_name, company_address, company_contact_number, company_email, company_tin
+     FROM system_settings
+     WHERE setting_id = 1"
+);
+
+// Fetch branch details for receipt address
+$branchDetails = null;
+if (!empty($userBranchId) && $userBranchId !== '0' && $userBranchId !== '') {
+    $branchDetails = Database::fetch(
+        "SELECT branch_name, region_name, province_name, city_municipality_name,
+                barangay_name, street_address, landmark, zip_code, contact_number
+         FROM business_branches
+         WHERE branch_id = :bid",
+        ['bid' => (int)$userBranchId]
+    );
+}
+
 // Validate logo URL
 if ($systemLogo) {
     $systemLogo = trim($systemLogo);

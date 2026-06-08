@@ -767,11 +767,27 @@ function printTransactions() {
         month: 'long', 
         day: 'numeric' 
     });
-    const timeStr = now.toLocaleTimeString('en-PH', { 
-        hour: '2-digit', 
+    const timeStr = now.toLocaleTimeString('en-PH', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
     });
+
+    // Determine address based on address source setting
+    let printAddress = '';
+    if (window.PRINTER_SETTINGS && window.PRINTER_SETTINGS.addressSource === 'branch' && window.POS_BRANCH_INFO) {
+        const bi = window.POS_BRANCH_INFO;
+        const addrParts = [];
+        if (bi.street_address) addrParts.push(bi.street_address);
+        if (bi.barangay_name) addrParts.push(bi.barangay_name);
+        if (bi.city_municipality_name) addrParts.push(bi.city_municipality_name);
+        if (bi.province_name) addrParts.push(bi.province_name);
+        if (bi.region_name) addrParts.push(bi.region_name);
+        if (bi.zip_code) addrParts.push(bi.zip_code);
+        printAddress = addrParts.join(', ');
+    } else if (window.COMPANY_INFO && window.COMPANY_INFO.address) {
+        printAddress = window.COMPANY_INFO.address;
+    }
 
     // Build custom print HTML for POS transactions
     const printHTML = `
@@ -966,7 +982,7 @@ function printTransactions() {
         </div>
         <div class="footer-info">
             <strong>${window.systemName || 'TMS'}</strong><br>
-            ${window.companyAddress || ''}<br>
+            ${printAddress}<br>
             ${window.reportFooter || 'System Generated Report'}<br>
             Generated on ${dateStr} at ${timeStr}
         </div>

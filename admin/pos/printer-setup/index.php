@@ -45,7 +45,7 @@ $printerSettings = Database::fetch(
             receipt_show_tin, receipt_show_service_fee, receipt_show_base_amount,
             receipt_show_discount, receipt_show_cashier, receipt_show_payment_method,
             receipt_show_branch, receipt_logo_enabled, receipt_qr_code_enabled,
-            receipt_qr_format, receipt_footer, receipt_custom_footer,
+            receipt_qr_format, receipt_footer, receipt_custom_footer, receipt_address_source,
             company_name, company_address, company_contact_number, company_email, company_tin
      FROM system_settings
      WHERE setting_id = 1"

@@ -400,6 +400,21 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                         </select>
                       </div>
                       <div class="col-md-12"><hr class="my-2"></div>
+                      <!-- Receipt Address Source -->
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3"><span class="fas fa-map-marker-alt me-2"></span>Receipt Address Source</h6>
+                      </div>
+                      <div class="col-md-12">
+                        <label class="form-label fw-semibold">Use Branch Address on Receipts</label>
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="receipt_address_source" id="receiptAddressSource" value="branch" <?php echo ($settings['receipt_address_source'] ?? 'company') === 'branch' ? 'checked' : ''; ?>>
+                          <label class="form-check-label" for="receiptAddressSource">Use branch address from <a href="<?php echo BASE_URL; ?>/admin/settings/branches/" target="_blank">Branch Settings</a> instead of company address</label>
+                        </div>
+                        <small class="text-muted">
+                          When enabled, receipts will show the specific branch address (from business_branches table). When disabled, receipts will show the company address from Company Information settings.
+                        </small>
+                      </div>
+                      <div class="col-md-12"><hr class="my-2"></div>
                       <!-- Receipt Content -->
                       <div class="col-md-12">
                         <h6 class="fw-bold text-primary mb-3"><span class="fas fa-list me-2"></span>Receipt Content</h6>

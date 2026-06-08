@@ -526,6 +526,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         landmark: '<?php echo !empty($branchDetails) && isset($branchDetails['landmark']) ? htmlspecialchars($branchDetails['landmark']) : ''; ?>',
         contact_number: '<?php echo !empty($branchDetails) && isset($branchDetails['contact_number']) ? htmlspecialchars($branchDetails['contact_number']) : ''; ?>'
     };
+    console.log('[POS] POS_BRANCH_INFO loaded:', window.POS_BRANCH_INFO);
+    console.log('[POS] PHP branchDetails:', <?php echo json_encode($branchDetails); ?>);
 
     // Cancellation settings
     window.CANCELLATION_SETTINGS = {
@@ -554,6 +556,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         autoPrint: <?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'true' : 'false'; ?>,
         showPreview: <?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'true' : 'false'; ?>,
         copies: <?php echo intval($printerSettings['receipt_copies'] ?? 1); ?>,
+        addressSource: '<?php echo $printerSettings['receipt_address_source'] ?? 'company'; ?>',
         autoCut: <?php echo ($printerSettings['receipt_auto_cut'] ?? 1) ? 'true' : 'false'; ?>,
         openCashDrawer: <?php echo ($printerSettings['receipt_open_cash_drawer'] ?? 0) ? 'true' : 'false'; ?>,
         showCashier: <?php echo ($printerSettings['receipt_show_cashier'] ?? 1) ? 'true' : 'false'; ?>,

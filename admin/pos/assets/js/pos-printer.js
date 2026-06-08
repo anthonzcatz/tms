@@ -146,6 +146,8 @@
                 this.config.copies = parseInt(window.PRINTER_SETTINGS.copies) || 1;
                 this.config.customerCopy = !!window.PRINTER_SETTINGS.customerCopy;
                 this.config.merchantCopy = window.PRINTER_SETTINGS.merchantCopy !== undefined ? !!window.PRINTER_SETTINGS.merchantCopy : true;
+                this.config.addressSource = window.PRINTER_SETTINGS.addressSource || 'company';
+                console.log('[PosPrinter] addressSource loaded:', this.config.addressSource, 'from PRINTER_SETTINGS:', window.PRINTER_SETTINGS.addressSource);
 
                 // Apply terminal overrides (take precedence over global)
                 const autoPrintOverride = localStorage.getItem('tms_pos_auto_print_override');
@@ -318,15 +320,15 @@
 
             // Send to print
             try {
-                // If logo is enabled, print it first using QZ graphics
-                if (this.config.logoEnabled && this.companyInfo.logo) {
+                // If logo is enabled, print it first using QZ Tray's image printing
+                if (this.config.logoEnabled && this.companyInfo.logo && typeof qz !== 'undefined') {
                     try {
-                        // Convert image to ESC/POS format
-                        const logoData = await qz.graphics.fetch(this.companyInfo.logo);
-                        const logoConfig = qz.configs.create(this.state.printerName);
-                        await qz.print(logoConfig, [
-                            { type: 'raw', format: 'image', data: logoData, options: { units: 'mm', width: 40, density: 4 } }
-                        ]);
+                        // Use QZ Tray's printImage for logo - scale down significantly
+                        await qz.print(config, [{
+                            type: 'image',
+                            data: this.companyInfo.logo,
+                            options: { units: 'mm', width: 8, scale: 0.3 }
+                        }]);
                     } catch (logoErr) {
                         console.warn('[PosPrinter] Logo print failed, continuing without logo:', logoErr);
                     }
@@ -334,22 +336,9 @@
 
                 // Print copies based on settings (options.copies takes precedence)
                 const copies = options.copies || this.config.copies || 1;
-                const customerCopy = this.config.customerCopy;
-                const merchantCopy = this.config.merchantCopy !== false;
 
                 for (let i = 0; i < copies; i++) {
-                    const copyOptions = Object.assign({}, options);
-                    if (copies > 1 || customerCopy || merchantCopy) {
-                        // First copy = merchant copy label, second = customer copy label
-                        if (copies >= 2) {
-                            copyOptions.copyLabel = i === 0 ? 'MERCHANT COPY' : 'CUSTOMER COPY';
-                        } else if (merchantCopy && !customerCopy) {
-                            copyOptions.copyLabel = 'MERCHANT COPY';
-                        } else if (customerCopy && !merchantCopy) {
-                            copyOptions.copyLabel = 'CUSTOMER COPY';
-                        }
-                    }
-                    const copyData = this.generateReceiptData(transaction, copyOptions);
+                    const copyData = this.generateReceiptData(transaction, options);
                     await qz.print(config, copyData);
                 }
                 console.log('[PosPrinter] Receipt printed successfully (' + copies + ' copies)');
@@ -393,26 +382,26 @@
             // Initialize printer
             data.push(cmd.INIT);
 
-            // ── LOGO ───────────────────────────────────────────────
-            if (this.config.logoEnabled && this.companyInfo.logo) {
-                this.logoUrl = this.companyInfo.logo;
-            } else {
-                this.logoUrl = null;
-            }
-
             // ── COMPANY HEADER ─────────────────────────────────────
-            // For reprints: use the original transaction's branch info (options.branchInfo)
-            // For new transactions: use current POS branch (window.POS_BRANCH_INFO)
-            // Falls back to system_settings company address if no branch info
+            // Address source is controlled by PRINTER_SETTINGS.addressSource:
+            // - 'branch': use branch address (options.branchInfo for reprints, window.POS_BRANCH_INFO for new)
+            // - 'company': use company address from system_settings
+            const addressSource = this.config.addressSource || 'company';
+            const useBranchAddress = addressSource === 'branch';
+
+            console.log('[PosPrinter] Receipt header addressSource:', addressSource, 'useBranchAddress:', useBranchAddress);
+
             const branchInfo = options.branchInfo
                 || ((typeof window !== 'undefined' && window.POS_BRANCH_INFO) ? window.POS_BRANCH_INFO : null);
+
+            console.log('[PosPrinter] branchInfo:', branchInfo);
 
             data.push(cmd.ALIGN_CENTER);
             data.push(cmd.BOLD_ON);
             data.push((this.companyInfo.name || 'TMS POS') + '\n');
             data.push(cmd.BOLD_OFF);
 
-            if (branchInfo && branchInfo.branch_name) {
+            if (useBranchAddress && branchInfo && branchInfo.branch_name) {
                 // Build branch address from business_branches fields
                 const addrParts = [];
                 if (branchInfo.street_address) addrParts.push(branchInfo.street_address);
@@ -436,7 +425,7 @@
                     data.push('Contact: ' + branchInfo.contact_number + '\n');
                 }
             } else if (this.companyInfo.address) {
-                // Fallback to system_settings company address
+                // Use company address from system_settings
                 data.push(this.companyInfo.address + '\n');
                 if (this.companyInfo.contact) {
                     data.push('Contact: ' + this.companyInfo.contact + '\n');

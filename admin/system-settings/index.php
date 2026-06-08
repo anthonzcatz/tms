@@ -122,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'receipt_show_base_amount' => isset($_POST['receipt_show_base_amount']) ? 1 : 0,
             'receipt_show_discount' => isset($_POST['receipt_show_discount']) ? 1 : 0,
             'receipt_custom_footer' => trim($_POST['receipt_custom_footer'] ?? ''),
+            'receipt_address_source' => (isset($_POST['receipt_address_source']) && $_POST['receipt_address_source'] === 'branch') ? 'branch' : 'company',
             'printer_type' => trim($_POST['printer_type'] ?? 'THERMAL'),
             'updated_by' => $user['user_id']
         ];
@@ -184,6 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 receipt_show_base_amount = :receipt_show_base_amount,
                 receipt_show_discount = :receipt_show_discount,
                 receipt_custom_footer = :receipt_custom_footer,
+                receipt_address_source = :receipt_address_source,
                 printer_type = :printer_type,
                 updated_by = :updated_by,
                 updated_at = :updated_at

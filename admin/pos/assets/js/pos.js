@@ -3586,13 +3586,13 @@ async function confirmReprintReceipt() {
         const res = await fetch(apiUrl);
         const result = await res.json();
 
-        if (!result.success || !result.data) {
+        if (!result.success || (!result.data && !result.transaction)) {
             showToast('error', 'Error', 'Failed to fetch transaction details.');
             reprintReceiptModal.hide();
             return;
         }
 
-        const txn = result.data;
+        const txn = result.transaction || result.data;
 
         // Build transaction data for receipt
         const orderSvcFeeTotal = parseFloat(txn.total_service_fees || 0);

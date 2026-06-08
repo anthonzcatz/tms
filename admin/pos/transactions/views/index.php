@@ -276,6 +276,51 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
       isSuperAdmin: <?php echo ($userRoleCode === 'SUPER_ADMIN') ? 'true' : 'false'; ?>,
       isManager: <?php echo ($userRoleCode === 'MANAGER') ? 'true' : 'false'; ?>
     };
+
+    // Printer Settings
+    window.PRINTER_SETTINGS = {
+      enabled: <?php echo ($printerSettings['receipt_printing_enabled'] ?? 1) ? 'true' : 'false'; ?>,
+      paperWidth: '<?php echo $printerSettings['receipt_paper_width'] ?? '80mm'; ?>',
+      autoPrint: <?php echo ($printerSettings['receipt_auto_print'] ?? 1) ? 'true' : 'false'; ?>,
+      showPreview: <?php echo ($printerSettings['receipt_show_preview'] ?? 0) ? 'true' : 'false'; ?>,
+      copies: <?php echo intval($printerSettings['receipt_copies'] ?? 1); ?>,
+      addressSource: '<?php echo $printerSettings['receipt_address_source'] ?? 'company'; ?>',
+      showTin: <?php echo ($printerSettings['receipt_show_tin'] ?? 1) ? 'true' : 'false'; ?>,
+      showServiceFee: <?php echo ($printerSettings['receipt_show_service_fee'] ?? 1) ? 'true' : 'false'; ?>,
+      showBaseAmount: <?php echo ($printerSettings['receipt_show_base_amount'] ?? 1) ? 'true' : 'false'; ?>,
+      showDiscount: <?php echo ($printerSettings['receipt_show_discount'] ?? 1) ? 'true' : 'false'; ?>,
+      showCashier: <?php echo ($printerSettings['receipt_show_cashier'] ?? 1) ? 'true' : 'false'; ?>,
+      showPaymentMethod: <?php echo ($printerSettings['receipt_show_payment_method'] ?? 1) ? 'true' : 'false'; ?>,
+      showBranch: <?php echo ($printerSettings['receipt_show_branch'] ?? 1) ? 'true' : 'false'; ?>,
+      logoEnabled: <?php echo ($printerSettings['receipt_logo_enabled'] ?? 0) ? 'true' : 'false'; ?>,
+      qrEnabled: <?php echo ($printerSettings['receipt_qr_code_enabled'] ?? 0) ? 'true' : 'false'; ?>,
+      qrFormat: '<?php echo $printerSettings['receipt_qr_format'] ?? 'TRANSACTION_ID'; ?>',
+      footerText: '<?php echo htmlspecialchars($printerSettings['receipt_footer'] ?? 'Thank you for your business!'); ?>',
+      customFooter: '<?php echo htmlspecialchars($printerSettings['receipt_custom_footer'] ?? ''); ?>'
+    };
+
+    // Company Info for Receipts
+    window.COMPANY_INFO = {
+      name: '<?php echo htmlspecialchars($printerSettings['company_name'] ?? ''); ?>',
+      address: '<?php echo htmlspecialchars($printerSettings['company_address'] ?? ''); ?>',
+      contact: '<?php echo htmlspecialchars($printerSettings['company_contact_number'] ?? ''); ?>',
+      email: '<?php echo htmlspecialchars($printerSettings['company_email'] ?? ''); ?>',
+      tin: '<?php echo htmlspecialchars($printerSettings['company_tin'] ?? ''); ?>',
+      logo: '<?php echo !empty($printerSettings['system_logo']) ? BASE_URL . htmlspecialchars($printerSettings['system_logo']) : ''; ?>'
+    };
+
+    // Branch info for receipt address
+    window.POS_BRANCH_INFO = {
+      branch_name: '<?php echo !empty($branchDetails) && isset($branchDetails['branch_name']) ? htmlspecialchars($branchDetails['branch_name']) : ''; ?>',
+      street_address: '<?php echo !empty($branchDetails) && isset($branchDetails['street_address']) ? htmlspecialchars($branchDetails['street_address']) : ''; ?>',
+      barangay_name: '<?php echo !empty($branchDetails) && isset($branchDetails['barangay_name']) ? htmlspecialchars($branchDetails['barangay_name']) : ''; ?>',
+      city_municipality_name: '<?php echo !empty($branchDetails) && isset($branchDetails['city_municipality_name']) ? htmlspecialchars($branchDetails['city_municipality_name']) : ''; ?>',
+      province_name: '<?php echo !empty($branchDetails) && isset($branchDetails['province_name']) ? htmlspecialchars($branchDetails['province_name']) : ''; ?>',
+      region_name: '<?php echo !empty($branchDetails) && isset($branchDetails['region_name']) ? htmlspecialchars($branchDetails['region_name']) : ''; ?>',
+      zip_code: '<?php echo !empty($branchDetails) && isset($branchDetails['zip_code']) ? htmlspecialchars($branchDetails['zip_code']) : ''; ?>',
+      landmark: '<?php echo !empty($branchDetails) && isset($branchDetails['landmark']) ? htmlspecialchars($branchDetails['landmark']) : ''; ?>',
+      contact_number: '<?php echo !empty($branchDetails) && isset($branchDetails['contact_number']) ? htmlspecialchars($branchDetails['contact_number']) : ''; ?>'
+    };
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/transactions/assets/js/pos-transactions.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos-transactions.js'); ?>"></script>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
