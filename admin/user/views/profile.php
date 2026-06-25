@@ -44,7 +44,8 @@
           <!-- Content Rows -->
           <div class="row g-0">
             <div class="col-lg-8 pe-lg-2">
-              <div class="card mb-3">
+              <!-- Intro card hidden temporarily -->
+              <!-- <div class="card mb-3">
                 <div class="card-header bg-body-tertiary">
                   <h5 class="mb-0">Intro</h5>
                 </div>
@@ -59,57 +60,83 @@
                 <div class="card-footer bg-body-tertiary p-0 border-top">
                   <button class="btn btn-link d-block w-100 btn-intro-collapse" type="button" data-bs-toggle="collapse" data-bs-target="#profile-intro" aria-expanded="true" aria-controls="profile-intro">Show <span class="less">less<span class="fas fa-chevron-up ms-2 fs-11"></span></span><span class="full">full<span class="fas fa-chevron-down ms-2 fs-11"></span></span></button>
                 </div>
-              </div>
+              </div> -->
+              <?php
+              // Fetch recent activity logs for this user
+              $recentLogs = Database::fetchAll(
+                  "SELECT * FROM activity_logs WHERE user_id = :uid ORDER BY created_at DESC LIMIT 5",
+                  ['uid' => $up['user_id'] ?? 0]
+              );
+              $actionIconMap = [
+                  'LOGIN'                      => ['icon' => 'fa-sign-in-alt',        'color' => 'text-success'],
+                  'LOGOUT'                     => ['icon' => 'fa-sign-out-alt',       'color' => 'text-secondary'],
+                  'SESSION_EXPIRED'            => ['icon' => 'fa-clock',              'color' => 'text-warning'],
+                  'SESSION_TERMINATED'         => ['icon' => 'fa-ban',               'color' => 'text-danger'],
+                  'SESSION_INVALID'            => ['icon' => 'fa-exclamation-circle', 'color' => 'text-danger'],
+                  'CREATE'                     => ['icon' => 'fa-plus-circle',        'color' => 'text-primary'],
+                  'UPDATE'                     => ['icon' => 'fa-edit',               'color' => 'text-info'],
+                  'DELETE'                     => ['icon' => 'fa-trash-alt',          'color' => 'text-danger'],
+                  'VIEW'                       => ['icon' => 'fa-eye',                'color' => 'text-secondary'],
+                  'PAYMENT'                    => ['icon' => 'fa-credit-card',        'color' => 'text-success'],
+                  'CANCEL'                     => ['icon' => 'fa-times-circle',       'color' => 'text-warning'],
+                  'VOID'                       => ['icon' => 'fa-ban',               'color' => 'text-danger'],
+                  'APPROVE'                    => ['icon' => 'fa-check-circle',       'color' => 'text-success'],
+                  'CREATE_TICKET_TRANSACTION'  => ['icon' => 'fa-ticket-alt',         'color' => 'text-primary'],
+                  'CANCEL_TICKET'              => ['icon' => 'fa-times-circle',       'color' => 'text-warning'],
+                  'VOID_TICKET'                => ['icon' => 'fa-ban',               'color' => 'text-danger'],
+                  'CHANGE_PASSWORD'            => ['icon' => 'fa-key',               'color' => 'text-warning'],
+                  'UPDATE_PROFILE'             => ['icon' => 'fa-user-edit',          'color' => 'text-info'],
+                  'UPLOAD_PROFILE_IMAGE'       => ['icon' => 'fa-camera',             'color' => 'text-info'],
+              ];
+              ?>
               <div class="card mb-3">
-                <div class="card-header bg-body-tertiary d-flex justify-content-between">
-                  <h5 class="mb-0">Activity log</h5><a class="font-sans-serif" href="#!">All logs</a>
+                <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0">Activity Log</h5>
+                  <a class="font-sans-serif fs-10" href="<?php echo BASE_URL; ?>/admin/user/?view=activity-logs">All logs <span class="fas fa-chevron-right ms-1 fs-11"></span></a>
                 </div>
                 <div class="card-body fs-10 p-0">
-                  <a class="border-bottom-0 notification rounded-0 border-x-0 border border-300" href="#!">
+                  <?php if (empty($recentLogs)): ?>
+                  <div class="text-center py-4 text-muted">
+                    <span class="fas fa-history fs-4 mb-2 d-block"></span>
+                    <p class="mb-0">No activity logs found.</p>
+                  </div>
+                  <?php else: ?>
+                  <?php foreach ($recentLogs as $i => $log):
+                    $action = strtoupper($log['action'] ?? '');
+                    $iconInfo = $actionIconMap[$action] ?? ['icon' => 'fa-circle', 'color' => 'text-400'];
+                    $isLast = ($i === count($recentLogs) - 1);
+                    $module = ucwords(strtolower(str_replace('_', ' ', $log['module_name'] ?? '')));
+                    $ref = $log['reference_code'] ?? '';
+                  ?>
+                  <div class="<?php echo $isLast ? 'notification border-x-0 border-bottom-0 border-300 rounded-top-0' : 'border-bottom-0 notification rounded-0 border-x-0 border border-300'; ?>">
                     <div class="notification-avatar">
                       <div class="avatar avatar-xl me-3">
-                        <div class="avatar-emoji rounded-circle"><span role="img" aria-label="Emoji">🎁</span></div>
+                        <div class="avatar-name rounded-circle bg-soft-primary">
+                          <span class="fas <?php echo $iconInfo['icon']; ?> <?php echo $iconInfo['color']; ?>"></span>
+                        </div>
                       </div>
                     </div>
                     <div class="notification-body">
-                      <p class="mb-1"><strong>Jennifer Kent</strong> Congratulated <strong>Anthony Hopkins</strong></p>
-                      <span class="notification-time">November 13, 5:00 Am</span>
+                      <p class="mb-1">
+                        <strong><?php echo htmlspecialchars($action); ?></strong>
+                        <?php if ($module): ?> on <strong><?php echo htmlspecialchars($module); ?></strong><?php endif; ?>
+                        <?php if ($ref): ?> &mdash; <span class="text-muted"><?php echo htmlspecialchars($ref); ?></span><?php endif; ?>
+                      </p>
+                      <span class="notification-time">
+                        <span class="fas fa-map-marker-alt me-1"></span><?php echo htmlspecialchars($log['ip_address'] ?? 'N/A'); ?>
+                        &nbsp;&bull;&nbsp;
+                        <?php echo Auth::formatTimestamp($log['created_at'], 'M j, Y g:i A'); ?>
+                      </span>
                     </div>
-                  </a>
-                  <a class="border-bottom-0 notification rounded-0 border-x-0 border border-300" href="#!">
-                    <div class="notification-avatar">
-                      <div class="avatar avatar-xl me-3">
-                        <div class="avatar-emoji rounded-circle"><span role="img" aria-label="Emoji">🏷️</span></div>
-                      </div>
-                    </div>
-                    <div class="notification-body">
-                      <p class="mb-1"><strong>California Institute of Technology</strong> tagged <strong>Anthony Hopkins</strong> in a post.</p>
-                      <span class="notification-time">November 8, 5:00 PM</span>
-                    </div>
-                  </a>
-                  <a class="border-bottom-0 notification rounded-0 border-x-0 border border-300" href="#!">
-                    <div class="notification-avatar">
-                      <div class="avatar avatar-xl me-3">
-                        <div class="avatar-emoji rounded-circle"><span role="img" aria-label="Emoji">📋️</span></div>
-                      </div>
-                    </div>
-                    <div class="notification-body">
-                      <p class="mb-1"><strong>Anthony Hopkins</strong> joined <strong>Victory day cultural Program</strong> with <strong>Tony Stark</strong></p>
-                      <span class="notification-time">November 01, 11:30 AM</span>
-                    </div>
-                  </a>
-                  <a class="notification border-x-0 border-bottom-0 border-300 rounded-top-0" href="#!">
-                    <div class="notification-avatar">
-                      <div class="avatar avatar-xl me-3">
-                        <div class="avatar-emoji rounded-circle"><span role="img" aria-label="Emoji">📅️</span></div>
-                      </div>
-                    </div>
-                    <div class="notification-body">
-                      <p class="mb-1"><strong>Massachusetts Institute of Technology</strong> invited <strong>Anthony Hopkins</strong> to an event</p>
-                      <span class="notification-time">October 28, 12:00 PM</span>
-                    </div>
-                  </a>
+                  </div>
+                  <?php endforeach; ?>
+                  <?php endif; ?>
                 </div>
+                <?php if (!empty($recentLogs)): ?>
+                <div class="card-footer bg-body-tertiary p-0 border-top">
+                  <a class="btn btn-link d-block w-100" href="<?php echo BASE_URL; ?>/admin/user/?view=activity-logs">View all logs <span class="fas fa-chevron-right ms-1 fs-11"></span></a>
+                </div>
+                <?php endif; ?>
               </div>
               <div class="card mb-3 mb-lg-0">
                 <div class="card-header bg-body-tertiary">
@@ -190,7 +217,8 @@
                     <?php endif; ?>
                   </div>
                 </div>
-                <div class="card mb-3">
+                <!-- Education card hidden temporarily -->
+                <!-- <div class="card mb-3">
                   <div class="card-header bg-body-tertiary">
                     <h5 class="mb-0">Education</h5>
                   </div>
@@ -226,7 +254,7 @@
                       </div>
                     </div>
                   </div>
-                </div>
+                </div> -->
                 <div class="card mb-3 mb-lg-0">
                   <div class="card-header bg-body-tertiary">
                     <h5 class="mb-0">Events</h5>

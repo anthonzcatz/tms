@@ -1879,18 +1879,15 @@ function openAddPassengerModal() {
         el.classList.remove('is-valid');
     });
 
-    // Reset address dropdowns
-    document.getElementById('newPassengerRegion').innerHTML = '<option value="">Select Region</option>';
-    document.getElementById('newPassengerProvince').innerHTML = '<option value="">Select Province</option>';
-    document.getElementById('newPassengerProvince').disabled = true;
-    document.getElementById('newPassengerCity').innerHTML = '<option value="">Select City/Municipality</option>';
-    document.getElementById('newPassengerCity').disabled = true;
-    document.getElementById('newPassengerBarangay').innerHTML = '<option value="">Select Barangay</option>';
-    document.getElementById('newPassengerBarangay').disabled = true;
+    // Reset address dropdowns and search inputs
+    resetAddPassengerAddressFields();
 
     currentPassengerStep = 1;
     updatePassengerWizardUI();
-    populateRegionSelect();
+    populateRegionSelect(() => {
+        // Pre-fill the last used address so repeat passengers are faster to register
+        restoreLastPassengerAddress();
+    });
     addPassengerModal.show();
     
     // Focus on Full Name field after modal is fully shown using Bootstrap event
@@ -2067,10 +2064,67 @@ function updatePassengerWizardUI() {
     }
 }
 
-function populateRegionSelect() {
+// Choices.js instances for address dropdowns in the Add Passenger modal
+let addressChoices = {};
+
+/**
+ * Initialize Choices.js on an address select if it hasn't been initialized yet.
+ * Disabled selects are left as native selects so the placeholder is clearly shown.
+ */
+function initAddressChoices(select) {
+    if (addressChoices[select.id]) {
+        return;
+    }
+    if (select.disabled) {
+        return;
+    }
+    addressChoices[select.id] = new Choices(select, {
+        searchEnabled: true,
+        shouldSort: false,
+        searchPlaceholderValue: 'Search...',
+        placeholder: true,
+        placeholderValue: '',
+        itemSelectText: '',
+        allowHTML: false,
+        removeItemButton: false,
+        searchResultLimit: 50,
+        searchFloor: 1,
+        position: 'auto',
+        resetScrollPosition: false
+    });
+}
+
+/**
+ * Sync the Choices.js instance with the current native select options.
+ * Destroy the instance if the select is disabled, or create it if it is enabled.
+ */
+function refreshAddressChoices(select) {
+    const instance = addressChoices[select.id];
+    if (select.disabled) {
+        if (instance) {
+            instance.destroy();
+            delete addressChoices[select.id];
+        }
+        return;
+    }
+    if (!instance) {
+        initAddressChoices(select);
+        return;
+    }
+    // Replace choices in place without destroying the instance (avoids UI delay)
+    const choices = Array.from(select.options).map(opt => ({
+        value: opt.value,
+        label: opt.textContent,
+        selected: opt.selected,
+        disabled: opt.disabled
+    }));
+    instance.setChoices(choices, 'value', 'label', true);
+}
+
+function populateRegionSelect(onComplete = null) {
     const select = document.getElementById('newPassengerRegion');
     select.innerHTML = '<option value="">Select Region</option>';
-    
+
     // Fetch regions via AJAX
     fetch(`${window.BASE_URL}/api/psgc?action=regions`)
         .then(response => response.json())
@@ -2082,6 +2136,10 @@ function populateRegionSelect() {
                     option.textContent = r.region_name;
                     select.appendChild(option);
                 });
+                refreshAddressChoices(select);
+                if (typeof onComplete === 'function') {
+                    onComplete();
+                }
             }
         })
         .catch(error => {
@@ -2090,7 +2148,7 @@ function populateRegionSelect() {
         });
 }
 
-function loadProvinces() {
+function loadProvinces(targetProvinceCode = null) {
     const regionCode = document.getElementById('newPassengerRegion').value;
     const provinceSelect = document.getElementById('newPassengerProvince');
     const citySelect = document.getElementById('newPassengerCity');
@@ -2103,11 +2161,21 @@ function loadProvinces() {
         citySelect.disabled = true;
         barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
         barangaySelect.disabled = true;
-        return;
+        refreshAddressChoices(provinceSelect);
+        refreshAddressChoices(citySelect);
+        refreshAddressChoices(barangaySelect);
+        return Promise.resolve();
     }
 
+    citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
+    citySelect.disabled = true;
+    barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
+    barangaySelect.disabled = true;
+    refreshAddressChoices(citySelect);
+    refreshAddressChoices(barangaySelect);
+
     // Fetch provinces via AJAX
-    fetch(`${window.BASE_URL}/api/psgc?action=provinces&region_code=${regionCode}`)
+    return fetch(`${window.BASE_URL}/api/psgc?action=provinces&region_code=${regionCode}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data.provinces) {
@@ -2119,20 +2187,19 @@ function loadProvinces() {
                     provinceSelect.appendChild(option);
                 });
                 provinceSelect.disabled = false;
+                if (targetProvinceCode && provinceSelect.querySelector(`option[value="${targetProvinceCode}"]`)) {
+                    provinceSelect.value = targetProvinceCode;
+                }
+                refreshAddressChoices(provinceSelect);
             }
         })
         .catch(error => {
             console.error('Error fetching provinces:', error);
             showToast('danger', 'Error', 'Failed to load provinces');
         });
-
-    citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
-    citySelect.disabled = true;
-    barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
-    barangaySelect.disabled = true;
 }
 
-function loadCities() {
+function loadCities(targetCityCode = null) {
     const provinceCode = document.getElementById('newPassengerProvince').value;
     const citySelect = document.getElementById('newPassengerCity');
     const barangaySelect = document.getElementById('newPassengerBarangay');
@@ -2142,11 +2209,17 @@ function loadCities() {
         citySelect.disabled = true;
         barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
         barangaySelect.disabled = true;
-        return;
+        refreshAddressChoices(citySelect);
+        refreshAddressChoices(barangaySelect);
+        return Promise.resolve();
     }
 
+    barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
+    barangaySelect.disabled = true;
+    refreshAddressChoices(barangaySelect);
+
     // Fetch cities via AJAX
-    fetch(`${window.BASE_URL}/api/psgc?action=cities&province_code=${provinceCode}`)
+    return fetch(`${window.BASE_URL}/api/psgc?action=cities&province_code=${provinceCode}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data.cities) {
@@ -2158,29 +2231,31 @@ function loadCities() {
                     citySelect.appendChild(option);
                 });
                 citySelect.disabled = false;
+                if (targetCityCode && citySelect.querySelector(`option[value="${targetCityCode}"]`)) {
+                    citySelect.value = targetCityCode;
+                }
+                refreshAddressChoices(citySelect);
             }
         })
         .catch(error => {
             console.error('Error fetching cities:', error);
             showToast('danger', 'Error', 'Failed to load cities');
         });
-
-    barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
-    barangaySelect.disabled = true;
 }
 
-function loadBarangays() {
+function loadBarangays(targetBarangayCode = null) {
     const cityCode = document.getElementById('newPassengerCity').value;
     const barangaySelect = document.getElementById('newPassengerBarangay');
 
     if (!cityCode) {
         barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
         barangaySelect.disabled = true;
-        return;
+        refreshAddressChoices(barangaySelect);
+        return Promise.resolve();
     }
 
     // Fetch barangays via AJAX
-    fetch(`${window.BASE_URL}/api/psgc?action=barangays&city_code=${cityCode}`)
+    return fetch(`${window.BASE_URL}/api/psgc?action=barangays&city_code=${cityCode}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data.barangays) {
@@ -2192,12 +2267,98 @@ function loadBarangays() {
                     barangaySelect.appendChild(option);
                 });
                 barangaySelect.disabled = false;
+                if (targetBarangayCode && barangaySelect.querySelector(`option[value="${targetBarangayCode}"]`)) {
+                    barangaySelect.value = targetBarangayCode;
+                }
+                refreshAddressChoices(barangaySelect);
             }
         })
         .catch(error => {
             console.error('Error fetching barangays:', error);
             showToast('danger', 'Error', 'Failed to load barangays');
         });
+}
+
+/**
+ * Save the address used in the Add Passenger modal to localStorage.
+ */
+function saveLastPassengerAddress() {
+    const regionSelect = document.getElementById('newPassengerRegion');
+    const provinceSelect = document.getElementById('newPassengerProvince');
+    const citySelect = document.getElementById('newPassengerCity');
+    const barangaySelect = document.getElementById('newPassengerBarangay');
+
+    if (!regionSelect.value) return;
+
+    const address = {
+        region_code: regionSelect.value,
+        region_name: regionSelect.options[regionSelect.selectedIndex]?.textContent || '',
+        province_code: provinceSelect.value,
+        province_name: provinceSelect.options[provinceSelect.selectedIndex]?.textContent || '',
+        city_municipality_code: citySelect.value,
+        city_municipality_name: citySelect.options[citySelect.selectedIndex]?.textContent || '',
+        barangay_code: barangaySelect.value,
+        barangay_name: barangaySelect.options[barangaySelect.selectedIndex]?.textContent || ''
+    };
+    localStorage.setItem('posLastPassengerAddress', JSON.stringify(address));
+}
+
+/**
+ * Restore the last saved address into the Add Passenger modal.
+ */
+async function restoreLastPassengerAddress() {
+    const saved = localStorage.getItem('posLastPassengerAddress');
+    if (!saved) return;
+
+    const address = JSON.parse(saved);
+    const regionSelect = document.getElementById('newPassengerRegion');
+    const provinceSelect = document.getElementById('newPassengerProvince');
+    const citySelect = document.getElementById('newPassengerCity');
+    const barangaySelect = document.getElementById('newPassengerBarangay');
+
+    if (!address.region_code || !regionSelect.querySelector(`option[value="${address.region_code}"]`)) return;
+
+    regionSelect.value = address.region_code;
+    refreshAddressChoices(regionSelect);
+
+    await loadProvinces(address.province_code);
+    if (address.province_code && provinceSelect.value === address.province_code) {
+        await loadCities(address.city_municipality_code);
+    }
+    if (address.city_municipality_code && citySelect.value === address.city_municipality_code) {
+        await loadBarangays(address.barangay_code);
+    }
+}
+
+/**
+ * Reset address dropdowns and their Choices.js instances in the Add Passenger modal.
+ */
+function resetAddPassengerAddressFields() {
+    const regionSelect = document.getElementById('newPassengerRegion');
+    const provinceSelect = document.getElementById('newPassengerProvince');
+    const citySelect = document.getElementById('newPassengerCity');
+    const barangaySelect = document.getElementById('newPassengerBarangay');
+
+    // Destroy existing instances first so they don't fight with the reset
+    [regionSelect, provinceSelect, citySelect, barangaySelect].forEach(select => {
+        if (addressChoices[select.id]) {
+            addressChoices[select.id].destroy();
+            delete addressChoices[select.id];
+        }
+    });
+
+    regionSelect.innerHTML = '<option value="">Select Region</option>';
+    provinceSelect.innerHTML = '<option value="">Select Province</option>';
+    provinceSelect.disabled = true;
+    citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
+    citySelect.disabled = true;
+    barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
+    barangaySelect.disabled = true;
+
+    initAddressChoices(regionSelect);
+    initAddressChoices(provinceSelect);
+    initAddressChoices(citySelect);
+    initAddressChoices(barangaySelect);
 }
 
 async function saveNewPassenger() {
@@ -2327,10 +2488,17 @@ async function saveNewPassenger() {
         if (result.success) {
             showToast('success', 'Passenger Added', `${result.fullname} has been added to the database.`);
             addPassengerModal.hide();
-            // Refresh passenger dropdown
-            await refreshPassengerDropdown();
-            // Select the new passenger
-            document.getElementById('ticketPassenger').value = result.passenger_id;
+            // Select the new passenger in the ticket passenger field so the user doesn't need to search again
+            selectTicketPassenger({
+                passenger_id: result.passenger_id,
+                fullname: result.fullname,
+                mobile_number: result.mobile_number || ''
+            });
+            // Remember the address for the next passenger registration
+            saveLastPassengerAddress();
+            // Reset the add passenger form for next use
+            document.getElementById('addPassengerForm').reset();
+            resetAddPassengerAddressFields();
         } else {
             showToast('danger', 'Error', result.error || 'Failed to add passenger.');
         }
@@ -2339,28 +2507,6 @@ async function saveNewPassenger() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<span class="fas fa-save me-2"></span>Save Passenger';
-    }
-}
-
-async function refreshPassengerDropdown() {
-    try {
-        const res = await fetch(`${window.BASE_URL}/api/pos/passengers/list`);
-        const result = await res.json();
-        if (result.success) {
-            const select = document.getElementById('ticketPassenger');
-            const currentValue = select.value;
-            select.innerHTML = '<option value="">Select Passenger</option>';
-            result.passengers.forEach(p => {
-                const option = document.createElement('option');
-                option.value = p.passenger_id;
-                option.dataset.balance = p.balance || 0;
-                option.textContent = `${p.fullname} (₱${(p.balance || 0).toFixed(2)})`;
-                select.appendChild(option);
-            });
-            select.value = currentValue;
-        }
-    } catch (e) {
-        console.error('Failed to refresh passengers:', e);
     }
 }
 

@@ -25,6 +25,79 @@
     background-color: rgba(102, 126, 234, 0.05);
 }
 
+.permission-module-item {
+    overflow: visible !important;
+}
+
+.permission-module-item .badge {
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: unset;
+}
+
+.permission-module-item .badge.text-bg-primary {
+    font-size: 0.8rem;
+}
+
+.permission-module-item > div {
+    overflow: visible;
+    width: 100%;
+}
+
+.permission-module-item .d-flex.gap-2 {
+    overflow: visible;
+    flex-wrap: wrap;
+}
+
+.permission-row code {
+    display: block;
+}
+
+.permission-tree-toggle {
+    color: #667eea;
+    line-height: 1;
+    width: 18px;
+    min-width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.permission-tree-toggle:hover {
+    color: #4e5fd6;
+}
+
+.permission-tree-toggle .fas {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.permission-tree-toggle[aria-expanded="true"] .fas {
+    transform: rotate(90deg);
+}
+
+.permission-tree-spacer {
+    display: inline-block;
+    width: 18px;
+    min-width: 18px;
+}
+
+tr.child-row td {
+    background-color: rgba(102, 126, 234, 0.03);
+}
+
+.permission-row.table-warning {
+    --bs-table-bg: #fff8e5;
+}
+
+#permissionModuleStats .badge {
+    font-size: 0.8rem;
+}
+
+#actionToggleFeedback {
+    min-height: 1.25rem;
+}
+
 /* Access Denied Page */
 .access-denied-container {
     background: white;

@@ -133,10 +133,11 @@ require_once __DIR__ . '/navbar-context.php';
                   </div>
                 </div>
               </li>
-              <li class="nav-item d-none d-sm-flex align-items-center">
+              <!-- Cart icon hidden temporarily -->
+              <!-- <li class="nav-item d-none d-sm-flex align-items-center">
                 <a class="nav-link px-0 notification-indicator notification-indicator-warning notification-indicator-fill fa-icon-wait" href="../app/e-commerce/shopping-cart.html"><span class="fas fa-shopping-cart" data-fa-transform="shrink-7" style="font-size: 33px;"></span><span class="notification-indicator-number">1</span></a>
 
-              </li>
+              </li> -->
               <li class="nav-item dropdown d-flex align-items-center">
                 <a class="nav-link notification-indicator notification-indicator-primary px-0 fa-icon-wait" id="navbarDropdownNotification" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-hide-on-body-scroll="data-hide-on-body-scroll"><span class="fas fa-bell" data-fa-transform="shrink-6" style="font-size: 33px;"></span></a>
                 <div class="dropdown-menu dropdown-caret dropdown-caret dropdown-menu-end dropdown-menu-card dropdown-menu-notification dropdown-caret-bg" aria-labelledby="navbarDropdownNotification">

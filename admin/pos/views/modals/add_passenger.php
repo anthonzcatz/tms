@@ -87,28 +87,28 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="newPassengerRegion">Region <span class="text-danger">*</span></label>
-                    <select class="form-select" id="newPassengerRegion" name="region_code" onchange="loadProvinces()" required>
+                    <select class="form-select address-choices" id="newPassengerRegion" name="region_code" onchange="loadProvinces()" required>
                       <option value="">Select Region</option>
                     </select>
                     <div class="invalid-feedback">Region is required</div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="newPassengerProvince">Province <span class="text-danger">*</span></label>
-                    <select class="form-select" id="newPassengerProvince" name="province_code" onchange="loadCities()" disabled required>
+                    <select class="form-select address-choices" id="newPassengerProvince" name="province_code" onchange="loadCities()" disabled required>
                       <option value="">Select Province</option>
                     </select>
                     <div class="invalid-feedback">Province is required</div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="newPassengerCity">City/Municipality <span class="text-danger">*</span></label>
-                    <select class="form-select" id="newPassengerCity" name="city_municipality_code" onchange="loadBarangays()" disabled required>
+                    <select class="form-select address-choices" id="newPassengerCity" name="city_municipality_code" onchange="loadBarangays()" disabled required>
                       <option value="">Select City/Municipality</option>
                     </select>
                     <div class="invalid-feedback">City/Municipality is required</div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold" for="newPassengerBarangay">Barangay <span class="text-danger">*</span></label>
-                    <select class="form-select" id="newPassengerBarangay" name="barangay_code" disabled required>
+                    <select class="form-select address-choices" id="newPassengerBarangay" name="barangay_code" disabled required>
                       <option value="">Select Barangay</option>
                     </select>
                     <div class="invalid-feedback">Barangay is required</div>

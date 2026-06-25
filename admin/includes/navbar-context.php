@@ -86,6 +86,7 @@ if ($currentUser) {
         }
 
         $userProfile = [
+            'user_id'         => $currentUser['user_id'] ?? null,
             'fullname'        => $fullname ?: ($currentUser['fullname'] ?? 'User'),
             'first_name'      => $user['first_name'] ?? '',
             'last_name'       => $user['last_name'] ?? '',

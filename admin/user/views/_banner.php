@@ -41,6 +41,7 @@ if ($position && $department) {
 }
 
 $currentView = $currentView ?? 'profile';
+$isActivityLogs = ($currentView === 'activity-logs');
 ?>
 
 <!-- Profile Banner Card -->
@@ -65,21 +66,18 @@ $currentView = $currentView ?? 'profile';
         <h4 class="mb-1"><?php echo $fullname; ?><span data-bs-toggle="tooltip" data-bs-placement="right" title="Verified"><small class="fa fa-check-circle text-primary" data-fa-transform="shrink-4 down-2"></small></span></h4>
         <h5 class="fs-9 fw-normal"><?php echo $subtitle ?: 'No position assigned'; ?></h5>
         <p class="text-500"><?php echo $permanentAddress ?: 'No address set'; ?></p>
-        <?php if ($currentView === 'settings'): ?>
-          <a class="btn btn-falcon-default btn-sm px-3" href="<?php echo BASE_URL; ?>/admin/user/">
+          <a class="btn btn-sm px-3 <?php echo $currentView === 'profile' ? 'btn-falcon-primary' : 'btn-falcon-default'; ?>"
+             href="<?php echo BASE_URL; ?>/admin/user/">
             <span class="fas fa-user me-1"></span>Profile
           </a>
-          <a class="btn btn-falcon-primary btn-sm px-3 ms-2" href="<?php echo BASE_URL; ?>/admin/user/?view=settings">
+          <a class="btn btn-sm px-3 ms-2 <?php echo $currentView === 'settings' ? 'btn-falcon-primary' : 'btn-falcon-default'; ?>"
+             href="<?php echo BASE_URL; ?>/admin/user/?view=settings">
             <span class="fas fa-cog me-1"></span>Settings
           </a>
-        <?php else: ?>
-          <a class="btn btn-falcon-primary btn-sm px-3" href="<?php echo BASE_URL; ?>/admin/user/">
-            <span class="fas fa-user me-1"></span>Profile
+          <a class="btn btn-sm px-3 ms-2 <?php echo $isActivityLogs ? 'btn-falcon-primary' : 'btn-falcon-default'; ?>"
+             href="<?php echo BASE_URL; ?>/admin/user/?view=activity-logs">
+            <span class="fas fa-history me-1"></span>Activity Logs
           </a>
-          <a class="btn btn-falcon-default btn-sm px-3 ms-2" href="<?php echo BASE_URL; ?>/admin/user/?view=settings">
-            <span class="fas fa-cog me-1"></span>Settings
-          </a>
-        <?php endif; ?>
         <div class="border-bottom border-dashed my-4 d-lg-none"></div>
       </div>
       <div class="col ps-2 ps-lg-3">

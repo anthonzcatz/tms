@@ -8,6 +8,120 @@ if (!defined('NAVBAR_POSITION')) {
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/resources/vendors/select2/select2.min.css">
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/resources/vendors/select2-bootstrap-5-theme/select2-bootstrap-5-theme.min.css">
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/settings/permissions/assets/css/permissions.css">
+<?php
+if (!function_exists('renderModulePermissionRow')) {
+  function renderModulePermissionRow(array $permission, string $moduleName, callable $determinePermissionType, array $permissionMap, ?string $userRoleCode, array &$renderedTracker, int $indentLevel = 0) {
+    if (isset($renderedTracker[$permission['permission_id']])) {
+      return;
+    }
+    $renderedTracker[$permission['permission_id']] = true;
+    $permissionType = $determinePermissionType($permission);
+    $isMenuItem = (int)($permission['is_menu_item'] ?? 1) === 1;
+    $rowClasses = ['permission-row'];
+    $parentId = $permission['parent_permission_id'] ?? '';
+    if ($permissionType === 'action' && $isMenuItem) {
+      $rowClasses[] = 'table-warning';
+    }
+    if ($indentLevel > 0) {
+      $rowClasses[] = 'child-row';
+      $rowClasses[] = 'd-none';
+    }
+    $menuLevel = (int)($permission['menu_level'] ?? 1);
+    $indentPadding = max(0, $indentLevel) * 20;
+    $menuUrl = $permission['menu_url'] ?? '-';
+    // Determine which children to render under this permission.
+    // Priority 1: children in the same module as what's being displayed.
+    // Priority 2: if none match, children in any sub-module of this permission's own module
+    //             (e.g. VIEW_WALLET_MANAGEMENT lives in 'WALLET', its kids live in 'WALLET MANAGEMENT').
+    // Never pull in children from unrelated modules (e.g. ADMIN).
+    $allChildren = $permissionMap[$permission['permission_id']]['children'] ?? [];
+    $ownModule = $permission['module_name'] ?? $moduleName;
+    $moduleChildren = array_values(array_filter($allChildren, function($c) use ($moduleName) {
+      return ($c['module_name'] ?? '') === $moduleName;
+    }));
+    if (!empty($moduleChildren)) {
+      $children = $moduleChildren;
+    } else {
+      // Keep children whose module starts with or contains this permission's module name
+      // (handles WALLET → WALLET MANAGEMENT / WALLET_MANAGEMENT sub-modules)
+      $children = array_values(array_filter($allChildren, function($c) use ($ownModule) {
+        $cm = $c['module_name'] ?? '';
+        return stripos($cm, $ownModule) === 0 || stripos($ownModule, $cm) === 0;
+      }));
+    }
+    $hasChildren = !empty($children);
+    ?>
+    <tr class="<?php echo implode(' ', $rowClasses); ?>"
+        data-permission-id="<?php echo $permission['permission_id']; ?>"
+        data-parent-id="<?php echo $parentId; ?>"
+        data-has-children="<?php echo $hasChildren ? '1' : '0'; ?>"
+        data-permission-type="<?php echo $permissionType; ?>"
+        data-permission-code="<?php echo htmlspecialchars(strtoupper($permission['permission_code'])); ?>"
+        data-visible="<?php echo $isMenuItem ? '1' : '0'; ?>">
+      <td data-column="name">
+        <div class="d-flex align-items-start" style="padding-left: <?php echo $indentPadding; ?>px;">
+          <?php if ($hasChildren): ?>
+          <button class="btn btn-link btn-sm p-0 me-2 permission-tree-toggle" type="button" data-permission-id="<?php echo $permission['permission_id']; ?>" aria-expanded="false">
+            <span class="fas fa-chevron-right"></span>
+          </button>
+          <?php else: ?>
+          <span class="permission-tree-spacer me-2"></span>
+          <?php endif; ?>
+          <div>
+            <div class="fw-semibold mb-0"><?php echo htmlspecialchars($permission['permission_name']); ?></div>
+            <code class="small text-muted"><?php echo htmlspecialchars($permission['permission_code']); ?></code>
+            <?php if (!empty($permission['module_name']) && $permission['module_name'] !== $moduleName): ?>
+              <div class="badge bg-light text-dark mt-1">Module: <?php echo htmlspecialchars($permission['module_name']); ?></div>
+            <?php endif; ?>
+          </div>
+        </div>
+      </td>
+      <td>
+        <span class="badge <?php echo $permissionType === 'action' ? 'bg-warning text-dark' : 'bg-primary'; ?>">
+          <?php echo $permissionType === 'action' ? 'Action only' : 'Menu entry'; ?>
+        </span>
+      </td>
+      <td><small class="text-muted"><?php echo htmlspecialchars($menuUrl ?: '-'); ?></small></td>
+      <td class="text-center"><span class="badge bg-light text-dark"><?php echo $menuLevel; ?></span></td>
+      <td class="text-center">
+        <div class="d-flex flex-column align-items-center gap-1">
+          <div class="form-check form-switch">
+            <input class="form-check-input sidebar-toggle" 
+                   type="checkbox" 
+                   style="width: 2.5em; height: 1.25em;"
+                   id="sidebar_<?php echo $permission['permission_id']; ?>"
+                   data-permission-id="<?php echo $permission['permission_id']; ?>"
+                   data-permission-type="<?php echo $permissionType; ?>"
+                   data-module-name="<?php echo htmlspecialchars($moduleName); ?>"
+                   <?php echo $isMenuItem ? 'checked' : ''; ?>>
+          </div>
+          <small id="sidebarStatus_<?php echo $permission['permission_id']; ?>" class="text-muted">
+            <?php echo $isMenuItem ? 'Visible in sidebar' : 'Hidden'; ?>
+          </small>
+        </div>
+      </td>
+      <td class="text-center">
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" onclick="editPermission(<?php echo $permission['permission_id']; ?>)">
+            <span class="fas fa-edit"></span>
+          </button>
+          <?php if ($userRoleCode === 'SUPER_ADMIN'): ?>
+          <button class="btn btn-outline-danger" onclick="deletePermission(<?php echo $permission['permission_id']; ?>)">
+            <span class="fas fa-trash"></span>
+          </button>
+          <?php endif; ?>
+        </div>
+      </td>
+    </tr>
+    <?php
+    if (!empty($children)) {
+      foreach ($children as $childPermission) {
+        renderModulePermissionRow($childPermission, $moduleName, $determinePermissionType, $permissionMap, $userRoleCode, $renderedTracker, $indentLevel + 1);
+      }
+    }
+  }
+}
+?>
 <body>
 
     <!-- ===============================================-->
@@ -375,20 +489,75 @@ if (!defined('NAVBAR_POSITION')) {
                               <div class="list-group list-group-flush" id="permissionModuleList">
                                 <?php 
                                 $permissionsByModule = [];
+                                $modulePermissionSearchIndex = [];
+                                $permissionTypeKeywords = ['UPDATE', 'DELETE', 'EDIT', 'REMOVE', 'ASSIGN', 'MANAGE', 'PROCESS', 'APPROVE'];
+                                $determinePermissionType = function(array $permission) use ($permissionTypeKeywords) {
+                                  $code = strtoupper($permission['permission_code'] ?? '');
+                                  $menuLevel = (int)($permission['menu_level'] ?? 1);
+                                  $menuUrl = trim($permission['menu_url'] ?? '');
+                                  $isAction = $menuLevel > 2 || $menuUrl === '';
+                                  foreach ($permissionTypeKeywords as $keyword) {
+                                    if (strpos($code, $keyword) === 0 || strpos($code, '_' . $keyword) !== false) {
+                                      $isAction = true;
+                                      break;
+                                    }
+                                  }
+                                  return $isAction ? 'action' : 'menu';
+                                };
+
                                 foreach ($allPermissions as $permission) {
-                                  $permissionsByModule[$permission['module_name']][] = $permission;
+                                  $moduleKey = $permission['module_name'] ?: 'Unassigned';
+                                  $permissionsByModule[$moduleKey][] = $permission;
+                                  $modulePermissionSearchIndex[$moduleKey][] = strtolower($permission['permission_name'] . ' ' . $permission['permission_code']);
                                 }
                                 ksort($permissionsByModule);
+                                $moduleStats = [];
+                                foreach ($permissionsByModule as $module => $permissionsGroup) {
+                                  $visibleCount = 0;
+                                  $hiddenCount = 0;
+                                  $actionCount = 0;
+                                  foreach ($permissionsGroup as $permission) {
+                                    $isMenuItem = (int)($permission['is_menu_item'] ?? 1) === 1;
+                                    $permissionType = $determinePermissionType($permission);
+                                    if ($isMenuItem) {
+                                      $visibleCount++;
+                                    } else {
+                                      $hiddenCount++;
+                                    }
+                                    if ($permissionType === 'action') {
+                                      $actionCount++;
+                                    }
+                                  }
+                                  $moduleStats[$module] = [
+                                    'visible' => $visibleCount,
+                                    'hidden' => $hiddenCount,
+                                    'action' => $actionCount,
+                                    'total' => count($permissionsGroup)
+                                  ];
+                                }
                                 $firstModule = true;
-                                foreach ($permissionsByModule as $module => $permissions): ?>
+                                foreach ($permissionsByModule as $module => $permissions):
+                                  $stats = $moduleStats[$module];
+                                ?>
                                 <button type="button" 
                                         class="list-group-item list-group-item-action <?php echo $firstModule ? 'active' : ''; ?> permission-module-item"
                                         data-module="<?php echo htmlspecialchars($module); ?>"
+                                        data-visible-count="<?php echo $stats['visible']; ?>"
+                                        data-hidden-count="<?php echo $stats['hidden']; ?>"
+                                        data-action-count="<?php echo $stats['action']; ?>"
+                                        data-permission-index="<?php echo htmlspecialchars(implode(' ', $modulePermissionSearchIndex[$module] ?? [])); ?>"
                                         onclick="selectPermissionModule('<?php echo htmlspecialchars($module); ?>')">
-                                  <div class="d-flex align-items-center">
-                                    <span class="fas fa-folder me-2 text-primary"></span>
-                                    <span class="fw-medium"><?php echo htmlspecialchars($module); ?></span>
-                                    <span class="badge bg-light text-dark ms-auto"><?php echo count($permissions); ?></span>
+                                  <div class="d-flex flex-column">
+                                    <div class="d-flex align-items-center">
+                                      <span class="fas fa-folder me-2 text-primary"></span>
+                                      <span class="fw-medium"><?php echo htmlspecialchars($module); ?></span>
+                                      <span class="badge text-bg-primary ms-auto"><?php echo $stats['total']; ?></span>
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap mt-1">
+                                      <span class="badge rounded-pill text-bg-success">Menu: <?php echo $stats['visible']; ?></span>
+                                      <span class="badge rounded-pill text-bg-secondary">Non-menu: <?php echo $stats['hidden']; ?></span>
+                                      <span class="badge rounded-pill text-bg-warning text-dark">Action: <?php echo $stats['action']; ?></span>
+                                    </div>
                                   </div>
                                 </button>
                                 <?php $firstModule = false; ?>
@@ -399,70 +568,94 @@ if (!defined('NAVBAR_POSITION')) {
                             <!-- Permissions Display (Right Side) -->
                             <div class="col-md-9">
                               <div class="card border-0 shadow-none h-100">
-                                <div class="card-header bg-light py-2">
-                                  <div class="d-flex align-items-center justify-content-between">
+                                <div class="card-header bg-light py-3">
+                                  <?php 
+                                  $initialModuleKey = array_key_first($permissionsByModule);
+                                  $initialStats = $initialModuleKey ? $moduleStats[$initialModuleKey] : ['visible' => 0, 'hidden' => 0, 'action' => 0];
+                                  ?>
+                                  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
                                     <h6 class="mb-0 fw-bold text-primary" id="permissionModuleTitle">
-                                      <span class="fas fa-folder me-2"></span><?php echo htmlspecialchars(array_key_first($permissionsByModule)); ?>
+                                      <span class="fas fa-folder me-2"></span><?php echo htmlspecialchars($initialModuleKey ?? 'Select a module'); ?>
                                     </h6>
-                                    <div class="input-group input-group-sm" style="width: 250px;">
-                                      <span class="input-group-text"><span class="fas fa-search"></span></span>
-                                      <input class="form-control" type="search" id="permissionModuleSearch" placeholder="Search permissions..." aria-label="Search" oninput="filterPermissionModule()" />
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                      <div class="input-group input-group-sm" style="width: 250px;">
+                                        <span class="input-group-text"><span class="fas fa-search"></span></span>
+                                        <input class="form-control" type="search" id="permissionModuleSearch" placeholder="Search permissions..." aria-label="Search" oninput="filterPermissionModule()" />
+                                      </div>
+                                      <select class="form-select form-select-sm" id="sidebarVisibilityFilter" style="width:auto;" onchange="handleVisibilityFilterChange(this.value)">
+                                        <option value="all">All sidebar states</option>
+                                        <option value="visible">Sidebar only</option>
+                                        <option value="hidden">Hidden only</option>
+                                      </select>
+                                      <button class="btn btn-outline-secondary btn-sm" id="hideActionPermissionsBtn" type="button">
+                                        <span class="fas fa-eye-slash me-1"></span>Hide action-only links
+                                      </button>
+                                      <small class="text-muted" id="actionToggleFeedback"></small>
                                     </div>
+                                  </div>
+                                  <div class="d-flex flex-wrap gap-2 mt-3" id="permissionModuleStats" data-active-module="<?php echo htmlspecialchars($initialModuleKey ?? ''); ?>">
+                                    <span class="badge rounded-pill text-bg-success">
+                                      Menu items: <span class="fw-semibold" data-stat="visible"><?php echo $initialStats['visible']; ?></span>
+                                    </span>
+                                    <span class="badge rounded-pill text-bg-secondary">
+                                      Non-menu: <span class="fw-semibold" data-stat="hidden"><?php echo $initialStats['hidden']; ?></span>
+                                    </span>
+                                    <span class="badge rounded-pill text-bg-warning text-dark">
+                                      Action-only: <span class="fw-semibold" data-stat="actions"><?php echo $initialStats['action']; ?></span>
+                                    </span>
                                   </div>
                                 </div>
                                 <div class="card-body py-3" id="permissionModuleContainer">
+                                  <div class="alert alert-info border-0 shadow-sm small" role="alert">
+                                    <div class="d-flex">
+                                      <span class="fas fa-lightbulb me-2 mt-1"></span>
+                                      <div>
+                                        Toggle <strong>Sidebar visibility</strong> to instantly hide transactional actions (e.g., Update or Delete). Yellow rows indicate action-only permissions that are still visible in the sidebar, such as "Update Ticket Provider". Non-menu permissions stay available to the backend even when hidden from the sidebar.
+                                      </div>
+                                    </div>
+                                  </div>
                                   <?php 
                                   $firstModule = true;
-                                  foreach ($permissionsByModule as $module => $permissions): ?>
+                                  foreach ($permissionsByModule as $module => $permissions): 
+                                    $moduleStat = $moduleStats[$module];
+                                    $renderedTracker = [];
+                                  ?>
                                   <div class="permission-module-section <?php echo $firstModule ? '' : 'd-none'; ?>" 
-                                       data-module="<?php echo htmlspecialchars($module); ?>">
+                                       data-module="<?php echo htmlspecialchars($module); ?>"
+                                       data-visible-count="<?php echo $moduleStat['visible']; ?>"
+                                       data-hidden-count="<?php echo $moduleStat['hidden']; ?>"
+                                       data-action-count="<?php echo $moduleStat['action']; ?>">
                                     <div class="table-responsive">
-                                      <table class="table table-hover table-bordered">
+                                      <table class="table table-hover table-bordered align-middle">
                                         <thead class="table-light">
                                           <tr>
-                                            <th>Permission Code</th>
-                                            <th>Module</th>
-                                            <th>Permission Name</th>
-                                            <th>Level</th>
+                                            <th style="min-width: 240px;">Permission</th>
+                                            <th>Type</th>
                                             <th>Menu URL</th>
-                                            <th>Order</th>
-                                            <th class="text-center">Show in Sidebar</th>
+                                            <th class="text-center">Level</th>
+                                            <th class="text-center">Sidebar visibility</th>
                                             <th class="text-center">Actions</th>
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          <?php foreach ($permissions as $permission): ?>
-                                          <tr>
-                                            <td><code class="small"><?php echo htmlspecialchars($permission['permission_code']); ?></code></td>
-                                            <td><span class="badge bg-primary"><?php echo htmlspecialchars($permission['module_name']); ?></span></td>
-                                            <td><?php echo htmlspecialchars($permission['permission_name']); ?></td>
-                                            <td><span class="badge bg-light text-dark"><?php echo $permission['menu_level']; ?></span></td>
-                                            <td><small class="text-muted"><?php echo htmlspecialchars($permission['menu_url'] ?? '-'); ?></small></td>
-                                            <td><span class="badge bg-light text-dark"><?php echo $permission['menu_order']; ?></span></td>
-                                            <td class="text-center">
-                                              <div class="form-check form-switch d-inline-block">
-                                                <input class="form-check-input sidebar-toggle" 
-                                                       type="checkbox" 
-                                                       style="width: 2.5em; height: 1.25em;"
-                                                       id="sidebar_<?php echo $permission['permission_id']; ?>"
-                                                       data-permission-id="<?php echo $permission['permission_id']; ?>"
-                                                       <?php echo ($permission['is_menu_item'] ?? 1) ? 'checked' : ''; ?>>
-                                              </div>
-                                            </td>
-                                            <td class="text-center">
-                                              <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-primary" onclick="editPermission(<?php echo $permission['permission_id']; ?>)">
-                                                  <span class="fas fa-edit"></span>
-                                                </button>
-                                                <?php if ($userRoleCode === 'SUPER_ADMIN'): ?>
-                                                <button class="btn btn-outline-danger" onclick="deletePermission(<?php echo $permission['permission_id']; ?>)">
-                                                  <span class="fas fa-trash"></span>
-                                                </button>
-                                                <?php endif; ?>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                          <?php endforeach; ?>
+                                          <?php
+                                          // A permission is a root in this module if it has no parent,
+                                          // or its parent is not in this module's permission set.
+                                          $modulePermIds = array_column($permissions, 'permission_id');
+                                          $modulePermIds = array_flip($modulePermIds);
+                                          $moduleRoots = [];
+                                          foreach ($permissions as $permission) {
+                                            $parentId = $permission['parent_permission_id'] ?? null;
+                                            if (!$parentId || !isset($modulePermIds[$parentId])) {
+                                              $moduleRoots[] = $permission;
+                                            }
+                                          }
+                                          if (empty($moduleRoots)) {
+                                            $moduleRoots = $permissions;
+                                          }
+                                          foreach ($moduleRoots as $permission):
+                                            renderModulePermissionRow($permission, $module, $determinePermissionType, $permissionMap, $userRoleCode ?? null, $renderedTracker, 0);
+                                          endforeach; ?>
                                         </tbody>
                                       </table>
                                     </div>

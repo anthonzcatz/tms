@@ -1,0 +1,6 @@
+.search-box { position: relative; }
+.search-box .search-input { padding-left: 2.5rem; }
+.search-box .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--falcon-500); }
+.bg-shape { position: relative; overflow: hidden; }
+.bg-shape::before { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: linear-gradient(135deg, var(--falcon-primary) 0%, var(--falcon-info) 100%); }
+.modal-shape-header { border-bottom: 0; }

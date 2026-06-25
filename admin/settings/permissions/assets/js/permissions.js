@@ -110,6 +110,122 @@ function filterModules(roleId) {
   });
 }
 
+function cssEscapeValue(value) {
+  if (window.CSS && typeof window.CSS.escape === 'function') {
+    return window.CSS.escape(value);
+  }
+  return value.replace(/([ #.;,:!+*?^${}()|[\]\\])/g, '\\$1');
+}
+
+function updateModuleStats(moduleName) {
+  const statsContainer = document.getElementById('permissionModuleStats');
+  if (!statsContainer || !moduleName) return;
+  const escaped = cssEscapeValue(moduleName);
+  const section = document.querySelector(`.permission-module-section[data-module="${escaped}"]`);
+  const listItem = document.querySelector(`.permission-module-item[data-module="${escaped}"]`);
+  const visible = section?.dataset.visibleCount || listItem?.dataset.visibleCount || 0;
+  const hidden = section?.dataset.hiddenCount || listItem?.dataset.hiddenCount || 0;
+  const actions = section?.dataset.actionCount || listItem?.dataset.actionCount || 0;
+
+  statsContainer.dataset.activeModule = moduleName;
+  const visibleEl = statsContainer.querySelector('[data-stat="visible"]');
+  const hiddenEl = statsContainer.querySelector('[data-stat="hidden"]');
+  const actionEl = statsContainer.querySelector('[data-stat="actions"]');
+  if (visibleEl) visibleEl.textContent = visible;
+  if (hiddenEl) hiddenEl.textContent = hidden;
+  if (actionEl) actionEl.textContent = actions;
+}
+
+function refreshModuleStatsFromSection(section) {
+  if (!section) return;
+  const moduleName = section.dataset.module;
+  const visible = section.querySelectorAll('tbody tr[data-visible="1"]').length;
+  const hidden = section.querySelectorAll('tbody tr[data-visible="0"]').length;
+  const actions = section.querySelectorAll('tbody tr[data-permission-type="action"]').length;
+
+  section.dataset.visibleCount = visible;
+  section.dataset.hiddenCount = hidden;
+  section.dataset.actionCount = actions;
+
+  const escaped = cssEscapeValue(moduleName);
+  const listItem = document.querySelector(`.permission-module-item[data-module="${escaped}"]`);
+  if (listItem) {
+    listItem.dataset.visibleCount = visible;
+    listItem.dataset.hiddenCount = hidden;
+    listItem.dataset.actionCount = actions;
+  }
+
+  updateModuleStats(moduleName);
+}
+
+function handleVisibilityFilterChange(filterValue) {
+  const statsContainer = document.getElementById('permissionModuleStats');
+  const activeModule = statsContainer?.dataset.activeModule;
+  if (!activeModule) return;
+
+  const escaped = cssEscapeValue(activeModule);
+  const section = document.querySelector(`.permission-module-section[data-module="${escaped}"]`);
+  if (!section) return;
+
+  const allRows = section.querySelectorAll('tbody tr.permission-row');
+
+  allRows.forEach(row => {
+    const isChildRow = row.classList.contains('child-row');
+    const visible = row.dataset.visible === '1';
+
+    if (filterValue === 'all') {
+      if (!isChildRow) {
+        row.style.display = '';
+      }
+    } else if (filterValue === 'visible') {
+      if (!isChildRow) {
+        row.style.display = visible ? '' : 'none';
+      } else {
+        row.style.display = visible ? '' : 'none';
+      }
+    } else if (filterValue === 'hidden') {
+      if (!isChildRow) {
+        row.style.display = !visible ? '' : 'none';
+      } else {
+        row.style.display = !visible ? '' : 'none';
+      }
+    }
+  });
+
+  // Collapse all open tree nodes when filter changes
+  if (filterValue !== 'all') {
+    section.querySelectorAll('.permission-tree-toggle[aria-expanded="true"]').forEach(btn => {
+      btn.setAttribute('aria-expanded', 'false');
+    });
+    section.querySelectorAll('tr.child-row').forEach(row => {
+      if (filterValue === 'all') {
+        row.classList.add('d-none');
+      }
+    });
+  } else {
+    // On "all" reset, collapse all child rows back to hidden
+    section.querySelectorAll('tr.child-row').forEach(row => {
+      row.classList.add('d-none');
+      row.style.display = '';
+    });
+    section.querySelectorAll('.permission-tree-toggle').forEach(btn => {
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+}
+
+function setActionFeedback(message, className = 'text-muted') {
+  const feedback = document.getElementById('actionToggleFeedback');
+  if (!feedback) return;
+  if (!message) {
+    feedback.textContent = '';
+    feedback.className = 'text-muted';
+    return;
+  }
+  feedback.className = className;
+  feedback.textContent = message;
+}
+
 /**
  * Filter permissions based on search input in Role Permissions Matrix
  */
@@ -229,9 +345,30 @@ function selectPermissionModule(moduleName) {
   if (searchInput) {
     searchInput.value = '';
   }
-  
+
+  // Reset visibility filter
+  const visFilter = document.getElementById('sidebarVisibilityFilter');
+  if (visFilter) visFilter.value = 'all';
+
+  // Collapse all open tree nodes in the newly-selected section
+  const permissionsContainer2 = document.getElementById('permissionModuleContainer');
+  if (permissionsContainer2) {
+    permissionsContainer2.querySelectorAll('.permission-module-section').forEach(section => {
+      section.querySelectorAll('tr.child-row').forEach(row => {
+        row.classList.add('d-none');
+        row.style.display = '';
+      });
+      section.querySelectorAll('.permission-tree-toggle').forEach(btn => {
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  }
+
   // Save selected module to localStorage
   localStorage.setItem('permissions_by_module_selected', moduleName);
+
+  updateModuleStats(moduleName);
+  setActionFeedback('');
 }
 
 /**
@@ -241,7 +378,9 @@ function restorePermissionModule() {
   const savedModule = localStorage.getItem('permissions_by_module_selected');
   if (savedModule) {
     selectPermissionModule(savedModule);
+    return true;
   }
+  return false;
 }
 
 /**
@@ -261,10 +400,8 @@ function filterPermissionModule() {
   const tableRows = visibleSection.querySelectorAll('tbody tr');
   
   tableRows.forEach(row => {
-    const codeCell = row.querySelector('td:first-child');
-    const nameCell = row.querySelector('td:nth-child(2)');
-    
-    const code = codeCell ? codeCell.textContent.toLowerCase() : '';
+    const code = (row.dataset.permissionCode || '').toLowerCase();
+    const nameCell = row.querySelector('td[data-column="name"]');
     const name = nameCell ? nameCell.textContent.toLowerCase() : '';
     
     if (code.includes(searchTerm) || name.includes(searchTerm)) {
@@ -289,7 +426,8 @@ function filterPermissionModules() {
   
   moduleItems.forEach(item => {
     const moduleName = item.dataset.module.toLowerCase();
-    if (moduleName.includes(searchTerm)) {
+    const permissionIndex = (item.dataset.permissionIndex || '').toLowerCase();
+    if (!searchTerm || moduleName.includes(searchTerm) || permissionIndex.includes(searchTerm)) {
       item.classList.remove('d-none');
     } else {
       item.classList.add('d-none');
@@ -617,6 +755,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  // Permission tree expand/collapse toggles
+  // CSS handles the chevron rotation via: .permission-tree-toggle[aria-expanded="true"] .fas { transform: rotate(90deg) }
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.permission-tree-toggle');
+    if (!btn) return;
+
+    const parentId = btn.dataset.permissionId;
+    const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+    const container = btn.closest('tbody');
+    if (!container) return;
+
+    const collapseDescendants = function(pid) {
+      container.querySelectorAll(`tr.child-row[data-parent-id="${pid}"]`).forEach(function(row) {
+        row.classList.add('d-none');
+        const rowId = row.dataset.permissionId;
+        if (rowId) collapseDescendants(rowId);
+        const nestedBtn = row.querySelector('.permission-tree-toggle');
+        if (nestedBtn) {
+          nestedBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    };
+
+    if (!isExpanded) {
+      container.querySelectorAll(`tr.child-row[data-parent-id="${parentId}"]`).forEach(function(row) {
+        row.classList.remove('d-none');
+      });
+      btn.setAttribute('aria-expanded', 'true');
+    } else {
+      collapseDescendants(parentId);
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
   // Sidebar toggles (Show in Sidebar Menu)
   const sidebarToggles = document.querySelectorAll('.sidebar-toggle');
   
@@ -628,6 +800,57 @@ document.addEventListener('DOMContentLoaded', function() {
       toggleSidebarMenuItem(permissionId, isChecked, this);
     });
   });
+
+  const hideActionBtn = document.getElementById('hideActionPermissionsBtn');
+  if (hideActionBtn) {
+    hideActionBtn.addEventListener('click', () => {
+      const statsContainer = document.getElementById('permissionModuleStats');
+      const activeModule = statsContainer?.dataset.activeModule;
+      if (!activeModule) {
+        setActionFeedback('Select a module first.', 'text-warning');
+        return;
+      }
+
+      const section = document.querySelector(`.permission-module-section[data-module="${cssEscapeValue(activeModule)}"]`);
+      if (!section) {
+        setActionFeedback('No permissions were found for this module.', 'text-warning');
+        return;
+      }
+
+      const toggles = Array.from(section.querySelectorAll('.sidebar-toggle[data-permission-type="action"]'))
+        .filter(toggle => toggle.checked);
+
+      if (!toggles.length) {
+        setActionFeedback('All action-only permissions are already hidden.', 'text-success');
+        return;
+      }
+
+      hideActionBtn.disabled = true;
+      setActionFeedback(`Hiding ${toggles.length} action permission${toggles.length > 1 ? 's' : ''}...`, 'text-muted');
+
+      const operations = toggles.map(toggle => {
+        toggle.checked = false;
+        return toggleSidebarMenuItem(toggle.dataset.permissionId, false, toggle);
+      });
+
+      Promise.allSettled(operations).then(results => {
+        hideActionBtn.disabled = false;
+        const hasError = results.some(result => result.status === 'rejected');
+        if (hasError) {
+          setActionFeedback('Some action permissions could not be updated. Please review the error toast.', 'text-danger');
+        } else {
+          setActionFeedback('Done! Sidebar links updated. Reload the admin sidebar to see the change.', 'text-success');
+        }
+      });
+    });
+  }
+
+  if (!restorePermissionModule()) {
+    const firstModuleItem = document.querySelector('.permission-module-item');
+    if (firstModuleItem) {
+      selectPermissionModule(firstModuleItem.dataset.module);
+    }
+  }
 
   // Add permission form
   const addForm = document.getElementById('addPermissionForm');
@@ -780,7 +1003,7 @@ function togglePermission(roleId, permissionId, endpoint, toggleElement, callbac
 function toggleSidebarMenuItem(permissionId, isChecked, toggleElement) {
   const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   
-  fetch(`${API_BASE}/index.php`, {
+  const request = fetch(`${API_BASE}/index.php`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
@@ -809,6 +1032,28 @@ function toggleSidebarMenuItem(permissionId, isChecked, toggleElement) {
       }
       const toast = new bootstrap.Toast(document.getElementById('successToast'));
       toast.show();
+
+      if (toggleElement) {
+        const statusLabel = document.getElementById(`sidebarStatus_${permissionId}`);
+        if (statusLabel) {
+          statusLabel.textContent = isChecked ? 'Visible in sidebar' : 'Hidden';
+        }
+
+        const row = toggleElement.closest('tr');
+        if (row) {
+          row.dataset.visible = isChecked ? '1' : '0';
+          if (toggleElement.dataset.permissionType === 'action') {
+            row.classList.toggle('table-warning', isChecked);
+          } else {
+            row.classList.remove('table-warning');
+          }
+
+          const section = row.closest('.permission-module-section');
+          if (section) {
+            refreshModuleStatsFromSection(section);
+          }
+        }
+      }
     } else {
       throw new Error(data.error || 'Operation failed');
     }
@@ -821,7 +1066,10 @@ function toggleSidebarMenuItem(permissionId, isChecked, toggleElement) {
     errorMessage.textContent = error.error || error.message;
     const toast = new bootstrap.Toast(errorToast);
     toast.show();
+    throw error;
   });
+
+  return request;
 }
 
 /**

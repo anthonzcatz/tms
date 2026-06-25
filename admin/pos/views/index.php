@@ -26,6 +26,7 @@ $posManagerCloseRaw = intval($posSettings['pos_manager_can_close_for_cashier'] ?
 $canOpenSession = $isManagerOrAdmin ? ($posManagerOpenRaw === 1) : ($posCashierOpenRaw === 1);
 $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashierCloseRaw === 1);
 ?>
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/resources/vendors/choices/choices.min.css?v=<?php echo filemtime(dirname(dirname(dirname(__DIR__))) . '/resources/vendors/choices/choices.min.css'); ?>">
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/pos/assets/css/pos.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/pos.css'); ?>">
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/pos/assets/css/passenger-dropdown.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/passenger-dropdown.css'); ?>">
 <body>
@@ -606,6 +607,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     ); ?>;
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos-printer.js'); ?>"></script>
+  <script src="<?php echo BASE_URL; ?>/resources/vendors/choices/choices.min.js?v=<?php echo filemtime(dirname(dirname(dirname(__DIR__))) . '/resources/vendors/choices/choices.min.js'); ?>"></script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
