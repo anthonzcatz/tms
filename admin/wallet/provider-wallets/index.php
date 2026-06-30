@@ -33,6 +33,9 @@ $allBranches = Database::fetchAll(
     "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
 );
 
+// System settings for print layout
+$systemSettings = Database::fetch("SELECT system_name, system_logo, company_name, company_address, company_contact_number, company_email, company_tin FROM system_settings WHERE setting_id = 1");
+
 // Get filter values from GET parameters (like shifts page)
 $filterProvider = $_GET['provider'] ?? '';
 $filterBranch = $_GET['branch'] ?? '';
@@ -141,7 +144,8 @@ $viewData = [
     'canCreateWallet' => $canCreateWallet,
     'filterProvider' => $filterProvider,
     'filterBranch' => $filterBranch,
-    'filterStatus' => $filterStatus
+    'filterStatus' => $filterStatus,
+    'systemSettings' => $systemSettings
 ];
 
 extract($viewData);

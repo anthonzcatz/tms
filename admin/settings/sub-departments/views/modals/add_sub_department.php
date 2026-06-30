@@ -23,6 +23,13 @@
             <label class="form-label fw-bold">Sub-Department Name *</label>
             <input type="text" class="form-control" id="addSubDepartmentName" required>
           </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Status</label>
+            <select class="form-select" id="addSubDepartmentStatus">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </form>
       </div>
       <div class="modal-footer">

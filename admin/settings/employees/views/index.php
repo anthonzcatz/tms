@@ -50,6 +50,8 @@
           </div>
         </div>
 
+        <?php $activeModule = 'employees'; include dirname(dirname(__DIR__)) . '/_partials/hr_settings_nav.php'; ?>
+
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
             <div class="card h-md-100">
@@ -91,6 +93,22 @@
                       <?php endforeach; ?>
                     </select>
                   </div>
+                  <div class="col-md-3">
+                    <select class="form-select" id="subDepartmentFilter">
+                      <option value="">All Sub-Departments</option>
+                      <?php foreach ($subDepartments as $sd): ?>
+                      <option value="<?php echo $sd['sub_depart_id']; ?>"><?php echo htmlspecialchars($sd['sub_department_name']); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <select class="form-select" id="employmentStatusFilter">
+                      <option value="">All Employment Status</option>
+                      <?php foreach ($employmentStatuses as $es): ?>
+                      <option value="<?php echo $es['emp_stat_id']; ?>"><?php echo htmlspecialchars($es['emp_stat_name']); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -118,7 +136,7 @@
                     <tbody id="employeesTableBody">
                       <?php foreach ($employees as $emp): ?>
                       <?php $fullName = trim($emp['first_name'] . ' ' . ($emp['middle_name'] ? $emp['middle_name'] . ' ' : '') . $emp['last_name']); ?>
-                      <tr data-emp-id="<?php echo $emp['emp_id']; ?>" data-name="<?php echo htmlspecialchars(strtolower($fullName)); ?>" data-dept="<?php echo $emp['b_department_id']; ?>" data-pos="<?php echo $emp['job_title']; ?>">
+                      <tr data-emp-id="<?php echo $emp['emp_id']; ?>" data-name="<?php echo htmlspecialchars(strtolower($fullName)); ?>" data-dept="<?php echo $emp['b_department_id']; ?>" data-pos="<?php echo $emp['job_title']; ?>" data-sub-dept="<?php echo $emp['b_sub_department_id']; ?>" data-emp-status="<?php echo $emp['b_employment_status_id']; ?>">
                         <td class="fw-semibold"><?php echo htmlspecialchars($fullName); ?></td>
                         <td><?php echo htmlspecialchars($emp['position_name'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($emp['department_name'] ?? '-'); ?></td>

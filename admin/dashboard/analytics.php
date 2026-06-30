@@ -889,21 +889,17 @@ require_once __DIR__ . '/../_guard.php';
                   <div id="transactionsPerHourChart" style="height:250px;"></div>
                 </div>
                 <div class="card-footer bg-body-tertiary py-2">
-                  <div class="row flex-between-center g-0">
-                    <div class="col-auto">
-                      <select class="form-select form-select-sm" id="hourlyFilter">
-                        <option value="today">Today</option>
-                        <option value="week" selected="selected">Last 7 days</option>
-                        <option value="last30days">Last 30 days</option>
-                        <option value="year">This Year</option>
-                      </select>
-                    </div>
-                    <div class="col-auto">
-                      <select class="form-select form-select-sm" id="hourlyBranchFilter">
-                        <option value="" selected="selected">All Branches</option>
-                      </select>
-                    </div>
-                    <div class="col-auto"><a class="btn btn-link btn-sm px-0 fw-medium" href="#!">Details<span class="fas fa-chevron-right ms-1 fs-11"></span></a></div>
+                  <div class="d-flex gap-2 align-items-center">
+                    <select class="form-select form-select-sm flex-grow-1" id="hourlyFilter">
+                      <option value="today">Today</option>
+                      <option value="week" selected="selected">Last 7 days</option>
+                      <option value="last30days">Last 30 days</option>
+                      <option value="year">This Year</option>
+                    </select>
+                    <select class="form-select form-select-sm flex-grow-1" id="hourlyBranchFilter">
+                      <option value="" selected="selected">All Branches</option>
+                    </select>
+                    <a class="btn btn-link btn-sm px-0 fw-medium flex-shrink-0" href="#!">Details<span class="fas fa-chevron-right ms-1 fs-11"></span></a>
                   </div>
                 </div>
               </div>
@@ -953,14 +949,12 @@ require_once __DIR__ . '/../_guard.php';
               <div class="card h-100">
                 <div class="card-header">
                   <div class="row flex-between-center">
-                    <div class="col-auto d-flex gap-2">
+                    <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
                       <h6 class="mb-0 text-nowrap py-2 py-xl-0">Top Services Today</h6>
-                      <select class="form-select form-select-sm" id="topServicesBranchFilter" style="width:140px;">
+                      <select class="form-select form-select-sm flex-grow-1 flex-shrink-0" id="topServicesBranchFilter" style="min-width:120px; max-width:140px;">
                         <option value="">All Branches</option>
                       </select>
-                    </div>
-                    <div class="col-auto">
-                      <select class="form-select form-select-sm" id="topServicesFilter" style="width:120px;">
+                      <select class="form-select form-select-sm flex-grow-1 flex-shrink-0" id="topServicesFilter" style="min-width:120px; max-width:140px;">
                         <option value="today" selected="selected">Today</option>
                         <option value="week">Last 7 days</option>
                         <option value="last30days">Last 30 days</option>

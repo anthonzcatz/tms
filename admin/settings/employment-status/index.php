@@ -20,7 +20,8 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 }
 
 $employmentStatuses = Database::fetchAll(
-    "SELECT es.*, ua.username AS added_by_name
+    "SELECT es.*, ua.username AS added_by_name,
+            (SELECT COUNT(*) FROM employees e WHERE e.b_employment_status_id = es.emp_stat_id) AS employee_count
      FROM employment_status es LEFT JOIN user_accounts ua ON es.emp_stat_addedby = ua.user_id ORDER BY es.emp_stat_name"
 );
 

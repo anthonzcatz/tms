@@ -39,11 +39,12 @@ function handlePost() {
     $input = json_decode(file_get_contents('php://input'), true);
     $name = trim($input['position_name'] ?? '');
     $code = trim($input['pos_code'] ?? '');
+    $status = $input['status'] ?? 'active';
     if (!$name) { echo json_encode(['success' => false, 'error' => 'Position name is required']); return; }
     $existing = Database::fetch("SELECT pos_id FROM position WHERE position_name = :name", ['name' => $name]);
     if ($existing) { echo json_encode(['success' => false, 'error' => 'Position name already exists']); return; }
-    Database::execute("INSERT INTO position (position_name, pos_code, pos_addedby, pos_dateadded) VALUES (:name, :code, :addedby, NOW())",
-        ['name' => $name, 'code' => $code ?: null, 'addedby' => $user['user_id'] ?? 1]);
+    Database::execute("INSERT INTO position (position_name, pos_code, status, pos_addedby, pos_dateadded) VALUES (:name, :code, :status, :addedby, NOW())",
+        ['name' => $name, 'code' => $code ?: null, 'status' => $status, 'addedby' => $user['user_id'] ?? 1]);
     echo json_encode(['success' => true, 'message' => 'Position created successfully', 'pos_id' => Database::connection()->lastInsertId()]);
 }
 
@@ -63,6 +64,7 @@ function handlePut() {
         $fields[] = "position_name = :name"; $params['name'] = $name;
     }
     if (isset($input['pos_code'])) { $fields[] = "pos_code = :code"; $params['code'] = trim($input['pos_code']) ?: null; }
+    if (isset($input['status'])) { $fields[] = "status = :status"; $params['status'] = $input['status']; }
     if (empty($fields)) { echo json_encode(['success' => false, 'error' => 'No fields to update']); return; }
     Database::execute("UPDATE position SET " . implode(', ', $fields) . " WHERE pos_id = :id", $params);
     echo json_encode(['success' => true, 'message' => 'Position updated successfully']);

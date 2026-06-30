@@ -114,6 +114,7 @@ unset($_SESSION['login_username']);
                           <span class="fas fa-clock me-2"></span>
                           <strong>Device Pending Approval</strong><br>
                           Your device has been registered and is awaiting approval by an administrator. You will be able to log in once approved.
+                          <!-- Debug info hidden
                           <hr class="my-2">
                           <small class="text-muted">Debug: IP=<?php echo $debugIp; ?>, Type=<?php echo $debugType; ?></small>
                           <?php if (!empty($existingDevices)): ?>
@@ -127,6 +128,7 @@ unset($_SESSION['login_username']);
                           <div class="mt-2">
                             <a href="<?php echo BASE_URL; ?>/auth/auto-approve-device.php?ip=<?php echo urlencode($debugIp); ?>&type=<?php echo urlencode($debugType); ?>" class="btn btn-sm btn-outline-warning">Emergency: Auto-Approve This Device</a>
                           </div>
+                          -->
                           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                       <?php elseif ($loginError === 'device_blocked'): ?>
@@ -196,6 +198,7 @@ unset($_SESSION['login_username']);
                           </button>
                         </div>
                       </form>
+                      <!-- Social login buttons hidden
                       <div class="position-relative mt-4">
                         <hr />
                         <div class="divider-content-center">or log in with</div>
@@ -204,6 +207,7 @@ unset($_SESSION['login_username']);
                         <div class="col-sm-6"><a class="btn btn-outline-google-plus btn-sm d-block w-100" href="#"><span class="fab fa-google-plus-g me-2" data-fa-transform="grow-8"></span> google</a></div>
                         <div class="col-sm-6"><a class="btn btn-outline-facebook btn-sm d-block w-100" href="#"><span class="fab fa-facebook-square me-2" data-fa-transform="grow-8"></span> facebook</a></div>
                       </div>
+                      -->
                     </div>
                   </div>
                 </div>

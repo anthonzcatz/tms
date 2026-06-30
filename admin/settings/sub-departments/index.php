@@ -21,7 +21,8 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 
 $subDepartments = Database::fetchAll(
     "SELECT sd.*, d.department_name AS main_department_name,
-            ua.username AS added_by_name
+            ua.username AS added_by_name,
+            (SELECT COUNT(*) FROM employees e WHERE e.b_sub_department_id = sd.sub_depart_id) AS employee_count
      FROM sub_department sd
      LEFT JOIN department d ON sd.main_department_id = d.dept_id
      LEFT JOIN user_accounts ua ON sd.sub_depart_addedby = ua.user_id

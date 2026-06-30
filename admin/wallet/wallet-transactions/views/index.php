@@ -66,6 +66,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeWalletModule = 'wallet-transactions'; include dirname(dirname(__DIR__)) . '/_partials/wallet_nav.php'; ?>
+
         <!-- Wallet Stats Cards -->
         <div class="row mb-3 g-3">
           <div class="col-lg-12">
@@ -169,6 +171,35 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
         </div>
+
+        <!-- How it works -->
+        <div class="card mb-3">
+          <div class="card-header bg-light py-2" style="cursor:pointer;" onclick="toggleHowItWorks()">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="fw-bold mb-0"><span class="fas fa-info-circle me-2 text-info"></span>How it works: Wallet Transactions</h6>
+              <span class="fas fa-chevron-down" id="howItWorksIcon"></span>
+            </div>
+          </div>
+          <div class="card-body how-it-works-content" id="howItWorksContent" style="display:none;">
+            <ul class="mb-0">
+              <li><strong>Credit (Inflow)</strong> — Funds added to a provider wallet (e.g., deposit from provider).</li>
+              <li><strong>Debit (Outflow)</strong> — Funds deducted from a wallet (e.g., ticket charge to wallet balance).</li>
+              <li><strong>Transfer</strong> — Move balance between two wallets (e.g., branch rebalancing).</li>
+              <li>Each transaction is linked to a <strong>Provider Wallet</strong>. Make sure wallets are set up first.</li>
+              <li>All POS ticket sales using a wallet-required service type automatically create a debit transaction.</li>
+            </ul>
+          </div>
+        </div>
+        <script>
+        function toggleHowItWorks() {
+          const c = document.getElementById('howItWorksContent');
+          const i = document.getElementById('howItWorksIcon');
+          const open = c.style.display !== 'none';
+          c.style.display = open ? 'none' : 'block';
+          i.classList.toggle('fa-chevron-down', open);
+          i.classList.toggle('fa-chevron-up', !open);
+        }
+        </script>
 
         <!-- Filters -->
         <div class="row g-3 mb-3">

@@ -55,12 +55,13 @@ function handlePost() {
     $input = json_decode(file_get_contents('php://input'), true);
     $name = trim($input['sub_department_name'] ?? '');
     $deptId = (int)($input['main_department_id'] ?? 0);
+    $status = $input['status'] ?? 'active';
     if (!$name || !$deptId) { echo json_encode(['success' => false, 'error' => 'Sub-department name and department are required']); return; }
     $existing = Database::fetch("SELECT sub_depart_id FROM sub_department WHERE sub_department_name = :name AND main_department_id = :dept_id", ['name' => $name, 'dept_id' => $deptId]);
     if ($existing) { echo json_encode(['success' => false, 'error' => 'Sub-department name already exists in this department']); return; }
     Database::execute(
-        "INSERT INTO sub_department (sub_department_name, main_department_id, sub_depart_addedby, sub_depart_dateadded) VALUES (:name, :dept_id, :addedby, NOW())",
-        ['name' => $name, 'dept_id' => $deptId, 'addedby' => $user['user_id'] ?? 1]
+        "INSERT INTO sub_department (sub_department_name, main_department_id, status, sub_depart_addedby, sub_depart_dateadded) VALUES (:name, :dept_id, :status, :addedby, NOW())",
+        ['name' => $name, 'dept_id' => $deptId, 'status' => $status, 'addedby' => $user['user_id'] ?? 1]
     );
     echo json_encode(['success' => true, 'message' => 'Sub-department created successfully', 'sub_depart_id' => Database::connection()->lastInsertId()]);
 }
@@ -86,6 +87,7 @@ function handlePut() {
         $fields[] = "sub_department_name = :name"; $params['name'] = $name;
         $fields[] = "main_department_id = :dept_id"; $params['dept_id'] = $deptId;
     }
+    if (isset($input['status'])) { $fields[] = "status = :status"; $params['status'] = $input['status']; }
     if (empty($fields)) { echo json_encode(['success' => false, 'error' => 'No fields to update']); return; }
     Database::execute("UPDATE sub_department SET " . implode(', ', $fields) . " WHERE sub_depart_id = :id", $params);
     echo json_encode(['success' => true, 'message' => 'Sub-department updated successfully']);

@@ -61,6 +61,8 @@
           </div>
         </div>
 
+        <?php $activeModule = 'departments'; include dirname(dirname(__DIR__)) . '/_partials/hr_settings_nav.php'; ?>
+
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
             <div class="card h-md-100">
@@ -110,6 +112,8 @@
           </div>
         </div>
 
+        <?php $activeModule = 'departments'; include dirname(dirname(__DIR__)) . '/_partials/hr_settings_nav.php'; ?>
+
         <div class="row g-3">
           <div class="col-12">
             <div class="card">
@@ -122,6 +126,7 @@
                         <th>Department Name</th>
                         <th>Code</th>
                         <th>Status</th>
+                        <th>Employees</th>
                         <th>Added By</th>
                         <th>Date Added</th>
                         <th class="text-end">Actions</th>
@@ -133,11 +138,17 @@
                         <td class="fw-semibold"><?php echo htmlspecialchars($dept['department_name']); ?></td>
                         <td><?php echo htmlspecialchars($dept['department_code'] ?? '-'); ?></td>
                         <td><span class="badge bg-<?php echo $dept['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($dept['status']); ?></span></td>
+                        <td>
+                          <a href="<?php echo BASE_URL; ?>/admin/settings/employees/?department=<?php echo $dept['dept_id']; ?>" class="badge bg-<?php echo $dept['employee_count'] > 0 ? 'info' : 'light text-dark'; ?> text-decoration-none">
+                            <?php echo $dept['employee_count']; ?> employee<?php echo $dept['employee_count'] !== 1 ? 's' : ''; ?>
+                          </a>
+                        </td>
                         <td><?php echo htmlspecialchars($dept['added_by_name'] ?? '-'); ?></td>
                         <td><?php echo $dept['dept_dateadded'] ? date('M d, Y', strtotime($dept['dept_dateadded'])) : '-'; ?></td>
                         <td class="text-end">
+                          <a href="<?php echo BASE_URL; ?>/admin/settings/employees/?department=<?php echo $dept['dept_id']; ?>" class="btn btn-sm btn-outline-info" title="View Employees"><span class="fas fa-users"></span></a>
                           <button class="btn btn-sm btn-outline-primary" onclick="editDepartment(<?php echo $dept['dept_id']; ?>)"><span class="fas fa-edit"></span></button>
-                          <button class="btn btn-sm btn-outline-danger" onclick="deleteDepartment(<?php echo $dept['dept_id']; ?>, '<?php echo htmlspecialchars($dept['department_name'], ENT_QUOTES); ?>')"><span class="fas fa-trash"></span></button>
+                          <button class="btn btn-sm btn-outline-danger" onclick="deleteDepartment(<?php echo $dept['dept_id']; ?>, '<?php echo htmlspecialchars($dept['department_name'], ENT_QUOTES); ?>')" <?php echo $dept['employee_count'] > 0 ? 'disabled title="Cannot delete: employees are assigned"' : 'title="Delete"'; ?>><span class="fas fa-trash"></span></button>
                         </td>
                       </tr>
                       <?php endforeach; ?>

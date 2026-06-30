@@ -67,8 +67,12 @@ function handlePost() {
         'last_name' => trim($input['last_name'] ?? ''),
         'middle_name' => trim($input['middle_name'] ?? ''),
         'b_date' => $input['b_date'],
-        'b_permanent_address' => trim($input['b_address'] ?? ''),
+        'b_permanent_address' => trim($input['b_permanent_address'] ?? ($input['b_address'] ?? '')),
         'b_address' => trim($input['b_address'] ?? ''),
+        'emp_street_address' => trim($input['emp_street_address'] ?? ''),
+        'emp_province_code' => !empty($input['emp_province_code']) ? $input['emp_province_code'] : null,
+        'emp_city_code' => !empty($input['emp_city_code']) ? $input['emp_city_code'] : null,
+        'emp_barangay_code' => !empty($input['emp_barangay_code']) ? $input['emp_barangay_code'] : null,
         'b_cont_no' => trim($input['b_cont_no']),
         'b_email' => trim($input['b_email']),
         'b_citizenship' => trim($input['b_citizenship'] ?? 'Filipino'),
@@ -101,8 +105,8 @@ function handlePost() {
         'b_addedby' => $user['user_id'] ?? 1,
         'employment_remarks' => trim($input['employment_remarks'] ?? '')
     ];
-    $sql = "INSERT INTO employees (first_name, last_name, middle_name, b_date, b_permanent_address, b_address, b_cont_no, b_email, b_citizenship, b_placebirth, b_religion, b_sex, b_civil_status, b_height, b_weight, job_title, date_hired, daily_rate, cola, b_department_id, b_sub_department_id, b_company_id, b_employment_status_id, b_philhealth, b_sss, b_pagibig, b_tinnumber, emergency_contact_name, emergency_contact_relationship, emergency_contact_number, remarks, branch_id, user_img, type, notifications, b_addedby, b_dateadded, employment_remarks)
-            VALUES (:first_name, :last_name, :middle_name, :b_date, :b_permanent_address, :b_address, :b_cont_no, :b_email, :b_citizenship, :b_placebirth, :b_religion, :b_sex, :b_civil_status, :b_height, :b_weight, :job_title, :date_hired, :daily_rate, :cola, :b_department_id, :b_sub_department_id, :b_company_id, :b_employment_status_id, :b_philhealth, :b_sss, :b_pagibig, :b_tinnumber, :emergency_contact_name, :emergency_contact_relationship, :emergency_contact_number, :remarks, :branch_id, :user_img, :type, :notifications, :b_addedby, NOW(), :employment_remarks)";
+    $sql = "INSERT INTO employees (first_name, last_name, middle_name, b_date, b_permanent_address, b_address, emp_street_address, emp_province_code, emp_city_code, emp_barangay_code, b_cont_no, b_email, b_citizenship, b_placebirth, b_religion, b_sex, b_civil_status, b_height, b_weight, job_title, date_hired, daily_rate, cola, b_department_id, b_sub_department_id, b_company_id, b_employment_status_id, b_philhealth, b_sss, b_pagibig, b_tinnumber, emergency_contact_name, emergency_contact_relationship, emergency_contact_number, remarks, branch_id, user_img, type, notifications, b_addedby, b_dateadded, employment_remarks)
+            VALUES (:first_name, :last_name, :middle_name, :b_date, :b_permanent_address, :b_address, :emp_street_address, :emp_province_code, :emp_city_code, :emp_barangay_code, :b_cont_no, :b_email, :b_citizenship, :b_placebirth, :b_religion, :b_sex, :b_civil_status, :b_height, :b_weight, :job_title, :date_hired, :daily_rate, :cola, :b_department_id, :b_sub_department_id, :b_company_id, :b_employment_status_id, :b_philhealth, :b_sss, :b_pagibig, :b_tinnumber, :emergency_contact_name, :emergency_contact_relationship, :emergency_contact_number, :remarks, :branch_id, :user_img, :type, :notifications, :b_addedby, NOW(), :employment_remarks)";
     Database::execute($sql, $params);
     echo json_encode(['success' => true, 'message' => 'Employee created successfully', 'emp_id' => Database::connection()->lastInsertId()]);
 }
@@ -118,7 +122,8 @@ function handlePut() {
     $params = ['id' => (int)$id];
     $mappings = [
         'first_name' => 'first_name', 'last_name' => 'last_name', 'middle_name' => 'middle_name', 'b_date' => 'b_date',
-        'b_address' => 'b_address', 'b_permanent_address' => 'b_permanent_address', 'b_cont_no' => 'b_cont_no', 'b_email' => 'b_email',
+        'b_address' => 'b_address', 'b_permanent_address' => 'b_permanent_address', 'emp_street_address' => 'emp_street_address',
+        'b_cont_no' => 'b_cont_no', 'b_email' => 'b_email',
         'b_citizenship' => 'b_citizenship', 'b_placebirth' => 'b_placebirth', 'b_religion' => 'b_religion', 'b_sex' => 'b_sex',
         'b_civil_status' => 'b_civil_status', 'b_height' => 'b_height', 'b_weight' => 'b_weight', 'date_hired' => 'date_hired',
         'b_philhealth' => 'b_philhealth', 'b_sss' => 'b_sss', 'b_pagibig' => 'b_pagibig', 'b_tinnumber' => 'b_tinnumber',
@@ -139,6 +144,9 @@ function handlePut() {
     if (isset($input['b_company_id'])) { $fields[] = "b_company_id = :b_company_id"; $params['b_company_id'] = (int)$input['b_company_id']; }
     if (isset($input['b_employment_status_id'])) { $fields[] = "b_employment_status_id = :b_employment_status_id"; $params['b_employment_status_id'] = (int)$input['b_employment_status_id']; }
     if (isset($input['branch_id'])) { $fields[] = "branch_id = :branch_id"; $params['branch_id'] = !empty($input['branch_id']) ? (int)$input['branch_id'] : null; }
+    if (isset($input['emp_province_code'])) { $fields[] = "emp_province_code = :emp_province_code"; $params['emp_province_code'] = !empty($input['emp_province_code']) ? $input['emp_province_code'] : null; }
+    if (isset($input['emp_city_code'])) { $fields[] = "emp_city_code = :emp_city_code"; $params['emp_city_code'] = !empty($input['emp_city_code']) ? $input['emp_city_code'] : null; }
+    if (isset($input['emp_barangay_code'])) { $fields[] = "emp_barangay_code = :emp_barangay_code"; $params['emp_barangay_code'] = !empty($input['emp_barangay_code']) ? $input['emp_barangay_code'] : null; }
     if (empty($fields)) { echo json_encode(['success' => false, 'error' => 'No fields to update']); return; }
     $sql = "UPDATE employees SET " . implode(', ', $fields) . " WHERE emp_id = :id";
     Database::execute($sql, $params);

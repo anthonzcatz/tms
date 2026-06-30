@@ -94,16 +94,18 @@ final class Auth
         }
 
         $_SESSION['user'] = [
-            'user_id'   => (int) $user['user_id'],
-            'user_code' => $user['user_code'] ?? null,
-            'fullname'  => $user['fullname'] ?? '',
-            'email'     => $user['email'] ?? '',
-            'username'  => $user['username'] ?? '',
-            'role_id'   => $user['role_id'] ?? null,
-            'role_code' => $user['role_code'] ?? null,
-            'role_name' => $user['role_name'] ?? null,
-            'branch_id' => $user['branch_id'] ?? null,
-            'default_dashboard' => $user['default_dashboard'] ?? '/admin/dashboard/analytics',
+            'user_id'            => (int) $user['user_id'],
+            'user_code'          => $user['user_code'] ?? null,
+            'fullname'           => $user['fullname'] ?? '',
+            'email'              => $user['email'] ?? '',
+            'username'           => $user['username'] ?? '',
+            'role_id'            => $user['role_id'] ?? null,
+            'role_code'          => $user['role_code'] ?? null,
+            'role_name'          => $user['role_name'] ?? null,
+            'branch_id'          => $user['branch_id'] ?? null,
+            'default_dashboard'  => $user['default_dashboard'] ?? '/admin/dashboard/analytics',
+            // Cache time restriction flag — avoids a DB query on every page load for non-restricted users
+            'is_time_restricted' => !empty($user['is_time_restricted']) ? 1 : 0,
         ];
         $_SESSION['login_time']    = time();
         $_SESSION['fingerprint']   = self::fingerprint();
@@ -208,13 +210,20 @@ final class Auth
             }
 
             // --- Active session time restriction check --------------------------------
+            // Use session-cached flag to skip DB query for non-restricted users
             $userId = self::id();
-            $user = Database::fetch(
-                "SELECT is_time_restricted, allowed_login_start, allowed_login_end, allowed_days
-                 FROM user_accounts
-                 WHERE user_id = :uid",
-                ['uid' => $userId]
-            );
+            $isTimeRestricted = !empty($_SESSION['user']['is_time_restricted']);
+
+            if ($isTimeRestricted) {
+                $user = Database::fetch(
+                    "SELECT is_time_restricted, allowed_login_start, allowed_login_end, allowed_days
+                     FROM user_accounts
+                     WHERE user_id = :uid",
+                    ['uid' => $userId]
+                );
+            } else {
+                $user = null;
+            }
 
             if ($user && !empty($user['is_time_restricted'])) {
                 $timeError = User::checkTimeRestrictions($user);
@@ -283,15 +292,36 @@ final class Auth
         if (!self::check()) {
             return [];
         }
-        // Always reload from database to ensure correct format
+
+        $roleId      = $_SESSION['user']['role_id'];
+        $cacheKey    = 'perm_role_' . $roleId;
+
+        // Return cached permissions if role hasn't changed
+        if (
+            isset($_SESSION['permissions'], $_SESSION['permissions_role_key']) &&
+            $_SESSION['permissions_role_key'] === $cacheKey &&
+            is_array($_SESSION['permissions'])
+        ) {
+            return $_SESSION['permissions'];
+        }
+
+        // Cache miss — load from DB and store in session
         $_SESSION['permissions'] = Database::fetchAll(
             "SELECT p.permission_id, p.permission_code, p.module_name, p.menu_url
                FROM role_permissions rp
                JOIN permissions p ON p.permission_id = rp.permission_id
               WHERE rp.role_id = :role_id",
-            ['role_id' => $_SESSION['user']['role_id']]
+            ['role_id' => $roleId]
         );
+        $_SESSION['permissions_role_key'] = $cacheKey;
+
         return $_SESSION['permissions'];
+    }
+
+    /** Call this after changing a user's role to force permission re-load on next request. */
+    public static function bustPermissionsCache(): void
+    {
+        unset($_SESSION['permissions'], $_SESSION['permissions_role_key']);
     }
 
     public static function can(string $permissionCode): bool
@@ -545,6 +575,19 @@ final class Auth
         }
 
         error_log("Device check passed: device_id=$deviceId, isNewDevice=" . ($isNewDevice ? 'YES' : 'NO'));
+
+        // --- Close existing session from the same device (prevent duplicates) ----
+        // This prevents multiple sessions from the same IP/device when user logs in multiple times
+        $existingDeviceSession = Database::fetch(
+            "SELECT session_id FROM user_sessions
+              WHERE user_id = :uid AND device_id = :device_id AND is_active = TRUE
+              LIMIT 1",
+            ['uid' => $userId, 'device_id' => $deviceId]
+        );
+        if ($existingDeviceSession) {
+            error_log("Closing existing session from same device: session_id={$existingDeviceSession['session_id']}, device_id=$deviceId");
+            self::closeUserSession((int) $existingDeviceSession['session_id'], 'device_replaced');
+        }
 
         // --- Max concurrent sessions enforcement (only if device is approved) ----
         $maxSessions = $security['max_concurrent_sessions'];

@@ -19,6 +19,13 @@
             <label class="form-label fw-bold">Position Code</label>
             <input type="text" class="form-control" id="editPositionCode">
           </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Status</label>
+            <select class="form-select" id="editPositionStatus">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </form>
       </div>
       <div class="modal-footer">

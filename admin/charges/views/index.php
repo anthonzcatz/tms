@@ -54,6 +54,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeWalletModule = 'charges'; include dirname(dirname(__DIR__)) . '/wallet/_partials/wallet_nav.php'; ?>
+
         <!-- Stats -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">

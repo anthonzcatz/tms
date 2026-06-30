@@ -16,6 +16,7 @@ RewriteEngine On
 # ---------------------------------------------------------
 RewriteRule ^(config|app|database|gulp|src|vendors)/ - [F,L]
 RewriteRule ^\.env - [F,L]
+RewriteRule ^\.env\. - [F,L]
 RewriteRule ^composer\.json - [F,L]
 RewriteRule ^composer\.lock - [F,L]
 RewriteRule ^package\.json - [F,L]
@@ -25,6 +26,13 @@ RewriteRule ^\.babelrc - [F,L]
 RewriteRule ^\.eslintrc - [F,L]
 RewriteRule ^\.prettierignore - [F,L]
 RewriteRule ^\.npmrc - [F,L]
+RewriteRule ^\.git - [F,L]
+RewriteRule ^phpinfo\.php - [F,L]
+RewriteRule ^test_cashier_performance\.php - [F,L]
+RewriteRule ^user_accounts_columns\.txt - [F,L]
+RewriteRule ^backups/ - [F,L]
+RewriteRule ^database/ - [F,L]
+RewriteRule ^scripts/ - [F,L]
 
 # ---------------------------------------------------------
 # 2. ADMIN ROUTES - Use router for auto-discovery
@@ -87,8 +95,9 @@ RewriteRule ^.*$ auth/login.php [L]
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "SAMEORIGIN"
-    Header set X-XSS-Protection "1; mode=block"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net"
 </IfModule>
 
 # ---------------------------------------------------------

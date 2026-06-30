@@ -7,18 +7,28 @@ document.addEventListener('DOMContentLoaded', function() {
     toast = new bootstrap.Toast(document.getElementById('toast'));
     document.getElementById('subDepartmentSearch').addEventListener('input', filterSubDepartments);
     document.getElementById('departmentFilter').addEventListener('change', filterSubDepartments);
+    document.getElementById('statusFilter').addEventListener('change', filterSubDepartments);
     document.getElementById('addSubDepartmentModal').addEventListener('hidden.bs.modal', function() { document.getElementById('addSubDepartmentForm').reset(); });
+
+    const params = new URLSearchParams(window.location.search);
+    const deptParam = params.get('department');
+    if (deptParam) {
+        document.getElementById('departmentFilter').value = deptParam;
+        filterSubDepartments();
+    }
 });
 
 function filterSubDepartments() {
     const search = document.getElementById('subDepartmentSearch').value.toLowerCase();
     const dept = document.getElementById('departmentFilter').value;
+    const status = document.getElementById('statusFilter').value;
     const rows = document.querySelectorAll('#subDepartmentsTableBody tr');
     let visible = 0;
     rows.forEach(row => {
         const name = row.getAttribute('data-name') || '';
         const rowDept = row.getAttribute('data-dept') || '';
-        const show = name.includes(search) && (!dept || rowDept === dept);
+        const rowStatus = row.getAttribute('data-status') || '';
+        const show = name.includes(search) && (!dept || rowDept === dept) && (!status || rowStatus === status);
         row.classList.toggle('d-none', !show);
         if (show) visible++;
     });
@@ -44,7 +54,11 @@ async function saveSubDepartment() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/sub-departments`, {
             method: 'POST', headers: getHeaders(),
-            body: JSON.stringify({ sub_department_name: name, main_department_id: dept })
+            body: JSON.stringify({
+                sub_department_name: name,
+                main_department_id: dept,
+                status: document.getElementById('addSubDepartmentStatus').value
+            })
         });
         const result = await response.json();
         if (result.success) { showToast('success', 'Success', result.message); addSubDepartmentModal.hide(); location.reload(); }
@@ -61,6 +75,7 @@ async function editSubDepartment(id) {
         document.getElementById('editSubDepartmentId').value = sd.sub_depart_id;
         document.getElementById('editSubDepartmentDept').value = sd.main_department_id;
         document.getElementById('editSubDepartmentName').value = sd.sub_department_name;
+        document.getElementById('editSubDepartmentStatus').value = sd.status || 'active';
         editSubDepartmentModal.show();
     } catch (error) { showToast('error', 'Error', error.message); }
 }
@@ -76,7 +91,12 @@ async function updateSubDepartment() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/sub-departments`, {
             method: 'PUT', headers: getHeaders(),
-            body: JSON.stringify({ sub_depart_id: id, sub_department_name: name, main_department_id: dept })
+            body: JSON.stringify({
+                sub_depart_id: id,
+                sub_department_name: name,
+                main_department_id: dept,
+                status: document.getElementById('editSubDepartmentStatus').value
+            })
         });
         const result = await response.json();
         if (result.success) { showToast('success', 'Success', result.message); editSubDepartmentModal.hide(); location.reload(); }

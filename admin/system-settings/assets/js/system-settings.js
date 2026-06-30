@@ -250,17 +250,34 @@ document.getElementById('deviceActionConfirmBtn')?.addEventListener('click', asy
     const freshToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     if (action === 'delete') {
-        const res  = await fetch(`${window.BASE_URL}/api/devices/index.php?id=${deviceId}&_token=${freshToken}`, {
+        // Encode device_id using same logic as PHP IdEncoder
+        function encodeDeviceId(id) {
+            const key = 0x5A3C8F1B;
+            // JavaScript XOR with 32-bit integers, handle properly
+            const xorValue = id ^ key;
+            const hex = xorValue.toString(16);
+            return 'id' + hex;
+        }
+        const encodedDeviceId = encodeDeviceId(deviceId);
+        
+        const res  = await fetch(`${window.BASE_URL}/api/devices/index.php?id=${encodedDeviceId}&_token=${freshToken}`, {
             method: 'DELETE',
             headers: {'X-CSRF-Token': freshToken},
             credentials: 'same-origin'
         });
-        const json = await res.json();
+        let json;
+        try {
+            json = await res.json();
+        } catch (e) {
+            alert('Failed to parse response: ' + e.message + '. Status: ' + res.status);
+            return;
+        }
+        
         if (json.success) {
             deviceActionModal?.hide();
             loadDevices();
         } else {
-            alert(json.error);
+            alert('Error: ' + (json.error || 'Unknown error occurred'));
         }
     } else {
         const res  = await fetch(`${window.BASE_URL}/api/devices/index.php`, {

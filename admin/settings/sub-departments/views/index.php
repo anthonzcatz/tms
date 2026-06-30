@@ -50,6 +50,8 @@
           </div>
         </div>
 
+        <?php $activeModule = 'sub-departments'; include dirname(dirname(__DIR__)) . '/_partials/hr_settings_nav.php'; ?>
+
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
             <div class="card h-md-100">
@@ -83,6 +85,13 @@
                       <?php endforeach; ?>
                     </select>
                   </div>
+                  <div class="col-md-2">
+                    <select class="form-select" id="statusFilter">
+                      <option value="">All Status</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -96,17 +105,24 @@
               <div class="card-body p-0">
                 <div class="table-responsive">
                   <table class="table table-hover mb-0">
-                    <thead class="bg-light"><tr><th>Sub-Department Name</th><th>Main Department</th><th>Added By</th><th>Date Added</th><th class="text-end">Actions</th></tr></thead>
+                    <thead class="bg-light"><tr><th>Sub-Department Name</th><th>Main Department</th><th>Status</th><th>Employees</th><th>Added By</th><th>Date Added</th><th class="text-end">Actions</th></tr></thead>
                     <tbody id="subDepartmentsTableBody">
                       <?php foreach ($subDepartments as $sd): ?>
-                      <tr data-sd-id="<?php echo $sd['sub_depart_id']; ?>" data-name="<?php echo htmlspecialchars(strtolower($sd['sub_department_name'])); ?>" data-dept="<?php echo $sd['main_department_id']; ?>">
+                      <tr data-sd-id="<?php echo $sd['sub_depart_id']; ?>" data-name="<?php echo htmlspecialchars(strtolower($sd['sub_department_name'])); ?>" data-dept="<?php echo $sd['main_department_id']; ?>" data-status="<?php echo $sd['status']; ?>">
                         <td class="fw-semibold"><?php echo htmlspecialchars($sd['sub_department_name']); ?></td>
                         <td><?php echo htmlspecialchars($sd['main_department_name'] ?? '-'); ?></td>
+                        <td><span class="badge bg-<?php echo $sd['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($sd['status']); ?></span></td>
+                        <td>
+                          <a href="<?php echo BASE_URL; ?>/admin/settings/employees/?sub_department=<?php echo $sd['sub_depart_id']; ?>" class="badge bg-<?php echo $sd['employee_count'] > 0 ? 'info' : 'light text-dark'; ?> text-decoration-none">
+                            <?php echo $sd['employee_count']; ?> employee<?php echo $sd['employee_count'] !== 1 ? 's' : ''; ?>
+                          </a>
+                        </td>
                         <td><?php echo htmlspecialchars($sd['added_by_name'] ?? '-'); ?></td>
                         <td><?php echo $sd['sub_depart_dateadded'] ? date('M d, Y', strtotime($sd['sub_depart_dateadded'])) : '-'; ?></td>
                         <td class="text-end">
+                          <a href="<?php echo BASE_URL; ?>/admin/settings/employees/?sub_department=<?php echo $sd['sub_depart_id']; ?>" class="btn btn-sm btn-outline-info" title="View Employees"><span class="fas fa-users"></span></a>
                           <button class="btn btn-sm btn-outline-primary" onclick="editSubDepartment(<?php echo $sd['sub_depart_id']; ?>)"><span class="fas fa-edit"></span></button>
-                          <button class="btn btn-sm btn-outline-danger" onclick="deleteSubDepartment(<?php echo $sd['sub_depart_id']; ?>, '<?php echo htmlspecialchars($sd['sub_department_name'], ENT_QUOTES); ?>')"><span class="fas fa-trash"></span></button>
+                          <button class="btn btn-sm btn-outline-danger" onclick="deleteSubDepartment(<?php echo $sd['sub_depart_id']; ?>, '<?php echo htmlspecialchars($sd['sub_department_name'], ENT_QUOTES); ?>')" <?php echo $sd['employee_count'] > 0 ? 'disabled title="Cannot delete: employees are assigned"' : 'title="Delete"'; ?>><span class="fas fa-trash"></span></button>
                         </td>
                       </tr>
                       <?php endforeach; ?>

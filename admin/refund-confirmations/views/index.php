@@ -50,6 +50,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeWalletModule = 'refund-confirmations'; include dirname(dirname(__DIR__)) . '/wallet/_partials/wallet_nav.php'; ?>
+
         <!-- Stats Cards (populated via AJAX) -->
         <div class="row g-3 mb-3">
           <div class="col-12 col-md-3">

@@ -190,10 +190,9 @@ switch ($method) {
             exit;
         }
 
-        // Terminate sessions on this device first
+        // Delete all sessions from this device first (to avoid foreign key constraint)
         Database::execute(
-            "UPDATE user_sessions SET is_active = FALSE, logout_time = NOW()
-              WHERE device_id = :device_id AND is_active = TRUE",
+            "DELETE FROM user_sessions WHERE device_id = :device_id",
             ['device_id' => $deviceId]
         );
 

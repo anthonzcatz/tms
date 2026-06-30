@@ -25,53 +25,32 @@ try {
     // Extend the session expiry time in database — read from system_settings for consistency
     $settingsRow = Database::fetch("SELECT session_lifetime_minutes FROM system_settings LIMIT 1");
     $sessionLifetime = isset($settingsRow['session_lifetime_minutes'])
-        ? (int) $settingsRow['session_lifetime_minutes'] * 60
-        : (int) env('SESSION_LIFETIME', 7200);
+        ? max(300, (int) $settingsRow['session_lifetime_minutes'] * 60)
+        : max(300, (int) env('SESSION_LIFETIME', 7200));
     $expiresAt = date('Y-m-d H:i:s', time() + $sessionLifetime);
 
     Database::execute(
         "UPDATE user_sessions
-         SET last_seen = NOW(),
+         SET last_seen  = NOW(),
              expires_at = :expires_at
          WHERE session_id = :session_id
-           AND user_id = :user_id
-           AND is_active = TRUE",
+           AND user_id    = :user_id
+           AND is_active  = TRUE",
         [
             'session_id' => $dbSessionId,
-            'user_id' => $userId,
-            'expires_at' => $expiresAt
+            'user_id'    => $userId,
+            'expires_at' => $expiresAt,
         ]
     );
 
-    // Regenerate session ID periodically for security (every 30 minutes)
-    if (!isset($_SESSION['last_regenerated']) || (time() - $_SESSION['last_regenerated']) > 1800) {
-        session_regenerate_id(true);
-        $_SESSION['last_regenerated'] = time();
-    }
-
-    // Update PHP session expiry time
-    $_SESSION['login_time'] = time();
-
-    // Extend the session cookie lifetime (sliding expiration)
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (($_SERVER['SERVER_PORT'] ?? null) == 443);
-    
-    setcookie(
-        session_name(),
-        session_id(),
-        [
-            'expires' => time() + $sessionLifetime,
-            'path' => '/',
-            'domain' => '',
-            'secure' => $secure,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]
-    );
+    // NOTE: Cookie sliding and gc_maxlifetime are already handled by bootstrap.php
+    // on every page request — no need to re-issue the cookie here.
+    // session_regenerate_id is intentionally omitted from this hot-path endpoint
+    // because it would break the session_token stored in user_sessions.
 
     echo json_encode([
-        'success' => true,
-        'expires_at' => $expiresAt
+        'success'    => true,
+        'expires_at' => $expiresAt,
     ]);
 } catch (Exception $e) {
     echo json_encode([

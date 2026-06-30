@@ -1,4 +1,7 @@
 let addEmployeeModal, editEmployeeModal, viewEmployeeModal, deleteEmployeeModal, toast;
+let addWizardCurrentStep = 1;
+let editWizardCurrentStep = 1;
+const WIZARD_TOTAL_STEPS = 5;
 
 document.addEventListener('DOMContentLoaded', function() {
     addEmployeeModal = new bootstrap.Modal(document.getElementById('addEmployeeModal'));
@@ -10,24 +13,142 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('employeeSearch').addEventListener('input', filterEmployees);
     document.getElementById('departmentFilter').addEventListener('change', filterEmployees);
     document.getElementById('positionFilter').addEventListener('change', filterEmployees);
-    document.getElementById('addEmployeeModal').addEventListener('hidden.bs.modal', function() { document.getElementById('addEmployeeForm').reset(); });
+    document.getElementById('subDepartmentFilter').addEventListener('change', filterEmployees);
+    document.getElementById('employmentStatusFilter').addEventListener('change', filterEmployees);
+
+    // Pre-select filters from URL query parameters
+    const params = new URLSearchParams(window.location.search);
+    const deptParam = params.get('department');
+    const posParam = params.get('position');
+    const subDeptParam = params.get('sub_department');
+    const empStatusParam = params.get('employment_status');
+    if (deptParam) { document.getElementById('departmentFilter').value = deptParam; }
+    if (posParam) { document.getElementById('positionFilter').value = posParam; }
+    if (subDeptParam) { document.getElementById('subDepartmentFilter').value = subDeptParam; }
+    if (empStatusParam) { document.getElementById('employmentStatusFilter').value = empStatusParam; }
+    if (deptParam || posParam || subDeptParam || empStatusParam) { filterEmployees(); }
+    document.getElementById('addEmployeeModal').addEventListener('show.bs.modal', function() {
+        loadRegions('add');
+    });
+    document.getElementById('addEmployeeModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('addEmployeeForm').reset();
+        resetAddWizard();
+    });
+    document.getElementById('editEmployeeModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('editEmployeeForm').reset();
+        resetEditWizard();
+    });
 });
+
+// ---- Wizard logic ----
+function resetAddWizard() {
+    addWizardCurrentStep = 1;
+    renderWizard('add');
+}
+
+function resetEditWizard() {
+    editWizardCurrentStep = 1;
+    renderWizard('edit');
+}
+
+function renderWizard(mode) {
+    const currentStep = mode === 'add' ? addWizardCurrentStep : editWizardCurrentStep;
+    const prefix = mode === 'add' ? 'add' : 'edit';
+
+    // Show/hide panes
+    for (let i = 1; i <= WIZARD_TOTAL_STEPS; i++) {
+        const pane = document.getElementById(prefix + 'WizardPane' + i);
+        if (pane) pane.classList.toggle('d-none', i !== currentStep);
+
+        // Update step indicators
+        const step = document.getElementById(prefix + 'WizardStep' + i);
+        if (step) {
+            step.classList.remove('active', 'completed');
+            if (i === currentStep) step.classList.add('active');
+            else if (i < currentStep) step.classList.add('completed');
+        }
+    }
+
+    // Update connector lines
+    const lines = document.querySelectorAll('#' + prefix + 'WizardSteps .wizard-step-line');
+    lines.forEach((line, idx) => {
+        line.classList.toggle('completed', idx + 1 < currentStep);
+    });
+
+    // Prev button
+    const prevBtn = document.getElementById(prefix + 'WizardPrevBtn');
+    if (prevBtn) prevBtn.style.display = currentStep > 1 ? '' : 'none';
+
+    // Next / Save buttons
+    const nextBtn = document.getElementById(prefix + 'WizardNextBtn');
+    const saveBtn = document.getElementById(prefix + 'WizardSaveBtn');
+    const isLast = currentStep === WIZARD_TOTAL_STEPS;
+    if (nextBtn) nextBtn.classList.toggle('d-none', isLast);
+    if (saveBtn) saveBtn.classList.toggle('d-none', !isLast);
+}
+
+function wizardStep(mode, direction) {
+    const currentStep = mode === 'add' ? addWizardCurrentStep : editWizardCurrentStep;
+
+    // Validate current step before going forward
+    if (direction === 1 && !validateWizardStep(currentStep, mode)) return;
+
+    if (mode === 'add') {
+        addWizardCurrentStep = Math.max(1, Math.min(WIZARD_TOTAL_STEPS, addWizardCurrentStep + direction));
+    } else {
+        editWizardCurrentStep = Math.max(1, Math.min(WIZARD_TOTAL_STEPS, editWizardCurrentStep + direction));
+    }
+    renderWizard(mode);
+}
+
+function validateWizardStep(step, mode) {
+    const prefix = mode === 'add' ? 'add' : 'edit';
+    const required = {
+        1: [{id: prefix + 'FirstName', label: 'First Name'}, {id: prefix + 'BDate', label: 'Birthdate'}],
+        2: [{id: prefix + 'ContactNo', label: 'Contact Number'}, {id: prefix + 'Email', label: 'Email'}, {id: prefix + 'Address', label: 'Address'}],
+        3: [{id: prefix + 'Position', label: 'Position'}, {id: prefix + 'Department', label: 'Department'}, {id: prefix + 'Company', label: 'Company'}, {id: prefix + 'EmploymentStatus', label: 'Employment Status'}, {id: prefix + 'DateHired', label: 'Date Hired'}, {id: prefix + 'DailyRate', label: 'Daily Rate'}],
+        4: [],
+        5: [],
+    };
+    const fields = required[step] || [];
+    for (const f of fields) {
+        const el = document.getElementById(f.id);
+        if (!el || !el.value.trim()) {
+            el && el.classList.add('is-invalid');
+            showToast('error', 'Required Field', f.label + ' is required.');
+            el && el.focus();
+            return false;
+        }
+        el.classList.remove('is-invalid');
+    }
+    return true;
+}
 
 function filterEmployees() {
     const search = document.getElementById('employeeSearch').value.toLowerCase();
     const dept = document.getElementById('departmentFilter').value;
     const pos = document.getElementById('positionFilter').value;
+    const subDept = document.getElementById('subDepartmentFilter').value;
+    const empStatus = document.getElementById('employmentStatusFilter').value;
     const rows = document.querySelectorAll('#employeesTableBody tr');
     let visible = 0;
     rows.forEach(row => {
         const name = row.getAttribute('data-name') || '';
         const rowDept = row.getAttribute('data-dept') || '';
         const rowPos = row.getAttribute('data-pos') || '';
-        const show = name.includes(search) && (!dept || rowDept === dept) && (!pos || rowPos === pos);
+        const rowSubDept = row.getAttribute('data-sub-dept') || '';
+        const rowEmpStatus = row.getAttribute('data-emp-status') || '';
+        const show = name.includes(search) &&
+            (!dept || rowDept === dept) &&
+            (!pos || rowPos === pos) &&
+            (!subDept || rowSubDept === subDept) &&
+            (!empStatus || rowEmpStatus === empStatus);
         row.classList.toggle('d-none', !show);
         if (show) visible++;
     });
     document.getElementById('emptyState').classList.toggle('d-none', visible > 0);
+    const totalEl = document.getElementById('totalEmployees');
+    if (totalEl) totalEl.textContent = visible;
 }
 
 function loadSubDepartments(mode) {
@@ -39,6 +160,112 @@ function loadSubDepartments(mode) {
     filtered.forEach(sd => {
         select.innerHTML += `<option value="${sd.sub_depart_id}">${sd.sub_department_name}</option>`;
     });
+}
+
+// ---- Geocode cascading address helpers ----
+async function loadRegions(mode) {
+    const select = document.getElementById(mode + 'Region');
+    if (!select) return;
+    select.innerHTML = '<option value="">Select Region</option>';
+    try {
+        const res = await fetch(`${window.BASE_URL}/api/geocode?type=regions`);
+        const result = await res.json();
+        if (!result.success) return;
+        result.data.forEach(r => {
+            select.innerHTML += `<option value="${r.region_code}">${r.region_name}</option>`;
+        });
+    } catch (e) { console.error('loadRegions', e); }
+}
+
+async function loadProvinces(mode, selectedProvinceCode = '') {
+    const regionCode = document.getElementById(mode + 'Region').value;
+    const select = document.getElementById(mode + 'Province');
+    select.innerHTML = '<option value="">Select Province</option>';
+    document.getElementById(mode + 'City').innerHTML = '<option value="">Select City / Municipality</option>';
+    document.getElementById(mode + 'Barangay').innerHTML = '<option value="">Select Barangay</option>';
+    if (!regionCode) return;
+    try {
+        const res = await fetch(`${window.BASE_URL}/api/geocode?type=provinces&parent_code=${regionCode}`);
+        const result = await res.json();
+        if (!result.success) return;
+        result.data.forEach(p => {
+            select.innerHTML += `<option value="${p.province_code}" ${p.province_code === selectedProvinceCode ? 'selected' : ''}>${p.province_name}</option>`;
+        });
+    } catch (e) { console.error('loadProvinces', e); }
+}
+
+async function loadCities(mode, selectedCityCode = '') {
+    const provinceCode = document.getElementById(mode + 'Province').value;
+    const select = document.getElementById(mode + 'City');
+    select.innerHTML = '<option value="">Select City / Municipality</option>';
+    document.getElementById(mode + 'Barangay').innerHTML = '<option value="">Select Barangay</option>';
+    if (!provinceCode) return;
+    try {
+        const res = await fetch(`${window.BASE_URL}/api/geocode?type=cities&parent_code=${provinceCode}`);
+        const result = await res.json();
+        if (!result.success) return;
+        result.data.forEach(c => {
+            select.innerHTML += `<option value="${c.city_municipality_code}" ${c.city_municipality_code === selectedCityCode ? 'selected' : ''}>${c.city_municipality_name}</option>`;
+        });
+    } catch (e) { console.error('loadCities', e); }
+}
+
+async function loadBarangays(mode, selectedBarangayCode = '') {
+    const cityCode = document.getElementById(mode + 'City').value;
+    const select = document.getElementById(mode + 'Barangay');
+    select.innerHTML = '<option value="">Select Barangay</option>';
+    if (!cityCode) return;
+    try {
+        const res = await fetch(`${window.BASE_URL}/api/geocode?type=barangays&parent_code=${cityCode}`);
+        const result = await res.json();
+        if (!result.success) return;
+        result.data.forEach(b => {
+            select.innerHTML += `<option value="${b.barangay_code}" ${b.barangay_code === selectedBarangayCode ? 'selected' : ''}>${b.barangay_name}</option>`;
+        });
+    } catch (e) { console.error('loadBarangays', e); }
+}
+
+function buildFullAddress(mode) {
+    const street = document.getElementById(mode + 'StreetAddress').value.trim();
+    const barangay = document.getElementById(mode + 'Barangay');
+    const city = document.getElementById(mode + 'City');
+    const province = document.getElementById(mode + 'Province');
+
+    const parts = [];
+    if (street) parts.push(street);
+    if (barangay && barangay.value) parts.push(barangay.options[barangay.selectedIndex].text);
+    if (city && city.value) parts.push(city.options[city.selectedIndex].text);
+    if (province && province.value) parts.push(province.options[province.selectedIndex].text);
+
+    document.getElementById(mode + 'Address').value = parts.join(', ');
+}
+
+async function restoreGeocodeAddress(mode, provinceCode, cityCode, barangayCode, streetAddress) {
+    if (!provinceCode) return;
+    try {
+        const res = await fetch(`${window.BASE_URL}/api/geocode?type=full&province_code=${provinceCode}&city_municipality_code=${cityCode || ''}&barangay_code=${barangayCode || ''}`);
+        const result = await res.json();
+        if (!result.success || !result.data.province) return;
+
+        const data = result.data;
+        const regionCode = data.province.region_code;
+
+        // Ensure regions are loaded
+        if (document.getElementById(mode + 'Region').options.length <= 1) {
+            await loadRegions(mode);
+        }
+
+        // Set region and cascade down
+        document.getElementById(mode + 'Region').value = regionCode;
+        await loadProvinces(mode, provinceCode);
+        await loadCities(mode, cityCode);
+        await loadBarangays(mode, barangayCode);
+
+        if (streetAddress) {
+            document.getElementById(mode + 'StreetAddress').value = streetAddress;
+        }
+        buildFullAddress(mode);
+    } catch (e) { console.error('restoreGeocodeAddress', e); }
 }
 
 function showToast(type, title, message) {
@@ -64,6 +291,11 @@ function collectEmployeeData(mode) {
         b_cont_no: document.getElementById(mode + 'ContactNo').value.trim(),
         b_email: document.getElementById(mode + 'Email').value.trim(),
         b_address: document.getElementById(mode + 'Address').value.trim(),
+        b_permanent_address: document.getElementById(mode + 'Address').value.trim(),
+        emp_street_address: document.getElementById(mode + 'StreetAddress').value.trim(),
+        emp_province_code: document.getElementById(mode + 'Province').value || '',
+        emp_city_code: document.getElementById(mode + 'City').value || '',
+        emp_barangay_code: document.getElementById(mode + 'Barangay').value || '',
         job_title: document.getElementById(mode + 'Position').value,
         b_department_id: document.getElementById(mode + 'Department').value,
         b_sub_department_id: document.getElementById(mode + 'SubDepartment').value || 0,
@@ -116,7 +348,10 @@ async function editEmployee(id) {
         document.getElementById('editPlaceBirth').value = e.b_placebirth || '';
         document.getElementById('editContactNo').value = e.b_cont_no || '';
         document.getElementById('editEmail').value = e.b_email || '';
-        document.getElementById('editAddress').value = e.b_address || '';
+        document.getElementById('editStreetAddress').value = e.emp_street_address || '';
+        document.getElementById('editAddress').value = e.b_permanent_address || e.b_address || '';
+        await loadRegions('edit');
+        await restoreGeocodeAddress('edit', e.emp_province_code || '', e.emp_city_code || '', e.emp_barangay_code || '', e.emp_street_address || '');
         document.getElementById('editPosition').value = e.job_title || '';
         document.getElementById('editDepartment').value = e.b_department_id || '';
         loadSubDepartments('edit');

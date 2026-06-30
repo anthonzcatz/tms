@@ -6,16 +6,19 @@ document.addEventListener('DOMContentLoaded', function() {
     deletePositionModal = new bootstrap.Modal(document.getElementById('deletePositionModal'));
     toast = new bootstrap.Toast(document.getElementById('toast'));
     document.getElementById('positionSearch').addEventListener('input', filterPositions);
+    document.getElementById('statusFilter').addEventListener('change', filterPositions);
     document.getElementById('addPositionModal').addEventListener('hidden.bs.modal', function() { document.getElementById('addPositionForm').reset(); });
 });
 
 function filterPositions() {
     const search = document.getElementById('positionSearch').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
     const rows = document.querySelectorAll('#positionsTableBody tr');
     let visible = 0;
     rows.forEach(row => {
         const name = row.getAttribute('data-name') || '';
-        const show = name.includes(search);
+        const rowStatus = row.getAttribute('data-status') || '';
+        const show = name.includes(search) && (!status || rowStatus === status);
         row.classList.toggle('d-none', !show);
         if (show) visible++;
     });
@@ -38,7 +41,11 @@ async function savePosition() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/positions`, {
             method: 'POST', headers: getHeaders(),
-            body: JSON.stringify({ position_name: name, pos_code: document.getElementById('addPositionCode').value.trim() })
+            body: JSON.stringify({
+                position_name: name,
+                pos_code: document.getElementById('addPositionCode').value.trim(),
+                status: document.getElementById('addPositionStatus').value
+            })
         });
         const result = await response.json();
         if (result.success) { showToast('success', 'Success', result.message); addPositionModal.hide(); location.reload(); }
@@ -55,6 +62,7 @@ async function editPosition(id) {
         document.getElementById('editPositionId').value = p.pos_id;
         document.getElementById('editPositionName').value = p.position_name;
         document.getElementById('editPositionCode').value = p.pos_code || '';
+        document.getElementById('editPositionStatus').value = p.status || 'active';
         editPositionModal.show();
     } catch (error) { showToast('error', 'Error', error.message); }
 }
@@ -67,7 +75,12 @@ async function updatePosition() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/positions`, {
             method: 'PUT', headers: getHeaders(),
-            body: JSON.stringify({ pos_id: id, position_name: name, pos_code: document.getElementById('editPositionCode').value.trim() })
+            body: JSON.stringify({
+                pos_id: id,
+                position_name: name,
+                pos_code: document.getElementById('editPositionCode').value.trim(),
+                status: document.getElementById('editPositionStatus').value
+            })
         });
         const result = await response.json();
         if (result.success) { showToast('success', 'Success', result.message); editPositionModal.hide(); location.reload(); }

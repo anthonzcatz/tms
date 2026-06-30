@@ -50,6 +50,8 @@
           </div>
         </div>
 
+        <?php $activeModule = 'employment-status'; include dirname(dirname(__DIR__)) . '/_partials/hr_settings_nav.php'; ?>
+
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
             <div class="card h-md-100">
@@ -75,6 +77,13 @@
                       <span class="fas fa-search search-icon"></span>
                     </div>
                   </div>
+                  <div class="col-md-2">
+                    <select class="form-select" id="statusFilter">
+                      <option value="">All Status</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -88,16 +97,23 @@
               <div class="card-body p-0">
                 <div class="table-responsive">
                   <table class="table table-hover mb-0">
-                    <thead class="bg-light"><tr><th>Status Name</th><th>Added By</th><th>Date Added</th><th class="text-end">Actions</th></tr></thead>
+                    <thead class="bg-light"><tr><th>Status Name</th><th>Status</th><th>Employees</th><th>Added By</th><th>Date Added</th><th class="text-end">Actions</th></tr></thead>
                     <tbody id="statusesTableBody">
                       <?php foreach ($employmentStatuses as $es): ?>
-                      <tr data-es-id="<?php echo $es['emp_stat_id']; ?>" data-name="<?php echo htmlspecialchars(strtolower($es['emp_stat_name'])); ?>">
+                      <tr data-es-id="<?php echo $es['emp_stat_id']; ?>" data-name="<?php echo htmlspecialchars(strtolower($es['emp_stat_name'])); ?>" data-status="<?php echo $es['status']; ?>">
                         <td class="fw-semibold"><?php echo htmlspecialchars($es['emp_stat_name']); ?></td>
+                        <td><span class="badge bg-<?php echo $es['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($es['status']); ?></span></td>
+                        <td>
+                          <a href="<?php echo BASE_URL; ?>/admin/settings/employees/?employment_status=<?php echo $es['emp_stat_id']; ?>" class="badge bg-<?php echo $es['employee_count'] > 0 ? 'info' : 'light text-dark'; ?> text-decoration-none">
+                            <?php echo $es['employee_count']; ?> employee<?php echo $es['employee_count'] !== 1 ? 's' : ''; ?>
+                          </a>
+                        </td>
                         <td><?php echo htmlspecialchars($es['added_by_name'] ?? '-'); ?></td>
                         <td><?php echo $es['emp_stat_dateadded'] ? date('M d, Y', strtotime($es['emp_stat_dateadded'])) : '-'; ?></td>
                         <td class="text-end">
+                          <a href="<?php echo BASE_URL; ?>/admin/settings/employees/?employment_status=<?php echo $es['emp_stat_id']; ?>" class="btn btn-sm btn-outline-info" title="View Employees"><span class="fas fa-users"></span></a>
                           <button class="btn btn-sm btn-outline-primary" onclick="editEmploymentStatus(<?php echo $es['emp_stat_id']; ?>)"><span class="fas fa-edit"></span></button>
-                          <button class="btn btn-sm btn-outline-danger" onclick="deleteEmploymentStatus(<?php echo $es['emp_stat_id']; ?>, '<?php echo htmlspecialchars($es['emp_stat_name'], ENT_QUOTES); ?>')"><span class="fas fa-trash"></span></button>
+                          <button class="btn btn-sm btn-outline-danger" onclick="deleteEmploymentStatus(<?php echo $es['emp_stat_id']; ?>, '<?php echo htmlspecialchars($es['emp_stat_name'], ENT_QUOTES); ?>')" <?php echo $es['employee_count'] > 0 ? 'disabled title="Cannot delete: employees are assigned"' : 'title="Delete"'; ?>><span class="fas fa-trash"></span></button>
                         </td>
                       </tr>
                       <?php endforeach; ?>

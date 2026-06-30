@@ -20,7 +20,8 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 }
 
 $positions = Database::fetchAll(
-    "SELECT p.*, ua.username AS added_by_name
+    "SELECT p.*, ua.username AS added_by_name,
+            (SELECT COUNT(*) FROM employees e WHERE e.job_title = p.pos_id) AS employee_count
      FROM position p LEFT JOIN user_accounts ua ON p.pos_addedby = ua.user_id ORDER BY p.position_name"
 );
 include __DIR__ . '/views/index.php';

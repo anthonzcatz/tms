@@ -38,10 +38,11 @@ function handlePost() {
     if (!$canCreate) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Permission denied']); exit; }
     $input = json_decode(file_get_contents('php://input'), true);
     $name = trim($input['emp_stat_name'] ?? '');
+    $status = $input['status'] ?? 'active';
     if (!$name) { echo json_encode(['success' => false, 'error' => 'Employment status name is required']); return; }
     $existing = Database::fetch('SELECT emp_stat_id FROM employment_status WHERE emp_stat_name = :name', ['name' => $name]);
     if ($existing) { echo json_encode(['success' => false, 'error' => 'Employment status already exists']); return; }
-    Database::execute('INSERT INTO employment_status (emp_stat_name, emp_stat_addedby, emp_stat_dateadded) VALUES (:name, :addedby, NOW())', ['name' => $name, 'addedby' => $user['user_id'] ?? 1]);
+    Database::execute('INSERT INTO employment_status (emp_stat_name, status, emp_stat_addedby, emp_stat_dateadded) VALUES (:name, :status, :addedby, NOW())', ['name' => $name, 'status' => $status, 'addedby' => $user['user_id'] ?? 1]);
     echo json_encode(['success' => true, 'message' => 'Employment status created successfully', 'emp_stat_id' => Database::connection()->lastInsertId()]);
 }
 
@@ -56,7 +57,10 @@ function handlePut() {
     if (!$name) { echo json_encode(['success' => false, 'error' => 'Employment status name is required']); return; }
     $existing = Database::fetch('SELECT emp_stat_id FROM employment_status WHERE emp_stat_name = :name AND emp_stat_id != :id', ['name' => $name, 'id' => (int)$id]);
     if ($existing) { echo json_encode(['success' => false, 'error' => 'Employment status already exists']); return; }
-    Database::execute('UPDATE employment_status SET emp_stat_name = :name WHERE emp_stat_id = :id', ['name' => $name, 'id' => (int)$id]);
+    $fields = ['emp_stat_name = :name'];
+    $params = ['name' => $name, 'id' => (int)$id];
+    if (isset($input['status'])) { $fields[] = 'status = :status'; $params['status'] = $input['status']; }
+    Database::execute('UPDATE employment_status SET ' . implode(', ', $fields) . ' WHERE emp_stat_id = :id', $params);
     echo json_encode(['success' => true, 'message' => 'Employment status updated successfully']);
 }
 

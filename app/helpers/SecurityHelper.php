@@ -20,15 +20,22 @@ class SecurityHelper {
             return false;
         }
         
-        // Check if token is not expired (8 hours)
-        if (time() - $_SESSION['csrf_token_time'] > 28800) {
+        // Get CSRF token lifetime from system_settings (default 8 hours = 480 minutes)
+        try {
+            $row = Database::fetch("SELECT csrf_token_lifetime_minutes FROM system_settings LIMIT 1");
+            $lifetimeMinutes = (int) ($row['csrf_token_lifetime_minutes'] ?? 480);
+        } catch (\Exception $e) {
+            $lifetimeMinutes = 480; // Fallback to 8 hours
+        }
+        $lifetimeSeconds = $lifetimeMinutes * 60;
+        
+        // Check if token is not expired
+        if (time() - $_SESSION['csrf_token_time'] > $lifetimeSeconds) {
             self::regenerateCSRFToken();
             return false;
         }
 
-        // Rolling refresh: regenerate token after each successful validation
-        self::regenerateCSRFToken();
-
+        // Don't regenerate token after successful validation to allow multiple AJAX requests
         return true;
     }
     
@@ -72,59 +79,102 @@ class SecurityHelper {
         return bin2hex(random_bytes($length));
     }
     
-    // Check rate limiting
+    // Check rate limiting — DB-backed, keyed by IP so attackers cannot bypass by clearing cookies
     public static function checkRateLimit(string $key, int $maxAttempts = 5, int $timeWindow = 300): bool {
+        $ip      = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cutoff  = date('Y-m-d H:i:s', time() - $timeWindow);
+
+        try {
+            // Count recent attempts for this IP+key within the window
+            $row = Database::fetch(
+                "SELECT COUNT(*) AS cnt FROM login_attempts
+                  WHERE ip_address = :ip AND attempt_key = :key AND attempted_at > :cutoff",
+                ['ip' => $ip, 'key' => $key, 'cutoff' => $cutoff]
+            );
+            $count = (int) ($row['cnt'] ?? 0);
+
+            if ($count >= $maxAttempts) {
+                return false; // rate limit exceeded
+            }
+
+            // Record this attempt
+            Database::execute(
+                "INSERT INTO login_attempts (ip_address, attempt_key, attempted_at) VALUES (:ip, :key, NOW())",
+                ['ip' => $ip, 'key' => $key]
+            );
+
+            // Prune old rows for this IP to keep the table lean
+            Database::execute(
+                "DELETE FROM login_attempts WHERE ip_address = :ip AND attempted_at <= :cutoff",
+                ['ip' => $ip, 'cutoff' => $cutoff]
+            );
+
+            return true;
+        } catch (\Exception $e) {
+            // If DB fails, fall back to session-based limiting (better than no limit)
+            error_log('Rate limit DB error: ' . $e->getMessage());
+            return self::checkRateLimitSession($key, $maxAttempts, $timeWindow);
+        }
+    }
+
+    // Clear rate limit for an IP+key (call after successful login)
+    public static function clearRateLimit(string $key): void {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        try {
+            Database::execute(
+                "DELETE FROM login_attempts WHERE ip_address = :ip AND attempt_key = :key",
+                ['ip' => $ip, 'key' => $key]
+            );
+        } catch (\Exception $e) {
+            // Fallback: clear session-based limit
+            unset($_SESSION['rate_limit'][$key]);
+        }
+    }
+
+    // Get remaining attempts
+    public static function getRemainingAttempts(string $key, int $maxAttempts = 5, int $timeWindow = 300): int {
+        $ip     = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $cutoff = date('Y-m-d H:i:s', time() - $timeWindow);
+        try {
+            $row = Database::fetch(
+                "SELECT COUNT(*) AS cnt FROM login_attempts
+                  WHERE ip_address = :ip AND attempt_key = :key AND attempted_at > :cutoff",
+                ['ip' => $ip, 'key' => $key, 'cutoff' => $cutoff]
+            );
+            return max(0, $maxAttempts - (int) ($row['cnt'] ?? 0));
+        } catch (\Exception $e) {
+            return $maxAttempts;
+        }
+    }
+
+    // Session-based fallback (used only when DB is unavailable)
+    private static function checkRateLimitSession(string $key, int $maxAttempts, int $timeWindow): bool {
         $currentTime = time();
-        
         if (!isset($_SESSION['rate_limit'][$key])) {
             $_SESSION['rate_limit'][$key] = [];
         }
-        
-        // Remove old attempts outside time window
         $_SESSION['rate_limit'][$key] = array_filter(
             $_SESSION['rate_limit'][$key],
             function($timestamp) use ($currentTime, $timeWindow) {
                 return $currentTime - $timestamp < $timeWindow;
             }
         );
-        
-        // Check if rate limit exceeded
         if (count($_SESSION['rate_limit'][$key]) >= $maxAttempts) {
             return false;
         }
-        
-        // Add current attempt
         $_SESSION['rate_limit'][$key][] = $currentTime;
         return true;
     }
     
-    // Get remaining attempts
-    public static function getRemainingAttempts(string $key, int $maxAttempts = 5, int $timeWindow = 300): int {
-        $currentTime = time();
-        
-        if (!isset($_SESSION['rate_limit'][$key])) {
-            return $maxAttempts;
-        }
-        
-        // Remove old attempts outside time window
-        $_SESSION['rate_limit'][$key] = array_filter(
-            $_SESSION['rate_limit'][$key],
-            function($timestamp) use ($currentTime, $timeWindow) {
-                return $currentTime - $timestamp < $timeWindow;
-            }
-        );
-        
-        return max(0, $maxAttempts - count($_SESSION['rate_limit'][$key]));
-    }
-    
     // Initialize secure session configuration (must be called BEFORE session_start())
+    // NOTE: gc_maxlifetime and cookie lifetime are managed by bootstrap.php
+    //       using the DB value from system_settings.session_lifetime_minutes.
+    //       Do NOT set them here to avoid overriding the dynamic value.
     public static function initializeSession(): void {
-        // Set secure session parameters BEFORE session starts
         ini_set('session.cookie_httponly', 1);
         ini_set('session.cookie_secure', isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on');
         ini_set('session.use_only_cookies', 1);
         ini_set('session.cookie_samesite', 'Strict');
-        ini_set('session.gc_maxlifetime', 7200); // 2 hours
         ini_set('session.use_strict_mode', 1);
     }
     
@@ -155,13 +205,14 @@ class SecurityHelper {
     }
     
     // Add security headers
+    // NOTE: X-Content-Type-Options, X-Frame-Options, Referrer-Policy are set by bootstrap.php.
+    // Only add headers here that are NOT already in bootstrap (e.g. CSP for auth pages).
+    // Avoid setting X-Frame-Options: DENY — bootstrap uses SAMEORIGIN for embedded admin widgets.
     public static function addSecurityHeaders(): void {
         if (!headers_sent()) {
-            header('X-Content-Type-Options: nosniff');
-            header('X-Frame-Options: DENY');
-            header('X-XSS-Protection: 1; mode=block');
-            header('Referrer-Policy: strict-origin-when-cross-origin');
-            header('Content-Security-Policy: default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data:; font-src \'self\';');
+            // CSP: allow self + inline styles/scripts (required by admin UI libraries)
+            // Fonts/images from CDN are allowed via data: and self
+            header('Content-Security-Policy: default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: blob:; font-src \'self\' data:;');
         }
     }
 }

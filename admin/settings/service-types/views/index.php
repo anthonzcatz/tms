@@ -57,6 +57,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeWalletModule = 'service-types'; include dirname(dirname(dirname(__DIR__))) . '/wallet/_partials/wallet_nav.php'; ?>
+
         <!-- Stats Cards -->
         <?php
         $total = count($serviceTypes);

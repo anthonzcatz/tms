@@ -113,7 +113,7 @@ class AuthController
             $this->redirect(LOGIN_URL);
         }
 
-        unset($_SESSION['rate_limit'][$rateKey]);
+        SecurityHelper::clearRateLimit($rateKey);
         SecurityHelper::regenerateCSRFToken();
 
         // Redirect to role's default dashboard
@@ -217,8 +217,10 @@ class AuthController
         );
         
         if (!$user) {
-            $_SESSION['error'] = 'The email address you entered is not registered in our system.';
-            header('Location: ' . BASE_URL . '/forgot-password');
+            // Blind response — do not reveal whether email exists (prevents email enumeration)
+            $_SESSION['success'] = 'If that email is registered, a password reset link has been sent.';
+            $_SESSION['reset_email'] = $email;
+            header('Location: ' . BASE_URL . '/confirm-mail');
             exit;
         }
         

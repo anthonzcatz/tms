@@ -60,6 +60,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeWalletModule = 'ticket-providers'; include dirname(dirname(__DIR__)) . '/_partials/wallet_nav.php'; ?>
+
         <!-- Provider Stats Cards -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
@@ -137,18 +139,34 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
-        <!-- Info Card -->
+        <!-- How it works -->
         <div class="card mb-3">
-          <div class="card-body">
-            <h6 class="fw-bold mb-3">How it works:</h6>
+          <div class="card-header bg-light py-2" style="cursor:pointer;" onclick="toggleHowItWorks()">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="fw-bold mb-0"><span class="fas fa-info-circle me-2 text-info"></span>How it works: Ticket Providers</h6>
+              <span class="fas fa-chevron-down" id="howItWorksIcon"></span>
+            </div>
+          </div>
+          <div class="card-body how-it-works-content" id="howItWorksContent" style="display:none;">
             <ul class="mb-0">
-              <li>Manage ticket providers for different transportation services (airline, shipping, bus, etc.)</li>
-              <li>Each provider can have multiple wallets across different branches</li>
-              <li>Active providers can receive transactions, inactive providers are paused</li>
-              <li>Provider codes must be unique (e.g., PAL, CEBPAC, 2GO)</li>
+              <li>Manage ticket providers for different transportation services (airline, shipping, bus, etc.).</li>
+              <li>Each provider can have <strong>multiple wallets</strong> across different branches — set them up in <em>Provider Wallets</em>.</li>
+              <li>Each provider can have <strong>service fees</strong> per branch — configure them in <em>Provider Service Fees</em>.</li>
+              <li>Active providers appear in POS; inactive providers are paused and hidden from cashiers.</li>
+              <li>Provider codes must be unique (e.g., PAL, CEBPAC, 2GO).</li>
             </ul>
           </div>
         </div>
+        <script>
+        function toggleHowItWorks() {
+          const c = document.getElementById('howItWorksContent');
+          const i = document.getElementById('howItWorksIcon');
+          const open = c.style.display !== 'none';
+          c.style.display = open ? 'none' : 'block';
+          i.classList.toggle('fa-chevron-down', open);
+          i.classList.toggle('fa-chevron-up', !open);
+        }
+        </script>
 
         <!-- Providers Table -->
         <div class="card mb-3">
@@ -211,12 +229,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         </td>
                         <td>
                           <div class="form-check form-switch">
-                            <input class="form-check-input provider-status-switch" type="checkbox" 
+                            <input class="form-check-input provider-status-switch" type="checkbox"
                                    id="providerSwitch<?php echo $provider['provider_id']; ?>"
                                    data-provider-id="<?php echo $provider['provider_id']; ?>"
                                    <?php echo $provider['status'] === 'active' ? 'checked' : ''; ?>
                                    style="width: 2.5em; height: 1.25em;">
-                            <label class="form-check-label" for="providerSwitch<?php echo $provider['provider_id']; ?>" style="font-size: 0.75rem;">
+                            <label class="form-check-label ms-2" for="providerSwitch<?php echo $provider['provider_id']; ?>" style="font-size: 0.75rem;">
                               <?php echo $provider['status'] === 'active' ? 'Active' : 'Inactive'; ?>
                             </label>
                           </div>

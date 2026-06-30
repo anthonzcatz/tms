@@ -55,6 +55,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeModule = 'companies'; include dirname(dirname(__DIR__)) . '/_partials/hr_settings_nav.php'; ?>
+
         <!-- Stats Cards -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
@@ -73,7 +75,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Active</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row">
-                  <div class="col"><p class="font-sans-serif lh-1 mb-1 fs-5 text-success" id="activeCompanies"><?php echo count(array_filter($companies, fn($c) => $c['status'] === 'active')); ?></p></div>
+                  <div class="col"><p class="font-sans-serif lh-1 mb-1 fs-5 text-success" id="activeCompanies"><?php echo count(array_filter($companies, fn($c) => $c['comp_status'] === 'active')); ?></p></div>
                   <div class="col-auto ps-0"><span class="fas fa-check-circle text-success fs-4"></span></div>
                 </div>
               </div>

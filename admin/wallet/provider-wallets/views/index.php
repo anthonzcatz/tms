@@ -67,6 +67,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeWalletModule = 'provider-wallets'; include dirname(dirname(__DIR__)) . '/_partials/wallet_nav.php'; ?>
+
         <!-- Wallet Stats Cards -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
@@ -221,6 +223,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <a href="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/" class="btn btn-outline-secondary">
                     <span class="fas fa-times me-1"></span>Clear
                   </a>
+                  <button type="button" class="btn btn-outline-primary" onclick="printWallets()">
+                    <span class="fas fa-print me-1"></span>Print
+                  </button>
                 </div>
               </div>
             </form>
@@ -349,6 +354,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <?php include __DIR__ . '/modals/edit_wallet.php'; ?>
         <?php include __DIR__ . '/modals/adjust_balance.php'; ?>
 
+        <script>
+          window.COMPANY_INFO = {
+            name: '<?php echo htmlspecialchars($systemSettings['company_name'] ?? $systemSettings['system_name'] ?? 'TMS'); ?>',
+            address: '<?php echo htmlspecialchars($systemSettings['company_address'] ?? ''); ?>',
+            contact: '<?php echo htmlspecialchars($systemSettings['company_contact_number'] ?? ''); ?>',
+            email: '<?php echo htmlspecialchars($systemSettings['company_email'] ?? ''); ?>',
+            tin: '<?php echo htmlspecialchars($systemSettings['company_tin'] ?? ''); ?>',
+            logo: '<?php echo !empty($systemSettings['system_logo']) ? BASE_URL . htmlspecialchars($systemSettings['system_logo']) : ''; ?>'
+          };
+        </script>
         <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/assets/js/provider-wallets.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-wallets.js'); ?>"></script>
 
         <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>

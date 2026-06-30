@@ -3,11 +3,8 @@
  * Session Check API
  * Returns session validity status for AJAX polling
  */
-session_start();
-
 require_once dirname(__DIR__) . '/config/bootstrap.php';
-require_once dirname(__DIR__) . '/config/database.php';
-require_once dirname(__DIR__) . '/app/helpers/Auth.php';
+// bootstrap.php starts the session with correct params — do NOT call session_start() before it
 
 header('Content-Type: application/json');
 

@@ -6,16 +6,19 @@ document.addEventListener('DOMContentLoaded', function() {
     deleteEmploymentStatusModal = new bootstrap.Modal(document.getElementById('deleteEmploymentStatusModal'));
     toast = new bootstrap.Toast(document.getElementById('toast'));
     document.getElementById('statusSearch').addEventListener('input', filterStatuses);
+    document.getElementById('statusFilter').addEventListener('change', filterStatuses);
     document.getElementById('addEmploymentStatusModal').addEventListener('hidden.bs.modal', function() { document.getElementById('addEmploymentStatusForm').reset(); });
 });
 
 function filterStatuses() {
     const search = document.getElementById('statusSearch').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
     const rows = document.querySelectorAll('#statusesTableBody tr');
     let visible = 0;
     rows.forEach(row => {
         const name = row.getAttribute('data-name') || '';
-        const show = name.includes(search);
+        const rowStatus = row.getAttribute('data-status') || '';
+        const show = name.includes(search) && (!status || rowStatus === status);
         row.classList.toggle('d-none', !show);
         if (show) visible++;
     });
@@ -36,7 +39,13 @@ async function saveEmploymentStatus() {
     if (!name) { document.getElementById('addEmploymentStatusName').classList.add('is-invalid'); return; }
     document.getElementById('addEmploymentStatusName').classList.remove('is-invalid');
     try {
-        const response = await fetch(`${window.BASE_URL}/api/employment-status`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ emp_stat_name: name }) });
+        const response = await fetch(`${window.BASE_URL}/api/employment-status`, {
+            method: 'POST', headers: getHeaders(),
+            body: JSON.stringify({
+                emp_stat_name: name,
+                status: document.getElementById('addEmploymentStatusStatus').value
+            })
+        });
         const result = await response.json();
         if (result.success) { showToast('success', 'Success', result.message); addEmploymentStatusModal.hide(); location.reload(); }
         else { showToast('error', 'Error', result.error || 'Failed to save'); }
@@ -51,6 +60,7 @@ async function editEmploymentStatus(id) {
         const es = result.data;
         document.getElementById('editEmploymentStatusId').value = es.emp_stat_id;
         document.getElementById('editEmploymentStatusName').value = es.emp_stat_name;
+        document.getElementById('editEmploymentStatusStatus').value = es.status || 'active';
         editEmploymentStatusModal.show();
     } catch (error) { showToast('error', 'Error', error.message); }
 }
@@ -61,7 +71,14 @@ async function updateEmploymentStatus() {
     if (!name) { document.getElementById('editEmploymentStatusName').classList.add('is-invalid'); return; }
     document.getElementById('editEmploymentStatusName').classList.remove('is-invalid');
     try {
-        const response = await fetch(`${window.BASE_URL}/api/employment-status`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ emp_stat_id: id, emp_stat_name: name }) });
+        const response = await fetch(`${window.BASE_URL}/api/employment-status`, {
+            method: 'PUT', headers: getHeaders(),
+            body: JSON.stringify({
+                emp_stat_id: id,
+                emp_stat_name: name,
+                status: document.getElementById('editEmploymentStatusStatus').value
+            })
+        });
         const result = await response.json();
         if (result.success) { showToast('success', 'Success', result.message); editEmploymentStatusModal.hide(); location.reload(); }
         else { showToast('error', 'Error', result.error || 'Failed to update'); }

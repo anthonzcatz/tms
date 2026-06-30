@@ -177,9 +177,9 @@ class SidebarHelper {
         }
         
         $fullRequestPath = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
-        
+
         // Strip the BASE_URL path prefix (e.g. /TMS) from the request URI
-        $basePath = rtrim(parse_url(BASE_URL, PHP_URL_PATH), '/');
+        $basePath = rtrim(parse_url(BASE_URL, PHP_URL_PATH) ?: '', '/');
         if ($basePath && strpos($fullRequestPath, $basePath) === 0) {
             $currentPath = substr($fullRequestPath, strlen($basePath));
         } else {

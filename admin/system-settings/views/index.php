@@ -804,6 +804,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                             <small class="text-muted">How long a session stays alive. Default 120 min (2 hrs). Range 5–1440.</small>
                           </div>
                           <div class="col-md-4">
+                            <label class="form-label fw-semibold">CSRF Token Lifetime <span class="text-muted fw-normal">(minutes)</span></label>
+                            <input type="number" class="form-control" name="csrf_token_lifetime_minutes"
+                                   value="<?php echo intval($settings['csrf_token_lifetime_minutes'] ?? 480); ?>"
+                                   min="5" max="1440" step="5">
+                            <small class="text-muted">How long CSRF tokens remain valid. Default 480 min (8 hrs). Range 5–1440.</small>
+                          </div>
+                          <div class="col-md-4">
                             <label class="form-label fw-semibold">Session Warning Timeout <span class="text-muted fw-normal">(minutes)</span></label>
                             <input type="number" class="form-control" name="session_warning_timeout"
                                    value="<?php echo intval($settings['session_warning_timeout'] ?? 15); ?>"
