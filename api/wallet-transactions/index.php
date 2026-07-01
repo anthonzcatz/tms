@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/NotificationService.php';
 
 // Helper function for logging activity
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
@@ -410,6 +411,78 @@ function handlePost() {
                 'remarks' => $remarks
             ]
         );
+
+        // Notification triggers
+        // Get configurable threshold from system settings
+        $thresholdSetting = Database::fetch(
+            "SELECT setting_value FROM system_notification_settings WHERE setting_key = 'wallet_transaction_threshold'"
+        );
+        $largeTransactionThreshold = $thresholdSetting ? (float)$thresholdSetting['setting_value'] : 10000;
+
+        // Get wallet details for threshold check
+        $wallet = Database::fetch(
+            "SELECT pw.*, tp.provider_name, bb.branch_name 
+             FROM provider_wallets pw
+             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+             WHERE pw.wallet_id = :wallet_id",
+            ['wallet_id' => (int)$walletId]
+        );
+
+        // Low balance alert - notify wallet owner and SUPER_ADMIN
+        if ($wallet) {
+            $lowBalanceThreshold = $wallet['min_balance'] ?? 1000; // Use wallet's threshold or default to 1000
+
+            if ($balanceAfter < $lowBalanceThreshold && $direction === 'OUT') {
+                // Notify wallet owner (provider admin)
+                $providerAdmins = Database::fetchAll(
+                    "SELECT ua.user_id 
+                     FROM user_accounts ua
+                     WHERE ua.branch_id = :branch_id 
+                     AND ua.role_code IN ('SUPER_ADMIN', 'ADMIN')
+                     AND ua.status = 'active'",
+                    ['branch_id' => $wallet['branch_id']]
+                );
+
+                foreach ($providerAdmins as $admin) {
+                    NotificationService::createFromTemplate('wallet_low', $admin['user_id'], [
+                        'wallet_id' => $wallet['provider_name'] . ' - ' . $wallet['branch_name'],
+                        'balance' => number_format($balanceAfter, 2)
+                    ]);
+                }
+
+                // Notify SUPER_ADMIN
+                $superAdmins = Database::fetchAll(
+                    "SELECT ua.user_id FROM user_accounts ua
+                     JOIN user_roles r ON ua.role_id = r.role_id
+                     WHERE r.role_code = 'SUPER_ADMIN' AND ua.status = 'active'"
+                );
+
+                foreach ($superAdmins as $superAdmin) {
+                    NotificationService::createFromTemplate('wallet_low', $superAdmin['user_id'], [
+                        'wallet_id' => $wallet['provider_name'] . ' - ' . $wallet['branch_name'],
+                        'balance' => number_format($balanceAfter, 2)
+                    ]);
+                }
+            }
+        }
+
+        // Large transaction alert - notify SUPER_ADMIN and ADMIN
+        if ((float)$amount >= $largeTransactionThreshold && $wallet) {
+            $adminUsers = Database::fetchAll(
+                "SELECT ua.user_id FROM user_accounts ua
+                 JOIN user_roles r ON ua.role_id = r.role_id
+                 WHERE r.role_code IN ('SUPER_ADMIN', 'ADMIN') AND ua.status = 'active'"
+            );
+
+            foreach ($adminUsers as $admin) {
+                NotificationService::createFromTemplate('wallet_transaction', $admin['user_id'], [
+                    'transaction_type' => $txnType,
+                    'amount' => number_format($amount, 2),
+                    'wallet_id' => $wallet['provider_name'] . ' - ' . $wallet['branch_name']
+                ]);
+            }
+        }
 
         echo json_encode(['success' => true, 'message' => 'Transaction created successfully', 'csrf_token' => SecurityHelper::generateCSRFToken()]);
     } catch (Exception $e) {

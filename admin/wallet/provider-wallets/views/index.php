@@ -174,7 +174,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             <form method="GET" id="filterForm">
               <!-- Quick Search (client-side) -->
               <div class="row g-3 mb-3">
-                <div class="col-12 col-md-4">
+                <div class="col-12">
                   <label class="form-label small text-muted mb-1">Quick Search</label>
                   <div class="search-box position-relative">
                     <input type="text" class="form-control ps-4" id="walletSearch" placeholder="Search wallet name...">
@@ -292,14 +292,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <!--/.bg-holder-->
                   <div class="card-body position-relative">
                     <div class="d-flex align-items-start justify-content-between mb-2">
-                      <h6 class="mb-0"><?php echo htmlspecialchars($wallet['wallet_name']); ?></h6>
-                      <div class="form-check form-switch ms-2">
+                      <h6 class="mb-0 flex-grow-1"><?php echo htmlspecialchars($wallet['wallet_name']); ?></h6>
+                      <div class="form-check form-switch ms-2 d-flex align-items-center">
                         <input class="form-check-input wallet-status-switch" type="checkbox" 
                                id="walletSwitch<?php echo $wallet['wallet_id']; ?>"
                                data-wallet-id="<?php echo $wallet['wallet_id']; ?>"
                                <?php echo $wallet['status'] === 'active' ? 'checked' : ''; ?>
                                style="width: 2.5em; height: 1.25em;">
-                        <label class="form-check-label" for="walletSwitch<?php echo $wallet['wallet_id']; ?>" style="font-size: 0.75rem;">
+                        <label class="form-check-label ms-2" for="walletSwitch<?php echo $wallet['wallet_id']; ?>" style="font-size: 0.75rem; white-space: nowrap;">
                           <?php echo $wallet['status'] === 'active' ? 'Active' : 'Inactive'; ?>
                         </label>
                       </div>
@@ -310,14 +310,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <p class="mb-2 text-muted fs-10">
                       <span class="fas fa-building me-1"></span><?php echo htmlspecialchars($wallet['branch_name']); ?>
                     </p>
-                    <div class="d-flex gap-2 mt-3">
-                      <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" onclick="viewWallet(<?php echo $wallet['wallet_id']; ?>)">
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                      <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1 flex-sm-grow-0" onclick="viewWallet(<?php echo $wallet['wallet_id']; ?>)">
                         <span class="fas fa-eye me-1"></span>View
                       </button>
-                      <button type="button" class="btn btn-sm btn-outline-success" onclick="editWallet(<?php echo $wallet['wallet_id']; ?>)">
+                      <button type="button" class="btn btn-sm btn-outline-success flex-grow-1 flex-sm-grow-0" onclick="editWallet(<?php echo $wallet['wallet_id']; ?>)">
                         <span class="fas fa-edit"></span>
                       </button>
-                      <button type="button" class="btn btn-sm btn-outline-info" onclick="adjustBalance(<?php echo $wallet['wallet_id']; ?>)">
+                      <button type="button" class="btn btn-sm btn-outline-info flex-grow-1 flex-sm-grow-0" onclick="adjustBalance(<?php echo $wallet['wallet_id']; ?>)">
                         <span class="fas fa-exchange-alt"></span>
                       </button>
                     </div>

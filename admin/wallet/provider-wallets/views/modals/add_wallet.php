@@ -38,6 +38,14 @@
               </div>
             </div>
             <div class="col-md-6">
+              <label for="addMinBalance" class="form-label fw-bold">Min Balance Threshold</label>
+              <div class="input-group">
+                <span class="input-group-text">₱</span>
+                <input type="number" class="form-control" id="addMinBalance" name="min_balance" placeholder="1000.00" step="0.01" min="0" value="1000">
+              </div>
+              <small class="text-muted form-text">Alert when balance falls below this amount</small>
+            </div>
+            <div class="col-md-6">
               <label for="addStatus" class="form-label fw-bold">Status</label>
               <select class="form-select" id="addStatus" name="status">
                 <option value="active">Active</option>

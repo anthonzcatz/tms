@@ -73,5 +73,5 @@ if (isset($routes[$path])) {
 
 // 404 - Page not found
 http_response_code(404);
-echo '<h1>404 - Page Not Found</h1><p>The requested page does not exist.</p>';
+include __DIR__ . '/includes/404.php';
 exit;

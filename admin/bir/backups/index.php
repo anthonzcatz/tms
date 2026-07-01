@@ -9,9 +9,10 @@ require_once dirname(__DIR__) . '/_guard.php';
 $user = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
 
-$allowedRoles = ['SUPER_ADMIN', 'ADMIN'];
-if (!in_array($userRoleCode, $allowedRoles)) {
-    header('Location: ' . BASE_URL . '/admin/bir/');
+// Only SUPER_ADMIN can access database backups
+if ($userRoleCode !== 'SUPER_ADMIN') {
+    $message = 'You do not have permission to access BIR Database Backups. This section is restricted to Super Administrators only.';
+    include dirname(dirname(dirname(__DIR__))) . '/admin/includes/access-denied.php';
     exit;
 }
 

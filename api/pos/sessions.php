@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/NotificationService.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
     $now = date('Y-m-d H:i:s');
@@ -347,6 +348,29 @@ function handlePut() {
             Database::connection()->commit();
 
             logActivity($user['user_id'], 'CLOSE_SESSION', 'POS', "SES-{$sessionId}", null, ['closing_cash' => $closingCash, 'variance' => $variance]);
+
+            // Notification trigger for cash discrepancy
+            // Get configurable threshold from system settings
+            $thresholdSetting = Database::fetch(
+                "SELECT setting_value FROM system_notification_settings WHERE setting_key = 'pos_session_variance_threshold'"
+            );
+            $discrepancyThreshold = $thresholdSetting ? (float)$thresholdSetting['setting_value'] : 100;
+            if (abs($variance) >= $discrepancyThreshold) {
+                $status = ($variance > 0) ? 'overage' : 'shortage';
+                $adminUsers = Database::fetchAll(
+                    "SELECT ua.user_id FROM user_accounts ua
+                     JOIN user_roles r ON ua.role_id = r.role_id
+                     WHERE r.role_code IN ('SUPER_ADMIN', 'ADMIN', 'MANAGER') AND ua.status = 'active'"
+                );
+
+                foreach ($adminUsers as $admin) {
+                    NotificationService::createFromTemplate('pos_session', $admin['user_id'], [
+                        'session_id' => $session['session_code'],
+                        'status' => $status . ' of ' . number_format(abs($variance), 2)
+                    ]);
+                }
+            }
+
             echo json_encode(['success' => true, 'message' => 'Session closed.', 'variance' => $variance]);
             return;
         } catch (Exception $e) {

@@ -27,7 +27,15 @@
             </div>
           </div>
           <div class="row g-3">
-            <div class="col-md-12">
+            <div class="col-md-6">
+              <label for="editMinBalance" class="form-label fw-bold">Min Balance Threshold</label>
+              <div class="input-group">
+                <span class="input-group-text">₱</span>
+                <input type="number" class="form-control" id="editMinBalance" name="min_balance" placeholder="1000.00" step="0.01" min="0">
+              </div>
+              <small class="text-muted form-text">Alert when balance falls below this amount</small>
+            </div>
+            <div class="col-md-6">
               <label for="editStatus" class="form-label fw-bold">Status</label>
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="editStatus" name="status" style="width: 3em; height: 1.5em;">

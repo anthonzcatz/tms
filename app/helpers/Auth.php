@@ -357,11 +357,13 @@ final class Auth
         if (!is_array($permissions)) {
             return false;
         }
+        // Normalize: strip trailing slash for comparison
+        $normalizedUrl = rtrim($menuUrl, '/');
         foreach ($permissions as $perm) {
             if (!is_array($perm)) {
                 continue;
             }
-            if (isset($perm['menu_url']) && $perm['menu_url'] === $menuUrl) {
+            if (isset($perm['menu_url']) && rtrim($perm['menu_url'], '/') === $normalizedUrl) {
                 return true;
             }
         }

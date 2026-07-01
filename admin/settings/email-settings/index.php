@@ -20,9 +20,8 @@ header('Expires: 0');
 Auth::requireLogin();
 // SUPER_ADMIN has access to everything
 $user = Auth::user();
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
-    // Allow
-} elseif (!Auth::canAccessModule('admin/settings/email-settings/')) {
+if (!$user || $user['role_code'] !== 'SUPER_ADMIN') {
+    $message = 'You do not have permission to access Email Settings. This section is restricted to Super Administrators only.';
     http_response_code(403);
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;

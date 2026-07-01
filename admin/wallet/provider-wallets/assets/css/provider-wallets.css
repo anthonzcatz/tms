@@ -30,3 +30,28 @@
     font-size: 0.875rem;
     color: #6c757d;
 }
+
+/* Wallet card hover effect */
+#walletCardsContainer .card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#walletCardsContainer .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Fix switch and label alignment */
+.form-check.form-switch {
+    display: flex;
+    align-items: center;
+}
+
+.form-check.form-switch .form-check-input {
+    margin: 0;
+}
+
+.form-check.form-switch .form-check-label {
+    margin-left: 0.5rem;
+    line-height: 1.5;
+}

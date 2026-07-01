@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/NotificationService.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
@@ -23,6 +24,11 @@ if ($user['role_code'] !== 'SUPER_ADMIN') {
     include dirname(__DIR__) . '/includes/access-denied.php';
     exit;
 }
+
+// Fetch current settings BEFORE POST to detect changes
+$settings = Database::fetch(
+    "SELECT * FROM system_settings WHERE setting_id = 1"
+);
 
 // Handle ?layout= param (same as _guard.php) so navbar position changes work on this page
 $allowedNavbarPositions = ['vertical', 'top', 'combo', 'double-top'];
@@ -198,7 +204,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Clear maintenance settings cache so changes take effect immediately
         unset($_SESSION['maintenance_settings_cache']);
         unset($_SESSION['maintenance_settings_cache_time']);
-        
+
+        // Notification trigger for maintenance mode change
+        $oldMaintenanceMode = $settings['maintenance_mode'] ?? 0;
+        $newMaintenanceMode = $data['maintenance_mode'] ?? 0;
+
+        if ($oldMaintenanceMode !== $newMaintenanceMode) {
+            $adminUsers = Database::fetchAll(
+                "SELECT ua.user_id FROM user_accounts ua
+                 JOIN user_roles r ON ua.role_id = r.role_id
+                 WHERE r.role_code IN ('SUPER_ADMIN', 'ADMIN') AND ua.status = 'active'"
+            );
+
+            $status = $newMaintenanceMode ? 'enabled' : 'disabled';
+            foreach ($adminUsers as $admin) {
+                NotificationService::createFromTemplate('system_maintenance', $admin['user_id'], [
+                    'status' => $status,
+                    'details' => $data['maintenance_message'] ?? 'System maintenance'
+                ]);
+            }
+        }
+
         Database::connection()->commit();
         
         $_SESSION['success_message'] = 'System settings updated successfully.';
@@ -211,15 +237,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
-
-// Fetch current settings
-$maintenanceCacheKey = 'maintenance_settings_cache';
-unset($_SESSION[$maintenanceCacheKey]);
-unset($_SESSION[$maintenanceCacheKey . '_time']);
-
-$settings = Database::fetch(
-    "SELECT * FROM system_settings WHERE setting_id = 1"
-);
 
 // Common timezones
 $timezones = [

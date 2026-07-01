@@ -1,0 +1,42 @@
+/* Notification Preferences Module Styles */
+
+.channel-badge {
+    cursor: default;
+    transition: opacity 0.15s ease;
+}
+
+.channel-badge:hover {
+    opacity: 0.8;
+}
+
+.remove-channel {
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0 0.25rem;
+}
+
+.remove-channel:hover {
+    opacity: 0.7;
+}
+
+.add-channel-link {
+    cursor: pointer;
+}
+
+/* Table row hover effect */
+table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+table tbody tr:hover {
+    background-color: var(--falcon-100);
+}
+
+/* Card hover effect */
+.card {
+    transition: box-shadow 0.15s ease;
+}
+
+.card:hover {
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}

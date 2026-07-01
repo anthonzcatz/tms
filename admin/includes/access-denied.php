@@ -67,7 +67,7 @@ if ($user && isset($user['default_dashboard']) && !empty($user['default_dashboar
                   <a href="<?php echo $defaultDashboard; ?>" class="btn btn-primary">
                     <span class="fas fa-home me-2"></span>Return to Dashboard
                   </a>
-                  <a href="mailto:support@tms.com" class="btn btn-outline-secondary">
+                  <a href="<?php echo BASE_URL; ?>/admin/support/" class="btn btn-outline-secondary">
                     <span class="fas fa-question-circle me-2"></span>Contact Support
                   </a>
                 </div>

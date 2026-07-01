@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/NotificationService.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
     $now = date('Y-m-d H:i:s');
@@ -160,6 +161,39 @@ if ($method === 'PUT') {
                 }
 
                 logActivity($user['user_id'], $action . '_PAYMENT', 'Bank Confirmations', "PAY-{$payId}", null, ['status' => $action]);
+
+                // Payment notification triggers
+                if ($action === 'CONFIRMED') {
+                    // Notify user who made the payment
+                    if ($existing['created_by']) {
+                        NotificationService::createFromTemplate('payment_confirmed', $existing['created_by'], [
+                            'amount' => number_format($existing['amount'], 2),
+                            'reference' => "PAY-{$payId}"
+                        ]);
+                    }
+                } else if ($action === 'REJECTED') {
+                    // Notify user and SUPER_ADMIN about failed payment
+                    if ($existing['created_by']) {
+                        NotificationService::createFromTemplate('payment_failed', $existing['created_by'], [
+                            'amount' => number_format($existing['amount'], 2),
+                            'reference' => "PAY-{$payId}"
+                        ]);
+                    }
+
+                    // Also notify SUPER_ADMIN
+                    $superAdmins = Database::fetchAll(
+                        "SELECT ua.user_id FROM user_accounts ua
+                         JOIN user_roles r ON ua.role_id = r.role_id
+                         WHERE r.role_code = 'SUPER_ADMIN' AND ua.status = 'active'"
+                    );
+
+                    foreach ($superAdmins as $superAdmin) {
+                        NotificationService::createFromTemplate('payment_failed', $superAdmin['user_id'], [
+                            'amount' => number_format($existing['amount'], 2),
+                            'reference' => "PAY-{$payId}"
+                        ]);
+                    }
+                }
             }
 
             if ($depositId) {

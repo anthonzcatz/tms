@@ -104,7 +104,7 @@
           </div>
         </div>
 
-        <!-- Deposit Options -->
+        <!-- Deposit Options hidden
         <div class="card bg-light mt-4">
           <div class="card-body py-3">
             <h6 class="fw-bold mb-3"><span class="fas fa-university me-2 text-primary"></span>Cash Deposit Options</h6>
@@ -135,6 +135,7 @@
             </div>
           </div>
         </div>
+        -->
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeModalCancelBtn">Cancel</button>

@@ -61,6 +61,7 @@ async function saveWallet() {
     const providerId = document.getElementById('addProviderId').value;
     const branchId = document.getElementById('addBranchId').value;
     const initialBalance = document.getElementById('addInitialBalance').value;
+    const minBalance = document.getElementById('addMinBalance').value;
     const status = document.getElementById('addStatus').value;
     
     if (!providerId || !branchId) {
@@ -87,6 +88,7 @@ async function saveWallet() {
                 provider_id: providerId,
                 branch_id: branchId,
                 initial_balance: parseFloat(initialBalance) || 0,
+                min_balance: parseFloat(minBalance) || 1000,
                 status: status
             })
         });
@@ -119,6 +121,7 @@ async function editWallet(walletId) {
             document.getElementById('editProviderName').textContent = wallet.provider_name || '-';
             document.getElementById('editBranchName').textContent = wallet.branch_name || '-';
             document.getElementById('editCurrentBalance').textContent = parseFloat(wallet.current_balance).toFixed(2);
+            document.getElementById('editMinBalance').value = wallet.min_balance || 1000;
             
             // Set current status
             document.getElementById('editStatus').checked = wallet.status === 'active';
@@ -174,6 +177,7 @@ async function updateWallet() {
     const walletId = document.getElementById('editWalletId').value;
     const statusCheckbox = document.getElementById('editStatus');
     const status = statusCheckbox.checked ? 'active' : 'inactive';
+    const minBalance = document.getElementById('editMinBalance').value;
     
     try {
         // Get CSRF token
@@ -187,13 +191,20 @@ async function updateWallet() {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
         
+        const requestBody = {
+            wallet_id: walletId,
+            status: status
+        };
+        
+        // Only include min_balance if it has a value
+        if (minBalance !== '') {
+            requestBody.min_balance = parseFloat(minBalance);
+        }
+        
         const response = await fetch(`${window.BASE_URL}/api/wallets`, {
             method: 'PUT',
             headers: headers,
-            body: JSON.stringify({
-                wallet_id: walletId,
-                status: status
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const result = await response.json();

@@ -23,8 +23,9 @@ $user = Auth::user();
 if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow
 } elseif (!Auth::canAccessModule('admin/wallet/wallet-transactions/')) {
+    $message = 'You do not have permission to access the Wallet Transactions module.';
     http_response_code(403);
-    include dirname(__DIR__) . '/includes/access-denied.php';
+    include dirname(dirname(dirname(__DIR__))) . '/admin/includes/access-denied.php';
     exit;
 }
 

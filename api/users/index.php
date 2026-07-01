@@ -206,6 +206,7 @@ function handleGet() {
             ua.allowed_login_end,
             ua.allowed_days,
             ua.has_restricted_transport,
+            ua.last_login_at,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -787,10 +788,12 @@ function handleBulkUpdate($data) {
     // Decode user IDs
     $decodedIds = [];
     foreach ($userIds as $id) {
+        error_log("Decoding ID: " . var_export($id, true));
         $decoded = IdEncoder::decode($id);
+        error_log("Decoded result: " . var_export($decoded, true));
         if ($decoded === false) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Invalid user ID']);
+            echo json_encode(['success' => false, 'error' => 'Invalid user ID: ' . $id]);
             return;
         }
         $decodedIds[] = $decoded;
@@ -799,9 +802,9 @@ function handleBulkUpdate($data) {
     // Prevent deactivating super admin accounts
     if ($status === 'inactive') {
         $placeholders = implode(',', array_fill(0, count($decodedIds), '?'));
-        $sql = "SELECT user_id, role_code FROM user_accounts WHERE user_id IN ($placeholders)";
+        $sql = "SELECT ua.user_id, ur.role_code FROM user_accounts ua LEFT JOIN user_roles ur ON ua.role_id = ur.role_id WHERE ua.user_id IN ($placeholders)";
         $users = Database::fetchAll($sql, $decodedIds);
-        
+
         foreach ($users as $user) {
             if ($user['role_code'] === 'SUPER_ADMIN') {
                 http_response_code(403);
@@ -817,17 +820,21 @@ function handleBulkUpdate($data) {
     $params = array_merge([$status], $decodedIds);
     
     try {
+        error_log("Bulk update SQL: " . $sql);
+        error_log("Bulk update params: " . json_encode($params));
         $result = Database::execute($sql, $params);
-        
+
         if ($result) {
             echo json_encode(['success' => true, 'message' => count($decodedIds) . ' user(s) updated successfully']);
         } else {
+            error_log("Bulk update execute returned false");
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => 'Failed to update users']);
         }
     } catch (Exception $e) {
         error_log("Bulk update error: " . $e->getMessage());
+        error_log("Bulk update trace: " . $e->getTraceAsString());
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Internal server error']);
+        echo json_encode(['success' => false, 'error' => 'Internal server error: ' . $e->getMessage()]);
     }
 }

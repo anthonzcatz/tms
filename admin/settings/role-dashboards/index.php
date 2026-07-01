@@ -7,9 +7,8 @@ require_once dirname(dirname(__DIR__)) . '/_guard.php';
 
 // Permission gatekeeper - only SUPER_ADMIN can manage role dashboards
 $user = Auth::user();
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
-    // Allow
-} elseif (!Auth::canAccessModule('admin/settings/role-dashboards/')) {
+if (!$user || $user['role_code'] !== 'SUPER_ADMIN') {
+    $message = 'You do not have permission to access Role Dashboard settings. This section is restricted to Super Administrators only.';
     http_response_code(403);
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;

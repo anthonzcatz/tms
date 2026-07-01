@@ -3,6 +3,9 @@
  * User model — encapsulates all queries against `user_accounts`.
  * Keeps SQL out of controllers and is easy to reuse from REST API.
  */
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../helpers/NotificationService.php';
+
 final class User
 {
     /** Find an active (not soft-deleted) user by email. */
@@ -59,6 +62,15 @@ final class User
     {
         // Lock the account for 15 min after 5 consecutive failed attempts.
         $lockedUntil = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+        
+        // Get current failed attempts before updating
+        $user = Database::fetch(
+            "SELECT failed_login_attempts, username FROM user_accounts WHERE user_id = :id",
+            ['id' => $userId]
+        );
+        
+        $willLock = ($user && $user['failed_login_attempts'] + 1 >= 5);
+        
         Database::execute(
             "UPDATE user_accounts
                 SET failed_login_attempts = failed_login_attempts + 1,
@@ -70,6 +82,22 @@ final class User
               WHERE user_id = :id",
             ['id' => $userId, 'locked_until' => $lockedUntil]
         );
+
+        // Notification trigger for account lockout
+        if ($willLock) {
+            $adminUsers = Database::fetchAll(
+                "SELECT ua.user_id FROM user_accounts ua
+                 JOIN user_roles r ON ua.role_id = r.role_id
+                 WHERE r.role_code IN ('SUPER_ADMIN', 'ADMIN') AND ua.status = 'active'"
+            );
+
+            foreach ($adminUsers as $admin) {
+                NotificationService::createFromTemplate('security_alert', $admin['user_id'], [
+                    'event' => 'Account locked due to multiple failed login attempts',
+                    'user' => $user['username'] ?? 'Unknown user'
+                ]);
+            }
+        }
     }
 
     public static function recordSuccessfulLogin(int $userId): void

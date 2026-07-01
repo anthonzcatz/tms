@@ -65,7 +65,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <!-- Provider Stats Cards -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
-            <div class="card h-md-100">
+            <div class="card stat-hover h-md-100">
               <div class="card-header pb-0">
                 <h6 class="mb-0 mt-2">Total Providers</h6>
               </div>
@@ -84,7 +84,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
           <div class="col-sm-6 col-md-3">
-            <div class="card h-md-100">
+            <div class="card stat-hover h-md-100">
               <div class="card-header pb-0">
                 <h6 class="mb-0 mt-2">Active Providers</h6>
               </div>
@@ -103,7 +103,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
           <div class="col-sm-6 col-md-3">
-            <div class="card h-md-100">
+            <div class="card stat-hover h-md-100">
               <div class="card-header pb-0">
                 <h6 class="mb-0 mt-2">Inactive Providers</h6>
               </div>
@@ -122,7 +122,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
           <div class="col-sm-6 col-md-3">
-            <div class="card h-100">
+            <div class="card stat-hover h-100">
               <div class="card-body d-flex align-items-center">
                 <div class="w-100">
                   <h6 class="mb-3 text-800">Provider Types</h6>
@@ -169,7 +169,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         </script>
 
         <!-- Providers Table -->
-        <div class="card mb-3">
+        <div class="card mb-3 overflow-visible">
           <div class="card-header bg-light py-3">
             <div class="row align-items-center">
               <div class="col">

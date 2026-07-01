@@ -78,6 +78,10 @@ function initComponents() {
     // Initialize Choices.js for branch multi-select
     const branchSelect = document.getElementById('branchId');
     if (branchSelect && typeof Choices !== 'undefined') {
+        // Check if already initialized
+        if (branchChoices) {
+            branchChoices.destroy();
+        }
         // Parse data-options if present
         let options = {};
         const dataOptions = branchSelect.getAttribute('data-options');
@@ -463,7 +467,7 @@ function renderUsersTable() {
                             <input class="form-check-input user-checkbox" type="checkbox" 
                                    data-user-id="${user.user_id}" ${isSelected ? 'checked' : ''}>
                         </div>
-                        <div class="avatar ${isOnline ? 'status-online' : ''}" style="width:48px; height:48px; flex-shrink:0; position:relative;">
+                        <div class="avatar ${isOnline ? 'status-online' : ''}" style="width:56px; height:56px; flex-shrink:0; position:relative;">
                             ${avatarContent}
                         </div>
                         <div class="flex-grow-1">
@@ -1747,10 +1751,11 @@ function exportUsers(format) {
  */
 async function bulkActivate() {
     if (selectedUsers.size === 0) return;
-    
+
     try {
-        const userIds = Array.from(selectedUsers);
-        
+        const userIds = Array.from(selectedUsers).map(id => parseInt(id));
+        console.log('Sending user IDs for activation:', userIds);
+
         const response = await fetch(`${BASE_URL}/api/users/index.php`, {
             method: 'POST',
             headers: {
@@ -1763,9 +1768,10 @@ async function bulkActivate() {
                 status: 'active'
             })
         });
-        
+
         const result = await response.json();
-        
+        console.log('Activate response:', result);
+
         if (result.success) {
             showToast('success', 'Success', `${selectedUsers.size} user(s) activated successfully`);
             // Reload page to refresh CSRF token
@@ -1783,10 +1789,11 @@ async function bulkActivate() {
 
 async function bulkDeactivate() {
     if (selectedUsers.size === 0) return;
-    
+
     try {
-        const userIds = Array.from(selectedUsers);
-        
+        const userIds = Array.from(selectedUsers).map(id => parseInt(id));
+        console.log('Sending user IDs for deactivation:', userIds);
+
         const response = await fetch(`${BASE_URL}/api/users/index.php`, {
             method: 'POST',
             headers: {
@@ -1799,9 +1806,10 @@ async function bulkDeactivate() {
                 status: 'inactive'
             })
         });
-        
+
         const result = await response.json();
-        
+        console.log('Deactivate response:', result);
+
         if (result.success) {
             showToast('success', 'Success', `${selectedUsers.size} user(s) deactivated successfully`);
             // Reload page to refresh CSRF token

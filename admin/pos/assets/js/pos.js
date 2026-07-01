@@ -1761,8 +1761,10 @@ async function submitCloseSession() {
 
     const closingCash = parseFloat(document.getElementById('closingCash').value.replace(/,/g, '')) || 0;
     const notes = document.getElementById('closingNotes').value.trim();
-    const bankAccountId = document.getElementById('depositBankAccountId').value || null;
-    const depositNow = document.getElementById('depositNow').checked;
+    const bankAccountEl = document.getElementById('depositBankAccountId');
+    const bankAccountId = bankAccountEl ? bankAccountEl.value : null;
+    const depositNowEl = document.getElementById('depositNow');
+    const depositNow = depositNowEl ? depositNowEl.checked : false;
 
     const btn = document.querySelector('#closeSessionModal .btn-danger');
     const originalText = btn.innerHTML;

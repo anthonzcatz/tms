@@ -70,7 +70,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <!-- Service Fees Stats Cards -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">
-            <div class="card h-md-100">
+            <div class="card stat-hover h-md-100">
               <div class="card-header pb-0">
                 <h6 class="mb-0 mt-2">Total Service Fees</h6>
               </div>
@@ -89,7 +89,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
           <div class="col-sm-6 col-md-3">
-            <div class="card h-md-100">
+            <div class="card stat-hover h-md-100">
               <div class="card-header pb-0">
                 <h6 class="mb-0 mt-2">Active Fees</h6>
               </div>
@@ -108,7 +108,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
           <div class="col-sm-6 col-md-3">
-            <div class="card h-md-100">
+            <div class="card stat-hover h-md-100">
               <div class="card-header pb-0">
                 <h6 class="mb-0 mt-2">Inactive Fees</h6>
               </div>
@@ -127,7 +127,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             </div>
           </div>
           <div class="col-sm-6 col-md-3">
-            <div class="card h-100">
+            <div class="card stat-hover h-100">
               <div class="card-body d-flex align-items-center">
                 <div class="w-100">
                   <h6 class="mb-3 text-800">Fee Types</h6>
@@ -180,7 +180,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         </script>
 
         <!-- Filter Section -->
-        <div class="card mb-3">
+        <div class="card mb-3 overflow-visible">
           <div class="card-body py-3">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-3">
@@ -262,7 +262,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                    data-status="<?php echo $fee['is_active'] ? 'active' : 'inactive'; ?>"
                    data-fee-type="<?php echo htmlspecialchars($fee['fee_type'] ?? ''); ?>"
                    data-fee-type-search="<?php echo strtolower(htmlspecialchars($fee['fee_type'] ?? '')); ?>">
-                <div class="card overflow-hidden shadow-sm h-100" style="min-width: 12rem">
+                <div class="card overflow-visible shadow-sm h-100" style="min-width: 12rem">
                   <div class="bg-holder bg-card" style="background-image:url(<?php echo BASE_URL; ?>/resources/assets/img/icons/spot-illustrations/corner-1.png);">
                   </div>
                   <!--/.bg-holder-->

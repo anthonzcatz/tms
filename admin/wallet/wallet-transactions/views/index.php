@@ -269,7 +269,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               </div>
               <div class="card-body p-0">
                 <div class="table-responsive">
-                  <table class="table table-striped mb-0">
+                  <table class="table table-striped table-hover mb-0">
                     <thead>
                       <tr>
                         <th>Txn Code</th>

@@ -340,6 +340,7 @@ function handlePost() {
     $providerId = $input['provider_id'] ?? null;
     $branchId = $input['branch_id'] ?? null;
     $initialBalance = floatval($input['initial_balance'] ?? 0);
+    $minBalance = floatval($input['min_balance'] ?? 1000);
     $status = $input['status'] ?? 'active';
 
     // Decode provider_id if encrypted
@@ -380,13 +381,14 @@ function handlePost() {
     }
     
     // Insert new wallet with initial balance
-    $sql = "INSERT INTO provider_wallets (provider_id, branch_id, current_balance, status, created_at)
-            VALUES (:provider_id, :branch_id, :initial_balance, :status, :created_at)";
+    $sql = "INSERT INTO provider_wallets (provider_id, branch_id, current_balance, min_balance, status, created_at)
+            VALUES (:provider_id, :branch_id, :initial_balance, :min_balance, :status, :created_at)";
     
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
         'branch_id' => (int)$branchId,
         'initial_balance' => $initialBalance,
+        'min_balance' => $minBalance,
         'status' => $status,
         'created_at' => date('Y-m-d H:i:s')
     ]);
@@ -433,6 +435,7 @@ function handlePut() {
     $input = json_decode(file_get_contents('php://input'), true);
     $walletId = $input['wallet_id'] ?? null;
     $status = $input['status'] ?? null;
+    $minBalance = $input['min_balance'] ?? null;
 
     // Decode wallet_id if encrypted
     if ($walletId && !is_numeric($walletId)) {
@@ -444,7 +447,7 @@ function handlePut() {
         $walletId = $decodedId;
     }
     
-    if (!$walletId || !$status) {
+    if (!$walletId || (!$status && !$minBalance)) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
         return;
     }
@@ -460,11 +463,28 @@ function handlePut() {
         return;
     }
     
-    // Update wallet status
-    Database::execute(
-        "UPDATE provider_wallets SET status = :status, updated_at = :updated_at WHERE wallet_id = :wallet_id",
-        ['status' => $status, 'updated_at' => date('Y-m-d H:i:s'), 'wallet_id' => (int)$walletId]
-    );
+    // Update wallet status and/or min_balance
+    $updateFields = [];
+    $updateParams = ['wallet_id' => (int)$walletId, 'updated_at' => date('Y-m-d H:i:s')];
+    
+    if ($status) {
+        $updateFields[] = "status = :status";
+        $updateParams['status'] = $status;
+    }
+    
+    if ($minBalance !== null) {
+        $updateFields[] = "min_balance = :min_balance";
+        $updateParams['min_balance'] = (float)$minBalance;
+    }
+    
+    if (empty($updateFields)) {
+        echo json_encode(['success' => false, 'error' => 'No fields to update']);
+        return;
+    }
+    
+    $sql = "UPDATE provider_wallets SET " . implode(', ', $updateFields) . ", updated_at = :updated_at WHERE wallet_id = :wallet_id";
+    
+    Database::execute($sql, $updateParams);
     
     // Log activity
     logActivity(

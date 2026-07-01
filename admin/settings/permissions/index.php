@@ -65,9 +65,8 @@ if ($maintenanceMode) {
 
 // Permission gatekeeper - only SUPER_ADMIN can manage permissions
 $user = Auth::user();
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
-    // Allow
-} elseif (!Auth::canAccessModule('admin/settings/permissions/')) {
+if (!$user || $user['role_code'] !== 'SUPER_ADMIN') {
+    $message = 'You do not have permission to access Permission Management. This section is restricted to Super Administrators only.';
     http_response_code(403);
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;

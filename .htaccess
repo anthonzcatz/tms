@@ -37,10 +37,10 @@ RewriteRule ^scripts/ - [F,L]
 # ---------------------------------------------------------
 # 2. ADMIN ROUTES - Use router for auto-discovery
 # ---------------------------------------------------------
-# /admin -> admin/router.php
+# /admin -> admin/router.php (slash after admin is optional to handle typos)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^admin/(.*)$ admin/router.php [L]
+RewriteRule ^admin/?(.*)$ admin/router.php [L]
 
 # ---------------------------------------------------------
 # 3. API ROUTES - Use router for auto-discovery
@@ -80,14 +80,9 @@ RewriteCond %{REQUEST_URI} ^/?$
 RewriteRule ^.*$ auth/login.php [L]
 
 # ---------------------------------------------------------
-# 5. HANDLE MISSING FILES
+# 5. CUSTOM 404 PAGE
 # ---------------------------------------------------------
-# TEMPORARILY DISABLED TO FIX DASHBOARD ACCESS
-# <IfModule mod_rewrite.c>
-#     RewriteCond %{REQUEST_FILENAME} !-f
-#     RewriteCond %{REQUEST_FILENAME} !-d
-#     RewriteRule ^.*$ auth/login.php [L]
-# </IfModule>
+ErrorDocument 404 /public/pages/errors/404.html
 
 # ---------------------------------------------------------
 # 6. SECURITY HEADERS
