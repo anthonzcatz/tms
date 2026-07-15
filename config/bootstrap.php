@@ -74,7 +74,8 @@ spl_autoload_register(function (string $class): void {
 // loaded above so we can read the real value right here.
 (function () {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (($_SERVER['SERVER_PORT'] ?? null) == 443);
+        || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 
     // Resolve the authoritative lifetime (DB → .env fallback).
     // Minimum 300 s (5 min) to avoid accidental lock-outs.
@@ -87,6 +88,15 @@ spl_autoload_register(function (string $class): void {
     } catch (\Exception $e) { /* DB not ready yet — will use env below */ }
 
     $lifetimeSec = $dbLifetimeSec ?: max(300, (int) env('SESSION_LIFETIME', 7200));
+
+    // Set custom session save path for better server compatibility
+    $sessionPath = TMS_ROOT . '/storage/sessions';
+    if (!is_dir($sessionPath)) {
+        @mkdir($sessionPath, 0777, true);
+    }
+    if (is_dir($sessionPath) && is_writable($sessionPath)) {
+        ini_set('session.save_path', $sessionPath);
+    }
 
     if (session_status() === PHP_SESSION_NONE) {
         session_name((string) env('SESSION_NAME', 'tms_session'));

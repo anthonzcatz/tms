@@ -77,7 +77,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Total Accounts</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row">
-                  <div class="col"><p class="font-sans-serif lh-1 mb-1 fs-5"><?php echo $total; ?></p></div>
+                  <div class="col"><p id="statTotal" class="font-sans-serif lh-1 mb-1 fs-5"><?php echo $total; ?></p></div>
                   <div class="col-auto ps-0"><span class="fas fa-university text-primary fs-4"></span></div>
                 </div>
               </div>
@@ -88,7 +88,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Active</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
-                  <div class="col-auto align-self-end"><div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo $active; ?></div></div>
+                  <div class="col-auto align-self-end"><div id="statActive" class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo $active; ?></div></div>
                   <div class="col-auto ps-0 mt-n4"><span class="fas fa-check-circle text-success fs-4"></span></div>
                 </div>
               </div>
@@ -99,7 +99,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Inactive</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
-                  <div class="col-auto align-self-end"><div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo $inactive; ?></div></div>
+                  <div class="col-auto align-self-end"><div id="statInactive" class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo $inactive; ?></div></div>
                   <div class="col-auto ps-0 mt-n4"><span class="fas fa-times-circle text-danger fs-4"></span></div>
                 </div>
               </div>
@@ -110,7 +110,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Company-wide</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
-                  <div class="col-auto align-self-end"><div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo $companyWide; ?></div></div>
+                  <div class="col-auto align-self-end"><div id="statCompanyWide" class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo $companyWide; ?></div></div>
                   <div class="col-auto ps-0 mt-n4"><span class="fas fa-globe text-info fs-4"></span></div>
                 </div>
               </div>
@@ -208,6 +208,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       $typeColor = $typeColors[$acc['method_type'] ?? ''] ?? 'primary';
                     ?>
                     <tr class="account-row"
+                        data-account-id="<?php echo $acc['bank_account_id']; ?>"
                         data-branch="<?php echo $acc['branch_id'] ?? '__global__'; ?>"
                         data-status="<?php echo $acc['is_active'] ? 'active' : 'inactive'; ?>"
                         data-search="<?php echo strtolower(htmlspecialchars($acc['bank_name'] . ' ' . $acc['account_name'] . ' ' . $acc['account_number'])); ?>">
@@ -295,6 +296,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php endif; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <script src="<?php echo BASE_URL; ?>/resources/assets/js/id-encoder.js?v=<?php echo filemtime(dirname(dirname(dirname(dirname(__DIR__)))) . '/resources/assets/js/id-encoder.js'); ?>"></script>
+  <script>
+    window.BASE_URL = '<?php echo BASE_URL; ?>';
+    window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
+    window.USER_BRANCH_ID = '<?php echo Auth::userBranchId() ?? ''; ?>';
+    window.USER_ROLE_CODE = '<?php echo Auth::userRoleCode() ?? ''; ?>';
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/settings/bank-accounts/assets/js/bank-accounts.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/bank-accounts.js'); ?>"></script>
   <script src="<?php echo BASE_URL; ?>/admin/settings/bank-accounts/assets/js/view-transactions.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/view-transactions.js'); ?>"></script>
 

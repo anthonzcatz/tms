@@ -11,8 +11,29 @@
  */
 $dropdownId = $dropdownId ?? 'navbarDropdownNotification';
 
-// Permission-based access control - only show notifications to users with VIEW_NOTIFICATIONS permission
-$showNotifications = Auth::can('VIEW_NOTIFICATIONS');
+// Fetch system settings for notification role access
+$systemSettings = Database::fetch("SELECT notification_roles FROM system_settings WHERE setting_id = 1");
+$notificationRoles = $systemSettings['notification_roles'] ?? null;
+
+// Permission-based access control
+$showNotifications = false;
+$user = Auth::user();
+
+if ($user) {
+    // SUPER_ADMIN always has access
+    if ($user['role_code'] === 'SUPER_ADMIN') {
+        $showNotifications = true;
+    }
+    // Check if notification_roles is set and user's role is in the list
+    elseif ($notificationRoles) {
+        $allowedRoles = array_map('trim', explode(',', $notificationRoles));
+        $showNotifications = in_array($user['role_code'], $allowedRoles);
+    }
+    // Fallback to VIEW_NOTIFICATIONS permission if no system setting
+    elseif (Auth::can('VIEW_NOTIFICATIONS')) {
+        $showNotifications = true;
+    }
+}
 
 if (!$showNotifications) {
     return; // Don't render notification dropdown for users without permission

@@ -139,16 +139,80 @@
                 <?php endif; ?>
               </div>
               <div class="card mb-3 mb-lg-0">
-                <div class="card-header bg-body-tertiary">
-                  <h5 class="mb-0">Photos</h5>
+                <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0">Account Settings</h5>
+                  <a class="font-sans-serif fs-10" href="<?php echo BASE_URL; ?>/admin/user/?view=settings">Settings <span class="fas fa-chevron-right ms-1 fs-11"></span></a>
                 </div>
-                <div class="card-body overflow-hidden">
-                  <div class="row g-0">
-                    <div class="col-6 p-1"><a class="glightbox" href="<?php echo BASE_URL; ?>/resources/assets/img/generic/4.jpg" data-gallery="gallery1" data-glightbox="data-glightbox"><img class="img-fluid rounded" src="<?php echo BASE_URL; ?>/resources/assets/img/generic/4.jpg" alt="..." /></a></div>
-                    <div class="col-6 p-1"><a class="glightbox" href="<?php echo BASE_URL; ?>/resources/assets/img/generic/5.jpg" data-gallery="gallery1" data-glightbox="data-glightbox"><img class="img-fluid rounded" src="<?php echo BASE_URL; ?>/resources/assets/img/generic/5.jpg" alt="..." /></a></div>
-                    <div class="col-4 p-1"><a class="glightbox" href="<?php echo BASE_URL; ?>/resources/assets/img/gallery/4.jpg" data-gallery="gallery1" data-glightbox="data-glightbox"><img class="img-fluid rounded" src="<?php echo BASE_URL; ?>/resources/assets/img/gallery/4.jpg" alt="..." /></a></div>
-                    <div class="col-4 p-1"><a class="glightbox" href="<?php echo BASE_URL; ?>/resources/assets/img/gallery/5.jpg" data-gallery="gallery1" data-glightbox="data-glightbox"><img class="img-fluid rounded" src="<?php echo BASE_URL; ?>/resources/assets/img/gallery/5.jpg" alt="..." /></a></div>
-                    <div class="col-4 p-1"><a class="glightbox" href="<?php echo BASE_URL; ?>/resources/assets/img/gallery/3.jpg" data-gallery="gallery1" data-glightbox="data-glightbox"><img class="img-fluid rounded" src="<?php echo BASE_URL; ?>/resources/assets/img/gallery/3.jpg" alt="..." /></a></div>
+                <div class="card-body fs-10">
+                  <!-- Profile Image Section -->
+                  <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                    <div class="position-relative me-3">
+                      <img class="rounded-circle" src="<?php echo $up['profile_image'] ?: BASE_URL . '/resources/assets/img/team/avatar.png'; ?>" alt="Profile" width="60" height="60">
+                      <button class="btn btn-falcon-default btn-sm position-absolute bottom-0 end-0 rounded-circle p-1" style="width: 24px; height: 24px;" onclick="document.getElementById('profileImageInput').click()">
+                        <span class="fas fa-camera fs-10"></span>
+                      </button>
+                      <input type="file" id="profileImageInput" class="d-none" accept="image/*" onchange="handleProfileImageUpload(this)">
+                    </div>
+                    <div>
+                      <h6 class="mb-0 fw-semibold"><?php echo htmlspecialchars($up['fullname'] ?? 'User'); ?></h6>
+                      <p class="mb-0 text-muted"><?php echo htmlspecialchars($up['email'] ?? ''); ?></p>
+                    </div>
+                  </div>
+
+                  <!-- Role & Branch -->
+                  <div class="mb-3 pb-3 border-bottom">
+                    <label class="form-label text-muted small text-uppercase fw-bold">Role & Branch</label>
+                    <div class="d-flex align-items-center mb-2">
+                      <span class="fas fa-user-tag text-primary me-2"></span>
+                      <span class="fw-semibold"><?php echo htmlspecialchars($up['role_name'] ?? 'N/A'); ?></span>
+                    </div>
+                    <?php if ($up['branch_name']): ?>
+                    <div class="d-flex align-items-center">
+                      <span class="fas fa-building text-info me-2"></span>
+                      <span><?php echo htmlspecialchars(($up['branch_code'] ?? '') . ' - ' . $up['branch_name']); ?></span>
+                    </div>
+                    <?php endif; ?>
+                  </div>
+
+                  <!-- Time Restrictions -->
+                  <?php if ($up['is_time_restricted']): ?>
+                  <div class="mb-3 pb-3 border-bottom">
+                    <label class="form-label text-muted small text-uppercase fw-bold">Time Restrictions</label>
+                    <div class="d-flex align-items-center mb-1">
+                      <span class="fas fa-clock text-warning me-2"></span>
+                      <span><?php echo ($up['allowed_login_start'] ?? '00:00') . ' - ' . ($up['allowed_login_end'] ?? '23:59'); ?></span>
+                    </div>
+                    <?php if ($up['allowed_days']): ?>
+                    <div class="d-flex align-items-center">
+                      <span class="fas fa-calendar-week text-warning me-2"></span>
+                      <span class="text-muted small">Days: <?php echo str_replace(',', ', ', $up['allowed_days']); ?></span>
+                    </div>
+                    <?php endif; ?>
+                  </div>
+                  <?php else: ?>
+                  <div class="mb-3 pb-3 border-bottom">
+                    <label class="form-label text-muted small text-uppercase fw-bold">Time Restrictions</label>
+                    <div class="d-flex align-items-center">
+                      <span class="fas fa-check-circle text-success me-2"></span>
+                      <span class="text-muted">No restrictions</span>
+                    </div>
+                  </div>
+                  <?php endif; ?>
+
+                  <!-- Account Status -->
+                  <div>
+                    <label class="form-label text-muted small text-uppercase fw-bold">Account Status</label>
+                    <div class="d-flex align-items-center justify-content-between">
+                      <div class="d-flex align-items-center">
+                        <span class="fas fa-shield-alt me-2"></span>
+                        <span><?php echo ucfirst($up['status'] ?? 'active'); ?></span>
+                      </div>
+                      <?php
+                      $status = $up['status'] ?? 'active';
+                      $statusClass = $status === 'active' ? 'bg-success' : ($status === 'suspended' ? 'bg-warning' : 'bg-secondary');
+                      ?>
+                      <span class="badge <?php echo $statusClass; ?> fs-10"><?php echo ucfirst($status); ?></span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -256,41 +320,66 @@
                   </div>
                 </div> -->
                 <div class="card mb-3 mb-lg-0">
-                  <div class="card-header bg-body-tertiary">
+                  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Events</h5>
+                    <a class="font-sans-serif fs-10" href="<?php echo BASE_URL; ?>/admin/calendar/">Calendar <span class="fas fa-chevron-right ms-1 fs-11"></span></a>
                   </div>
                   <div class="card-body fs-10">
-                    <div class="d-flex btn-reveal-trigger">
-                      <div class="calendar"><span class="calendar-month">Feb</span><span class="calendar-day">21</span></div>
+                    <?php if (empty($calendarEvents)): ?>
+                    <div class="text-center py-4 text-muted">
+                      <span class="fas fa-calendar-alt fs-4 mb-2 d-block"></span>
+                      <p class="mb-0">No upcoming events.</p>
+                    </div>
+                    <?php else: ?>
+                    <?php foreach ($calendarEvents as $event):
+                      $startDate = new DateTime($event['start_date']);
+                      $endDate = $event['end_date'] ? new DateTime($event['end_date']) : null;
+                      $month = $startDate->format('M');
+                      $day = $startDate->format('j');
+                      $time = $startDate->format('g:i A');
+                      $labelColor = [
+                        'primary' => 'bg-soft-primary text-primary',
+                        'danger' => 'bg-soft-danger text-danger',
+                        'success' => 'bg-soft-success text-success',
+                        'warning' => 'bg-soft-warning text-warning',
+                      ];
+                      $labelClass = $labelColor[$event['label']] ?? 'bg-soft-primary text-primary';
+                    ?>
+                    <div class="d-flex btn-reveal-trigger mb-3">
+                      <div class="calendar">
+                        <span class="calendar-month"><?php echo $month; ?></span>
+                        <span class="calendar-day"><?php echo $day; ?></span>
+                      </div>
                       <div class="flex-1 position-relative ps-3">
-                        <h6 class="fs-9 mb-0"><a href="#!">Newmarket Nights</a></h6>
-                        <p class="mb-1">Organized by <a href="#!" class="text-700">University of Oxford</a></p>
-                        <p class="text-1000 mb-0">Time: 6:00AM</p>
-                        <p class="text-1000 mb-0">Duration: 6:00AM - 5:00PM</p>Place: Cambridge Boat Club, Cambridge
+                        <h6 class="fs-9 mb-0">
+                          <a href="<?php echo BASE_URL; ?>/admin/calendar/"><?php echo htmlspecialchars($event['title']); ?></a>
+                          <?php if ($event['label']): ?>
+                          <span class="badge <?php echo $labelClass; ?> fs-11 ms-2"><?php echo ucfirst($event['label']); ?></span>
+                          <?php endif; ?>
+                        </h6>
+                        <p class="mb-1 text-muted">
+                          <span class="fas fa-clock me-1"></span>
+                          <?php echo $event['all_day'] ? 'All Day' : $time; ?>
+                          <?php if ($endDate && !$event['all_day']): ?>
+                          - <?php echo $endDate->format('g:i A'); ?>
+                          <?php endif; ?>
+                        </p>
+                        <?php if ($event['description']): ?>
+                        <p class="text-1000 mb-0 text-truncate" style="max-width: 200px;">
+                          <?php echo htmlspecialchars($event['description']); ?>
+                        </p>
+                        <?php endif; ?>
                         <div class="border-bottom border-dashed my-3"></div>
                       </div>
                     </div>
-                    <div class="d-flex btn-reveal-trigger">
-                      <div class="calendar"><span class="calendar-month">Dec</span><span class="calendar-day">31</span></div>
-                      <div class="flex-1 position-relative ps-3">
-                        <h6 class="fs-9 mb-0"><a href="#!">31st Night Celebration</a></h6>
-                        <p class="mb-1">Organized by <a href="#!" class="text-700">Chamber Music Society</a></p>
-                        <p class="text-1000 mb-0">Time: 11:00PM</p>
-                        <p class="text-1000 mb-0">280 people interested</p>Place: Tavern on the Greend, New York
-                        <div class="border-bottom border-dashed my-3"></div>
-                      </div>
-                    </div>
-                    <div class="d-flex btn-reveal-trigger">
-                      <div class="calendar"><span class="calendar-month">Dec</span><span class="calendar-day">16</span></div>
-                      <div class="flex-1 position-relative ps-3">
-                        <h6 class="fs-9 mb-0"><a href="#!">Folk Festival</a></h6>
-                        <p class="mb-1">Organized by <a href="#!" class="text-700">Harvard University</a></p>
-                        <p class="text-1000 mb-0">Time: 9:00AM</p>
-                        <p class="text-1000 mb-0">Location: Cambridge Masonic Hall Association</p>Place: Porter Square, North Cambridge
-                      </div>
-                    </div>
+                    <?php endforeach; ?>
+                    <?php endif; ?>
                   </div>
-                  <div class="card-footer bg-body-tertiary p-0 border-top"><a class="btn btn-link d-block w-100" href="#!">All Events<span class="fas fa-chevron-right ms-1 fs-11"></span></a></div>
+                  <?php if (!empty($calendarEvents)): ?>
+                  <div class="card-footer bg-body-tertiary p-0 border-top">
+                    <a class="btn btn-link d-block w-100" href="<?php echo BASE_URL; ?>/admin/calendar/">View Calendar<span class="fas fa-chevron-right ms-1 fs-11"></span></a>
+                  </div>
+                  <?php endif; ?>
                 </div>
               </div>
             </div>

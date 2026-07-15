@@ -57,8 +57,12 @@ if ($useOrdersTable) {
     $params = [];
 
     if ($branchId && $userRoleCode !== 'SUPER_ADMIN') {
-        $where[] = 'o.branch_id = :branch_id';
-        $params['branch_id'] = $branchId;
+        $branchIds = array_filter(array_map('intval', explode(',', $branchId)));
+        if (!empty($branchIds)) {
+            $branchPlaceholders = implode(',', array_fill(0, count($branchIds), '?'));
+            $where[] = "o.branch_id IN ($branchPlaceholders)";
+            $params = array_merge($params, $branchIds);
+        }
     }
 
     $where[] = 'o.created_by = :created_by';
@@ -142,8 +146,7 @@ if ($useOrdersTable) {
             (SELECT GROUP_CONCAT(DISTINCT tp2.provider_name SEPARATOR ', ')
              FROM pos_order_items oi5
              LEFT JOIN ticket_transactions tt ON oi5.reference_id = tt.transaction_id AND oi5.item_type = 'TICKET'
-             LEFT JOIN provider_wallets pw2 ON tt.wallet_id = pw2.wallet_id
-             LEFT JOIN ticket_providers tp2 ON pw2.provider_id = tp2.provider_id
+             LEFT JOIN ticket_providers tp2 ON tt.provider_id = tp2.provider_id
              WHERE oi5.order_id = o.order_id AND oi5.item_type = 'TICKET') as provider_name,
             (SELECT GROUP_CONCAT(DISTINCT CONCAT(tt.origin, ' → ', tt.destination) SEPARATOR ' | ')
              FROM pos_order_items oi6
@@ -232,14 +235,16 @@ if ($useOrdersTable) {
                     st.description as service_name, st_type.name as service_type_name, st.status as service_status,
                     pa.fullname as passenger_name,
                     pw.wallet_id,
-                    tp.provider_name, tp.provider_type
+                    tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
+                    tp_wallet.provider_name as wallet_provider_name
              FROM pos_order_items oi
              LEFT JOIN ticket_transactions tt ON oi.reference_id = tt.transaction_id AND oi.item_type = 'TICKET'
              LEFT JOIN service_transactions st ON oi.reference_id = st.service_txn_id AND oi.item_type = 'SERVICE'
              LEFT JOIN service_types st_type ON st.service_type_id = st_type.service_type_id
              LEFT JOIN passenger_accounts pa ON COALESCE(tt.passenger_id, st.passenger_id) = pa.passenger_id
-             LEFT JOIN provider_wallets pw ON tt.wallet_id = pw.wallet_id
-             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
+             LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
              WHERE oi.order_id = :oid
              ORDER BY oi.item_type DESC, oi.item_id ASC",
             ['oid' => $order['order_id']]

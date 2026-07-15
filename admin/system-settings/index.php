@@ -107,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'csrf_token_lifetime_minutes' => isset($_POST['csrf_token_lifetime_minutes']) && $_POST['csrf_token_lifetime_minutes'] !== '' ? max(5, min(1440, (int)$_POST['csrf_token_lifetime_minutes'])) : 480,
             'device_approval_required' => isset($_POST['device_approval_required']) ? 1 : 0,
             'max_concurrent_sessions'  => isset($_POST['max_concurrent_sessions']) && $_POST['max_concurrent_sessions'] !== '' ? max(1, min(10, (int)$_POST['max_concurrent_sessions'])) : 1,
+            'notification_roles' => trim($_POST['notification_roles'] ?? ''),
             'encrypt_ids' => isset($_POST['encrypt_ids']) ? 1 : 0,
             // Printer Settings
             'receipt_printing_enabled' => isset($_POST['receipt_printing_enabled']) ? 1 : 0,

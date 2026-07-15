@@ -116,8 +116,15 @@ function handleGet() {
         // SUPER_ADMIN can see all wallets, others are restricted to their branch
         global $userRoleCode, $userBranchId;
         if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-            $branchFilter = "WHERE pw.branch_id = :user_branch_id";
-            $params['user_branch_id'] = $userBranchId;
+            $userBranchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
+            if (!empty($userBranchIds)) {
+                $branchPlaceholders = [];
+                foreach ($userBranchIds as $i => $branchId) {
+                    $branchPlaceholders[] = ':user_branch_' . $i;
+                    $params['user_branch_' . $i] = $branchId;
+                }
+                $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+            }
         }
 
         $sql = "SELECT 
@@ -146,10 +153,13 @@ function handleGet() {
     if ($walletId) {
         $sql = "SELECT pw.*,
                        tp.provider_name,
+                       tp.parent_provider_id,
+                       ptp.provider_name as parent_provider_name,
                        bb.branch_name,
                        CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
                 FROM provider_wallets pw
                 LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+                LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
                 LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
                 WHERE pw.wallet_id = :wallet_id";
 
@@ -239,6 +249,47 @@ function handleGet() {
         $params['branch_id'] = (int)$branchId;
     }
 
+    // Resolve wallet for an operating provider (provider_id + branch_id)
+    // Returns the actual wallet (parent wallet if child has none)
+    $resolve = $_GET['resolve'] ?? null;
+    if ($resolve === '1' && $providerId) {
+        $resolveBranchId = $branchId ? (int)$branchId : (int)$effectiveBranchId;
+        if (!$resolveBranchId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Branch ID is required to resolve wallet']);
+            exit;
+        }
+
+        $resolvedWallet = WalletResolver::resolve((int)$providerId, $resolveBranchId);
+
+        if (!$resolvedWallet) {
+            echo json_encode(['success' => false, 'error' => 'No active wallet found for this provider and branch']);
+            exit;
+        }
+
+        $walletDetails = Database::fetch(
+            "SELECT pw.*,
+                    tp.provider_name,
+                    bb.branch_name,
+                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
+             FROM provider_wallets pw
+             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+             WHERE pw.wallet_id = :wallet_id",
+            ['wallet_id' => (int)$resolvedWallet['wallet_id']]
+        );
+
+        echo json_encode([
+            'success' => true,
+            'data' => [
+                'resolved' => true,
+                'operating_provider_id' => (int)$providerId,
+                'wallet' => $walletDetails
+            ]
+        ]);
+        exit;
+    }
+
     // Filter by transport type for cashiers with restrictions
     // Fetch user data directly to get has_restricted_transport
     $userData = Database::fetch(
@@ -299,10 +350,13 @@ function handleGet() {
     $sql = "SELECT pw.*,
                    tp.provider_name,
                    tp.provider_type,
+                   tp.parent_provider_id,
+                   ptp.provider_name as parent_provider_name,
                    bb.branch_name,
                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
             FROM provider_wallets pw
             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+            LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
             $branchFilter
             ORDER BY tp.provider_name, bb.branch_name";

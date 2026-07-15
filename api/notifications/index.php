@@ -56,8 +56,26 @@ if (!Auth::check()) {
 $user = Auth::user();
 $userId = $user['user_id'];
 
-// Permission-based access control - check VIEW_NOTIFICATIONS permission
-if ($user['role_code'] !== 'SUPER_ADMIN' && !Auth::can('VIEW_NOTIFICATIONS')) {
+// Permission-based access control - check system_settings for allowed roles
+$systemSettings = Database::fetch("SELECT notification_roles FROM system_settings WHERE setting_id = 1");
+$notificationRoles = $systemSettings['notification_roles'] ?? null;
+$hasAccess = false;
+
+// SUPER_ADMIN always has access
+if ($user['role_code'] === 'SUPER_ADMIN') {
+    $hasAccess = true;
+}
+// Check if notification_roles is set and user's role is in the list
+elseif ($notificationRoles) {
+    $allowedRoles = array_map('trim', explode(',', $notificationRoles));
+    $hasAccess = in_array($user['role_code'], $allowedRoles);
+}
+// Fallback to VIEW_NOTIFICATIONS permission if no system setting
+elseif (Auth::can('VIEW_NOTIFICATIONS')) {
+    $hasAccess = true;
+}
+
+if (!$hasAccess) {
     http_response_code(403);
     echo json_encode(['error' => 'Forbidden - You do not have permission to access notifications']);
     exit;
@@ -113,11 +131,15 @@ function handleGet($userId, $path) {
         $notifications = NotificationService::getNotifications($userId, $filters);
         $unreadCount = NotificationService::getUnreadCount($userId);
         
+        // Debug: Log user ID and notification count
+        error_log("Notifications API - User ID: $userId, Unread Count: $unreadCount, Total: " . count($notifications));
+        
         echo json_encode([
             'success' => true,
             'data' => $notifications,
             'unread_count' => $unreadCount,
-            'total' => count($notifications)
+            'total' => count($notifications),
+            'debug_user_id' => $userId
         ]);
         return;
     }
@@ -264,7 +286,7 @@ function handlePut($userId, $path) {
         
         // Currently only supports marking as read
         if (isset($input['is_read']) && $input['is_read'] === true) {
-            $success = NotificationService::markAsRead($path);
+            $success = NotificationService::markAsRead($path, $userId);
             
             if ($success) {
                 echo json_encode([
@@ -309,7 +331,7 @@ function handlePut($userId, $path) {
 function handleDelete($userId, $path) {
     // DELETE /api/notifications/{id} - Delete notification
     if (is_numeric($path)) {
-        $success = NotificationService::delete($path);
+        $success = NotificationService::delete($path, $userId);
         
         if ($success) {
             echo json_encode([

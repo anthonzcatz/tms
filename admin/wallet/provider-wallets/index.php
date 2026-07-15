@@ -18,8 +18,8 @@ header('Expires: 0');
 
 // Get current user
 $user = Auth::user();
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId();
+$userRoleCode = Auth::userRoleCode() ?? '';
 
 // Check if user can create wallets
 $canCreateWallet = ($userRoleCode === 'SUPER_ADMIN') || Auth::can('CREATE_WALLET');
@@ -29,9 +29,22 @@ $allProviders = Database::fetchAll(
     "SELECT provider_id, provider_name FROM ticket_providers WHERE status = 'active' ORDER BY provider_name"
 );
 
-$allBranches = Database::fetchAll(
-    "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
-);
+// Get all branches for "Add Wallet" dropdown based on user access
+if ($userRoleCode === 'SUPER_ADMIN') {
+    $allBranches = Database::fetchAll(
+        "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
+    );
+} elseif ($userBranchId) {
+    // Non-SUPER_ADMIN users can only see their assigned branch(es)
+    $branchIds = explode(',', $userBranchId);
+    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
+    $allBranches = Database::fetchAll(
+        "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders) AND status = 'active' ORDER BY branch_name",
+        $branchIds
+    );
+} else {
+    $allBranches = [];
+}
 
 // System settings for print layout
 $systemSettings = Database::fetch("SELECT system_name, system_logo, company_name, company_address, company_contact_number, company_email, company_tin FROM system_settings WHERE setting_id = 1");

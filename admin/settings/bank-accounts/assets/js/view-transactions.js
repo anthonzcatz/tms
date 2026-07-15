@@ -282,14 +282,6 @@ function formatDateTime(dateStr) {
 }
 
 /**
- * Show toast notification
- */
-function showToast(type, title, message) {
-    // Implementation depends on existing toast system
-    console.log(`${type}: ${title} - ${message}`);
-}
-
-/**
  * Open balance adjustment modal
  */
 function openBalanceAdjustmentModal(bankAccountId, currentBalance) {

@@ -26,6 +26,72 @@ final class Auth
     }
 
     /**
+     * Get user's branch_id from database (real-time, not session-cached).
+     * Use this when you need immediate updates to branch access without requiring logout.
+     * Returns null if user is not logged in or not found.
+     */
+    public static function userBranchId(): ?string
+    {
+        if (!self::check()) {
+            return null;
+        }
+
+        $userId = self::id();
+
+        // In-request cache to avoid multiple DB queries per request
+        static $cachedBranchId = null;
+        if ($cachedBranchId !== null) {
+            return $cachedBranchId;
+        }
+
+        try {
+            $user = Database::fetch(
+                "SELECT branch_id FROM user_accounts WHERE user_id = :uid",
+                ['uid' => $userId]
+            );
+            $cachedBranchId = $user['branch_id'] ?? null;
+            return $cachedBranchId;
+        } catch (\Exception $e) {
+            error_log("Auth::userBranchId() error: " . $e->getMessage());
+            // Fallback to session value on error
+            return $_SESSION['user']['branch_id'] ?? null;
+        }
+    }
+
+    /**
+     * Get user's role_code from database (real-time, not session-cached).
+     * Use this when you need immediate updates to role without requiring logout.
+     * Returns null if user is not logged in or not found.
+     */
+    public static function userRoleCode(): ?string
+    {
+        if (!self::check()) {
+            return null;
+        }
+
+        $userId = self::id();
+
+        // In-request cache to avoid multiple DB queries per request
+        static $cachedRoleCode = null;
+        if ($cachedRoleCode !== null) {
+            return $cachedRoleCode;
+        }
+
+        try {
+            $user = Database::fetch(
+                "SELECT role_code FROM user_accounts WHERE user_id = :uid",
+                ['uid' => $userId]
+            );
+            $cachedRoleCode = $user['role_code'] ?? null;
+            return $cachedRoleCode;
+        } catch (\Exception $e) {
+            error_log("Auth::userRoleCode() error: " . $e->getMessage());
+            // Fallback to session value on error
+            return $_SESSION['user']['role_code'] ?? null;
+        }
+    }
+
+    /**
      * Read + in-request-cache the three security settings from system_settings.
      * Returns an array with keys: session_lifetime_seconds, device_approval_required, max_concurrent_sessions.
      */
@@ -76,11 +142,22 @@ final class Auth
                 // Check specifically whether device is blocked vs pending
                 $deviceType = self::detectDeviceType();
                 $ipAddress  = $_SERVER['REMOTE_ADDR'] ?? null;
+
+                // First try to find device by IP and type
                 $device = Database::fetch(
                     "SELECT status FROM system_devices WHERE ip_address = :ip AND device_type = :type ORDER BY last_used_at DESC LIMIT 1",
                     ['ip' => $ipAddress, 'type' => $deviceType]
                 );
-                error_log("Login failed: createUserSession returned null. Device status=" . ($device['status'] ?? 'NOT_FOUND') . ", login_error=" . ($_SESSION['login_error'] ?? 'not_set'));
+
+                // Fallback: try to find device by IP only (in case device_type changed)
+                if (!$device) {
+                    $device = Database::fetch(
+                        "SELECT status FROM system_devices WHERE ip_address = :ip ORDER BY last_used_at DESC LIMIT 1",
+                        ['ip' => $ipAddress]
+                    );
+                }
+
+                error_log("Login failed: createUserSession returned null. Device status=" . ($device['status'] ?? 'NOT_FOUND') . ", IP=$ipAddress, deviceType=$deviceType, login_error=" . ($_SESSION['login_error'] ?? 'not_set'));
                 if ($device && $device['status'] === 'blocked') {
                     $_SESSION['login_error'] = 'device_blocked';
                 } elseif ($device && $device['status'] === 'pending') {
@@ -494,6 +571,7 @@ final class Auth
             $deviceId = (int) $device['device_id'];
 
             // Update user tracking and geolocation on existing device
+            // Also update device_type if it changed (to keep it consistent)
             Database::execute(
                 "UPDATE system_devices
                     SET last_user_id = :user_id,
@@ -503,6 +581,7 @@ final class Auth
                         country = :country,
                         latitude = :lat,
                         longitude = :lon,
+                        device_type = :device_type,
                         last_used_at = :now
                   WHERE device_id = :device_id",
                 [
@@ -513,6 +592,7 @@ final class Auth
                     'country'   => $geo['country'] ?? null,
                     'lat'       => $geo['latitude'] ?? null,
                     'lon'       => $geo['longitude'] ?? null,
+                    'device_type' => $deviceType,
                     'now'       => date('Y-m-d H:i:s'),
                     'device_id' => $deviceId,
                 ]

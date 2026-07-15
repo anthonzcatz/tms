@@ -1,5 +1,12 @@
 /* User Module Scripts */
 
+// Handle profile image upload from profile page
+function handleProfileImageUpload(input) {
+    if (input.files && input.files[0]) {
+        previewProfileImage(input.files[0]);
+    }
+}
+
 // Profile Image Cropper Variables
 let profileImageCropperModal = null;
 let profileImageCropCanvas = null;

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize Bootstrap modals
 let addFeeModal, editFeeModal;
+let currentEditFeeId = null; // Store current fee ID being edited
 
 document.addEventListener('DOMContentLoaded', function() {
     addFeeModal = new bootstrap.Modal(document.getElementById('addFeeModal'));
@@ -53,7 +54,12 @@ async function loadBranches() {
 
 // Open add fee modal
 function openAddFeeModal() {
-    document.getElementById('addFeeForm').reset();
+    // Clear form fields manually since form tag was removed
+    document.getElementById('addProviderId').value = '';
+    document.getElementById('addBranchId').value = '';
+    document.getElementById('addFeeType').value = 'FIXED';
+    document.getElementById('addFeeAmount').value = '';
+    document.getElementById('addStatus').value = 'active';
     addFeeModal.show();
 }
 
@@ -111,6 +117,11 @@ async function saveFee() {
 
 // Edit fee
 async function editFee(feeId) {
+    if (!feeId) {
+        showToast('error', 'Error', 'Missing fee ID');
+        return;
+    }
+
     // Load providers and branches for edit modal
     await loadProvidersForEdit();
     await loadBranchesForEdit();
@@ -122,7 +133,14 @@ async function editFee(feeId) {
 
         if (result.success) {
             const fee = result.data;
-            document.getElementById('editFeeId').value = fee.fee_id;
+            console.log('Loaded fee data:', fee);
+            console.log('fee.fee_id:', fee.fee_id);
+            console.log('fee.fee_id type:', typeof fee.fee_id);
+
+            // Store feeId in global variable
+            currentEditFeeId = fee.fee_id;
+            console.log('Set currentEditFeeId to:', currentEditFeeId);
+
             const encodedProviderId = IdEncoder.encode(fee.provider_id);
             const encodedBranchId = IdEncoder.encode(fee.branch_id);
             document.getElementById('editProviderId').value = encodedProviderId;
@@ -185,14 +203,25 @@ async function loadBranchesForEdit() {
 
 // Update fee
 async function updateFee() {
-    const feeId = document.getElementById('editFeeId').value;
+    const feeId = currentEditFeeId;
     const providerId = document.getElementById('editProviderId').value;
     const branchId = document.getElementById('editBranchId').value;
     const feeType = document.getElementById('editFeeType').value;
     const feeAmount = document.getElementById('editFeeAmount').value;
     const status = document.getElementById('editStatus').value;
 
-    if (!providerId || !branchId || !feeType) {
+    console.log('updateFee - feeId (from global):', feeId);
+    console.log('updateFee - feeId type:', typeof feeId);
+    console.log('updateFee - providerId:', providerId);
+    console.log('updateFee - branchId:', branchId);
+    console.log('updateFee - feeType:', feeType);
+
+    if (!feeId) {
+        showToast('warning', 'Warning', 'Missing fee ID');
+        return;
+    }
+
+    if (!providerId || !branchId || !feeType || providerId === '' || branchId === '' || feeType === '') {
         showToast('warning', 'Warning', 'Please select provider, branch and enter fee type');
         return;
     }
@@ -210,20 +239,26 @@ async function updateFee() {
         }
 
         const encodedFeeId = IdEncoder.encode(feeId);
+        console.log('updateFee - encodedFeeId:', encodedFeeId);
+
+        const requestBody = {
+            fee_id: encodedFeeId,
+            provider_id: providerId,
+            branch_id: branchId,
+            fee_type: feeType,
+            fee_value: parseFloat(feeAmount) || 0,
+            status: status
+        };
+        console.log('updateFee - request body:', requestBody);
+
         const response = await fetch(`${window.BASE_URL}/api/provider-service-fees`, {
             method: 'PUT',
             headers: headers,
-            body: JSON.stringify({
-                fee_id: encodedFeeId,
-                provider_id: providerId,
-                branch_id: branchId,
-                fee_type: feeType,
-                fee_value: parseFloat(feeAmount) || 0,
-                status: status
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const result = await response.json();
+        console.log('updateFee - response:', result);
 
         if (result.success) {
             showToast('success', 'Success', 'Service fee updated successfully');

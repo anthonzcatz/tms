@@ -33,9 +33,19 @@ function openAddAccountModal() {
     document.getElementById('addAccountNumber').value = '';
     document.getElementById('addAccountType').value = '';
     document.getElementById('addCurrentBalance').value = '0.00';
-    document.getElementById('addBranchId').value = '';
     document.getElementById('addPaymentMethodId').value = '';
     document.getElementById('addNotes').value = '';
+
+    // Pre-select branch based on the current user's assigned branch(es)
+    const branchSelect = document.getElementById('addBranchId');
+    if (window.USER_ROLE_CODE !== 'SUPER_ADMIN' && window.USER_BRANCH_ID) {
+        const userBranches = window.USER_BRANCH_ID.split(',').filter(function(id) { return id.trim() !== ''; });
+        // Pre-select the user's first assigned branch
+        branchSelect.value = userBranches[0] || '';
+    } else {
+        branchSelect.value = '';
+    }
+
     addAccountModal.show();
 }
 
@@ -144,7 +154,7 @@ async function submitEditAccount() {
         if (result.success) {
             editAccountModal.hide();
             showToast('success', 'Account Updated', `"${bankName}" has been updated successfully.`);
-            setTimeout(() => location.reload(), 1200);
+            await fetchUpdatedAccountRow(accountId);
         } else {
             showToast('danger', 'Error', result.error || 'Failed to update bank account.');
         }
@@ -234,6 +244,147 @@ function resetFilters() {
     document.getElementById('filterBranch').value = '';
     document.getElementById('filterStatus').value = '';
     applyFilters();
+}
+
+// Fetch the latest account data and update the matching row in real-time
+async function fetchUpdatedAccountRow(accountId) {
+    const numericId = parseInt(accountId, 10);
+    if (!numericId) {
+        throw new Error('Invalid account ID');
+    }
+    const encodedAccountId = IdEncoder.encode(numericId);
+    const response = await fetch(`${window.BASE_URL}/api/bank-accounts?id=${encodedAccountId}`);
+    const result = await response.json();
+    if (!result.success || !result.data) {
+        throw new Error('Failed to fetch updated account');
+    }
+    updateAccountRow(result.data);
+    updateStats();
+    applyFilters();
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function updateAccountRow(acc) {
+    const tableBody = document.querySelector('#accountsTable tbody');
+    if (!tableBody || !acc || typeof acc !== 'object' || !acc.bank_account_id) {
+        console.error('Invalid account data for row update', acc);
+        return;
+    }
+
+    const typeIcons = {
+        'BANK_TRANSFER': 'fa-university',
+        'E_WALLET': 'fa-mobile-alt',
+        'OTHER': 'fa-ellipsis-h'
+    };
+    const typeColors = {
+        'BANK_TRANSFER': 'primary',
+        'E_WALLET': 'purple',
+        'OTHER': 'secondary'
+    };
+
+    const iconClass = typeIcons[acc.method_type ?? ''] || 'fa-university';
+    const typeColor = typeColors[acc.method_type ?? ''] || 'primary';
+    const branchId = acc.branch_id ? String(acc.branch_id) : '__global__';
+    const status = acc.is_active ? 'active' : 'inactive';
+    const balance = '₱' + Number(acc.current_balance ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const accountLabel = escapeHtml(acc.bank_name + ' - ' + acc.account_name);
+    const searchData = escapeHtml((acc.bank_name + ' ' + acc.account_name + ' ' + acc.account_number).toLowerCase());
+
+    const accountTypeHtml = acc.account_type
+        ? `<div class="text-muted" style="font-size:0.75rem;">${escapeHtml(acc.account_type)}</div>`
+        : '';
+
+    const methodHtml = acc.method_name
+        ? `<span class="badge bg-soft-${typeColor} text-${typeColor}">${escapeHtml(acc.method_name)}</span>`
+        : '<span class="text-muted small">—</span>';
+
+    const branchHtml = acc.branch_name
+        ? `<span class="badge bg-soft-secondary text-secondary"><span class="fas fa-building me-1"></span>${escapeHtml(acc.branch_name)}</span>`
+        : `<span class="badge bg-soft-info text-info"><span class="fas fa-globe me-1"></span>Company-wide</span>`;
+
+    const rowHtml = `
+      <tr class="account-row"
+          data-account-id="${acc.bank_account_id}"
+          data-branch="${branchId}"
+          data-status="${status}"
+          data-search="${searchData}">
+        <td class="ps-3 py-3">
+          <div class="d-flex align-items-center">
+            <div class="bank-icon bg-soft-${typeColor} text-${typeColor} me-3">
+              <span class="fas ${iconClass}"></span>
+            </div>
+            <div>
+              <div class="fw-semibold">${escapeHtml(acc.bank_name)}</div>
+              <div class="text-muted small">${escapeHtml(acc.account_name)}</div>
+              ${accountTypeHtml}
+            </div>
+          </div>
+        </td>
+        <td class="py-3"><code>${escapeHtml(acc.account_number)}</code></td>
+        <td class="py-3">${methodHtml}</td>
+        <td class="py-3">${branchHtml}</td>
+        <td class="py-3"><div class="fw-bold text-success">${balance}</div></td>
+        <td class="py-3">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox"
+              ${acc.is_active ? 'checked' : ''}
+              onchange="toggleAccountStatus(${acc.bank_account_id}, this.checked)"
+              title="Toggle status">
+          </div>
+        </td>
+        <td class="py-3 text-end pe-3">
+          <button class="btn btn-sm btn-outline-secondary me-1" onclick="openBalanceAdjustmentModal(${acc.bank_account_id}, ${Number(acc.current_balance ?? 0)})" title="Balance Adjustment">
+            <span class="fas fa-balance-scale"></span>
+          </button>
+          <button class="btn btn-sm btn-outline-info me-1" onclick="openViewTransactionsModal(${acc.bank_account_id})" title="View Transactions">
+            <span class="fas fa-history"></span>
+          </button>
+          <button class="btn btn-sm btn-outline-warning me-1" onclick="editAccount(${acc.bank_account_id})" title="Edit">
+            <span class="fas fa-edit"></span>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(${acc.bank_account_id}, '${accountLabel}')" title="Delete">
+            <span class="fas fa-trash"></span>
+          </button>
+        </td>
+      </tr>
+    `;
+
+    let row = tableBody.querySelector(`tr.account-row[data-account-id="${acc.bank_account_id}"]`);
+    if (row) {
+        row.outerHTML = rowHtml;
+    } else {
+        tableBody.insertAdjacentHTML('beforeend', rowHtml);
+    }
+}
+
+function updateStats() {
+    const rows = document.querySelectorAll('.account-row');
+    let active = 0;
+    let companyWide = 0;
+    rows.forEach(row => {
+        if (row.getAttribute('data-status') === 'active') active++;
+        if (row.getAttribute('data-branch') === '__global__') companyWide++;
+    });
+    const total = rows.length;
+    const inactive = total - active;
+
+    const statTotal = document.getElementById('statTotal');
+    if (statTotal) statTotal.textContent = total;
+    const statActive = document.getElementById('statActive');
+    if (statActive) statActive.textContent = active;
+    const statInactive = document.getElementById('statInactive');
+    if (statInactive) statInactive.textContent = inactive;
+    const statCompanyWide = document.getElementById('statCompanyWide');
+    if (statCompanyWide) statCompanyWide.textContent = companyWide;
 }
 
 // Toast notification

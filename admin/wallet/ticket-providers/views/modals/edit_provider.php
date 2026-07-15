@@ -38,9 +38,9 @@
             </div>
             <div class="col-md-6">
               <label for="editStatus" class="form-label fw-bold">Status</label>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="editStatus" name="status" style="width: 3em; height: 1.5em;">
-                <label class="form-check-label" for="editStatus" id="editStatusLabel">
+              <div class="form-check form-switch d-flex align-items-center ps-0">
+                <input class="form-check-input" type="checkbox" id="editStatus" name="status" style="width: 3em; height: 1.5em; float: none; margin: 0;">
+                <label class="form-check-label ms-2" for="editStatus" id="editStatusLabel">
                   <span class="text-muted">Inactive</span>
                 </label>
               </div>

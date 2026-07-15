@@ -822,7 +822,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                             <input type="number" class="form-control" name="max_concurrent_sessions"
                                    value="<?php echo intval($settings['max_concurrent_sessions'] ?? 1); ?>"
                                    min="1" max="10" step="1">
-                            <small class="text-muted">1 = single-session. New logins terminate the oldest. Max 10.</small>
+                          </div>
+                          <div class="col-md-8">
+                            <label class="form-label fw-semibold">Notification Access Roles</label>
+                            <input type="text" class="form-control" name="notification_roles"
+                                   value="<?php echo htmlspecialchars($settings['notification_roles'] ?? ''); ?>"
+                                   placeholder="e.g., SUPER_ADMIN, ADMIN, MANAGER">
+                            <small class="text-muted">Comma-separated list of role codes that can view notifications. Leave empty to use VIEW_NOTIFICATIONS permission. SUPER_ADMIN always has access.</small>
                           </div>
                         </div>
 

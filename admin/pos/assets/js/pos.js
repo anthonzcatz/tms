@@ -219,10 +219,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Don't render passengers on initial load - wait for search
     renderCustomers();
 
-    // Load discount types and accommodation types
+    // Load discount types, accommodation types and providers
     loadDiscountTypes();
     loadAccommodationTypes();
-    loadProviderServiceFees();
+    loadProviders();
 
     // Initialize transaction type UI
     updateTransactionTypeUI();
@@ -1110,82 +1110,101 @@ function loadAccommodationTypes() {
         });
 }
 
-function loadProviderServiceFees() {
-    fetch(`${window.BASE_URL}/api/provider-service-fees`)
+function loadProviders() {
+    const select = document.getElementById('ticketProvider');
+    const walletSelect = document.getElementById('ticketWallet');
+
+    fetch(`${window.BASE_URL}/api/ticket-providers`)
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.data && data.data.fees) {
-                // Store service fees for later use
-                window.providerServiceFees = data.data.fees;
+            if (data.success && data.data && data.data.providers) {
+                const activeProviders = data.data.providers.filter(p => p.status === 'active');
+
+                select.innerHTML = '<option value="">Select Provider</option>';
+                activeProviders.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.provider_id;
+                    option.dataset.providerCode = p.provider_code || '';
+                    option.dataset.providerType = p.provider_type || '';
+                    option.textContent = p.parent_provider_name
+                        ? `${p.provider_name} (${p.parent_provider_name})`
+                        : p.provider_name;
+                    select.appendChild(option);
+                });
             } else if (data.error && data.error.includes('Permission denied')) {
-                // Show permission error in UI
                 showAlert('error', data.error);
             }
-            // Load wallets filtered by user's assigned branch
-            loadWallets(null, window.POS_BRANCH_ID);
+
+            // Reset wallet dropdown
+            walletSelect.innerHTML = '<option value="">Select Provider First</option>';
+            walletSelect.disabled = true;
         })
         .catch(error => {
-            console.error('Error loading provider service fees:', error);
-            loadWallets(null, window.POS_BRANCH_ID); // Fallback loading with user's branch
+            console.error('Error loading providers:', error);
+            select.innerHTML = '<option value="">Error loading providers</option>';
+            walletSelect.innerHTML = '<option value="">Error</option>';
+            walletSelect.disabled = true;
         });
 }
 
 function refreshWallets() {
-    loadWallets(null, window.POS_BRANCH_ID);
+    const providerId = document.getElementById('ticketProvider')?.value;
+    loadWallets(providerId || null, window.POS_BRANCH_ID);
 }
 
 function loadWallets(providerId = null, branchId = null) {
     const select = document.getElementById('ticketWallet');
-    let url = `${window.BASE_URL}/api/wallets`;
 
-    // Use user's assigned branch by default if not provided
+    // Use the currently selected provider if none passed
+    if (!providerId) {
+        providerId = document.getElementById('ticketProvider')?.value || null;
+    }
+
     const userBranchId = branchId || window.POS_BRANCH_ID || null;
 
-    // Add filter parameters if provided
-    if (providerId || userBranchId) {
-        const params = [];
-        if (providerId) params.push(`provider_id=${IdEncoder.encode(providerId)}`);
-        if (userBranchId) params.push(`branch_id=${IdEncoder.encode(userBranchId)}`);
-        url += `?${params.join('&')}`;
+    if (!providerId || !userBranchId) {
+        select.innerHTML = '<option value="">Select Provider First</option>';
+        select.disabled = true;
+        return;
     }
+
+    const url = `${window.BASE_URL}/api/wallets?resolve=1&provider_id=${IdEncoder.encode(providerId)}&branch_id=${IdEncoder.encode(userBranchId)}`;
 
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.data && data.data.wallets) {
-                select.innerHTML = '<option value="">Select Wallet</option>';
-                // Filter only active wallets
-                const activeWallets = data.data.wallets.filter(w => w.status === 'active');
-                
-                activeWallets.forEach(w => {
-                    const option = document.createElement('option');
-                    option.value = w.wallet_id;
-                    option.dataset.providerId = w.provider_id;
-                    option.dataset.branchId = w.branch_id;
-                    option.dataset.providerType = w.provider_type;
-                    
-                    const typeLabel = w.provider_type ? w.provider_type.toUpperCase() : 'OTHER';
-                    option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${fmt(parseFloat(w.current_balance))} • [${typeLabel}]`;
-                    select.appendChild(option);
-                });
-                
-                // If no active wallets
-                if (activeWallets.length === 0) {
-                    select.innerHTML = '<option value="">No active wallets available</option>';
-                    select.disabled = true;
-                }
-            } else if (data.error && data.error.includes('Permission denied')) {
-                // Show permission error in UI
-                select.innerHTML = '<option value="">Wallet access restricted (Permission denied)</option>';
+            if (data.success && data.data && data.data.resolved && data.data.wallet) {
+                const w = data.data.wallet;
+                select.innerHTML = '';
+                const option = document.createElement('option');
+                option.value = w.wallet_id;
+                option.dataset.providerId = w.provider_id;
+                option.dataset.branchId = w.branch_id;
+                option.dataset.providerType = w.provider_type || '';
+                option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${fmt(parseFloat(w.current_balance))}`;
+                select.appendChild(option);
                 select.disabled = true;
-                showAlert('error', data.error);
+                window.selectedResolvedWallet = w;
+            } else if (data.error) {
+                select.innerHTML = '<option value="">' + (data.error.includes('Permission denied') ? 'Wallet access restricted' : 'No wallet found') + '</option>';
+                select.disabled = true;
+                window.selectedResolvedWallet = null;
+                if (data.error.includes('Permission denied')) {
+                    showAlert('error', data.error);
+                }
             }
         })
         .catch(error => {
             console.error('Error loading wallets:', error);
             select.innerHTML = '<option value="">Error loading wallets</option>';
             select.disabled = true;
+            window.selectedResolvedWallet = null;
         });
+}
+
+function onProviderChanged() {
+    loadWallets();
+    loadServiceFeeForProvider();
 }
 
 function showAlert(type, message) {
@@ -1206,30 +1225,26 @@ function showAlert(type, message) {
     }, 5000);
 }
 
-function loadServiceFeeForWallet() {
-    const walletSelect = document.getElementById('ticketWallet');
-    const selectedOption = walletSelect.selectedOptions[0];
+function loadServiceFeeForProvider() {
+    const providerSelect = document.getElementById('ticketProvider');
+    const providerId = providerSelect ? providerSelect.value : null;
     const serviceFeeDisplay = document.getElementById('ticketServiceFeeDisplay');
     const serviceFeeInput = document.getElementById('ticketServiceFee');
     const baseAmountDisplay = document.getElementById('ticketBaseAmountDisplay');
     const baseAmountInput = document.getElementById('ticketBaseAmount');
-    
-    if (!selectedOption || !selectedOption.value) {
+
+    if (!providerId) {
         serviceFeeDisplay.textContent = '-';
         serviceFeeInput.value = 0;
         baseAmountDisplay.textContent = '₱0.00';
         computeTicketTotal();
         return;
     }
-    
-    const providerId = selectedOption.dataset.providerId;
-    const branchId = selectedOption.dataset.branchId;
 
-    console.log('Loading service fee for wallet:', selectedOption.value, 'providerId:', providerId, 'branchId:', branchId);
+    const numericProviderId = parseInt(providerId, 10);
+    const numericBranchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
 
-    // Convert to numbers and validate
-    const numericProviderId = providerId ? parseInt(providerId, 10) : null;
-    const numericBranchId = branchId ? parseInt(branchId, 10) : null;
+    console.log('Loading service fee for provider:', numericProviderId, 'branchId:', numericBranchId);
 
     console.log('Numeric providerId:', numericProviderId, 'Numeric branchId:', numericBranchId);
 
@@ -2551,22 +2566,22 @@ function addTicketToCart() {
     const discountAmount = (baseAmount * discountPercentage) / 100;
     const total = baseAmount + serviceFee - discountAmount;
     const accommodationId = document.getElementById('ticketAccommodation').value || null;
-    
-    // Get wallet and branch info
+
+    // Get operating provider and resolved wallet
+    const providerSelect = document.getElementById('ticketProvider');
+    const providerId = providerSelect ? providerSelect.value : null;
     const walletSelect = document.getElementById('ticketWallet');
-    const walletId = walletSelect.value;
-    const walletOption = walletSelect.selectedOptions[0];
+    const walletId = walletSelect ? walletSelect.value : null;
+    const walletOption = walletSelect ? walletSelect.selectedOptions[0] : null;
     const walletBranchId = walletOption ? walletOption.dataset.branchId : null;
-    const walletProviderId = walletOption ? walletOption.dataset.providerId : null;
 
     if (!passengerId) { showToast('danger', 'Error', 'Please select a passenger.'); return; }
     if (!ticketNumber) { showToast('danger', 'Error', 'Please enter ticket number.'); return; }
     if (!baseAmount || baseAmount <= 0) { showToast('danger', 'Error', 'Please enter a valid cost amount.'); return; }
     if (!discountSelect.value) { showToast('danger', 'Error', 'Please select a discount.'); return; }
     if (!accommodationId) { showToast('danger', 'Error', 'Please select an accommodation.'); return; }
-    if (!walletId) { showToast('danger', 'Error', 'Please select a wallet.'); return; }
-    // if (!origin) { showToast('danger', 'Error', 'Please enter origin.'); return; }
-    // if (!destination) { showToast('danger', 'Error', 'Please enter destination.'); return; }
+    if (!providerId) { showToast('danger', 'Error', 'Please select a provider.'); return; }
+    if (!walletId) { showToast('danger', 'Error', 'Please select/resolve a wallet.'); return; }
     if (total <= 0) { showToast('danger', 'Error', 'Ticket total must be greater than 0.'); return; }
 
     // Get passenger name from selected passenger display
@@ -2586,9 +2601,9 @@ function addTicketToCart() {
         discountAmount,
         accommodationId,
         total,
+        providerId,
         walletId,
-        branchId: walletBranchId,
-        providerId: walletProviderId
+        branchId: walletBranchId || window.POS_BRANCH_ID
     };
 
     // Only one ticket allowed per cart
@@ -3113,6 +3128,7 @@ async function confirmOrder() {
                 discount_amount: ticket.discountAmount,
                 accommodation_id: ticket.accommodationId || null,
                 total_amount: ticket.total,
+                provider_id: ticket.providerId,
                 wallet_id: ticket.walletId
             }],
             services: services.map(s => ({
@@ -3442,15 +3458,18 @@ function renderTransactionsTable(transactions) {
             passengerCell = txn.passenger_name.charAt(0).toUpperCase() + txn.passenger_name.slice(1).toLowerCase();
         }
 
-        // Provider cell
+        // Provider cell (operating provider / wallet provider)
         let providerCell = '-';
         if (isOrderBased && orderItems.length > 0) {
-            const providers = [...new Set(orderItems.filter(i => i.provider_name).map(i => i.provider_name))];
+            const providers = [...new Set(orderItems.filter(i => i.provider_name).map(i =>
+                i.provider_name + (i.wallet_provider_name && i.wallet_provider_name !== i.provider_name ? ` <span class="text-muted">(${i.wallet_provider_name})</span>` : '')
+            ))];
             providerCell = providers.length > 0 ? providers.join('<br>') : '-';
         } else if (txn.provider_name) {
+            const walletName = txn.wallet_provider_name && txn.wallet_provider_name !== txn.provider_name ? ` <span class="text-muted">(${txn.wallet_provider_name})</span>` : '';
             providerCell = txn.provider_type
-                ? `<div>${txn.provider_name}</div><div><span class="badge bg-soft-info text-info" style="font-size:0.75em;">${txn.provider_type}</span></div>`
-                : txn.provider_name;
+                ? `<div>${txn.provider_name}${walletName}</div><div><span class="badge bg-soft-info text-info" style="font-size:0.75em;">${txn.provider_type}</span></div>`
+                : `${txn.provider_name}${walletName}`;
         }
 
         // Origin/Dest cell
@@ -3493,9 +3512,10 @@ function renderTransactionsTable(transactions) {
                 if (item.item_type === 'TICKET') {
                     const td = item.travel_date ? new Date(item.travel_date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
                     const iconColor = isCancelled ? 'text-muted' : 'text-primary';
+                    const itemWalletName = item.wallet_provider_name && item.wallet_provider_name !== item.provider_name ? ` <span class="text-muted">(${item.wallet_provider_name})</span>` : '';
                     itemRows += `<tr class="${rowClass}" style="font-size:0.8em;${textStyle}">
                         <td colspan="2"><i class="fas fa-ticket-alt ${iconColor} me-1"></i>${item.passenger_name || '-'}${cancelledBadge}</td>
-                        <td colspan="2">${item.provider_name || '-'}</td>
+                        <td colspan="2">${item.provider_name ? item.provider_name + itemWalletName : '-'}</td>
                         <td>${td}</td>
                         <td>${item.origin && item.destination ? item.origin + ' → ' + item.destination : '-'}</td>
                         <td>₱${fmt(item.total_amount)}</td>

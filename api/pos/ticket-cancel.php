@@ -108,20 +108,23 @@ if ($pendingCancellation) {
     echo json_encode(['success' => false, 'error' => 'There is already a pending cancellation request for this ticket.']); exit;
 }
 
-// Check if wallet_id exists
-$walletId = $ticketTxn['wallet_id'] ?? null;
-if (!$walletId) {
-    echo json_encode(['success' => false, 'error' => 'This ticket transaction has no associated wallet.']); exit;
+// Ensure we can identify the operating provider for wallet resolution
+$providerId = $ticketTxn['provider_id'] ?? null;
+$walletId   = $ticketTxn['wallet_id'] ?? null;
+
+if (!$providerId && $walletId) {
+    // Fallback for legacy records before migration: derive provider from the recorded wallet
+    $walletProvider = Database::fetch(
+        "SELECT provider_id FROM provider_wallets WHERE wallet_id = :wid",
+        ['wid' => $walletId]
+    );
+    if ($walletProvider) {
+        $providerId = $walletProvider['provider_id'];
+    }
 }
 
-// Get wallet
-$wallet = Database::fetch(
-    "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active'",
-    ['wid' => $walletId]
-);
-
-if (!$wallet) {
-    echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive.']); exit;
+if (!$providerId) {
+    echo json_encode(['success' => false, 'error' => 'This ticket transaction has no associated provider or wallet.']); exit;
 }
 
 // Validate refund amount (cannot exceed original total amount)
@@ -297,6 +300,13 @@ try {
         if ($chargeAmount > 0 && $passengerId) {
             reverseCustomerCharge((int)$passengerId, $chargeAmount);
         }
+
+        // Resolve the correct wallet to credit (walks up parent chain if needed)
+        $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$ticketTxn['branch_id']);
+        if (!$resolvedWallet) {
+            throw new Exception('No active wallet found for the provider and branch to process refund.');
+        }
+        $walletId = $resolvedWallet['wallet_id'];
 
         // Re-fetch wallet inside transaction to get latest balance (prevent race conditions)
         $wallet = Database::fetch(

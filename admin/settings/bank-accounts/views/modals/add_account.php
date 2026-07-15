@@ -39,12 +39,28 @@
           <div class="col-md-6">
             <label class="form-label fw-semibold">Branch</label>
             <select class="form-select" id="addBranchId">
-              <option value="">Company-wide (All Branches)</option>
+              <?php
+              $canAccessAllBranches = ($userRoleCode === 'SUPER_ADMIN');
+              $assignedBranchIds = ($userBranchId !== null && $userBranchId !== '')
+                  ? array_map('trim', explode(',', $userBranchId))
+                  : [];
+              ?>
+              <?php if ($canAccessAllBranches): ?>
+                <option value="">Company-wide (All Branches)</option>
+              <?php endif; ?>
               <?php foreach ($branches as $branch): ?>
-                <option value="<?php echo $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
+                <?php
+                $branchId = (string) $branch['branch_id'];
+                $isAssignedBranch = in_array($branchId, $assignedBranchIds, true);
+                if ($canAccessAllBranches || $isAssignedBranch):
+                ?>
+                  <option value="<?php echo $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
+                <?php endif; ?>
               <?php endforeach; ?>
             </select>
-            <div class="form-text">Leave blank if this account is used by all branches.</div>
+            <?php if ($canAccessAllBranches): ?>
+              <div class="form-text">Leave blank if this account is used by all branches.</div>
+            <?php endif; ?>
           </div>
           <div class="col-md-6">
             <label class="form-label fw-semibold">Payment Method</label>

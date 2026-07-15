@@ -24,6 +24,9 @@ $actionIconMap = [
     'CHANGE_PASSWORD'            => ['icon' => 'fa-key',                'color' => 'warning',   'label' => 'Change Password'],
     'UPDATE_PROFILE'             => ['icon' => 'fa-user-edit',          'color' => 'info',      'label' => 'Update Profile'],
     'UPLOAD_PROFILE_IMAGE'       => ['icon' => 'fa-camera',             'color' => 'info',      'label' => 'Upload Profile Image'],
+    'CREATE_SERVICE_FEE'         => ['icon' => 'fa-plus-circle',        'color' => 'primary',   'label' => 'Create Service Fee'],
+    'UPDATE_SERVICE_FEE'         => ['icon' => 'fa-edit',               'color' => 'info',      'label' => 'Update Service Fee'],
+    'DELETE_SERVICE_FEE'         => ['icon' => 'fa-trash-alt',          'color' => 'danger',    'label' => 'Delete Service Fee'],
 ];
 
 // Build query string for pagination (preserve filters)
@@ -154,7 +157,7 @@ function buildPageUrl(int $pg, array $filters): string {
             </div>
             <?php else: ?>
             <div class="table-responsive">
-              <table class="table table-sm table-hover fs-10 mb-0 align-middle">
+              <table class="table table-sm table-hover fs-10 mb-0 align-middle activity-log-table">
                 <thead class="bg-body-tertiary text-uppercase fs-11 text-600">
                   <tr>
                     <th class="ps-3" style="min-width:50px">#</th>
@@ -348,6 +351,60 @@ function buildPageUrl(int $pg, array $filters): string {
   (function () {
     var logDetailModal = document.getElementById('logDetailModal');
     if (!logDetailModal) return;
+
+    // Field label mapping for human-readable display
+    var fieldLabels = {
+      'provider_id': 'Provider ID',
+      'branch_id': 'Branch ID',
+      'fee_type': 'Fee Type',
+      'fee_value': 'Fee Amount',
+      'is_active': 'Status',
+      'wallet_id': 'Wallet ID',
+      'txn_type': 'Transaction Type',
+      'direction': 'Direction',
+      'amount': 'Amount',
+      'balance_before': 'Balance Before',
+      'balance_after': 'Balance After',
+      'remarks': 'Remarks',
+      'status': 'Status',
+      'created_by': 'Created By',
+      'updated_by': 'Updated By'
+    };
+
+    // Format value for display
+    function formatValue(key, value) {
+      if (value === null || value === undefined) return '—';
+      if (key === 'is_active' || key === 'status') {
+        return value === 1 || value === 'active' ? 'Active' : value === 0 || value === 'inactive' ? 'Inactive' : value;
+      }
+      if (key === 'fee_value' || key === 'amount' || key === 'balance_before' || key === 'balance_after') {
+        return '₱' + parseFloat(value).toFixed(2);
+      }
+      if (key === 'direction') {
+        return value === 'IN' ? 'Incoming (IN)' : value === 'OUT' ? 'Outgoing (OUT)' : value;
+      }
+      return value;
+    }
+
+    // Format JSON with human-readable labels
+    function formatHumanReadableJson(str) {
+      if (!str) return '—';
+      try {
+        var obj = JSON.parse(str);
+        var lines = [];
+        for (var key in obj) {
+          if (obj.hasOwnProperty(key)) {
+            var label = fieldLabels[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+            var value = formatValue(key, obj[key]);
+            lines.push(label + ': ' + value);
+          }
+        }
+        return lines.length > 0 ? lines.join('\n') : '—';
+      } catch (e) {
+        return str;
+      }
+    }
+
     logDetailModal.addEventListener('show.bs.modal', function (e) {
       var btn = e.relatedTarget;
       document.getElementById('logDetailSubtitle').textContent = btn.dataset.action + ' — ' + btn.dataset.module;
@@ -355,12 +412,8 @@ function buildPageUrl(int $pg, array $filters): string {
       document.getElementById('detailModule').textContent  = btn.dataset.module  || '—';
       document.getElementById('detailRef').textContent     = btn.dataset.ref     || '—';
 
-      function tryFormatJson(str) {
-        if (!str) return '—';
-        try { return JSON.stringify(JSON.parse(str), null, 2); } catch (e) { return str; }
-      }
-      document.getElementById('detailOld').textContent = tryFormatJson(btn.dataset.old);
-      document.getElementById('detailNew').textContent = tryFormatJson(btn.dataset.new);
+      document.getElementById('detailOld').textContent = formatHumanReadableJson(btn.dataset.old);
+      document.getElementById('detailNew').textContent = formatHumanReadableJson(btn.dataset.new);
     });
   })();
   </script>

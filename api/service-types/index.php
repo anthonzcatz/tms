@@ -181,10 +181,16 @@ function handleDelete() {
     $existing = Database::fetch("SELECT * FROM service_types WHERE service_type_id = :id", ['id' => $id]);
     if (!$existing) { echo json_encode(['success' => false, 'error' => 'Not found.']); return; }
 
-    // Check if used in transactions
+    // Check if used in service transactions
     $inUse = Database::fetch("SELECT service_txn_id FROM service_transactions WHERE service_type_id = :id LIMIT 1", ['id' => $id]);
     if ($inUse) {
         echo json_encode(['success' => false, 'error' => 'Cannot delete — already used in service transactions. Deactivate it instead.']); return;
+    }
+
+    // Check if used in POS order items
+    $inUsePos = Database::fetch("SELECT item_id FROM pos_order_items WHERE service_type_id = :id LIMIT 1", ['id' => $id]);
+    if ($inUsePos) {
+        echo json_encode(['success' => false, 'error' => 'Cannot delete — already used in POS orders. Deactivate it instead.']); return;
     }
 
     Database::execute("DELETE FROM service_types WHERE service_type_id = :id", ['id' => $id]);

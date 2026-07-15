@@ -1,1 +1,16 @@
 /* User Module Styles */
+
+/* Activity Log Table Hover Effect */
+.activity-log-table tbody tr {
+  transition: background-color 0.15s ease-in-out;
+}
+
+.activity-log-table tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05) !important;
+  cursor: pointer;
+}
+
+.activity-log-table tbody tr:hover td {
+  color: #212529;
+}
+

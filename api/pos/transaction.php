@@ -148,12 +148,17 @@ if ($useOrdersTable) {
                     at.name as accommodation_name,
                     at.code as accommodation_code,
                     dt.name as discount_name,
-                    dt.code as discount_code
+                    dt.code as discount_code,
+                    tp_op.provider_name as provider_name,
+                    tp_wallet.provider_name as wallet_provider_name
              FROM pos_order_items oi
              LEFT JOIN passenger_accounts p ON oi.passenger_id = p.passenger_id
              LEFT JOIN service_types st ON oi.service_type_id = st.service_type_id
              LEFT JOIN accommodation_types at ON oi.accommodation_id = at.accommodation_id
              LEFT JOIN discount_types dt ON oi.discount_id = dt.discount_id
+             LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
+             LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
              WHERE oi.order_id = :order_id",
             ['order_id' => $transaction['order_id']]
         );

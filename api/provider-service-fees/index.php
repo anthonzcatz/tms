@@ -129,12 +129,13 @@ function handleGet() {
 
     // List all fees
     $branchFilter = "";
+    $branchJoin = "";
     $params = [];
 
     // SUPER_ADMIN can see all fees, others are restricted to their branch
     global $userRoleCode, $userBranchId;
     if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchFilter = "WHERE psf.branch_id = :user_branch_id";
+        $branchJoin = "AND psf.branch_id = :user_branch_id";
         $params['user_branch_id'] = $userBranchId;
     }
 
@@ -175,7 +176,7 @@ function handleGet() {
                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
             FROM provider_service_fees psf
             LEFT JOIN ticket_providers tp ON psf.provider_id = tp.provider_id
-            LEFT JOIN business_branches bb ON psf.branch_id = bb.branch_id
+            LEFT JOIN business_branches bb ON psf.branch_id = bb.branch_id $branchJoin
             $branchFilter
             ORDER BY tp.provider_name, bb.branch_name, psf.fee_type";
 
@@ -249,16 +250,38 @@ function handlePost() {
         "SELECT fee_id FROM provider_service_fees WHERE provider_id = :provider_id AND branch_id = :branch_id AND fee_type = :fee_type",
         ['provider_id' => (int)$providerId, 'branch_id' => (int)$branchId, 'fee_type' => $feeType]
     );
-    
+
     if ($existing) {
-        echo json_encode(['success' => false, 'error' => 'Service fee already exists for this provider, branch, and fee type']);
+        // Update existing fee instead of creating new one
+        $feeId = $existing['fee_id'];
+        $sql = "UPDATE provider_service_fees SET fee_value = :fee_value, is_active = :is_active, updated_by = :updated_by, updated_at = :updated_at WHERE fee_id = :fee_id";
+
+        Database::execute($sql, [
+            'fee_id' => (int)$feeId,
+            'fee_value' => (float)$feeAmount,
+            'is_active' => $status === 'active' ? 1 : 0,
+            'updated_by' => $user['user_id'],
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+
+        // Log activity
+        logActivity(
+            $user['user_id'],
+            'UPDATE_SERVICE_FEE',
+            'SERVICE_FEE_MANAGEMENT',
+            "FEE-{$feeId}",
+            ['fee_value' => 'Updated', 'status' => $status],
+            ['fee_value' => $feeAmount, 'status' => $status]
+        );
+
+        echo json_encode(['success' => true, 'message' => 'Service fee updated successfully (already existed)', 'fee_id' => $feeId]);
         return;
     }
-    
+
     // Insert new service fee
     $sql = "INSERT INTO provider_service_fees (provider_id, branch_id, fee_type, fee_value, is_active, created_by, created_at)
             VALUES (:provider_id, :branch_id, :fee_type, :fee_value, :is_active, :created_by, :created_at)";
-    
+
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
         'branch_id' => (int)$branchId,
@@ -268,7 +291,7 @@ function handlePost() {
         'created_by' => $user['user_id'],
         'created_at' => date('Y-m-d H:i:s')
     ]);
-    
+
     $feeId = Database::connection()->lastInsertId();
     
     // Log activity
@@ -398,7 +421,7 @@ function handlePut() {
     // Log activity
     $oldValues = [];
     $newValues = [];
-    
+
     if ($providerId !== null) {
         $oldValues['provider_id'] = $currentFee['provider_id'];
         $newValues['provider_id'] = $providerId;
@@ -411,7 +434,15 @@ function handlePut() {
         $oldValues['fee_type'] = $currentFee['fee_type'];
         $newValues['fee_type'] = $feeType;
     }
-    
+    if ($feeAmount !== null) {
+        $oldValues['fee_value'] = $currentFee['fee_value'];
+        $newValues['fee_value'] = $feeAmount;
+    }
+    if ($status !== null) {
+        $oldValues['is_active'] = $currentFee['is_active'];
+        $newValues['is_active'] = $status === 'active' ? 1 : 0;
+    }
+
     logActivity(
         $user['user_id'],
         'UPDATE_SERVICE_FEE',

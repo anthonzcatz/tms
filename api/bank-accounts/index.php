@@ -59,7 +59,14 @@ function handleGet() {
     }
     
     if ($id) {
-        $account = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $id]);
+        $account = Database::fetch(
+            "SELECT ba.*, bb.branch_name, pm.method_name, pm.method_type
+             FROM bank_accounts ba
+             LEFT JOIN business_branches bb ON ba.branch_id = bb.branch_id
+             LEFT JOIN payment_methods pm ON ba.payment_method_id = pm.method_id
+             WHERE ba.bank_account_id = :id",
+            ['id' => $id]
+        );
         if (!$account) { echo json_encode(['success' => false, 'error' => 'Not found']); return; }
         echo json_encode(['success' => true, 'data' => $account]);
         return;
@@ -91,8 +98,8 @@ function handleGet() {
 }
 
 function handlePost() {
-    global $user, $userRoleCode;
-    if ($userRoleCode !== 'SUPER_ADMIN' && !Auth::can('VIEW_SETTINGS')) {
+    global $user;
+    if (!Auth::canAccessModule('admin/settings/bank-accounts')) {
         http_response_code(403); echo json_encode(['success' => false, 'error' => 'Permission denied.']); return;
     }
 
@@ -132,8 +139,8 @@ function handlePost() {
 }
 
 function handlePut() {
-    global $user, $userRoleCode;
-    if ($userRoleCode !== 'SUPER_ADMIN' && !Auth::can('VIEW_SETTINGS')) {
+    global $user;
+    if (!Auth::canAccessModule('admin/settings/bank-accounts')) {
         http_response_code(403); echo json_encode(['success' => false, 'error' => 'Permission denied.']); return;
     }
 
@@ -189,8 +196,8 @@ function handlePut() {
 }
 
 function handleDelete() {
-    global $user, $userRoleCode;
-    if ($userRoleCode !== 'SUPER_ADMIN' && !Auth::can('VIEW_SETTINGS')) {
+    global $user;
+    if (!Auth::canAccessModule('admin/settings/bank-accounts')) {
         http_response_code(403); echo json_encode(['success' => false, 'error' => 'Permission denied.']); return;
     }
 

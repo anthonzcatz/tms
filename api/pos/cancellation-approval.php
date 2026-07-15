@@ -106,14 +106,23 @@ if (!$ticketTxn) {
     echo json_encode(['success' => false, 'error' => 'Ticket transaction not found.']); exit;
 }
 
-// Get wallet
-$wallet = Database::fetch(
-    "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active'",
-    ['wid' => $ticketTxn['wallet_id']]
-);
+// Identify the operating provider for wallet resolution
+$providerId = $ticketTxn['provider_id'] ?? null;
+$walletId   = $ticketTxn['wallet_id'] ?? null;
 
-if (!$wallet) {
-    echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive.']); exit;
+if (!$providerId && $walletId) {
+    // Fallback for legacy records before migration
+    $walletProvider = Database::fetch(
+        "SELECT provider_id FROM provider_wallets WHERE wallet_id = :wid",
+        ['wid' => $walletId]
+    );
+    if ($walletProvider) {
+        $providerId = $walletProvider['provider_id'];
+    }
+}
+
+if (!$providerId) {
+    echo json_encode(['success' => false, 'error' => 'This ticket transaction has no associated provider or wallet.']); exit;
 }
 
 $settings = Database::fetch(
@@ -154,13 +163,29 @@ try {
             reverseCustomerCharge((int)$passengerId, $chargeAmount);
         }
 
+        // Resolve the correct wallet to credit (walks up parent chain if needed)
+        $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$ticketTxn['branch_id']);
+        if (!$resolvedWallet) {
+            throw new Exception('No active wallet found for the provider and branch to process refund.');
+        }
+        $walletId = $resolvedWallet['wallet_id'];
+
+        // Fetch the wallet inside the transaction for accurate balance
+        $wallet = Database::fetch(
+            "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active' FOR UPDATE",
+            ['wid' => $walletId]
+        );
+        if (!$wallet) {
+            throw new Exception('Wallet not found or inactive during refund processing.');
+        }
+
         // Restore provider wallet balance
         $balanceBefore = floatval($wallet['current_balance']);
         $balanceAfter  = $balanceBefore + $refundAmount;
 
         Database::execute(
             "UPDATE provider_wallets SET current_balance = :new_balance WHERE wallet_id = :wid",
-            ['new_balance' => $balanceAfter, 'wid' => $wallet['wallet_id']]
+            ['new_balance' => $balanceAfter, 'wid' => $walletId]
         );
 
         // Record wallet transaction
@@ -175,7 +200,7 @@ try {
              VALUES (:wid, :code, 'REFUND', 'IN', :amount, :before, :after,
                      'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
             [
-                'wid'     => $wallet['wallet_id'],
+                'wid'     => $walletId,
                 'code'    => $wTxnCode,
                 'amount'  => $refundAmount,
                 'before'  => $balanceBefore,

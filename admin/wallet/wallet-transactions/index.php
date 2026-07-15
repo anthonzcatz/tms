@@ -46,6 +46,7 @@ if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
 // Get all wallets for dropdown (filtered by user's branch if not SUPER_ADMIN)
 $wallets = Database::fetchAll(
     "SELECT pw.wallet_id,
+            pw.current_balance,
             tp.provider_name,
             bb.branch_name,
             CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name

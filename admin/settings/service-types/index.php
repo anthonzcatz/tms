@@ -31,9 +31,13 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 
 $userRoleCode = $user['role_code'] ?? '';
 
-// Fetch all service types
+// Fetch all service types with usage counts
 $serviceTypes = Database::fetchAll(
-    "SELECT * FROM service_types ORDER BY name ASC"
+    "SELECT st.*,
+            (SELECT COUNT(*) FROM service_transactions WHERE service_type_id = st.service_type_id) as txn_count,
+            (SELECT COUNT(*) FROM pos_order_items WHERE service_type_id = st.service_type_id) as pos_count
+     FROM service_types st
+     ORDER BY st.name ASC"
 );
 
 include __DIR__ . '/views/index.php';

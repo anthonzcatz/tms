@@ -37,9 +37,9 @@
             </div>
             <div class="col-md-6">
               <label for="addStatus" class="form-label fw-bold">Status</label>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="addStatus" name="status" checked style="width: 3em; height: 1.5em;">
-                <label class="form-check-label" for="addStatus" id="addStatusLabel">
+              <div class="form-check form-switch d-flex align-items-center ps-0">
+                <input class="form-check-input" type="checkbox" id="addStatus" name="status" checked style="width: 3em; height: 1.5em; float: none; margin: 0;">
+                <label class="form-check-label ms-2" for="addStatus" id="addStatusLabel">
                   <span class="text-success fw-bold">Active</span>
                 </label>
               </div>

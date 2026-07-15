@@ -16,6 +16,22 @@
       <form id="addTransactionForm">
         <div class="modal-body">
           <input type="hidden" id="transaction_id" name="transaction_id">
+          <!-- Current Balance Display (Read-only) -->
+          <div class="alert alert-info mb-3" id="currentBalanceAlert" style="display: none;">
+            <div class="d-flex align-items-center justify-content-between">
+              <div class="d-flex align-items-center">
+                <span class="fas fa-wallet me-2 fs-5"></span>
+                <div>
+                  <strong>Current Balance:</strong> <span id="displayCurrentBalance" class="fw-bold">₱0.00</span>
+                  <small class="d-block text-muted" id="displayWalletName">-</small>
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-info" onclick="refreshWalletBalance()" title="Refresh balance">
+                <span class="fas fa-sync-alt"></span>
+              </button>
+            </div>
+            <small class="text-muted mt-1 d-block">Balance is checked in real-time at submission. Click refresh to get latest balance.</small>
+          </div>
           <div class="card border-0 shadow-sm mb-3">
             <div class="card-header bg-light border-0 py-2">
               <h6 class="mb-0 fw-bold">Transaction Details</h6>
@@ -27,7 +43,7 @@
                   <select class="form-select" id="addWalletId" name="wallet_id" required>
                     <option value="">Select Wallet</option>
                     <?php foreach ($wallets as $wallet): ?>
-                      <option value="<?php echo $wallet['wallet_id']; ?>">
+                      <option value="<?php echo $wallet['wallet_id']; ?>" data-balance="<?php echo $wallet['current_balance']; ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>">
                         <?php echo htmlspecialchars($wallet['wallet_name']); ?>
                       </option>
                     <?php endforeach; ?>

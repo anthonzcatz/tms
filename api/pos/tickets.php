@@ -230,6 +230,20 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         $ticketTxnIds = [];
         $firstTxnCode = null;
         foreach ($tickets as $ticket) {
+            $providerId = $ticket['provider_id'] ?? null;
+            if (!$providerId) {
+                Database::connection()->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Provider is required for each ticket.']); exit;
+            }
+
+            // Resolve wallet for the operating provider
+            $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$branchId);
+            if (!$resolvedWallet) {
+                Database::connection()->rollBack();
+                echo json_encode(['success' => false, 'error' => 'No active wallet found for the selected provider and branch.']); exit;
+            }
+            $walletId = $resolvedWallet['wallet_id'];
+
             // Generate per-ticket transaction code: TKT-YYYYMMDD-HHMM-###
             $txnCode = 'TKT-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
             if (!$firstTxnCode) $firstTxnCode = $txnCode;
@@ -237,17 +251,18 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             try {
                 Database::execute(
                     "INSERT INTO ticket_transactions
-                        (transaction_code, wallet_id, branch_id, passenger_id, accommodation_id, discount_id,
+                        (transaction_code, wallet_id, provider_id, branch_id, passenger_id, accommodation_id, discount_id,
                          origin, destination, travel_date, ticket_number,
                          base_amount, service_fee, discount_amount, total_amount, status,
                          cashier_session_id, created_by, created_at)
-                     VALUES (:code, :wallet, :branch, :passenger, :accommodation_id, :discount_id,
+                     VALUES (:code, :wallet, :provider, :branch, :passenger, :accommodation_id, :discount_id,
                              :origin, :destination, :travel_date, :ticket_number,
                              :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
                              :session, :uid, :created_at)",
                     [
                         'code'            => $txnCode,
-                        'wallet'          => $ticket['wallet_id'] ?? null,
+                        'wallet'          => $walletId,
+                        'provider'        => (int)$providerId,
                         'branch'          => $branchId,
                         'passenger'       => $ticket['passenger_id'] ?? null,
                         'accommodation_id'=> $ticket['accommodation_id'] ?? null,
@@ -279,11 +294,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 Database::execute(
                     "INSERT INTO pos_order_items
                         (order_id, item_type, reference_id, transaction_code, ticket_number,
-                         accommodation_id, discount_id, wallet_id, passenger_id, description,
+                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, description,
                          unit_price, service_fee, discount_amount, total_amount,
                          origin, destination, travel_date, created_at)
                      VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                             :accommodation_id, :discount_id, :wallet_id, :passenger_id, :description,
+                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :description,
                              :unit_price, :service_fee, :discount_amount, :total,
                              :origin, :destination, :travel_date, :created_at)",
                     [
@@ -293,7 +308,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'ticket_number'    => $ticket['ticket_number'] ?? $txnCode,
                         'accommodation_id' => !empty($ticket['accommodation_id']) ? intval($ticket['accommodation_id']) : null,
                         'discount_id'      => !empty($ticket['discount_id']) ? intval($ticket['discount_id']) : null,
-                        'wallet_id'        => $ticket['wallet_id'] ?? null,
+                        'provider_id'      => (int)$providerId,
+                        'wallet_id'        => $walletId,
                         'passenger_id'     => $ticket['passenger_id'] ?? null,
                         'description'      => $ticket['description'] ?? null,
                         'unit_price'       => floatval($ticket['base_amount'] ?? 0),
@@ -313,10 +329,9 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             }
 
             logActivity($user['user_id'], 'CREATE_TICKET_TRANSACTION', 'POS', $txnCode, null,
-                ['order_code' => $orderCode, 'ticket_id' => $ticketTxnId, 'wallet_id' => $ticket['wallet_id'] ?? null]);
+                ['order_code' => $orderCode, 'ticket_id' => $ticketTxnId, 'provider_id' => (int)$providerId, 'wallet_id' => $walletId]);
 
             // --- Wallet balance deduction (Base Amount only, NOT Service Fee) ---
-            $walletId   = $ticket['wallet_id'] ?? null;
             $baseAmount = floatval($ticket['base_amount'] ?? 0);
 
             if ($walletId && $baseAmount > 0) {

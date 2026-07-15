@@ -174,13 +174,21 @@ class NotificationService {
      * Mark notification as read
      * 
      * @param int $notificationId Notification ID
+     * @param int|null $userId User ID (for security check)
      * @return bool Success
      */
-    public static function markAsRead($notificationId) {
+    public static function markAsRead($notificationId, $userId = null) {
         $sql = "UPDATE notifications SET is_read = 1, read_at = NOW() WHERE notification_id = ?";
+        $params = [$notificationId];
+        
+        // Add user_id check for security (ensure user can only mark their own notifications)
+        if ($userId !== null) {
+            $sql .= " AND user_id = ?";
+            $params[] = $userId;
+        }
         
         try {
-            Database::execute($sql, [$notificationId]);
+            Database::execute($sql, $params);
             return true;
         } catch (Exception $e) {
             error_log("Mark as read failed: " . $e->getMessage());
@@ -216,13 +224,21 @@ class NotificationService {
      * Delete notification
      * 
      * @param int $notificationId Notification ID
+     * @param int|null $userId User ID (for security check)
      * @return bool Success
      */
-    public static function delete($notificationId) {
+    public static function delete($notificationId, $userId = null) {
         $sql = "DELETE FROM notifications WHERE notification_id = ?";
+        $params = [$notificationId];
+        
+        // Add user_id check for security (ensure user can only delete their own notifications)
+        if ($userId !== null) {
+            $sql .= " AND user_id = ?";
+            $params[] = $userId;
+        }
         
         try {
-            Database::execute($sql, [$notificationId]);
+            Database::execute($sql, $params);
             return true;
         } catch (Exception $e) {
             error_log("Delete notification failed: " . $e->getMessage());

@@ -118,6 +118,10 @@ class AuthController
 
         // Redirect to role's default dashboard
         $dashboard = $user['default_dashboard'] ?? '/admin/dashboard/analytics';
+        // Fix invalid default_dashboard values
+        if ($dashboard === '/admin' || $dashboard === '/admin/') {
+            $dashboard = '/admin/dashboard/analytics';
+        }
         header('Location: ' . BASE_URL . $dashboard);
         exit;
     }

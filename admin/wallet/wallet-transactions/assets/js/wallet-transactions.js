@@ -41,7 +41,7 @@ function initComponents() {
 function setupEventListeners() {
     // Search
     document.getElementById('transactionSearch').addEventListener('input', debounce(filterTransactions, 300));
-    
+
     // Filters
     document.getElementById('walletFilter').addEventListener('change', function() {
         filterTransactions();
@@ -49,6 +49,14 @@ function setupEventListeners() {
     });
     document.getElementById('txnTypeFilter').addEventListener('change', filterTransactions);
     document.getElementById('directionFilter').addEventListener('change', filterTransactions);
+
+    // Add Transaction Modal - wallet selection
+    const addWalletId = document.getElementById('addWalletId');
+    if (addWalletId) {
+        addWalletId.addEventListener('change', function() {
+            updateAddTransactionBalanceDisplay();
+        });
+    }
 
     // Flatpickr date range filter — default to today
     if (typeof flatpickr !== 'undefined') {
@@ -159,6 +167,74 @@ async function updateCurrentBalance() {
     }
 }
 
+// Update balance display in add transaction modal
+function updateAddTransactionBalanceDisplay() {
+    const walletSelect = document.getElementById('addWalletId');
+    const selectedOption = walletSelect.options[walletSelect.selectedIndex];
+    const alertEl = document.getElementById('currentBalanceAlert');
+    const balanceEl = document.getElementById('displayCurrentBalance');
+    const walletNameEl = document.getElementById('displayWalletName');
+
+    if (!walletSelect.value) {
+        alertEl.style.display = 'none';
+        return;
+    }
+
+    // Use data attributes from the selected option
+    const balance = selectedOption.getAttribute('data-balance');
+    const walletName = selectedOption.getAttribute('data-name');
+
+    balanceEl.textContent = formatCurrency(balance ?? 0);
+    walletNameEl.textContent = walletName || '-';
+    alertEl.style.display = 'block';
+}
+
+// Refresh wallet balance from API (real-time check)
+async function refreshWalletBalance() {
+    const walletId = document.getElementById('addWalletId').value;
+    if (!walletId) {
+        showToast('warning', 'Warning', 'Please select a wallet first');
+        return;
+    }
+
+    const balanceEl = document.getElementById('displayCurrentBalance');
+    const refreshBtn = document.querySelector('#currentBalanceAlert button');
+
+    // Show loading state
+    balanceEl.innerHTML = '<span class="fas fa-spinner fa-spin"></span>';
+    if (refreshBtn) refreshBtn.disabled = true;
+
+    try {
+        const encodedWalletId = IdEncoder.encode(walletId);
+        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${encodedWalletId}`);
+        const result = await res.json();
+        if (result.success && result.data) {
+            const newBalance = result.data.current_balance ?? 0;
+            balanceEl.textContent = formatCurrency(newBalance);
+
+            // Update the dropdown option's data-balance attribute
+            const walletSelect = document.getElementById('addWalletId');
+            const selectedOption = walletSelect.options[walletSelect.selectedIndex];
+            if (selectedOption) {
+                selectedOption.setAttribute('data-balance', newBalance);
+            }
+
+            showToast('success', 'Success', 'Balance refreshed successfully');
+        } else {
+            showToast('error', 'Error', 'Failed to refresh balance');
+            // Revert to original display
+            updateAddTransactionBalanceDisplay();
+        }
+    } catch (e) {
+        console.error('Failed to refresh wallet balance:', e);
+        showToast('error', 'Error', 'Failed to refresh balance: ' + e.message);
+        // Revert to original display
+        updateAddTransactionBalanceDisplay();
+    } finally {
+        if (refreshBtn) refreshBtn.disabled = false;
+    }
+}
+
 // Filter transactions
 function filterTransactions() {
     const search = document.getElementById('transactionSearch').value.toLowerCase();
@@ -232,7 +308,8 @@ function renderTransactions() {
             </td>
             <td>
                 <div class="fw-bold">${txn.wallet_name || '-'}</div>
-                <small class="text-muted">${txn.provider_name || ''}</small>
+                <small class="text-muted">${txn.wallet_provider_name || ''}</small>
+                ${txn.operating_provider_name && txn.operating_provider_name !== (txn.wallet_provider_name || txn.provider_name) ? `<div class="small text-muted">Op: ${txn.operating_provider_name}</div>` : ''}
             </td>
             <td>
                 <span class="txn-type-badge txn-type-${txn.txn_type}">${txn.txn_type}</span>
@@ -337,8 +414,13 @@ function resetFilters() {
     document.getElementById('txnTypeFilter').value = '';
     document.getElementById('directionFilter').value = '';
     const dateEl = document.getElementById('dateFilter');
-    if (dateEl._flatpickr) dateEl._flatpickr.clear();
-    else dateEl.value = '';
+    // Reset date to today instead of clearing to avoid loading all transactions
+    const today = new Date();
+    if (dateEl._flatpickr) {
+        dateEl._flatpickr.setDate([today, today]);
+    } else {
+        dateEl.value = today.toISOString().split('T')[0];
+    }
     document.getElementById('netBalance').textContent = '—';
     filterTransactions();
 }
@@ -346,6 +428,8 @@ function resetFilters() {
 // Open add transaction modal
 function openAddTransactionModal() {
     document.getElementById('addTransactionForm').reset();
+    // Hide balance display initially
+    document.getElementById('currentBalanceAlert').style.display = 'none';
     addTransactionModal.show();
 }
 
@@ -432,90 +516,126 @@ async function viewTransaction(txnId) {
             // Build ticket details section if this txn references a ticket_transaction
             const hasTicket = txn.reference_table === 'ticket_transactions' && txn.ticket_txn_code;
             const ticketSection = hasTicket ? `
-                <hr class="my-3">
-                <h6 class="fw-bold text-primary mb-3"><span class="fas fa-ticket-alt me-2"></span>Linked Ticket Details</h6>
-                <div class="row g-2">
-                    <div class="col-md-6 mb-2">
-                        <label class="fw-bold text-muted small">Ticket Code</label>
-                        <div class="fw-semibold">${txn.ticket_txn_code}</div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light py-2">
+                        <h6 class="fw-bold text-primary mb-0"><span class="fas fa-ticket-alt me-2"></span>Linked Ticket Details</h6>
                     </div>
-                    <div class="col-md-6 mb-2">
-                        <label class="fw-bold text-muted small">Ticket Status</label>
-                        <div><span class="badge ${txn.ticket_status === 'cancelled' ? 'bg-danger' : txn.ticket_status === 'refunded' ? 'bg-warning' : 'bg-success'}">${txn.ticket_status || '-'}</span></div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <label class="fw-bold text-muted small">Passenger</label>
-                        <div>${txn.passenger_name || '-'}</div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <label class="fw-bold text-muted small">Travel Date</label>
-                        <div>${txn.travel_date ? new Date(txn.travel_date).toLocaleDateString('en-PH', {year:'numeric',month:'short',day:'numeric'}) : '-'}</div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <label class="fw-bold text-muted small">Route</label>
-                        <div>${txn.origin && txn.destination ? txn.origin + ' → ' + txn.destination : '-'}</div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <label class="fw-bold text-muted small">Original Amount</label>
-                        <div>${txn.ticket_total_amount ? formatCurrency(txn.ticket_total_amount) : '-'}</div>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <label class="fw-bold text-muted small">Base Amount</label>
-                        <div>${txn.base_amount ? formatCurrency(txn.base_amount) : '-'}</div>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <label class="fw-bold text-muted small">Service Fee</label>
-                        <div>${txn.service_fee ? formatCurrency(txn.service_fee) : '-'}</div>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <label class="fw-bold text-muted small">Discount</label>
-                        <div>${txn.discount_amount ? formatCurrency(txn.discount_amount) : '-'}</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Ticket Code</label>
+                                <div class="fw-semibold">${txn.ticket_txn_code}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Ticket Status</label>
+                                <div><span class="badge ${txn.ticket_status === 'cancelled' ? 'bg-danger' : txn.ticket_status === 'refunded' ? 'bg-warning' : 'bg-success'}">${txn.ticket_status || '-'}</span></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Passenger</label>
+                                <div>${txn.passenger_name || '-'}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Travel Date</label>
+                                <div>${txn.travel_date ? new Date(txn.travel_date).toLocaleDateString('en-PH', {year:'numeric',month:'short',day:'numeric'}) : '-'}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Route</label>
+                                <div>${txn.origin && txn.destination ? txn.origin + ' → ' + txn.destination : '-'}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Original Amount</label>
+                                <div class="fw-semibold">${txn.ticket_total_amount ? formatCurrency(txn.ticket_total_amount) : '-'}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="fw-bold text-muted small mb-1">Base Amount</label>
+                                <div>${txn.base_amount ? formatCurrency(txn.base_amount) : '-'}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="fw-bold text-muted small mb-1">Service Fee</label>
+                                <div>${txn.service_fee ? formatCurrency(txn.service_fee) : '-'}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="fw-bold text-muted small mb-1">Discount</label>
+                                <div>${txn.discount_amount ? formatCurrency(txn.discount_amount) : '-'}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>` : '';
 
+            // Format amount with sign
+            const amountPrefix = txn.direction === 'IN' ? '+' : '-';
+            const amountDisplay = `${amountPrefix}${formatCurrency(txn.amount)}`;
+            const amountClass = txn.direction === 'IN' ? 'text-success' : 'text-danger';
+
             details.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Transaction Code</label>
-                        <div class="fs-6 fw-semibold">${txn.txn_code || '-'}</div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Type / Direction</label>
-                        <div>
-                            <span class="badge bg-primary">${txn.txn_type}</span>
-                            <span class="badge ${txn.direction === 'IN' ? 'bg-success' : 'bg-danger'}">${txn.direction === 'IN' ? '↓ IN' : '↑ OUT'}</span>
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body py-3 px-3">
+                        <!-- Header row -->
+                        <div class="row g-3 align-items-center mb-3 pb-3 border-bottom">
+                            <div class="col-md-8">
+                                <label class="fw-bold text-muted small mb-1">Transaction Code</label>
+                                <div class="fw-bold text-primary text-break" style="font-size: 1.1rem;">${txn.txn_code || '-'}</div>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <label class="fw-bold text-muted small mb-1 d-block">Type / Direction</label>
+                                <div>
+                                    <span class="badge bg-primary me-1">${txn.txn_type}</span>
+                                    <span class="badge ${txn.direction === 'IN' ? 'bg-success' : 'bg-danger'}">${txn.direction === 'IN' ? '↓ IN' : '↑ OUT'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Amount and wallet -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Wallet</label>
+                                <div class="fw-semibold">${txn.wallet_name || '-'}</div>
+                            </div>
+                            <div class="col-md-6 text-md-end">
+                                <label class="fw-bold text-muted small mb-1 d-block">Amount</label>
+                                <div class="fw-bold ${amountClass}" style="font-size: 1.25rem;">
+                                    ${amountDisplay}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Balance info -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <div class="p-2 bg-light rounded text-center">
+                                    <div class="text-muted small mb-1">Balance Before</div>
+                                    <div class="fw-semibold">${formatCurrency(txn.balance_before)}</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2 bg-light rounded text-center">
+                                    <div class="text-muted small mb-1">Balance After</div>
+                                    <div class="fw-semibold ${txn.balance_after >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(txn.balance_after)}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Meta info -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Processed By</label>
+                                <div class="small"><span class="fas fa-user me-1 text-muted"></span>${txn.created_by_full_name || txn.created_by_username || 'System'}</div>
+                            </div>
+                            <div class="col-md-6 text-md-end">
+                                <label class="fw-bold text-muted small mb-1 d-block">Date / Time</label>
+                                <div class="small"><span class="fas fa-clock me-1 text-muted"></span>${formatDateTime(txn.created_at)}</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Wallet</label>
-                        <div class="fw-semibold">${txn.wallet_name || '-'}</div>
-                        <small class="text-muted">${txn.provider_name || ''} · ${txn.branch_name || ''}</small>
+                </div>
+
+                <!-- Remarks -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-light py-2 px-3">
+                        <h6 class="fw-bold text-muted small mb-0">Remarks</h6>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Refund Amount</label>
-                        <div class="fs-5 fw-bold ${txn.direction === 'IN' ? 'text-success' : 'text-danger'}">
-                            ${txn.direction === 'IN' ? '+' : '-'}${formatCurrency(txn.amount)}
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Balance Before</label>
-                        <div>${formatCurrency(txn.balance_before)}</div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Balance After</label>
-                        <div class="fw-bold text-success">${formatCurrency(txn.balance_after)}</div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Processed By</label>
-                        <div><span class="fas fa-user me-1"></span>${txn.created_by_full_name || txn.created_by_username || 'System'}</div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-muted small">Date / Time</label>
-                        <div><span class="fas fa-clock me-1"></span>${formatDateTime(txn.created_at)}</div>
-                    </div>
-                    <div class="col-12 mb-2">
-                        <label class="fw-bold text-muted small">Remarks</label>
-                        <div class="p-2 bg-light rounded small">${txn.remarks || '-'}</div>
+                    <div class="card-body p-3">
+                        <div class="small">${txn.remarks || '<span class="text-muted">No remarks</span>'}</div>
                     </div>
                 </div>
                 ${ticketSection}
@@ -636,20 +756,28 @@ function adjustWalletBalance(walletId) {
         showToast('error', 'Error', 'Wallet not found');
         return;
     }
-    
+
     // Close wallet management modal first
     walletManagementModal.hide();
-    
+
     // Open add transaction modal with pre-filled wallet
     openAddTransactionModal();
-    
+
     // Pre-fill the form
     document.getElementById('addWalletId').value = walletId;
     document.getElementById('addTxnType').value = 'ADJUSTMENT';
     document.getElementById('addDirection').value = '';
     document.getElementById('addAmount').value = '';
-    document.getElementById('addRemarks').value = `Balance adjustment for ${wallet.wallet_name}. Current balance: ${formatCurrency(wallet.current_balance)}`;
-    
+    document.getElementById('addRemarks').value = `Balance adjustment for ${wallet.wallet_name}`;
+
+    // Update the balance display using the wallet data we already have
+    const alertEl = document.getElementById('currentBalanceAlert');
+    const balanceEl = document.getElementById('displayCurrentBalance');
+    const walletNameEl = document.getElementById('displayWalletName');
+    balanceEl.textContent = formatCurrency(wallet.current_balance ?? 0);
+    walletNameEl.textContent = wallet.wallet_name || '-';
+    alertEl.style.display = 'block';
+
     showToast('info', 'Info', 'Please select direction and enter adjustment amount');
 }
 

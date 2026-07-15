@@ -20,7 +20,7 @@ $warningMins         = min($warningMins, max(1, intval($_sessionLifetimeSec / 60
 unset($_sessionSettings, $_sessionLifetimeSec);
 ?>
 <!-- Session Manager -->
-<script src="<?php echo BASE_URL; ?>/resources/assets/js/session-manager.js?v=<?php echo filemtime(dirname(dirname(dirname(__DIR__))) . '/resources/assets/js/session-manager.js') ?: date('YmdHis'); ?>"></script>
+<script src="<?php echo BASE_URL; ?>/resources/assets/js/session-manager.js?v=<?php echo filemtime(TMS_ROOT . '/resources/assets/js/session-manager.js') ?: date('YmdHis'); ?>"></script>
 <script>
 // Initialize session configuration on body tag
 document.body.setAttribute('data-session-lifetime', '<?php echo $sessionLifetimeMs; ?>');

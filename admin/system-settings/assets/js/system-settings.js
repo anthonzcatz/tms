@@ -131,9 +131,10 @@ async function loadDevices(page = 1) {
     else {
         tbody.innerHTML = devices.map(d => {
             const icon = deviceTypeIcon[d.device_type] ?? 'fa-question-circle';
-            const lastUser = d.last_user_fullname || d.last_user_username || '<span class="text-muted">Unknown</span>';
+            const lastUserName = d.last_user_fullname || d.last_user_username || 'Unknown';
+            const lastUserDisplay = d.last_user_fullname || d.last_user_username || '<span class="text-muted">Unknown</span>';
             const location = (d.city && d.country) ? `${d.city}, ${d.country}` : (d.city || d.country || '<span class="text-muted">Unknown</span>');
-            const avatar = getUserAvatar(d.last_user_profile_image, lastUser, 32);
+            const avatar = getUserAvatar(d.last_user_profile_image, lastUserName, 32);
             return `<tr>
                 <td><code class="fs-11">${d.device_code}</code></td>
                 <td><span class="fas ${icon} me-1 text-600"></span>${d.device_name ?? '—'}<br><small class="text-muted">${d.device_type}</small></td>
@@ -144,7 +145,7 @@ async function loadDevices(page = 1) {
                         <div class="me-2">${avatar}</div>
                         <div>
                             <strong>${d.last_user_username ?? '—'}</strong><br>
-                            <small class="text-muted">${lastUser}</small>
+                            <small class="text-muted">${lastUserDisplay}</small>
                         </div>
                     </div>
                 </td>

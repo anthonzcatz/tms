@@ -307,8 +307,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <div class="display-4 fs-5 mb-2 fw-normal font-sans-serif <?php echo $wallet['current_balance'] >= 0 ? 'text-success' : 'text-danger'; ?>">
                       ₱<?php echo number_format($wallet['current_balance'], 2); ?>
                     </div>
-                    <p class="mb-2 text-muted fs-10">
+                    <p class="mb-1 text-muted fs-10">
                       <span class="fas fa-building me-1"></span><?php echo htmlspecialchars($wallet['branch_name']); ?>
+                    </p>
+                    <p class="mb-2 text-muted fs-10">
+                      <span class="fas fa-exclamation-triangle me-1"></span>Min: ₱<?php echo number_format($wallet['min_balance'] ?? 1000, 2); ?>
                     </p>
                     <div class="d-flex flex-wrap gap-2 mt-3">
                       <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1 flex-sm-grow-0" onclick="viewWallet(<?php echo $wallet['wallet_id']; ?>)">

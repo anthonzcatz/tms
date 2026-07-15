@@ -217,7 +217,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <select class="form-select" id="walletFilter">
                       <option value="">All Wallets</option>
                       <?php foreach ($wallets as $wallet): ?>
-                        <option value="<?php echo $wallet['wallet_id']; ?>">
+                        <option value="<?php echo $wallet['wallet_id']; ?>" data-balance="<?php echo $wallet['current_balance']; ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>">
                           <?php echo htmlspecialchars($wallet['wallet_name']); ?>
                         </option>
                       <?php endforeach; ?>
@@ -273,7 +273,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <thead>
                       <tr>
                         <th>Txn Code</th>
-                        <th>Wallet</th>
+                        <th>Wallet / Provider</th>
                         <th>Type</th>
                         <th>Direction</th>
                         <th>Amount</th>

@@ -29,14 +29,15 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userRoleCode = Auth::userRoleCode() ?? '';
+$userBranchId = Auth::userBranchId();
 
 // Fetch bank accounts with branch and payment method info
 $branchFilter = '';
 $params = [];
 if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchFilter = 'WHERE ba.branch_id = :branch_id';
+    // Show company-wide accounts (branch_id IS NULL) AND accounts assigned to user's branch
+    $branchFilter = 'WHERE (ba.branch_id IS NULL OR ba.branch_id = :branch_id)';
     $params['branch_id'] = $userBranchId;
 }
 

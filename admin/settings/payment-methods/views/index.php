@@ -51,6 +51,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
+                  <div class="col-lg-auto d-flex align-items-center mt-3 mt-lg-0">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMethodModal">
+                      <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Payment Method</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -363,6 +368,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php endif; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <script src="<?php echo BASE_URL; ?>/resources/assets/js/id-encoder.js?v=<?php echo filemtime(dirname(dirname(dirname(dirname(__DIR__)))) . '/resources/assets/js/id-encoder.js'); ?>"></script>
+  <script>
+    window.BASE_URL = '<?php echo BASE_URL; ?>';
+    window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/settings/payment-methods/assets/js/payment-methods.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/payment-methods.js'); ?>"></script>
 
   <?php include __DIR__ . '/modals/add_method.php'; ?>

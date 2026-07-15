@@ -137,7 +137,7 @@ function handleGet() {
     // Get single transaction
     if ($txnId) {
         $sql = "SELECT wt.*,
-                       tp.provider_name,
+                       tp.provider_name as wallet_provider_name,
                        bb.branch_name,
                        CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name,
                        ua.username as created_by_username,
@@ -153,6 +153,8 @@ function handleGet() {
                        ) as created_by_full_name,
                        ua.emp_id,
                        tt.transaction_code as ticket_txn_code,
+                       tt.provider_id as operating_provider_id,
+                       tp_op.provider_name as operating_provider_name,
                        tt.origin, tt.destination, tt.travel_date,
                        tt.base_amount, tt.service_fee, tt.discount_amount, tt.total_amount as ticket_total_amount,
                        tt.status as ticket_status,
@@ -164,6 +166,7 @@ function handleGet() {
                 LEFT JOIN user_accounts ua ON wt.created_by = ua.user_id
                 LEFT JOIN employees e ON ua.emp_id = e.emp_id
                 LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
+                LEFT JOIN ticket_providers tp_op ON tt.provider_id = tp_op.provider_id
                 LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
                 WHERE wt.wallet_txn_id = :txn_id";
         
@@ -180,12 +183,20 @@ function handleGet() {
     // List transactions with filters
     $where = ['1=1'];
     $params = [];
+    $branchJoin = '';
 
     // SUPER_ADMIN can see all transactions, others are restricted to their branch
     global $userRoleCode, $userBranchId;
     if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $where[] = 'pw.branch_id = :user_branch_id';
-        $params['user_branch_id'] = $userBranchId;
+        $branchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
+        if (!empty($branchIds)) {
+            $branchPlaceholders = [];
+            foreach ($branchIds as $i => $branchId) {
+                $branchPlaceholders[] = ':user_branch_' . $i;
+                $params['user_branch_' . $i] = $branchId;
+            }
+            $branchJoin = "AND pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+        }
     }
 
     if ($walletId) {
@@ -204,7 +215,7 @@ function handleGet() {
     }
 
     if ($search) {
-        $where[] = '(wt.txn_code LIKE :search OR tp.provider_name LIKE :search OR bb.branch_name LIKE :search OR wt.remarks LIKE :search)';
+        $where[] = '(wt.txn_code LIKE :search OR tp.provider_name LIKE :search OR tp_op.provider_name LIKE :search OR tt.transaction_code LIKE :search OR bb.branch_name LIKE :search OR wt.remarks LIKE :search)';
         $params['search'] = '%' . $search . '%';
     }
 
@@ -217,14 +228,14 @@ function handleGet() {
 
     // Get transactions (with ticket_transactions details when reference_table = 'ticket_transactions')
     $sql = "SELECT wt.*,
-                   tp.provider_name,
+                   tp.provider_name as wallet_provider_name,
                    bb.branch_name,
                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name,
                    ua.username as created_by_username,
                    CONCAT(
                        COALESCE(e.first_name, 'System'),
-                       CASE 
-                           WHEN e.middle_name IS NOT NULL AND e.middle_name != '' 
+                       CASE
+                           WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                            THEN CONCAT(' ', UPPER(LEFT(e.middle_name, 1)), '.')
                            ELSE ''
                        END,
@@ -232,17 +243,20 @@ function handleGet() {
                        COALESCE(e.last_name, 'Admin')
                    ) as created_by_full_name,
                    tt.transaction_code as ticket_txn_code,
+                   tt.provider_id as operating_provider_id,
+                   tp_op.provider_name as operating_provider_name,
                    tt.origin, tt.destination, tt.travel_date,
                    tt.base_amount, tt.service_fee, tt.discount_amount, tt.total_amount as ticket_total_amount,
                    tt.status as ticket_status,
                    pa.fullname as passenger_name
             FROM wallet_transactions wt
-            LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
+            LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id $branchJoin
             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
             LEFT JOIN user_accounts ua ON wt.created_by = ua.user_id
             LEFT JOIN employees e ON ua.emp_id = e.emp_id
             LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
+            LEFT JOIN ticket_providers tp_op ON tt.provider_id = tp_op.provider_id
             LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
             WHERE $whereClause
             ORDER BY wt.created_at DESC
@@ -254,12 +268,13 @@ function handleGet() {
     $transactions = Database::fetchAll($sql, $params);
 
     // Get stats
-    $statsSql = "SELECT 
+    $statsSql = "SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN direction = 'IN' THEN amount ELSE 0 END) as totalInflow,
                     SUM(CASE WHEN direction = 'OUT' THEN amount ELSE 0 END) as totalOutflow,
                     SUM(CASE WHEN direction = 'IN' THEN amount ELSE -amount END) as netBalance
                  FROM wallet_transactions wt
+                 LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id $branchJoin
                  WHERE $whereClause";
 
     $statsParams = $params;
@@ -303,6 +318,11 @@ function handlePost() {
     $remarks = $input['remarks'] ?? null;
     $referenceTable = $input['reference_table'] ?? null;
     $referenceId = $input['reference_id'] ?? null;
+
+    // Sanitize remarks to prevent XSS
+    if ($remarks) {
+        $remarks = htmlspecialchars(strip_tags(trim($remarks)), ENT_QUOTES, 'UTF-8');
+    }
 
     // Validate required fields
     if (!$walletId || !$txnType || !$direction || !$amount) {

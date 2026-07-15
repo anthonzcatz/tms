@@ -11,6 +11,16 @@ require_once dirname(__DIR__) . '/_guard.php';
 // It contains: fullname, first_name, last_name, email, position, department, location, profile_image, etc.
 $user = Auth::user();
 
+// Fetch upcoming calendar events for the user
+$calendarEvents = Database::fetchAll(
+    "SELECT * FROM calendar_events
+     WHERE user_id = :uid
+     AND (end_date >= CURDATE() OR (end_date IS NULL AND start_date >= CURDATE()))
+     ORDER BY start_date ASC
+     LIMIT 5",
+    ['uid' => $user['user_id'] ?? 0]
+);
+
 // Determine which view to show
 $view = $_GET['view'] ?? 'profile';
 $allowedViews = ['profile', 'settings', 'activity-logs'];

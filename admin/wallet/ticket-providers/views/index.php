@@ -176,7 +176,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                 <h5 class="mb-0">Providers List</h5>
               </div>
               <div class="col-auto">
-                <select class="form-select form-select-sm" style="width: auto;" onchange="filterProviders(this.value)">
+                <button class="btn btn-primary btn-sm me-2" onclick="openAddProviderModal()">
+                  <span class="fas fa-plus me-1"></span>Add Provider
+                </button>
+                <select class="form-select form-select-sm d-inline-block" style="width: auto; vertical-align: middle;" onchange="filterProviders(this.value)">
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -228,12 +231,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                           </span>
                         </td>
                         <td>
-                          <div class="form-check form-switch">
+                          <div class="form-check form-switch d-flex align-items-center ps-0 mb-0">
                             <input class="form-check-input provider-status-switch" type="checkbox"
                                    id="providerSwitch<?php echo $provider['provider_id']; ?>"
                                    data-provider-id="<?php echo $provider['provider_id']; ?>"
                                    <?php echo $provider['status'] === 'active' ? 'checked' : ''; ?>
-                                   style="width: 2.5em; height: 1.25em;">
+                                   style="width: 2.5em; height: 1.25em; float: none; margin: 0;">
                             <label class="form-check-label ms-2" for="providerSwitch<?php echo $provider['provider_id']; ?>" style="font-size: 0.75rem;">
                               <?php echo $provider['status'] === 'active' ? 'Active' : 'Inactive'; ?>
                             </label>

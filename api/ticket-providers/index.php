@@ -42,12 +42,14 @@ if (!Auth::check()) {
     exit;
 }
 
-// Check permission - SUPER_ADMIN or users with VIEW_WALLET_MANAGEMENT permission
+// Check permission - SUPER_ADMIN or users with VIEW_PROVIDERS / wallet permissions
 $user = Auth::user();
 $canView = ($user['role_code'] === 'SUPER_ADMIN');
 
 if (!$canView) {
-    $canView = Auth::can('VIEW_WALLET_MANAGEMENT');
+    $canView = Auth::can('VIEW_PROVIDERS')
+            || Auth::can('VIEW_WALLET_MANAGEMENT')
+            || Auth::can('VIEW_WALLETS');
 }
 
 if (!$canView) {
@@ -126,7 +128,10 @@ function handleGet() {
 
     // Get single provider
     if ($providerId) {
-        $sql = "SELECT * FROM ticket_providers WHERE provider_id = :provider_id";
+        $sql = "SELECT tp.*, ptp.provider_name as parent_provider_name
+                FROM ticket_providers tp
+                LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
+                WHERE tp.provider_id = :provider_id";
         $provider = Database::fetch($sql, ['provider_id' => (int)$providerId]);
         
         if ($provider) {
@@ -137,8 +142,11 @@ function handleGet() {
         return;
     }
 
-    // List all providers
-    $sql = "SELECT * FROM ticket_providers ORDER BY provider_name";
+    // List all providers with parent info
+    $sql = "SELECT tp.*, ptp.provider_name as parent_provider_name
+            FROM ticket_providers tp
+            LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
+            ORDER BY tp.provider_name";
     $providers = Database::fetchAll($sql);
 
     echo json_encode([
@@ -172,33 +180,47 @@ function handlePost() {
     $providerCode = $input['provider_code'] ?? null;
     $providerName = $input['provider_name'] ?? null;
     $providerType = $input['provider_type'] ?? null;
+    $parentProviderId = $input['parent_provider_id'] ?? null;
     $status = $input['status'] ?? 'active';
-    
+
     // Validate required fields
     if (!$providerCode || !$providerName || !$providerType) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
         return;
     }
-    
+
+    // Validate parent provider if provided
+    if ($parentProviderId) {
+        $parent = Database::fetch(
+            "SELECT provider_id FROM ticket_providers WHERE provider_id = :provider_id",
+            ['provider_id' => (int)$parentProviderId]
+        );
+        if (!$parent) {
+            echo json_encode(['success' => false, 'error' => 'Parent provider not found']);
+            return;
+        }
+    }
+
     // Check if provider code already exists
     $existing = Database::fetch(
         "SELECT provider_id FROM ticket_providers WHERE provider_code = :provider_code",
         ['provider_code' => $providerCode]
     );
-    
+
     if ($existing) {
         echo json_encode(['success' => false, 'error' => 'Provider code already exists']);
         return;
     }
-    
+
     // Insert new provider
-    $sql = "INSERT INTO ticket_providers (provider_code, provider_name, provider_type, status, created_at)
-            VALUES (:provider_code, :provider_name, :provider_type, :status, :created_at)";
-    
+    $sql = "INSERT INTO ticket_providers (provider_code, provider_name, provider_type, parent_provider_id, status, created_at)
+            VALUES (:provider_code, :provider_name, :provider_type, :parent_provider_id, :status, :created_at)";
+
     Database::execute($sql, [
         'provider_code' => $providerCode,
         'provider_name' => $providerName,
         'provider_type' => $providerType,
+        'parent_provider_id' => $parentProviderId ? (int)$parentProviderId : null,
         'status' => $status,
         'created_at' => date('Y-m-d H:i:s')
     ]);
@@ -247,28 +269,45 @@ function handlePut() {
     $providerCode = $input['provider_code'] ?? null;
     $providerName = $input['provider_name'] ?? null;
     $providerType = $input['provider_type'] ?? null;
+    $parentProviderId = $input['parent_provider_id'] ?? null;
     $status = $input['status'] ?? null;
-    
+
     if (!$providerId) {
         echo json_encode(['success' => false, 'error' => 'Missing provider ID']);
         return;
     }
-    
+
     // Get current provider data
     $currentProvider = Database::fetch(
         "SELECT * FROM ticket_providers WHERE provider_id = :provider_id",
         ['provider_id' => (int)$providerId]
     );
-    
+
     if (!$currentProvider) {
         echo json_encode(['success' => false, 'error' => 'Provider not found']);
         return;
     }
-    
+
+    // Validate parent provider if provided
+    if ($parentProviderId) {
+        if ((int)$parentProviderId === (int)$providerId) {
+            echo json_encode(['success' => false, 'error' => 'Provider cannot be its own parent']);
+            return;
+        }
+        $parent = Database::fetch(
+            "SELECT provider_id FROM ticket_providers WHERE provider_id = :provider_id",
+            ['provider_id' => (int)$parentProviderId]
+        );
+        if (!$parent) {
+            echo json_encode(['success' => false, 'error' => 'Parent provider not found']);
+            return;
+        }
+    }
+
     // Build update query
     $updateFields = [];
     $params = ['provider_id' => (int)$providerId];
-    
+
     if ($providerCode !== null) {
         $updateFields[] = "provider_code = :provider_code";
         $params['provider_code'] = $providerCode;
@@ -280,6 +319,10 @@ function handlePut() {
     if ($providerType !== null) {
         $updateFields[] = "provider_type = :provider_type";
         $params['provider_type'] = $providerType;
+    }
+    if (array_key_exists('parent_provider_id', $input)) {
+        $updateFields[] = "parent_provider_id = :parent_provider_id";
+        $params['parent_provider_id'] = $parentProviderId ? (int)$parentProviderId : null;
     }
     if ($status !== null) {
         $updateFields[] = "status = :status";

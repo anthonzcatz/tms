@@ -126,11 +126,15 @@ function handleGet() {
     $branchFilter = "";
     $params = [];
 
-    // SUPER_ADMIN can see all branches, others are restricted to their branch
+    // SUPER_ADMIN can see all branches, others are restricted to their assigned branches
     global $userRoleCode, $userBranchId;
     if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchFilter = "WHERE bb.branch_id = :user_branch_id";
-        $params['user_branch_id'] = $userBranchId;
+        $branchIds = array_filter(array_map('trim', explode(',', $userBranchId)));
+        if (!empty($branchIds)) {
+            $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
+            $branchFilter = "WHERE bb.branch_id IN ($placeholders)";
+            $params = $branchIds;
+        }
     }
 
     $sql = "SELECT bb.*

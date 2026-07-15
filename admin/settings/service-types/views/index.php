@@ -51,6 +51,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       </h6>
                     </div>
                   </div>
+                  <div class="col-lg-auto d-flex align-items-center mt-3 mt-lg-0">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServiceTypeModal">
+                      <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Service Type</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -245,7 +250,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         <button class="btn btn-sm btn-outline-warning me-1" onclick="editServiceType(<?php echo $st['service_type_id']; ?>)" title="Edit">
                           <span class="fas fa-edit"></span>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteServiceType(<?php echo $st['service_type_id']; ?>, '<?php echo htmlspecialchars($st['name'], ENT_QUOTES); ?>')" title="Delete">
+                        <?php $isInUse = ($st['txn_count'] > 0 || $st['pos_count'] > 0); ?>
+                        <button class="btn btn-sm btn-outline-danger"
+                            onclick="deleteServiceType(<?php echo $st['service_type_id']; ?>, '<?php echo htmlspecialchars($st['name'], ENT_QUOTES); ?>')"
+                            title="Delete"
+                            <?php echo $isInUse ? 'disabled title="Cannot delete: already used in transactions"' : 'title="Delete"'; ?>>
                           <span class="fas fa-trash"></span>
                         </button>
                       </td>
@@ -271,6 +280,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php endif; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+  <script src="<?php echo BASE_URL; ?>/resources/assets/js/id-encoder.js?v=<?php echo filemtime(dirname(dirname(dirname(dirname(__DIR__)))) . '/resources/assets/js/id-encoder.js'); ?>"></script>
+  <script>
+    window.BASE_URL = '<?php echo BASE_URL; ?>';
+    window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/settings/service-types/assets/js/service-types.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/service-types.js'); ?>"></script>
 
   <?php include __DIR__ . '/modals/add_service_type.php'; ?>
