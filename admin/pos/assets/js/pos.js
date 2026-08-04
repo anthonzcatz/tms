@@ -1208,9 +1208,14 @@ function loadProviders() {
                         option.dataset.providerCode = p.provider_code || '';
                         option.dataset.providerType = p.provider_type || '';
                         const balance = walletBalances[p.provider_id];
-                        const balanceText = balance !== undefined
-                            ? `₱${fmt(balance)}`
-                            : 'No wallet';
+                        let balanceText;
+                        if (balance !== undefined) {
+                            balanceText = `₱${fmt(balance)}`;
+                        } else if (parseInt(p.variant_count, 10) > 0) {
+                            balanceText = 'Variant wallet';
+                        } else {
+                            balanceText = 'No wallet';
+                        }
                         option.textContent = `${p.provider_name} • ${balanceText}`;
                         mainSelect.appendChild(option);
                     });
@@ -1264,7 +1269,8 @@ function onMainProviderChanged() {
     }
 
     const subs = (window.allTicketProviders || []).filter(p => String(p.parent_provider_id) === mainId);
-    const hasVariantWallet = Boolean(window.providerHasVariantWallet?.[String(mainId)]);
+    const mainProvider = (window.allTicketProviders || []).find(p => String(p.provider_id) === mainId);
+    const hasVariants = parseInt(mainProvider?.variant_count, 10) > 0;
 
     if (subs.length > 0) {
         // Main has sub-providers → show sub dropdown, hide variant
@@ -1292,7 +1298,7 @@ function onMainProviderChanged() {
         subSelect.disabled = true;
         operatingInput.value = mainId;
 
-        if (hasVariantWallet) {
+        if (hasVariants) {
             // Variants exist → show variant dropdown, hide wallet (balance shown per variant)
             if (walletWrapper) walletWrapper.classList.add('d-none');
             onProviderChanged();
@@ -1366,7 +1372,7 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
         select.innerHTML = '<option value="">Select Variant First</option>';
         select.disabled = true;
         window.selectedResolvedWallet = null;
-        if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
+        if (mainProviderBalanceText) mainProviderBalanceText.textContent = 'Select a variant to see wallet';
         return;
     }
 
