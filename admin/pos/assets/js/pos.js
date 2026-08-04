@@ -1174,12 +1174,11 @@ function loadProviders() {
     const operatingInput = document.getElementById('ticketProvider');
     const walletSelect = document.getElementById('ticketWallet');
 
-    const branchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
     const providersPromise = fetch(`${window.BASE_URL}/api/ticket-providers`).then(r => r.json());
-    let walletsUrl = `${window.BASE_URL}/api/wallets`;
-    if (branchId) {
-        walletsUrl += `?branch_id=${IdEncoder.encode(branchId)}`;
-    }
+    // Load wallets from all branches the user has access to so the provider dropdown
+    // can show a wallet even when the active session branch does not have one.
+    const walletsUrl = `${window.BASE_URL}/api/wallets?all_branches=1`;
+
     const walletsPromise = fetch(walletsUrl).then(r => r.json());
 
     console.log('[POS loadProviders] POS_BRANCH_ID:', window.POS_BRANCH_ID, 'walletsUrl:', walletsUrl);

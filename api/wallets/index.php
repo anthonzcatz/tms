@@ -42,17 +42,17 @@ if (!Auth::check()) {
     exit;
 }
 
-// Check permission - SUPER_ADMIN or users with VIEW_WALLET_TRANSACTIONS permission
+// Check permission - SUPER_ADMIN or users with VIEW_WALLETS / VIEW_WALLET_TRANSACTIONS permission
 $user = Auth::user();
 $canView = ($user['role_code'] === 'SUPER_ADMIN');
 
 if (!$canView) {
-    $canView = Auth::can('VIEW_WALLET_TRANSACTIONS');
+    $canView = Auth::can('VIEW_WALLETS') || Auth::can('VIEW_WALLET_TRANSACTIONS') || Auth::canAccessModule('admin/pos/');
 }
 
 if (!$canView) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Permission denied. You need VIEW_WALLET_TRANSACTIONS permission to access this resource.']);
+    echo json_encode(['success' => false, 'error' => 'Permission denied. You need VIEW_WALLETS or VIEW_WALLET_TRANSACTIONS permission to access this resource.']);
     exit;
 }
 
@@ -152,15 +152,45 @@ function handleGet() {
     // Get single wallet
     if ($walletId) {
         $sql = "SELECT pw.*,
+                       tp.provider_code,
                        tp.provider_name,
+                       tp.provider_type,
+                       tp.status as provider_status,
                        tp.parent_provider_id,
                        ptp.provider_name as parent_provider_name,
+                       tp.created_at as provider_created_at,
                        bb.branch_name,
-                       CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
+                       bb.branch_code,
+                       pv.variant_id as variant_id,
+                       pv.variant_code as variant_code,
+                       pv.variant_name as variant_name,
+                       pv.display_color as variant_color,
+                       CONCAT(tp.provider_name,
+                              IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
+                              ' - ', bb.branch_name) as wallet_name,
+                       (
+                           SELECT GROUP_CONCAT(child.provider_name ORDER BY child.provider_name SEPARATOR ', ')
+                           FROM ticket_providers child
+                           WHERE child.parent_provider_id = pw.provider_id
+                             AND child.status = 'active'
+                       ) as child_provider_names,
+                       (
+                           SELECT GROUP_CONCAT(DISTINCT v.variant_name ORDER BY v.variant_name SEPARATOR ', ')
+                           FROM provider_ticket_variants v
+                           WHERE v.provider_id = pw.provider_id
+                             AND v.deleted_at IS NULL
+                       ) as variant_names,
+                       (
+                           SELECT COUNT(*)
+                           FROM provider_ticket_variants v
+                           WHERE v.provider_id = pw.provider_id
+                             AND v.deleted_at IS NULL
+                       ) as variant_count
                 FROM provider_wallets pw
                 LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
                 LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
                 LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+                LEFT JOIN provider_ticket_variants pv ON pw.variant_id = pv.variant_id
                 WHERE pw.wallet_id = :wallet_id";
 
         $wallet = Database::fetch($sql, ['wallet_id' => (int)$walletId]);
@@ -199,19 +229,26 @@ function handleGet() {
     
     // Use session branch_id if active session exists, otherwise use user's assigned branch
     $effectiveBranchId = $sessionBranchId ?: $userBranchId;
-    
-    if ($userRoleCode !== 'SUPER_ADMIN' && $effectiveBranchId) {
-        // Parse comma-separated branch IDs
-        $userBranchIds = array_map('intval', explode(',', $effectiveBranchId));
-        $userBranchIds = array_filter($userBranchIds);
-        
-        if (!empty($userBranchIds)) {
-            $branchPlaceholders = [];
-            foreach ($userBranchIds as $i => $branchId) {
-                $branchPlaceholders[] = ':user_branch_' . $i;
-                $params['user_branch_' . $i] = $branchId;
+    $allBranches = isset($_GET['all_branches']) && $_GET['all_branches'] == '1';
+
+    if ($userRoleCode !== 'SUPER_ADMIN') {
+        // When all_branches is requested, use all branches assigned to the user;
+        // otherwise use the single effective branch (active session or default).
+        $allowedBranchIdStr = $allBranches ? $userBranchId : $effectiveBranchId;
+
+        if ($allowedBranchIdStr) {
+            // Parse comma-separated branch IDs
+            $userBranchIds = array_map('intval', explode(',', $allowedBranchIdStr));
+            $userBranchIds = array_filter($userBranchIds);
+
+            if (!empty($userBranchIds)) {
+                $branchPlaceholders = [];
+                foreach ($userBranchIds as $i => $branchId) {
+                    $branchPlaceholders[] = ':user_branch_' . $i;
+                    $params['user_branch_' . $i] = $branchId;
+                }
+                $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
             }
-            $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
         }
     }
 
@@ -232,6 +269,23 @@ function handleGet() {
         $params['provider_id'] = (int)$providerId;
     }
 
+    // Filter by variant_id if provided
+    $variantId = $_GET['variant_id'] ?? null;
+    if ($variantId) {
+        // Decode variant_id if encrypted
+        if (!is_numeric($variantId)) {
+            $decodedId = IdEncoder::decode($variantId);
+            if ($decodedId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid variant ID']);
+                exit;
+            }
+            $variantId = $decodedId;
+        }
+        $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "pw.variant_id = :variant_id";
+        $params['variant_id'] = (int)$variantId;
+    }
+
     // Filter by branch_id if provided
     $branchId = $_GET['branch_id'] ?? null;
     if ($branchId) {
@@ -249,7 +303,7 @@ function handleGet() {
         $params['branch_id'] = (int)$branchId;
     }
 
-    // Resolve wallet for an operating provider (provider_id + branch_id)
+    // Resolve wallet for an operating provider (provider_id + branch_id + optional variant_id)
     // Returns the actual wallet (parent wallet if child has none)
     $resolve = $_GET['resolve'] ?? null;
     if ($resolve === '1' && $providerId) {
@@ -260,10 +314,42 @@ function handleGet() {
             exit;
         }
 
-        $resolvedWallet = WalletResolver::resolve((int)$providerId, $resolveBranchId);
+        $resolveVariantId = isset($_GET['variant_id']) ? $_GET['variant_id'] : null;
+        if ($resolveVariantId && !is_numeric($resolveVariantId)) {
+            $decodedVariantId = IdEncoder::decode($resolveVariantId);
+            if ($decodedVariantId === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid variant ID']);
+                exit;
+            }
+            $resolveVariantId = $decodedVariantId;
+        }
+        $resolveVariantId = $resolveVariantId ? (int)$resolveVariantId : null;
+        $resolvedWallet = WalletResolver::resolve((int)$providerId, $resolveBranchId, $resolveVariantId);
+
+        // If not found in the requested/effective branch, try all accessible branches.
+        if (!$resolvedWallet) {
+            $fallbackBranchIds = [];
+            if ($userRoleCode === 'SUPER_ADMIN') {
+                $allBranchRows = Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active' OR status IS NULL");
+                $fallbackBranchIds = array_column($allBranchRows, 'branch_id');
+            } elseif (!empty($userBranchId)) {
+                $fallbackBranchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
+            }
+
+            foreach ($fallbackBranchIds as $fallbackBranchId) {
+                if ((int)$fallbackBranchId === (int)$resolveBranchId) {
+                    continue; // Already tried
+                }
+                $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$fallbackBranchId, $resolveVariantId);
+                if ($resolvedWallet) {
+                    break;
+                }
+            }
+        }
 
         if (!$resolvedWallet) {
-            echo json_encode(['success' => false, 'error' => 'No active wallet found for this provider and branch']);
+            echo json_encode(['success' => false, 'error' => 'No active wallet found for this provider, branch and variant']);
             exit;
         }
 
@@ -271,10 +357,17 @@ function handleGet() {
             "SELECT pw.*,
                     tp.provider_name,
                     bb.branch_name,
-                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
+                    pv.variant_id as variant_id,
+                    pv.variant_code as variant_code,
+                    pv.variant_name as variant_name,
+                    pv.display_color as variant_color,
+                    CONCAT(tp.provider_name,
+                           IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
+                           ' - ', bb.branch_name) as wallet_name
              FROM provider_wallets pw
              LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
              LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+             LEFT JOIN provider_ticket_variants pv ON pw.variant_id = pv.variant_id
              WHERE pw.wallet_id = :wallet_id",
             ['wallet_id' => (int)$resolvedWallet['wallet_id']]
         );
@@ -284,6 +377,7 @@ function handleGet() {
             'data' => [
                 'resolved' => true,
                 'operating_provider_id' => (int)$providerId,
+                'variant_id' => $resolveVariantId,
                 'wallet' => $walletDetails
             ]
         ]);
@@ -348,18 +442,26 @@ function handleGet() {
     }
 
     $sql = "SELECT pw.*,
+                   tp.provider_id as ticket_provider_id,
                    tp.provider_name,
                    tp.provider_type,
                    tp.parent_provider_id,
                    ptp.provider_name as parent_provider_name,
                    bb.branch_name,
-                   CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
+                   pv.variant_id as variant_id,
+                   pv.variant_code as variant_code,
+                   pv.variant_name as variant_name,
+                   pv.display_color as variant_color,
+                   CONCAT(tp.provider_name,
+                          IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
+                          ' - ', bb.branch_name) as wallet_name
             FROM provider_wallets pw
             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
             LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+            LEFT JOIN provider_ticket_variants pv ON pw.variant_id = pv.variant_id
             $branchFilter
-            ORDER BY tp.provider_name, bb.branch_name";
+            ORDER BY tp.provider_name, pv.variant_name, bb.branch_name";
 
     $wallets = Database::fetchAll($sql, $params);
 
@@ -393,6 +495,7 @@ function handlePost() {
     
     $providerId = $input['provider_id'] ?? null;
     $branchId = $input['branch_id'] ?? null;
+    $variantId = $input['variant_id'] ?? null;
     $initialBalance = floatval($input['initial_balance'] ?? 0);
     $minBalance = floatval($input['min_balance'] ?? 1000);
     $status = $input['status'] ?? 'active';
@@ -416,31 +519,67 @@ function handlePost() {
         }
         $branchId = $decodedId;
     }
+
+    // Decode variant_id if encrypted
+    if ($variantId && !is_numeric($variantId)) {
+        $decodedId = IdEncoder::decode($variantId);
+        if ($decodedId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid variant ID']);
+            return;
+        }
+        $variantId = $decodedId;
+    }
     
     // Validate required fields
     if (!$providerId || !$branchId) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
         return;
     }
+
+    // Only main or standalone providers can have wallets
+    $provider = Database::fetch(
+        "SELECT parent_provider_id FROM ticket_providers WHERE provider_id = :provider_id",
+        ['provider_id' => (int)$providerId]
+    );
+    if ($provider && !empty($provider['parent_provider_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Sub-providers cannot have their own wallets. They share the main provider wallet.']);
+        return;
+    }
+
+    // If a variant is specified, ensure it belongs to this provider
+    if ($variantId) {
+        $variant = Database::fetch(
+            "SELECT variant_id FROM provider_ticket_variants WHERE variant_id = :variant_id AND provider_id = :provider_id AND deleted_at IS NULL",
+            ['variant_id' => (int)$variantId, 'provider_id' => (int)$providerId]
+        );
+        if (!$variant) {
+            echo json_encode(['success' => false, 'error' => 'Variant does not belong to the selected provider or is inactive/deleted']);
+            return;
+        }
+    }
     
-    // Check if wallet already exists for this provider-branch combination
+    // Check if wallet already exists for this provider-branch-variant combination
     $existing = Database::fetch(
-        "SELECT wallet_id FROM provider_wallets WHERE provider_id = :provider_id AND branch_id = :branch_id",
-        ['provider_id' => (int)$providerId, 'branch_id' => (int)$branchId]
+        "SELECT wallet_id FROM provider_wallets 
+         WHERE provider_id = :provider_id 
+           AND branch_id = :branch_id 
+           AND IFNULL(variant_id, 0) = IFNULL(:variant_id, 0)",
+        ['provider_id' => (int)$providerId, 'branch_id' => (int)$branchId, 'variant_id' => $variantId ? (int)$variantId : null]
     );
     
     if ($existing) {
-        echo json_encode(['success' => false, 'error' => 'Wallet already exists for this provider and branch']);
+        echo json_encode(['success' => false, 'error' => 'Wallet already exists for this provider, branch and variant']);
         return;
     }
     
     // Insert new wallet with initial balance
-    $sql = "INSERT INTO provider_wallets (provider_id, branch_id, current_balance, min_balance, status, created_at)
-            VALUES (:provider_id, :branch_id, :initial_balance, :min_balance, :status, :created_at)";
+    $sql = "INSERT INTO provider_wallets (provider_id, branch_id, variant_id, current_balance, min_balance, status, created_at)
+            VALUES (:provider_id, :branch_id, :variant_id, :initial_balance, :min_balance, :status, :created_at)";
     
     Database::execute($sql, [
         'provider_id' => (int)$providerId,
         'branch_id' => (int)$branchId,
+        'variant_id' => $variantId ? (int)$variantId : null,
         'initial_balance' => $initialBalance,
         'min_balance' => $minBalance,
         'status' => $status,
@@ -599,14 +738,25 @@ function handleDelete() {
         return;
     }
     
-    // Check if wallet has transactions
-    $hasTransactions = Database::fetch(
+    // Check if wallet has wallet transactions
+    $hasWalletTransactions = Database::fetch(
         "SELECT COUNT(*) as count FROM wallet_transactions WHERE wallet_id = :wallet_id",
         ['wallet_id' => (int)$walletId]
     );
     
-    if ($hasTransactions && $hasTransactions['count'] > 0) {
-        echo json_encode(['success' => false, 'error' => 'Cannot delete wallet with existing transactions']);
+    if ($hasWalletTransactions && $hasWalletTransactions['count'] > 0) {
+        echo json_encode(['success' => false, 'error' => 'Cannot delete wallet with existing wallet transactions']);
+        return;
+    }
+
+    // Check if wallet is referenced by ticket transactions
+    $hasTicketTransactions = Database::fetch(
+        "SELECT COUNT(*) as count FROM ticket_transactions WHERE wallet_id = :wallet_id",
+        ['wallet_id' => (int)$walletId]
+    );
+
+    if ($hasTicketTransactions && $hasTicketTransactions['count'] > 0) {
+        echo json_encode(['success' => false, 'error' => 'Cannot delete wallet with existing ticket transactions']);
         return;
     }
     
