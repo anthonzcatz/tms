@@ -1293,8 +1293,11 @@ function onMainProviderChanged() {
         destroyVariantChoices();
         // Load main provider wallet and service fee immediately
         if (walletWrapper) walletWrapper.classList.add('d-none');
-        loadWallets(mainId, null, null);
-        loadServiceFeeForMainProvider(mainId);
+        loadWallets(mainId, null, null).then(() => {
+            const wallet = window.selectedResolvedWallet;
+            const walletBranchId = wallet ? wallet.branch_id : null;
+            loadServiceFeeForProvider(mainId, walletBranchId);
+        });
     } else {
         // Main has no sub-providers → hide sub, load variants
         subWrapper.classList.add('d-none');
@@ -1316,8 +1319,11 @@ function onMainProviderChanged() {
                 destroyVariantChoices();
             }
             variantWrapper.classList.add('d-none');
-            loadWallets();
-            loadServiceFeeForProvider();
+            loadWallets().then(() => {
+                const wallet = window.selectedResolvedWallet;
+                const walletBranchId = wallet ? wallet.branch_id : null;
+                loadServiceFeeForProvider(null, walletBranchId);
+            });
         }
     }
 }
@@ -1339,8 +1345,11 @@ function onSubProviderChanged() {
     destroyVariantChoices();
 
     // Update balance text using main wallet (WalletResolver falls back to parent)
-    loadWallets();
-    // Service fee already loaded from main provider selection, no need to reload
+    loadWallets().then(() => {
+        const wallet = window.selectedResolvedWallet;
+        const walletBranchId = wallet ? wallet.branch_id : null;
+        loadServiceFeeForProvider(null, walletBranchId);
+    });
 }
 
 function refreshWallets() {
@@ -1367,7 +1376,7 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
         select.innerHTML = '<option value="">Select Provider First</option>';
         select.disabled = true;
         if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
-        return;
+        return Promise.resolve();
     }
 
     const hasSubs = (window.allTicketProviders || []).some(p => String(p.parent_provider_id) === String(providerId));
@@ -1376,7 +1385,7 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
         select.disabled = true;
         window.selectedResolvedWallet = null;
         if (mainProviderBalanceText) mainProviderBalanceText.textContent = 'Select a variant to see wallet';
-        return;
+        return Promise.resolve();
     }
 
     const providerIdNum = parseInt(providerId, 10);
@@ -1393,7 +1402,7 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
 
     console.log('[POS loadWallets] provider:', providerIdNum, 'branch:', userBranchId, 'variant:', variantIdNum, 'url:', url);
 
-    fetch(url)
+    return fetch(url)
         .then(response => response.json())
         .then(data => {
             console.log('[POS loadWallets] response:', data);
@@ -1435,9 +1444,12 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
 function onProviderChanged() {
     const variantSelect = document.getElementById('ticketVariant');
     if (variantSelect) variantSelect.value = '';
-    loadWallets();
-    loadServiceFeeForProvider();
     loadTicketVariants();
+    loadWallets().then(() => {
+        const wallet = window.selectedResolvedWallet;
+        const walletBranchId = wallet ? wallet.branch_id : null;
+        loadServiceFeeForProvider(null, walletBranchId);
+    });
 }
 
 let variantChoices = null;
@@ -1472,7 +1484,11 @@ function refreshVariantChoices() {
 }
 
 function onTicketVariantChanged() {
-    loadWallets();
+    loadWallets().then(() => {
+        const wallet = window.selectedResolvedWallet;
+        const walletBranchId = wallet ? wallet.branch_id : null;
+        loadServiceFeeForProvider(null, walletBranchId);
+    });
 }
 
 function loadTicketVariants() {
@@ -1586,85 +1602,9 @@ function showAlert(type, message) {
     }, 5000);
 }
 
-function loadServiceFeeForMainProvider(mainProviderId) {
-    const serviceFeeDisplay = document.getElementById('ticketServiceFeeDisplay');
-    const serviceFeeInput = document.getElementById('ticketServiceFee');
-    const baseAmountDisplay = document.getElementById('ticketBaseAmountDisplay');
-    const baseAmountInput = document.getElementById('ticketBaseAmount');
-
-    const numericProviderId = parseInt(mainProviderId, 10);
-    const numericBranchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
-
-    if (!numericProviderId || numericProviderId < 1) {
-        serviceFeeDisplay.textContent = '-';
-        serviceFeeInput.value = 0;
-        baseAmountDisplay.textContent = '₱0.00';
-        computeTicketTotal();
-        return;
-    }
-
-    const encodedProviderId = IdEncoder.encode(numericProviderId);
-    let url = `${window.BASE_URL}/api/provider-service-fees`;
-
-    if (encodedProviderId) {
-        url += `?provider_id=${encodedProviderId}`;
-    }
-    if (numericBranchId) {
-        const encodedBranchId = IdEncoder.encode(numericBranchId);
-        if (encodedBranchId) {
-            url += (encodedProviderId ? '&' : '?') + `branch_id=${encodedBranchId}`;
-        }
-    }
-
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.data && data.data.fees && data.data.fees.length > 0) {
-                const fee = data.data.fees[0];
-                const feeType = fee.fee_type;
-                const feeValue = parseFloat(fee.fee_value);
-
-                serviceFeeInput.value = feeValue;
-
-                if (feeType === 'FIXED') {
-                    serviceFeeDisplay.textContent = `₱${feeValue.toFixed(2)} (Fixed)`;
-                } else if (feeType === 'PERCENT') {
-                    const baseAmount = parseFloat(baseAmountInput.value) || 0;
-                    const calculatedFee = (baseAmount * feeValue) / 100;
-                    serviceFeeInput.value = calculatedFee;
-                    serviceFeeDisplay.textContent = `₱${calculatedFee.toFixed(2)} (${feeValue}% of Base)`;
-                } else {
-                    serviceFeeDisplay.textContent = `₱${feeValue.toFixed(2)}`;
-                    serviceFeeInput.value = feeValue;
-                }
-
-                window.currentServiceFee = {
-                    type: feeType,
-                    value: feeValue
-                };
-
-                const currentBaseAmount = parseFloat(baseAmountInput.value) || 0;
-                baseAmountDisplay.textContent = currentBaseAmount > 0 ? '₱' + currentBaseAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '₱0.00';
-
-                computeTicketTotal();
-            } else {
-                serviceFeeDisplay.textContent = 'No service fee configured';
-                serviceFeeInput.value = 0;
-                window.currentServiceFee = null;
-                computeTicketTotal();
-            }
-        })
-        .catch(error => {
-            console.error('Error loading service fee for main provider:', error);
-            serviceFeeDisplay.textContent = 'Error loading fee';
-            serviceFeeInput.value = 0;
-            computeTicketTotal();
-        });
-}
-
-function loadServiceFeeForProvider() {
+function loadServiceFeeForProvider(overrideProviderId = null, overrideBranchId = null, tryAllBranches = false) {
     const providerSelect = document.getElementById('ticketProvider');
-    const providerId = providerSelect ? providerSelect.value : null;
+    const providerId = overrideProviderId || (providerSelect ? providerSelect.value : null);
     const serviceFeeDisplay = document.getElementById('ticketServiceFeeDisplay');
     const serviceFeeInput = document.getElementById('ticketServiceFee');
     const baseAmountDisplay = document.getElementById('ticketBaseAmountDisplay');
@@ -1675,7 +1615,7 @@ function loadServiceFeeForProvider() {
         serviceFeeInput.value = 0;
         baseAmountDisplay.textContent = '₱0.00';
         computeTicketTotal();
-        return;
+        return Promise.resolve();
     }
 
     const provider = (window.allTicketProviders || []).find(p => String(p.provider_id) === String(providerId));
@@ -1683,48 +1623,54 @@ function loadServiceFeeForProvider() {
     const numericProviderId = parentProviderId
         ? parseInt(parentProviderId, 10)
         : parseInt(providerId, 10);
-    const numericBranchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
+
+    // Use explicit branch first, then resolved wallet branch, then active POS branch
+    let numericBranchId = null;
+    if (overrideBranchId !== null && overrideBranchId !== undefined) {
+        numericBranchId = parseInt(overrideBranchId, 10) || null;
+    } else if (window.POS_BRANCH_ID) {
+        numericBranchId = parseInt(window.POS_BRANCH_ID, 10);
+    }
 
     if (!numericProviderId || numericProviderId < 1) {
         serviceFeeDisplay.textContent = '-';
         serviceFeeInput.value = 0;
         baseAmountDisplay.textContent = '₱0.00';
         computeTicketTotal();
-        return;
+        return Promise.resolve();
     }
-    
-    // Fetch service fee for this provider and branch
+
     const encodedProviderId = IdEncoder.encode(numericProviderId);
     let url = `${window.BASE_URL}/api/provider-service-fees`;
 
-    // Only add parameters if they have valid values
     if (encodedProviderId) {
         url += `?provider_id=${encodedProviderId}`;
     }
-    if (numericBranchId) {
+    if (tryAllBranches) {
+        url += (encodedProviderId ? '&' : '?') + 'all_branches=1';
+    } else if (numericBranchId) {
         const encodedBranchId = IdEncoder.encode(numericBranchId);
         if (encodedBranchId) {
             url += (encodedProviderId ? '&' : '?') + `branch_id=${encodedBranchId}`;
         }
     }
-    
-    fetch(url)
+
+    console.log('[POS loadServiceFeeForProvider] url:', url, 'tryAllBranches:', tryAllBranches);
+
+    return fetch(url)
         .then(response => response.json())
         .then(data => {
+            console.log('[POS loadServiceFeeForProvider] response:', data);
             if (data.success && data.data && data.data.fees && data.data.fees.length > 0) {
                 const fee = data.data.fees[0];
                 const feeType = fee.fee_type;
                 const feeValue = parseFloat(fee.fee_value);
-                
-                // Update service fee input field
+
                 serviceFeeInput.value = feeValue;
-                
-                // Update service fee display
+
                 if (feeType === 'FIXED') {
                     serviceFeeDisplay.textContent = `₱${feeValue.toFixed(2)} (Fixed)`;
                 } else if (feeType === 'PERCENT') {
-                    serviceFeeDisplay.textContent = `${feeValue}% (Percent)`;
-                    // For percent, calculate based on base amount
                     const baseAmount = parseFloat(baseAmountInput.value) || 0;
                     const calculatedFee = (baseAmount * feeValue) / 100;
                     serviceFeeInput.value = calculatedFee;
@@ -1733,19 +1679,21 @@ function loadServiceFeeForProvider() {
                     serviceFeeDisplay.textContent = `₱${feeValue.toFixed(2)}`;
                     serviceFeeInput.value = feeValue;
                 }
-                
-                // Store fee data for use in ticket total calculation
+
                 window.currentServiceFee = {
                     type: feeType,
-                    value: feeValue
+                    value: feeValue,
+                    branch_id: fee.branch_id || null,
+                    fee_id: fee.fee_id || null
                 };
-                
-                // Update base amount display
+
                 const currentBaseAmount = parseFloat(baseAmountInput.value) || 0;
                 baseAmountDisplay.textContent = currentBaseAmount > 0 ? '₱' + currentBaseAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '₱0.00';
-                
-                // Recalculate ticket total
+
                 computeTicketTotal();
+            } else if (!tryAllBranches) {
+                // Try again across all user branches
+                return loadServiceFeeForProvider(overrideProviderId, null, true);
             } else {
                 serviceFeeDisplay.textContent = 'No service fee configured';
                 serviceFeeInput.value = 0;
@@ -1759,6 +1707,10 @@ function loadServiceFeeForProvider() {
             serviceFeeInput.value = 0;
             computeTicketTotal();
         });
+}
+
+function loadServiceFeeForMainProvider(mainProviderId) {
+    return loadServiceFeeForProvider(mainProviderId);
 }
 
 function searchTicketPassenger(searchTerm) {

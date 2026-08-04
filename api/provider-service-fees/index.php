@@ -60,6 +60,17 @@ if (!$canView) {
 $userBranchId = $user['branch_id'] ?? null;
 $userRoleCode = $user['role_code'] ?? '';
 
+/**
+ * Check if a provider is a main (top-level) provider.
+ */
+function isMainProvider($providerId): bool {
+    $provider = Database::fetch(
+        "SELECT parent_provider_id FROM ticket_providers WHERE provider_id = :provider_id",
+        ['provider_id' => (int)$providerId]
+    );
+    return $provider && empty($provider['parent_provider_id']);
+}
+
 // Get request method
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -128,15 +139,28 @@ function handleGet() {
     }
 
     // List all fees
-    $branchFilter = "";
-    $branchJoin = "";
+    $where = [];
     $params = [];
 
-    // SUPER_ADMIN can see all fees, others are restricted to their branch
     global $userRoleCode, $userBranchId;
+
+    // SUPER_ADMIN can see all fees, others are restricted to their branch(es)
+    $allBranches = isset($_GET['all_branches']) && $_GET['all_branches'] == '1';
     if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchJoin = "AND psf.branch_id = :user_branch_id";
-        $params['user_branch_id'] = $userBranchId;
+        if ($allBranches) {
+            $userBranchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
+            if (!empty($userBranchIds)) {
+                $branchPlaceholders = [];
+                foreach ($userBranchIds as $i => $branchId) {
+                    $branchPlaceholders[] = ':user_branch_' . $i;
+                    $params['user_branch_' . $i] = $branchId;
+                }
+                $where[] = "psf.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+            }
+        } else {
+            $where[] = "psf.branch_id = :user_branch_id";
+            $params['user_branch_id'] = $userBranchId;
+        }
     }
 
     // Filter by provider_id if provided
@@ -147,7 +171,7 @@ function handleGet() {
             echo json_encode(['success' => false, 'error' => 'Invalid provider ID']);
             return;
         }
-        $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "psf.provider_id = :provider_id";
+        $where[] = "psf.provider_id = :provider_id";
         $params['provider_id'] = (int)$decodedProviderId;
     }
 
@@ -159,16 +183,28 @@ function handleGet() {
             echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
             return;
         }
-        $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "psf.branch_id = :branch_id";
+        $where[] = "psf.branch_id = :branch_id";
         $params['branch_id'] = (int)$decodedBranchId;
     }
 
-    // Filter by active fees only
-    $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "psf.is_active = 1";
-    
+    // Filter by fee_type if provided
+    $feeTypeFilter = $_GET['fee_type'] ?? null;
+    if ($feeTypeFilter) {
+        $where[] = "psf.fee_type = :fee_type";
+        $params['fee_type'] = $feeTypeFilter;
+    }
+
+    // Filter by active fees only unless explicitly requested to include inactive
+    $includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] == '1';
+    if (!$includeInactive) {
+        $where[] = "psf.is_active = 1";
+    }
+
     // Filter by effective date range (only if dates are set)
-    $branchFilter .= " AND (psf.effective_start_date IS NULL OR psf.effective_start_date <= CURDATE())";
-    $branchFilter .= " AND (psf.effective_end_date IS NULL OR psf.effective_end_date >= CURDATE())";
+    $where[] = "(psf.effective_start_date IS NULL OR psf.effective_start_date <= CURDATE())";
+    $where[] = "(psf.effective_end_date IS NULL OR psf.effective_end_date >= CURDATE())";
+
+    $whereClause = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
 
     $sql = "SELECT psf.*,
                    tp.provider_name,
@@ -176,8 +212,8 @@ function handleGet() {
                    CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
             FROM provider_service_fees psf
             LEFT JOIN ticket_providers tp ON psf.provider_id = tp.provider_id
-            LEFT JOIN business_branches bb ON psf.branch_id = bb.branch_id $branchJoin
-            $branchFilter
+            LEFT JOIN business_branches bb ON psf.branch_id = bb.branch_id
+            $whereClause
             ORDER BY tp.provider_name, bb.branch_name, psf.fee_type";
 
     $fees = Database::fetchAll($sql, $params);
@@ -244,7 +280,19 @@ function handlePost() {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
         return;
     }
-    
+
+    // Service fees can only be assigned to main (top-level) providers
+    if (!isMainProvider($providerId)) {
+        echo json_encode(['success' => false, 'error' => 'Service fees can only be assigned to main (top-level) providers']);
+        return;
+    }
+
+    // Validate fee value is non-negative
+    if ((float)$feeAmount < 0) {
+        echo json_encode(['success' => false, 'error' => 'Fee amount cannot be negative']);
+        return;
+    }
+
     // Check if fee already exists for this provider-branch-fee_type combination
     $existing = Database::fetch(
         "SELECT fee_id FROM provider_service_fees WHERE provider_id = :provider_id AND branch_id = :branch_id AND fee_type = :fee_type",
@@ -372,7 +420,19 @@ function handlePut() {
         echo json_encode(['success' => false, 'error' => 'Missing fee ID']);
         return;
     }
-    
+
+    // Service fees can only be assigned to main (top-level) providers
+    if ($providerId && !isMainProvider($providerId)) {
+        echo json_encode(['success' => false, 'error' => 'Service fees can only be assigned to main (top-level) providers']);
+        return;
+    }
+
+    // Validate fee value is non-negative if being updated
+    if ($feeAmount !== null && (float)$feeAmount < 0) {
+        echo json_encode(['success' => false, 'error' => 'Fee amount cannot be negative']);
+        return;
+    }
+
     // Get current fee data
     $currentFee = Database::fetch(
         "SELECT * FROM provider_service_fees WHERE fee_id = :fee_id",
@@ -383,7 +443,31 @@ function handlePut() {
         echo json_encode(['success' => false, 'error' => 'Service fee not found']);
         return;
     }
-    
+
+    // Prevent duplicate provider/branch/fee_type combination when editing
+    $effectiveProviderId = $providerId !== null ? $providerId : $currentFee['provider_id'];
+    $effectiveBranchId = $branchId !== null ? $branchId : $currentFee['branch_id'];
+    $effectiveFeeType = $feeType !== null ? $feeType : $currentFee['fee_type'];
+
+    $duplicate = Database::fetch(
+        "SELECT fee_id FROM provider_service_fees
+         WHERE provider_id = :provider_id
+           AND branch_id = :branch_id
+           AND fee_type = :fee_type
+           AND fee_id != :fee_id",
+        [
+            'provider_id' => (int)$effectiveProviderId,
+            'branch_id' => (int)$effectiveBranchId,
+            'fee_type' => $effectiveFeeType,
+            'fee_id' => (int)$feeId
+        ]
+    );
+
+    if ($duplicate) {
+        echo json_encode(['success' => false, 'error' => 'A service fee already exists for this provider, branch and fee type']);
+        return;
+    }
+
     // Build update query
     $updateFields = [];
     $params = ['fee_id' => (int)$feeId];
