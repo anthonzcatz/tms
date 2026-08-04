@@ -1176,12 +1176,17 @@ function loadProviders() {
 
     const branchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
     const providersPromise = fetch(`${window.BASE_URL}/api/ticket-providers`).then(r => r.json());
-    const walletsPromise = branchId
-        ? fetch(`${window.BASE_URL}/api/wallets?branch_id=${IdEncoder.encode(branchId)}`).then(r => r.json())
-        : Promise.resolve({ success: true, data: { wallets: [] } });
+    let walletsUrl = `${window.BASE_URL}/api/wallets`;
+    if (branchId) {
+        walletsUrl += `?branch_id=${IdEncoder.encode(branchId)}`;
+    }
+    const walletsPromise = fetch(walletsUrl).then(r => r.json());
+
+    console.log('[POS loadProviders] POS_BRANCH_ID:', window.POS_BRANCH_ID, 'walletsUrl:', walletsUrl);
 
     Promise.all([providersPromise, walletsPromise])
         .then(([providersData, walletsData]) => {
+            console.log('[POS loadProviders] walletsData:', walletsData);
             const walletBalances = {};
             window.providerHasVariantWallet = {};
             if (walletsData.success && walletsData.data && Array.isArray(walletsData.data.wallets)) {
@@ -1357,10 +1362,9 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
     }
 
     const userBranchId = branchId || window.POS_BRANCH_ID || null;
-
     const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
 
-    if (!providerId || !userBranchId) {
+    if (!providerId) {
         select.innerHTML = '<option value="">Select Provider First</option>';
         select.disabled = true;
         if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
@@ -1377,17 +1381,23 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
     }
 
     const providerIdNum = parseInt(providerId, 10);
-    const branchIdNum = parseInt(userBranchId, 10);
+    const branchIdNum = userBranchId ? parseInt(userBranchId, 10) : null;
     const variantIdNum = variantId ? parseInt(variantId, 10) : null;
 
-    let url = `${window.BASE_URL}/api/wallets?resolve=1&provider_id=${IdEncoder.encode(providerIdNum)}&branch_id=${IdEncoder.encode(branchIdNum)}`;
+    let url = `${window.BASE_URL}/api/wallets?resolve=1&provider_id=${IdEncoder.encode(providerIdNum)}`;
+    if (branchIdNum) {
+        url += `&branch_id=${IdEncoder.encode(branchIdNum)}`;
+    }
     if (variantIdNum) {
         url += `&variant_id=${IdEncoder.encode(variantIdNum)}`;
     }
 
+    console.log('[POS loadWallets] provider:', providerIdNum, 'branch:', userBranchId, 'variant:', variantIdNum, 'url:', url);
+
     fetch(url)
         .then(response => response.json())
         .then(data => {
+            console.log('[POS loadWallets] response:', data);
             if (data.success && data.data && data.data.resolved && data.data.wallet) {
                 const w = data.data.wallet;
                 select.innerHTML = '';
@@ -1404,7 +1414,8 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
                     mainProviderBalanceText.textContent = `Balance: ₱${fmt(parseFloat(w.current_balance))}`;
                 }
             } else if (data.error) {
-                select.innerHTML = '<option value="">' + (data.error.includes('Permission denied') ? 'Wallet access restricted' : 'No wallet found') + '</option>';
+                const branchLabel = userBranchId ? ` (branch ${userBranchId})` : '';
+                select.innerHTML = '<option value="">' + (data.error.includes('Permission denied') ? 'Wallet access restricted' : ('No wallet found' + branchLabel)) + '</option>';
                 select.disabled = true;
                 window.selectedResolvedWallet = null;
                 if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
