@@ -1498,10 +1498,12 @@ function loadTicketVariants() {
 
                 // Sort: in-stock / wallet-funded first, out-of-stock last
                 const sorted = [...data.data].sort((a, b) => {
-                    const aHasWallet = a.wallet_id && a.wallet_id !== '';
-                    const bHasWallet = b.wallet_id && b.wallet_id !== '';
-                    const aQty = aHasWallet ? (parseFloat(a.wallet_balance || 0) > 0 ? 1 : 0) : (parseInt(a.available_qty, 10) || 0);
-                    const bQty = bHasWallet ? (parseFloat(b.wallet_balance || 0) > 0 ? 1 : 0) : (parseInt(b.available_qty, 10) || 0);
+                    const aHasWallet = (a.wallet_id && a.wallet_id !== '') || (a.main_wallet_id && a.main_wallet_id !== '');
+                    const bHasWallet = (b.wallet_id && b.wallet_id !== '') || (b.main_wallet_id && b.main_wallet_id !== '');
+                    const aBalance = aHasWallet ? parseFloat(a.wallet_balance || a.main_wallet_balance || 0) : 0;
+                    const bBalance = bHasWallet ? parseFloat(b.wallet_balance || b.main_wallet_balance || 0) : 0;
+                    const aQty = aBalance > 0 ? 1 : (parseInt(a.available_qty, 10) || 0);
+                    const bQty = bBalance > 0 ? 1 : (parseInt(b.available_qty, 10) || 0);
                     if (aQty > 0 && bQty <= 0) return -1;
                     if (aQty <= 0 && bQty > 0) return 1;
                     return 0;
@@ -1509,18 +1511,25 @@ function loadTicketVariants() {
 
                 sorted.forEach(v => {
                     const hasVariantWallet = v.wallet_id && v.wallet_id !== '';
-                    const walletBalance = parseFloat(v.wallet_balance || 0);
+                    const hasMainWallet = v.main_wallet_id && v.main_wallet_id !== '';
+                    const walletBalance = parseFloat(v.wallet_balance || v.main_wallet_balance || 0);
                     let available = parseInt(v.available_qty, 10) || 0;
-                    let stockText, stockColor;
+                    let stockText, stockColor, balanceText;
                     if (hasVariantWallet) {
-                        stockText = walletBalance > 0 ? 'Available (wallet)' : 'Insufficient wallet balance';
+                        stockText = walletBalance > 0 ? 'Available (variant wallet)' : 'Insufficient variant wallet balance';
                         stockColor = walletBalance > 0 ? '#28a745' : '#dc3545';
                         available = walletBalance > 0 ? 1 : 0;
+                        balanceText = `Variant wallet: ₱${fmt(walletBalance)}`;
+                    } else if (hasMainWallet) {
+                        stockText = walletBalance > 0 ? 'Available (main wallet)' : 'Insufficient main wallet balance';
+                        stockColor = walletBalance > 0 ? '#28a745' : '#dc3545';
+                        available = walletBalance > 0 ? 1 : 0;
+                        balanceText = `Main wallet: ₱${fmt(walletBalance)}`;
                     } else {
                         stockText = available > 0 ? `${available} available` : (allowNegative ? 'negative stock allowed' : 'out of stock');
                         stockColor = available > 0 ? '#28a745' : '#dc3545';
+                        balanceText = 'No wallet';
                     }
-                    const balanceText = hasVariantWallet ? `Balance: ₱${fmt(walletBalance)}` : 'No variant wallet';
                     const swatch = v.color_code
                         ? `<span style="display:inline-block;width:12px;height:12px;background:${v.color_code};border-radius:2px;flex-shrink:0;border:1px solid #ccc;"></span>`
                         : '';
@@ -2987,7 +2996,7 @@ function computeTicketTotal() {
                 serviceFeeDisplay.textContent = `₱${serviceFee.toFixed(2)}`;
             }
         } else {
-            serviceFeeDisplay.textContent = '-';
+            serviceFeeDisplay.textContent = 'No service fee configured';
         }
     }
 
