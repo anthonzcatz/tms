@@ -7,6 +7,64 @@ function fmt(n) {
     return parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function escapeHtml(value) {
+    const element = document.createElement('div');
+    element.textContent = value == null ? '' : String(value);
+    return element.innerHTML;
+}
+
+function getTicketProviderDetails(providerId, mainProviderId) {
+    const providers = window.allTicketProviders || [];
+    const operatingProvider = providers.find(provider => String(provider.provider_id) === String(providerId));
+    const mainProvider = providers.find(provider => String(provider.provider_id) === String(mainProviderId))
+        || providers.find(provider => String(provider.provider_id) === String(operatingProvider?.parent_provider_id));
+
+    return {
+        mainProviderId: mainProvider?.provider_id || mainProviderId || providerId || null,
+        mainProviderName: mainProvider?.provider_name || operatingProvider?.provider_name || '',
+        subProviderName: operatingProvider?.parent_provider_id ? operatingProvider.provider_name : ''
+    };
+}
+
+function buildTicketDetailBadges(item) {
+    const badges = [];
+    if (item.mainProviderName) badges.push(`<span class="cart-detail-badge"><span class="fas fa-building me-1"></span>${escapeHtml(item.mainProviderName)}</span>`);
+    if (item.subProviderName) badges.push(`<span class="cart-detail-badge cart-detail-badge-sub"><span class="fas fa-sitemap me-1"></span>${escapeHtml(item.subProviderName)}</span>`);
+    if (item.variantName) badges.push(`<span class="cart-detail-badge cart-detail-badge-variant"><span class="fas fa-ticket-alt me-1"></span>${escapeHtml(item.variantName)}</span>`);
+    if (item.accommodationName) badges.push(`<span class="cart-detail-badge"><span class="fas fa-bed me-1"></span>${escapeHtml(item.accommodationName)}</span>`);
+    return badges.join('');
+}
+
+function buildTransactionProviderWallet(item) {
+    const providerName = item.provider_name || '';
+    const parentName = item.parent_provider_name || '';
+    const variantName = item.variant_name || '';
+    const walletProvider = item.wallet_provider_name || '';
+    const walletVariant = item.wallet_variant_name || '';
+    const providerType = item.provider_type || '';
+
+    let providerDisplay = providerName;
+    if (variantName) {
+        providerDisplay = variantName;
+    } else if (parentName) {
+        providerDisplay = `${parentName} - ${providerName}`;
+    }
+
+    let walletDisplay = walletProvider;
+    if (walletVariant) {
+        walletDisplay = walletDisplay ? `${walletDisplay} - ${walletVariant}` : walletVariant;
+    }
+
+    let html = escapeHtml(providerDisplay);
+    if (providerType) {
+        html += ` <span class="badge bg-soft-info text-info" style="font-size:0.75em;">${escapeHtml(providerType)}</span>`;
+    }
+    if (walletDisplay && walletDisplay !== providerDisplay) {
+        html += ` <span class="text-muted">(${escapeHtml(walletDisplay)})</span>`;
+    }
+    return html;
+}
+
 /**
  * Show a nice confirmation modal asking if the user wants to print the receipt.
  * Used in manual print mode (when autoPrint is disabled).
@@ -1090,7 +1148,7 @@ function loadAccommodationTypes() {
                 data.data.forEach(a => {
                     const option = document.createElement('option');
                     option.value = a.accommodation_id;
-                    option.textContent = `${a.name} (${a.code})`;
+                    option.textContent = `${a.name}`;
                     if (a.is_default === 1) {
                         option.dataset.isDefault = 'true';
                     }
@@ -1111,64 +1169,215 @@ function loadAccommodationTypes() {
 }
 
 function loadProviders() {
-    const select = document.getElementById('ticketProvider');
+    const mainSelect = document.getElementById('ticketMainProvider');
+    const subSelect = document.getElementById('ticketSubProvider');
+    const operatingInput = document.getElementById('ticketProvider');
     const walletSelect = document.getElementById('ticketWallet');
 
-    fetch(`${window.BASE_URL}/api/ticket-providers`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.data && data.data.providers) {
-                const activeProviders = data.data.providers.filter(p => p.status === 'active');
+    const branchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
+    const providersPromise = fetch(`${window.BASE_URL}/api/ticket-providers`).then(r => r.json());
+    const walletsPromise = branchId
+        ? fetch(`${window.BASE_URL}/api/wallets?branch_id=${IdEncoder.encode(branchId)}`).then(r => r.json())
+        : Promise.resolve({ success: true, data: { wallets: [] } });
 
-                select.innerHTML = '<option value="">Select Provider</option>';
-                activeProviders.forEach(p => {
-                    const option = document.createElement('option');
-                    option.value = p.provider_id;
-                    option.dataset.providerCode = p.provider_code || '';
-                    option.dataset.providerType = p.provider_type || '';
-                    option.textContent = p.parent_provider_name
-                        ? `${p.provider_name} (${p.parent_provider_name})`
-                        : p.provider_name;
-                    select.appendChild(option);
+    Promise.all([providersPromise, walletsPromise])
+        .then(([providersData, walletsData]) => {
+            const walletBalances = {};
+            window.providerHasVariantWallet = {};
+            if (walletsData.success && walletsData.data && Array.isArray(walletsData.data.wallets)) {
+                walletsData.data.wallets.forEach(w => {
+                    const pid = w.ticket_provider_id || w.provider_id;
+                    if (pid) {
+                        walletBalances[pid] = (walletBalances[pid] || 0) + (parseFloat(w.current_balance) || 0);
+                        if (w.status === 'active' && w.variant_id) {
+                            window.providerHasVariantWallet[String(pid)] = true;
+                        }
+                    }
                 });
-            } else if (data.error && data.error.includes('Permission denied')) {
-                showAlert('error', data.error);
             }
 
-            // Reset wallet dropdown
+            if (providersData.success && providersData.data && providersData.data.providers) {
+                window.allTicketProviders = providersData.data.providers.filter(p => p.status === 'active');
+
+                mainSelect.innerHTML = '<option value="">Select Main Provider</option>';
+                window.allTicketProviders
+                    .filter(p => !p.parent_provider_id)
+                    .forEach(p => {
+                        const option = document.createElement('option');
+                        option.value = p.provider_id;
+                        option.dataset.providerCode = p.provider_code || '';
+                        option.dataset.providerType = p.provider_type || '';
+                        const balance = walletBalances[p.provider_id];
+                        const balanceText = balance !== undefined
+                            ? `₱${fmt(balance)}`
+                            : 'No wallet';
+                        option.textContent = `${p.provider_name} • ${balanceText}`;
+                        mainSelect.appendChild(option);
+                    });
+            } else if (providersData.error && providersData.error.includes('Permission denied')) {
+                showAlert('error', providersData.error);
+            }
+
+            // Reset dependent dropdowns
+            subSelect.innerHTML = '<option value="">Select Main Provider First</option>';
+            subSelect.disabled = true;
+            document.getElementById('subProviderWrapper').classList.add('d-none');
+            operatingInput.value = '';
             walletSelect.innerHTML = '<option value="">Select Provider First</option>';
             walletSelect.disabled = true;
+            const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
+            if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
         })
         .catch(error => {
             console.error('Error loading providers:', error);
-            select.innerHTML = '<option value="">Error loading providers</option>';
+            mainSelect.innerHTML = '<option value="">Error loading providers</option>';
+            subSelect.innerHTML = '<option value="">Error</option>';
             walletSelect.innerHTML = '<option value="">Error</option>';
             walletSelect.disabled = true;
+            const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
+            if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
         });
+}
+
+function onMainProviderChanged() {
+    const mainSelect = document.getElementById('ticketMainProvider');
+    const subSelect = document.getElementById('ticketSubProvider');
+    const subWrapper = document.getElementById('subProviderWrapper');
+    const operatingInput = document.getElementById('ticketProvider');
+    const variantWrapper = document.getElementById('ticketVariantWrapper');
+    const variantSelect = document.getElementById('ticketVariant');
+    const mainId = mainSelect.value;
+
+    // Reset everything
+    const walletWrapper = document.getElementById('walletWrapper');
+
+    if (!mainId) {
+        subWrapper.classList.add('d-none');
+        subSelect.innerHTML = '<option value="">Select Main Provider First</option>';
+        operatingInput.value = '';
+        variantWrapper.classList.add('d-none');
+        if (variantSelect) variantSelect.value = '';
+        if (walletWrapper) walletWrapper.classList.remove('d-none');
+        destroyVariantChoices();
+        onProviderChanged();
+        return;
+    }
+
+    const subs = (window.allTicketProviders || []).filter(p => String(p.parent_provider_id) === mainId);
+    const hasVariantWallet = Boolean(window.providerHasVariantWallet?.[String(mainId)]);
+
+    if (subs.length > 0) {
+        // Main has sub-providers → show sub dropdown, hide variant
+        subWrapper.classList.remove('d-none');
+        subSelect.innerHTML = '<option value="">Select Sub-provider</option>';
+        subs.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.provider_id;
+            option.textContent = p.provider_name;
+            subSelect.appendChild(option);
+        });
+        subSelect.disabled = false;
+        operatingInput.value = '';
+        if (variantSelect) variantSelect.value = '';
+        variantWrapper.classList.add('d-none');
+        destroyVariantChoices();
+        // Load main provider wallet and service fee immediately
+        if (walletWrapper) walletWrapper.classList.add('d-none');
+        loadWallets(mainId, null, null);
+        loadServiceFeeForMainProvider(mainId);
+    } else {
+        // Main has no sub-providers → hide sub, load variants
+        subWrapper.classList.add('d-none');
+        subSelect.innerHTML = '<option value="">No sub-providers</option>';
+        subSelect.disabled = true;
+        operatingInput.value = mainId;
+
+        if (hasVariantWallet) {
+            // Variants exist → show variant dropdown, hide wallet (balance shown per variant)
+            if (walletWrapper) walletWrapper.classList.add('d-none');
+            onProviderChanged();
+        } else {
+            // No variants → show wallet dropdown
+            if (walletWrapper) walletWrapper.classList.remove('d-none');
+            if (variantSelect) {
+                variantSelect.value = '';
+                variantSelect.innerHTML = '<option value="">No variants available</option>';
+                variantSelect.disabled = true;
+                destroyVariantChoices();
+            }
+            variantWrapper.classList.add('d-none');
+            loadWallets();
+            loadServiceFeeForProvider();
+        }
+    }
+}
+
+function onSubProviderChanged() {
+    const mainSelect = document.getElementById('ticketMainProvider');
+    const subSelect = document.getElementById('ticketSubProvider');
+    const operatingInput = document.getElementById('ticketProvider');
+    const variantWrapper = document.getElementById('ticketVariantWrapper');
+    const variantSelect = document.getElementById('ticketVariant');
+    const walletWrapper = document.getElementById('walletWrapper');
+
+    operatingInput.value = subSelect.value || mainSelect.value || '';
+
+    // Sub-providers don't have variants and share the main wallet — hide both
+    if (variantWrapper) variantWrapper.classList.add('d-none');
+    if (variantSelect) variantSelect.value = '';
+    if (walletWrapper) walletWrapper.classList.add('d-none');
+    destroyVariantChoices();
+
+    // Update balance text using main wallet (WalletResolver falls back to parent)
+    loadWallets();
+    // Service fee already loaded from main provider selection, no need to reload
 }
 
 function refreshWallets() {
     const providerId = document.getElementById('ticketProvider')?.value;
-    loadWallets(providerId || null, window.POS_BRANCH_ID);
+    const variantId = document.getElementById('ticketVariant')?.value;
+    loadWallets(providerId || null, window.POS_BRANCH_ID, variantId || null);
 }
 
-function loadWallets(providerId = null, branchId = null) {
+function loadWallets(providerId = null, branchId = null, variantId = null) {
     const select = document.getElementById('ticketWallet');
 
-    // Use the currently selected provider if none passed
+    // Use the currently selected provider/variant if none passed
     if (!providerId) {
         providerId = document.getElementById('ticketProvider')?.value || null;
+    }
+    if (!variantId) {
+        variantId = document.getElementById('ticketVariant')?.value || null;
     }
 
     const userBranchId = branchId || window.POS_BRANCH_ID || null;
 
+    const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
+
     if (!providerId || !userBranchId) {
         select.innerHTML = '<option value="">Select Provider First</option>';
         select.disabled = true;
+        if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
         return;
     }
 
-    const url = `${window.BASE_URL}/api/wallets?resolve=1&provider_id=${IdEncoder.encode(providerId)}&branch_id=${IdEncoder.encode(userBranchId)}`;
+    const hasSubs = (window.allTicketProviders || []).some(p => String(p.parent_provider_id) === String(providerId));
+    if (!variantId && window.providerHasVariantWallet?.[String(providerId)] && !hasSubs) {
+        select.innerHTML = '<option value="">Select Variant First</option>';
+        select.disabled = true;
+        window.selectedResolvedWallet = null;
+        if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
+        return;
+    }
+
+    const providerIdNum = parseInt(providerId, 10);
+    const branchIdNum = parseInt(userBranchId, 10);
+    const variantIdNum = variantId ? parseInt(variantId, 10) : null;
+
+    let url = `${window.BASE_URL}/api/wallets?resolve=1&provider_id=${IdEncoder.encode(providerIdNum)}&branch_id=${IdEncoder.encode(branchIdNum)}`;
+    if (variantIdNum) {
+        url += `&variant_id=${IdEncoder.encode(variantIdNum)}`;
+    }
 
     fetch(url)
         .then(response => response.json())
@@ -1185,10 +1394,14 @@ function loadWallets(providerId = null, branchId = null) {
                 select.appendChild(option);
                 select.disabled = true;
                 window.selectedResolvedWallet = w;
+                if (mainProviderBalanceText) {
+                    mainProviderBalanceText.textContent = `Balance: ₱${fmt(parseFloat(w.current_balance))}`;
+                }
             } else if (data.error) {
                 select.innerHTML = '<option value="">' + (data.error.includes('Permission denied') ? 'Wallet access restricted' : 'No wallet found') + '</option>';
                 select.disabled = true;
                 window.selectedResolvedWallet = null;
+                if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
                 if (data.error.includes('Permission denied')) {
                     showAlert('error', data.error);
                 }
@@ -1199,12 +1412,135 @@ function loadWallets(providerId = null, branchId = null) {
             select.innerHTML = '<option value="">Error loading wallets</option>';
             select.disabled = true;
             window.selectedResolvedWallet = null;
+            if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
         });
 }
 
 function onProviderChanged() {
+    const variantSelect = document.getElementById('ticketVariant');
+    if (variantSelect) variantSelect.value = '';
     loadWallets();
     loadServiceFeeForProvider();
+    loadTicketVariants();
+}
+
+let variantChoices = null;
+
+function destroyVariantChoices() {
+    if (variantChoices) {
+        try { variantChoices.destroy(); } catch(e) {}
+        variantChoices = null;
+    }
+}
+
+function refreshVariantChoices() {
+    const select = document.getElementById('ticketVariant');
+    if (!select) return;
+
+    if (select.disabled) {
+        destroyVariantChoices();
+        return;
+    }
+
+    destroyVariantChoices();
+
+    variantChoices = new Choices(select, {
+        searchEnabled: false,
+        shouldSort: false,
+        itemSelectText: '',
+        allowHTML: true,
+        removeItemButton: false,
+        position: 'auto',
+        resetScrollPosition: false
+    });
+}
+
+function onTicketVariantChanged() {
+    loadWallets();
+}
+
+function loadTicketVariants() {
+    const providerSelect = document.getElementById('ticketProvider');
+    const variantSelect = document.getElementById('ticketVariant');
+    const variantWrapper = document.getElementById('ticketVariantWrapper');
+    const availabilityText = document.getElementById('variantAvailabilityText');
+    const warningText = document.getElementById('negativeStockWarningText');
+    const variantRequiredMarker = document.getElementById('variantRequiredMarker');
+
+    const providerId = providerSelect ? providerSelect.value : null;
+
+    if (!providerId) {
+        variantSelect.innerHTML = '<option value="">Select Provider First</option>';
+        variantSelect.disabled = true;
+        variantWrapper.classList.add('d-none');
+        return;
+    }
+
+    variantWrapper.classList.remove('d-none');
+    variantRequiredMarker.classList.add('d-none');
+    variantSelect.disabled = true;
+    variantSelect.innerHTML = '<option value="">Loading variants...</option>';
+
+    const branchId = window.POS_BRANCH_ID || '';
+    const variantUrl = `${window.BASE_URL}/api/ticket-variants?provider_id=${encodeURIComponent(providerId)}&branch_id=${encodeURIComponent(branchId)}`;
+    fetch(variantUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                const allowNegative = window.POS_SETTINGS && window.POS_SETTINGS.allow_negative_ticket_stock;
+                let optionsHtml = '<option value="">Select Variant (required)</option>';
+
+                // Sort: in-stock / wallet-funded first, out-of-stock last
+                const sorted = [...data.data].sort((a, b) => {
+                    const aHasWallet = a.wallet_id && a.wallet_id !== '';
+                    const bHasWallet = b.wallet_id && b.wallet_id !== '';
+                    const aQty = aHasWallet ? (parseFloat(a.wallet_balance || 0) > 0 ? 1 : 0) : (parseInt(a.available_qty, 10) || 0);
+                    const bQty = bHasWallet ? (parseFloat(b.wallet_balance || 0) > 0 ? 1 : 0) : (parseInt(b.available_qty, 10) || 0);
+                    if (aQty > 0 && bQty <= 0) return -1;
+                    if (aQty <= 0 && bQty > 0) return 1;
+                    return 0;
+                });
+
+                sorted.forEach(v => {
+                    const hasVariantWallet = v.wallet_id && v.wallet_id !== '';
+                    const walletBalance = parseFloat(v.wallet_balance || 0);
+                    let available = parseInt(v.available_qty, 10) || 0;
+                    let stockText, stockColor;
+                    if (hasVariantWallet) {
+                        stockText = walletBalance > 0 ? 'Available (wallet)' : 'Insufficient wallet balance';
+                        stockColor = walletBalance > 0 ? '#28a745' : '#dc3545';
+                        available = walletBalance > 0 ? 1 : 0;
+                    } else {
+                        stockText = available > 0 ? `${available} available` : (allowNegative ? 'negative stock allowed' : 'out of stock');
+                        stockColor = available > 0 ? '#28a745' : '#dc3545';
+                    }
+                    const balanceText = hasVariantWallet ? `Balance: ₱${fmt(walletBalance)}` : 'No variant wallet';
+                    const swatch = v.color_code
+                        ? `<span style="display:inline-block;width:12px;height:12px;background:${v.color_code};border-radius:2px;flex-shrink:0;border:1px solid #ccc;"></span>`
+                        : '';
+                    const labelHtml = `<div style="display:flex;align-items:center;gap:6px;">${swatch}<span>${v.variant_name}</span></div><div style="font-size:11px;color:#6c757d;margin-top:2px;"><span style="color:${stockColor};font-weight:600;">${stockText}</span> • ${balanceText}</div>`;
+                    optionsHtml += `<option value="${v.variant_id}" data-available="${available}" data-stock-controlled="${v.stock_controlled}" data-variant-name="${escapeHtml(v.variant_name)}" data-variant-code="${escapeHtml(v.variant_code || '')}">${labelHtml}</option>`;
+                });
+
+                variantSelect.innerHTML = optionsHtml;
+                variantSelect.disabled = false;
+                variantRequiredMarker.classList.remove('d-none');
+                availabilityText.textContent = 'Select a variant (required).';
+                refreshVariantChoices();
+            } else {
+                variantWrapper.classList.add('d-none');
+                variantSelect.innerHTML = '<option value="">No variants found</option>';
+                variantSelect.disabled = true;
+                destroyVariantChoices();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading ticket variants:', error);
+            variantWrapper.classList.add('d-none');
+            variantSelect.innerHTML = '<option value="">Error loading variants</option>';
+            variantSelect.disabled = true;
+            destroyVariantChoices();
+        });
 }
 
 function showAlert(type, message) {
@@ -1225,6 +1561,82 @@ function showAlert(type, message) {
     }, 5000);
 }
 
+function loadServiceFeeForMainProvider(mainProviderId) {
+    const serviceFeeDisplay = document.getElementById('ticketServiceFeeDisplay');
+    const serviceFeeInput = document.getElementById('ticketServiceFee');
+    const baseAmountDisplay = document.getElementById('ticketBaseAmountDisplay');
+    const baseAmountInput = document.getElementById('ticketBaseAmount');
+
+    const numericProviderId = parseInt(mainProviderId, 10);
+    const numericBranchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
+
+    if (!numericProviderId || numericProviderId < 1) {
+        serviceFeeDisplay.textContent = '-';
+        serviceFeeInput.value = 0;
+        baseAmountDisplay.textContent = '₱0.00';
+        computeTicketTotal();
+        return;
+    }
+
+    const encodedProviderId = IdEncoder.encode(numericProviderId);
+    let url = `${window.BASE_URL}/api/provider-service-fees`;
+
+    if (encodedProviderId) {
+        url += `?provider_id=${encodedProviderId}`;
+    }
+    if (numericBranchId) {
+        const encodedBranchId = IdEncoder.encode(numericBranchId);
+        if (encodedBranchId) {
+            url += (encodedProviderId ? '&' : '?') + `branch_id=${encodedBranchId}`;
+        }
+    }
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data && data.data.fees && data.data.fees.length > 0) {
+                const fee = data.data.fees[0];
+                const feeType = fee.fee_type;
+                const feeValue = parseFloat(fee.fee_value);
+
+                serviceFeeInput.value = feeValue;
+
+                if (feeType === 'FIXED') {
+                    serviceFeeDisplay.textContent = `₱${feeValue.toFixed(2)} (Fixed)`;
+                } else if (feeType === 'PERCENT') {
+                    const baseAmount = parseFloat(baseAmountInput.value) || 0;
+                    const calculatedFee = (baseAmount * feeValue) / 100;
+                    serviceFeeInput.value = calculatedFee;
+                    serviceFeeDisplay.textContent = `₱${calculatedFee.toFixed(2)} (${feeValue}% of Base)`;
+                } else {
+                    serviceFeeDisplay.textContent = `₱${feeValue.toFixed(2)}`;
+                    serviceFeeInput.value = feeValue;
+                }
+
+                window.currentServiceFee = {
+                    type: feeType,
+                    value: feeValue
+                };
+
+                const currentBaseAmount = parseFloat(baseAmountInput.value) || 0;
+                baseAmountDisplay.textContent = currentBaseAmount > 0 ? '₱' + currentBaseAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '₱0.00';
+
+                computeTicketTotal();
+            } else {
+                serviceFeeDisplay.textContent = 'No service fee configured';
+                serviceFeeInput.value = 0;
+                window.currentServiceFee = null;
+                computeTicketTotal();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading service fee for main provider:', error);
+            serviceFeeDisplay.textContent = 'Error loading fee';
+            serviceFeeInput.value = 0;
+            computeTicketTotal();
+        });
+}
+
 function loadServiceFeeForProvider() {
     const providerSelect = document.getElementById('ticketProvider');
     const providerId = providerSelect ? providerSelect.value : null;
@@ -1241,15 +1653,14 @@ function loadServiceFeeForProvider() {
         return;
     }
 
-    const numericProviderId = parseInt(providerId, 10);
+    const provider = (window.allTicketProviders || []).find(p => String(p.provider_id) === String(providerId));
+    const parentProviderId = provider ? provider.parent_provider_id : '';
+    const numericProviderId = parentProviderId
+        ? parseInt(parentProviderId, 10)
+        : parseInt(providerId, 10);
     const numericBranchId = window.POS_BRANCH_ID ? parseInt(window.POS_BRANCH_ID, 10) : null;
 
-    console.log('Loading service fee for provider:', numericProviderId, 'branchId:', numericBranchId);
-
-    console.log('Numeric providerId:', numericProviderId, 'Numeric branchId:', numericBranchId);
-
     if (!numericProviderId || numericProviderId < 1) {
-        console.log('Invalid providerId, skipping service fee fetch');
         serviceFeeDisplay.textContent = '-';
         serviceFeeInput.value = 0;
         baseAmountDisplay.textContent = '₱0.00';
@@ -1272,12 +1683,9 @@ function loadServiceFeeForProvider() {
         }
     }
     
-    console.log('Fetching service fee from:', url);
-    
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            console.log('Service fee response:', data);
             if (data.success && data.data && data.data.fees && data.data.fees.length > 0) {
                 const fee = data.data.fees[0];
                 const feeType = fee.fee_type;
@@ -2531,14 +2939,54 @@ async function saveNewPassenger() {
 // TICKET SELECTION
 // =============================================
 
+function formatBaseAmountInput() {
+    const input = document.getElementById('ticketBaseAmount');
+    if (!input) return;
+    let raw = input.value.replace(/[^0-9.]/g, '');
+    if (raw === '') { input.value = ''; return; }
+    const parts = raw.split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    input.value = parts.length > 1 ? `${intPart}.${parts[1].slice(0, 2)}` : intPart;
+}
+
 function computeTicketTotal() {
-    const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
-    const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
+    const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value.replace(/,/g, '')) || 0;
     const discountSelect = document.getElementById('ticketDiscount');
     const discountPercentage = (!discountSelect.value || discountSelect.value === '0') ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
     const discountAmount = (baseAmount * discountPercentage) / 100;
+
+    // Compute service fee from the current fee configuration
+    let serviceFee = 0;
+    if (window.currentServiceFee) {
+        if (window.currentServiceFee.type === 'PERCENT') {
+            serviceFee = (baseAmount * window.currentServiceFee.value) / 100;
+        } else {
+            serviceFee = window.currentServiceFee.value;
+        }
+    }
+
+    const serviceFeeInput = document.getElementById('ticketServiceFee');
+    if (serviceFeeInput) {
+        serviceFeeInput.value = serviceFee.toFixed(2);
+    }
+
+    const serviceFeeDisplay = document.getElementById('ticketServiceFeeDisplay');
+    if (serviceFeeDisplay) {
+        if (window.currentServiceFee) {
+            if (window.currentServiceFee.type === 'PERCENT') {
+                serviceFeeDisplay.textContent = `₱${serviceFee.toFixed(2)} (${window.currentServiceFee.value}% of Base)`;
+            } else if (window.currentServiceFee.type === 'FIXED') {
+                serviceFeeDisplay.textContent = `₱${serviceFee.toFixed(2)} (Fixed)`;
+            } else {
+                serviceFeeDisplay.textContent = `₱${serviceFee.toFixed(2)}`;
+            }
+        } else {
+            serviceFeeDisplay.textContent = '-';
+        }
+    }
+
     const total = baseAmount + serviceFee - discountAmount;
-    
+
     // Update displays
     document.getElementById('ticketBaseAmountDisplay').textContent = `₱${baseAmount.toFixed(2)}`;
     document.getElementById('ticketTotalDisplay').textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2559,29 +3007,49 @@ function addTicketToCart() {
     const ticketNumber = document.getElementById('ticketNumber').value.trim();
     // const origin = document.getElementById('ticketOrigin').value.trim();
     // const destination = document.getElementById('ticketDestination').value.trim();
-    const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value) || 0;
+    const baseAmount = parseFloat(document.getElementById('ticketBaseAmount').value.replace(/,/g, '')) || 0;
     const serviceFee = parseFloat(document.getElementById('ticketServiceFee').value) || 0;
     const discountSelect = document.getElementById('ticketDiscount');
     const discountPercentage = (!discountSelect.value || discountSelect.value === '0') ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
     const discountAmount = (baseAmount * discountPercentage) / 100;
     const total = baseAmount + serviceFee - discountAmount;
-    const accommodationId = document.getElementById('ticketAccommodation').value || null;
+    const accommodationSelect = document.getElementById('ticketAccommodation');
+    const accommodationId = accommodationSelect.value || null;
+    const accommodationName = accommodationSelect.selectedOptions[0]?.textContent.trim() || '';
+    const variantSelect = document.getElementById('ticketVariant');
+    const variantId = variantSelect ? variantSelect.value || null : null;
+    const variantOption = variantSelect?.selectedOptions[0];
+    const variantName = variantOption?.dataset.variantName || '';
+    const variantCode = variantOption?.dataset.variantCode || '';
 
     // Get operating provider and resolved wallet
     const providerSelect = document.getElementById('ticketProvider');
     const providerId = providerSelect ? providerSelect.value : null;
+    const mainProviderId = document.getElementById('ticketMainProvider')?.value || providerId;
+    const providerDetails = getTicketProviderDetails(providerId, mainProviderId);
     const walletSelect = document.getElementById('ticketWallet');
-    const walletId = walletSelect ? walletSelect.value : null;
+    let walletId = walletSelect ? walletSelect.value : null;
     const walletOption = walletSelect ? walletSelect.selectedOptions[0] : null;
-    const walletBranchId = walletOption ? walletOption.dataset.branchId : null;
+    let walletBranchId = walletOption ? walletOption.dataset.branchId : null;
 
     if (!passengerId) { showToast('danger', 'Error', 'Please select a passenger.'); return; }
     if (!ticketNumber) { showToast('danger', 'Error', 'Please enter ticket number.'); return; }
-    if (!baseAmount || baseAmount <= 0) { showToast('danger', 'Error', 'Please enter a valid cost amount.'); return; }
+    if (!baseAmount || baseAmount <= 0) { showToast('danger', 'Error', 'Please enter a valid base fare.'); return; }
     if (!discountSelect.value) { showToast('danger', 'Error', 'Please select a discount.'); return; }
     if (!accommodationId) { showToast('danger', 'Error', 'Please select an accommodation.'); return; }
     if (!providerId) { showToast('danger', 'Error', 'Please select a provider.'); return; }
-    if (!walletId) { showToast('danger', 'Error', 'Please select/resolve a wallet.'); return; }
+    const variantWrapper = document.getElementById('ticketVariantWrapper');
+    if (variantWrapper && !variantWrapper.classList.contains('d-none') && !variantSelect.value) { showToast('danger', 'Error', 'Please select a ticket variant.'); return; }
+    if (!walletId) {
+        // When variants are shown, wallet dropdown is hidden but resolved wallet is stored
+        if (window.selectedResolvedWallet && window.selectedResolvedWallet.wallet_id) {
+            walletId = window.selectedResolvedWallet.wallet_id;
+            walletBranchId = window.selectedResolvedWallet.branch_id || null;
+        } else {
+            showToast('danger', 'Error', 'Please select/resolve a wallet.');
+            return;
+        }
+    }
     if (total <= 0) { showToast('danger', 'Error', 'Ticket total must be greater than 0.'); return; }
 
     // Get passenger name from selected passenger display
@@ -2600,6 +3068,11 @@ function addTicketToCart() {
         discountPercentage,
         discountAmount,
         accommodationId,
+        accommodationName,
+        variantId,
+        variantName,
+        variantCode,
+        ...providerDetails,
         total,
         providerId,
         walletId,
@@ -2623,6 +3096,19 @@ function addTicketToCart() {
     document.getElementById('ticketBaseAmount').value = '';
     document.getElementById('ticketDiscount').value = '';
     document.getElementById('ticketAccommodation').value = '';
+    document.getElementById('ticketMainProvider').value = '';
+    document.getElementById('ticketSubProvider').innerHTML = '<option value="">Select Main Provider First</option>';
+    document.getElementById('ticketSubProvider').disabled = true;
+    document.getElementById('subProviderWrapper').classList.add('d-none');
+    document.getElementById('ticketProvider').value = '';
+    document.getElementById('ticketVariant').innerHTML = '<option value="">Select Provider First</option>';
+    document.getElementById('ticketVariant').disabled = true;
+    document.getElementById('ticketVariantWrapper').classList.add('d-none');
+    document.getElementById('variantRequiredMarker').classList.add('d-none');
+    destroyVariantChoices();
+    document.getElementById('mainProviderBalanceText').textContent = '';
+    const walletWrapper = document.getElementById('walletWrapper');
+    if (walletWrapper) walletWrapper.classList.remove('d-none');
     document.getElementById('ticketServiceFee').value = '0';
     document.getElementById('ticketServiceFeeDisplay').textContent = '-';
     document.getElementById('ticketBaseAmountDisplay').textContent = '₱0.00';
@@ -2772,25 +3258,43 @@ function renderCart() {
     cart.forEach((item, idx) => {
         subtotal += item.total;
         if (item.type === 'ticket') {
+            const ticketAttributes = [
+                item.mainProviderName ? { label: 'Provider', value: item.mainProviderName, icon: 'fa-building', className: 'provider' } : null,
+                item.subProviderName ? { label: 'Sub-provider', value: item.subProviderName, icon: 'fa-route', className: 'sub-provider' } : null,
+                item.variantName ? { label: 'Ticket type', value: item.variantName, icon: 'fa-ticket-alt', className: 'variant' } : null,
+                item.accommodationName ? { label: 'Accommodation', value: item.accommodationName, icon: 'fa-bed', className: 'accommodation' } : null
+            ].filter(Boolean);
+            const attributesHtml = ticketAttributes.length
+                ? `<div class="cart-ticket-attributes">${ticketAttributes.map(attribute => `
+                    <div class="cart-ticket-attribute cart-ticket-attribute-${attribute.className}">
+                      <span class="fas ${attribute.icon}"></span>
+                      <div><span>${attribute.label}</span><strong>${escapeHtml(attribute.value)}</strong></div>
+                    </div>`).join('')}</div>`
+                : '';
             html += `
-            <div class="cart-item d-flex align-items-center gap-2 py-2 px-1 border-start border-4 border-primary">
-              <div class="flex-grow-1 min-width-0">
-                <div class="fw-semibold text-primary" style="font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.passengerName || '-'}</div>
-                <div class="text-muted" style="font-size:0.72rem;">
-                  Ticket #${item.ticketNumber}
-                  &nbsp;·&nbsp;Cost: ₱${fmt(item.baseAmount)}
+            <article class="cart-item cart-ticket-item">
+              <div class="cart-ticket-header">
+                <div class="cart-ticket-identity min-width-0">
+                  <span class="cart-ticket-icon"><span class="fas fa-ticket-alt"></span></span>
+                  <div class="min-width-0">
+                    <div class="cart-ticket-passenger">${escapeHtml(item.passengerName || '-')}</div>
+                    <div class="cart-ticket-number">Ticket #${escapeHtml(item.ticketNumber || '-')}</div>
+                  </div>
                 </div>
-                <div class="text-muted" style="font-size:0.72rem;">
-                  Fee: ₱${fmt(item.serviceFee)}
+                <div class="cart-ticket-actions">
+                  <span class="cart-ticket-total">₱${fmt(item.total)}</span>
+                  <button class="cart-ticket-remove" onclick="removeCartItem(${idx})" title="Remove ticket" aria-label="Remove ticket">
+                    <span class="fas fa-times"></span>
+                  </button>
                 </div>
               </div>
-              <div class="d-flex align-items-center gap-1 flex-shrink-0">
-                <span class="fw-bold text-success" style="font-size:0.88rem; white-space:nowrap;">₱${fmt(item.total)}</span>
-                <button class="btn btn-sm btn-link text-danger p-0" style="width:24px; height:24px; line-height:1; flex-shrink:0;" onclick="removeCartItem(${idx})" title="Remove">
-                  <span class="fas fa-times-circle" style="font-size:1rem;"></span>
-                </button>
+              ${attributesHtml}
+              <div class="cart-ticket-pricing">
+                <div><span>Base fare</span><strong>₱${fmt(item.baseAmount)}</strong></div>
+                <div><span>Service fee</span><strong>₱${fmt(item.serviceFee)}</strong></div>
+                ${item.discountAmount > 0 ? `<div class="cart-ticket-discount"><span>Discount</span><strong>-₱${fmt(item.discountAmount)}</strong></div>` : ''}
               </div>
-            </div>`;
+            </article>`;
         } else {
             html += `
             <div class="cart-item d-flex align-items-center gap-2 py-2 px-1">
@@ -2879,15 +3383,16 @@ function populatePaymentModalCart() {
     cart.forEach((item, idx) => {
         total += item.total;
         if (item.type === 'ticket') {
+            const detailBadges = buildTicketDetailBadges(item);
             html += `
-                <div class="d-flex justify-content-between align-items-start py-2 ${idx > 0 ? 'border-top' : ''}">
-                    <div>
-                        <div class="fw-semibold text-dark">${item.passengerName || '-'}</div>
-                        <div class="text-muted small">
-                            Ticket #${item.ticketNumber} • Cost ₱${fmt(item.baseAmount)}
-                        </div>
+                <div class="payment-cart-ticket d-flex justify-content-between align-items-start py-2 ${idx > 0 ? 'border-top' : ''}">
+                    <div class="min-width-0 pe-2">
+                        <div class="fw-semibold text-dark">${escapeHtml(item.passengerName || '-')}</div>
+                        <div class="text-muted small">Ticket #${escapeHtml(item.ticketNumber || '-')}</div>
+                        ${detailBadges ? `<div class="cart-detail-badges mt-1">${detailBadges}</div>` : ''}
+                        <div class="text-muted small mt-1">Base fare ₱${fmt(item.baseAmount)} • Fee ₱${fmt(item.serviceFee)}${item.discountAmount > 0 ? ` • Discount ₱${fmt(item.discountAmount)}` : ''}</div>
                     </div>
-                    <div class="fw-bold">₱${fmt(item.total)}</div>
+                    <div class="fw-bold flex-shrink-0">₱${fmt(item.total)}</div>
                 </div>
             `;
         } else {
@@ -3127,6 +3632,7 @@ async function confirmOrder() {
                 discount_id: ticket.discountId,
                 discount_amount: ticket.discountAmount,
                 accommodation_id: ticket.accommodationId || null,
+                variant_id: ticket.variantId || null,
                 total_amount: ticket.total,
                 provider_id: ticket.providerId,
                 wallet_id: ticket.walletId
@@ -3198,7 +3704,9 @@ async function confirmOrder() {
                             branch_name: window.POS_BRANCH_NAME || '',
                             cashier_name: window.POS_USER_NAME || '',
                             payment_method: paymentLines.length > 0 ? paymentLines[0].methodName : '',
-                            subtotal: total,
+                            subtotal: cart.reduce((sum, item) => sum + (item.type === 'ticket'
+                                ? parseFloat(item.baseAmount || 0) + parseFloat(item.serviceFee || 0)
+                                : parseFloat(item.total || 0)), 0),
                             discount: cart.reduce((s, i) => s + parseFloat(i.discountAmount || 0), 0),
                             tax: 0,
                             total: total,
@@ -3208,7 +3716,17 @@ async function confirmOrder() {
                             or_number: result.or_number || null,
                             vat_data: result.vat_data || null,
                             items: cart.map(item => ({
-                                name: (item.type === 'ticket' ? item.ticketNumber : null) || item.description || item.passengerName || item.serviceName || item.type,
+                                name: item.type === 'ticket'
+                                    ? `Ticket #${item.ticketNumber || '-'} - ${item.passengerName || 'Passenger'}`
+                                    : item.description || item.serviceName || item.type,
+                                details: item.type === 'ticket'
+                                    ? [
+                                        item.mainProviderName ? `Provider: ${item.mainProviderName}` : '',
+                                        item.subProviderName ? `Sub-provider: ${item.subProviderName}` : '',
+                                        item.variantName ? `Variant: ${item.variantName}${item.variantCode ? ` (${item.variantCode})` : ''}` : '',
+                                        item.accommodationName ? `Accommodation: ${item.accommodationName}` : ''
+                                    ].filter(Boolean)
+                                    : [],
                                 quantity: item.qty || 1,
                                 price: item.unitPrice || item.total || 0,
                                 base_amount: parseFloat(item.baseAmount || item.unitPrice || item.total || 0),
@@ -3461,15 +3979,10 @@ function renderTransactionsTable(transactions) {
         // Provider cell (operating provider / wallet provider)
         let providerCell = '-';
         if (isOrderBased && orderItems.length > 0) {
-            const providers = [...new Set(orderItems.filter(i => i.provider_name).map(i =>
-                i.provider_name + (i.wallet_provider_name && i.wallet_provider_name !== i.provider_name ? ` <span class="text-muted">(${i.wallet_provider_name})</span>` : '')
-            ))];
+            const providers = [...new Set(orderItems.filter(i => i.provider_name || i.parent_provider_name || i.variant_name).map(i => buildTransactionProviderWallet(i)))];
             providerCell = providers.length > 0 ? providers.join('<br>') : '-';
-        } else if (txn.provider_name) {
-            const walletName = txn.wallet_provider_name && txn.wallet_provider_name !== txn.provider_name ? ` <span class="text-muted">(${txn.wallet_provider_name})</span>` : '';
-            providerCell = txn.provider_type
-                ? `<div>${txn.provider_name}${walletName}</div><div><span class="badge bg-soft-info text-info" style="font-size:0.75em;">${txn.provider_type}</span></div>`
-                : `${txn.provider_name}${walletName}`;
+        } else if (txn.provider_name || txn.parent_provider_name || txn.variant_name) {
+            providerCell = buildTransactionProviderWallet(txn);
         }
 
         // Origin/Dest cell
@@ -3512,10 +4025,9 @@ function renderTransactionsTable(transactions) {
                 if (item.item_type === 'TICKET') {
                     const td = item.travel_date ? new Date(item.travel_date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
                     const iconColor = isCancelled ? 'text-muted' : 'text-primary';
-                    const itemWalletName = item.wallet_provider_name && item.wallet_provider_name !== item.provider_name ? ` <span class="text-muted">(${item.wallet_provider_name})</span>` : '';
                     itemRows += `<tr class="${rowClass}" style="font-size:0.8em;${textStyle}">
                         <td colspan="2"><i class="fas fa-ticket-alt ${iconColor} me-1"></i>${item.passenger_name || '-'}${cancelledBadge}</td>
-                        <td colspan="2">${item.provider_name ? item.provider_name + itemWalletName : '-'}</td>
+                        <td colspan="2">${item.provider_name || item.parent_provider_name || item.variant_name ? buildTransactionProviderWallet(item) : '-'}</td>
                         <td>${td}</td>
                         <td>${item.origin && item.destination ? item.origin + ' → ' + item.destination : '-'}</td>
                         <td>₱${fmt(item.total_amount)}</td>
@@ -3563,7 +4075,7 @@ function renderTransactionsTable(transactions) {
                 const ticketItem = hasActiveTicketsInOrder
                     ? orderItems.find(i => i.item_type === 'TICKET' && !['cancelled', 'refunded'].includes(i.ticket_status))
                     : null;
-                
+
                 // Calculate base amount and service fee correctly
                 // For order items: total = base + service_fee, so base = total - service_fee
                 const cancelTxnCode = ticketItem ? ticketItem.transaction_code : txn.transaction_code;
@@ -3596,6 +4108,7 @@ function renderTransactionsTable(transactions) {
 
                 cancelButton = `<button class="btn btn-sm btn-outline-danger"
                         data-txn-code="${cancelTxnCode}"
+                        data-txn-type="TICKET"
                         data-base-amount="${cancelBaseAmount}"
                         data-service-fee="${cancelServiceFee}"
                         data-txn-data="${encodeURIComponent(JSON.stringify(cancelData))}"
@@ -3803,11 +4316,21 @@ async function confirmReprintReceipt() {
                 const baseAmt = parseFloat(item.unit_price || 0) > 0
                     ? parseFloat(item.unit_price)
                     : (itemTotal - svcFee - parseFloat(item.discount_amount || 0));
-                const name = item.item_type === 'TICKET'
-                    ? (item.ticket_number || item.passenger_name || item.description || item.transaction_code || 'Ticket')
+                const isTicket = item.item_type === 'TICKET';
+                const name = isTicket
+                    ? `Ticket #${item.ticket_number || item.transaction_code || '-'} - ${item.name || 'Passenger'}`
                     : (item.service_type_name || item.description || 'Service');
+                const details = isTicket
+                    ? [
+                        item.parent_provider_name ? `Provider: ${item.parent_provider_name}` : (item.provider_name ? `Provider: ${item.provider_name}` : ''),
+                        item.parent_provider_name && item.provider_name ? `Sub-provider: ${item.provider_name}` : '',
+                        item.variant_name ? `Variant: ${item.variant_name}${item.variant_code ? ` (${item.variant_code})` : ''}` : '',
+                        item.accommodation_name ? `Accommodation: ${item.accommodation_name}` : ''
+                    ].filter(Boolean)
+                    : [];
                 return {
                     name,
+                    details,
                     quantity: parseInt(item.quantity) || 1,
                     price: itemTotal,
                     base_amount: baseAmt,
@@ -3999,13 +4522,14 @@ function displayCancellationPolicy() {
 
 function openCancelTicketModalFromButton(button) {
     const txnCode = button.dataset.txnCode;
+    const txnType = button.dataset.txnType || 'TICKET';
     const baseAmount = parseFloat(button.dataset.baseAmount);
     const serviceFee = parseFloat(button.dataset.serviceFee);
     const txnData = JSON.parse(decodeURIComponent(button.dataset.txnData));
-    openCancelTicketModal(txnCode, baseAmount, serviceFee, txnData);
+    openCancelTicketModal(txnCode, txnType, baseAmount, serviceFee, txnData);
 }
 
-async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 0, txnData = null) {
+async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmount = 0, serviceFee = 0, txnData = null) {
     console.log('openCancelTicketModal called with:', { txnCode, baseAmount, serviceFee, txnData });
     console.log('cancelTicketModal:', cancelTicketModal);
 
@@ -4081,10 +4605,39 @@ async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 
 
     cancelTicketModal.show();
 
+    const isService = txnType === 'SERVICE';
+
     // Set values if provided
+    const txnTypeInput = document.getElementById('cancelTxnType');
+    if (txnTypeInput) txnTypeInput.value = txnType;
     document.getElementById('cancelTicketCode').value = txnCode;
     document.getElementById('cancelRefundAmount').value = baseAmount > 0 ? baseAmount : '';
     document.getElementById('cancelReason').value = '';
+
+    // Adjust modal header and helper text for the transaction type
+    const modalTitleEl      = document.getElementById('cancelTicketModalLabel');
+    const modalSubtitleEl   = document.getElementById('cancelTicketModalSubtitle');
+    const refundHintEl      = document.getElementById('cancelRefundHint');
+    const serviceFeeContainer = document.getElementById('cancelServiceFeeContainer');
+    const detailsTitleEl    = document.getElementById('cancelDetailsTitle');
+    const detailsIconEl     = document.getElementById('cancelDetailsIcon');
+    const travelDateLabelEl = document.getElementById('cancelTravelDateLabel');
+    const routeLabelEl      = document.getElementById('cancelRouteLabel');
+    const baseAmountLabelEl = document.getElementById('cancelBaseAmountLabel');
+
+    if (modalTitleEl)     modalTitleEl.innerHTML      = isService ? '<span class="fas fa-times-circle me-2"></span>Cancel Service' : '<span class="fas fa-times-circle me-2"></span>Cancel Ticket';
+    if (modalSubtitleEl)  modalSubtitleEl.textContent = isService ? 'Process service cancellation with refund' : 'Process ticket cancellation with wallet refund';
+    if (detailsTitleEl)   detailsTitleEl.textContent  = isService ? 'Service Details' : 'Ticket Details';
+    if (detailsIconEl)    detailsIconEl.className     = isService ? 'fas fa-concierge-bell me-2' : 'fas fa-info-circle me-2';
+    if (travelDateLabelEl) travelDateLabelEl.textContent = isService ? 'Service Name' : 'Ticket Number';
+    if (routeLabelEl)     routeLabelEl.textContent    = isService ? 'Description' : 'Route';
+    if (baseAmountLabelEl) baseAmountLabelEl.textContent = isService ? 'Amount' : 'Base fare';
+    if (serviceFeeContainer) serviceFeeContainer.style.display = isService ? 'none' : '';
+    if (refundHintEl) {
+        refundHintEl.innerHTML = isService
+            ? 'Refund will be given from cashier cash. Service amount is refundable.'
+            : 'Refund will be given from cashier cash. Service Fee is non-refundable: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>.';
+    }
 
     // Display service fee if provided
     const serviceFeeDisplay = document.getElementById('cancelServiceFeeDisplay');
@@ -4093,28 +4646,30 @@ async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 
         serviceFeeDisplay.style.display = 'inline';
     } else if (serviceFeeDisplay) {
         serviceFeeDisplay.style.display = 'none';
-    }
-    
-    // Display ticket details if provided
+    } 
+    // Display ticket/service details if provided
     const detailsDiv = document.getElementById('cancelTicketDetails');
     if (detailsDiv && txnData) {
         document.getElementById('cancelPassengerName').textContent = txnData.passenger_name || '-';
 
-        // Show ticket number
-        document.getElementById('cancelTravelDate').textContent = txnData.ticket_number || '-';
+        document.getElementById('cancelTravelDate').textContent = isService
+            ? (txnData.service_name || txnData.description || txnData.service_type_name || '-')
+            : (txnData.ticket_number || '-');
 
-        document.getElementById('cancelRoute').textContent = (txnData.origin && txnData.destination) ? `${txnData.origin} → ${txnData.destination}` : '-';
+        document.getElementById('cancelRoute').textContent = isService
+            ? (txnData.service_name || txnData.description || '-')
+            : ((txnData.origin && txnData.destination) ? `${txnData.origin} → ${txnData.destination}` : '-');
         document.getElementById('cancelProvider').textContent = txnData.provider_name || '-';
         document.getElementById('cancelBaseAmount').textContent = `₱${(parseFloat(txnData.base_amount) || 0).toFixed(2)}`;
         document.getElementById('cancelServiceFee').textContent = `₱${(parseFloat(txnData.service_fee) || 0).toFixed(2)}`;
         document.getElementById('cancelTotalAmount').textContent = `₱${(parseFloat(txnData.total_amount) || 0).toFixed(2)}`;
         document.getElementById('cancelStatus').textContent = txnData.status || '-';
-        
+
         if (txnData.created_at) {
             const txnDate = new Date(txnData.created_at);
-            document.getElementById('cancelTxnDate').textContent = txnDate.toLocaleDateString('en-PH', { 
-                year: 'numeric', 
-                month: 'short', 
+            document.getElementById('cancelTxnDate').textContent = txnDate.toLocaleDateString('en-PH', {
+                year: 'numeric',
+                month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
@@ -4122,7 +4677,7 @@ async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 
         } else {
             document.getElementById('cancelTxnDate').textContent = '-';
         }
-        
+
         detailsDiv.style.display = 'block';
     } else if (detailsDiv) {
         detailsDiv.style.display = 'none';
@@ -4254,6 +4809,7 @@ async function openCancelTicketModal(txnCode = '', baseAmount = 0, serviceFee = 
 
 async function confirmCancelTicket() {
     const txnCode = document.getElementById('cancelTicketCode').value.trim();
+    const txnType = (document.getElementById('cancelTxnType')?.value || 'TICKET').toUpperCase();
     const refundAmount = parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
     const reason = document.getElementById('cancelReason').value.trim();
     
@@ -4322,10 +4878,10 @@ async function confirmCancelTicket() {
     }
     
     // Show refund confirmation modal with breakdown
-    showRefundConfirmModal(txnCode, refundAmount, reason, paymentBreakdown);
+    showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentBreakdown);
 }
 
-function showRefundConfirmModal(txnCode, refundAmount, reason, paymentBreakdown) {
+function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentBreakdown) {
     // Calculate totals
     const totalCash = paymentBreakdown
         .filter(p => p.type === 'cash')
@@ -4419,9 +4975,10 @@ function showRefundConfirmModal(txnCode, refundAmount, reason, paymentBreakdown)
                         </button>
                         <button type="button" class="btn btn-danger" id="confirmRefundBtn" disabled
                             data-txn-code="${txnCode.replace(/"/g, '&quot;')}"
+                            data-txn-type="${txnType.replace(/"/g, '&quot;')}"
                             data-refund-amount="${refundAmount}"
                             data-reason="${reason.replace(/"/g, '&quot;')}">
-                            <span class="fas fa-check me-1"></span>Confirm & Cancel Ticket
+                            <span class="fas fa-check me-1"></span>Confirm & Cancel ${txnType === 'SERVICE' ? 'Service' : 'Ticket'}
                         </button>
                     </div>
                 </div>

@@ -100,8 +100,7 @@ if ($filterProviderId) {
     $where[] = "EXISTS (
         SELECT 1 FROM pos_order_items oi_p
         JOIN ticket_transactions tt_p ON oi_p.reference_id = tt_p.transaction_id AND oi_p.item_type = 'TICKET'
-        JOIN provider_wallets pw_p ON tt_p.wallet_id = pw_p.wallet_id
-        WHERE oi_p.order_id = o.order_id AND pw_p.provider_id = :provider_id
+        WHERE oi_p.order_id = o.order_id AND tt_p.provider_id = :provider_id
     )";
     $params['provider_id'] = (int)$filterProviderId;
 }
@@ -110,8 +109,7 @@ if ($filterProviderType) {
     $where[] = "EXISTS (
         SELECT 1 FROM pos_order_items oi_pt
         JOIN ticket_transactions tt_pt ON oi_pt.reference_id = tt_pt.transaction_id AND oi_pt.item_type = 'TICKET'
-        JOIN provider_wallets pw_pt ON tt_pt.wallet_id = pw_pt.wallet_id
-        JOIN ticket_providers tp_pt ON pw_pt.provider_id = tp_pt.provider_id
+        JOIN ticket_providers tp_pt ON tt_pt.provider_id = tp_pt.provider_id
         WHERE oi_pt.order_id = o.order_id AND tp_pt.provider_type = :provider_type
     )";
     $params['provider_type'] = $filterProviderType;
@@ -147,9 +145,11 @@ if ($filterSearch) {
         OR EXISTS (
             SELECT 1 FROM pos_order_items oi_s2
             LEFT JOIN ticket_transactions tt_s2 ON oi_s2.reference_id = tt_s2.transaction_id AND oi_s2.item_type = 'TICKET'
+            LEFT JOIN ticket_providers tp_s ON tt_s2.provider_id = tp_s.provider_id
             LEFT JOIN provider_wallets pw_s ON tt_s2.wallet_id = pw_s.wallet_id
-            LEFT JOIN ticket_providers tp_s ON pw_s.provider_id = tp_s.provider_id
-            WHERE oi_s2.order_id = o.order_id AND tp_s.provider_name LIKE :search
+            LEFT JOIN ticket_providers wallet_tp_s ON pw_s.provider_id = wallet_tp_s.provider_id
+            WHERE oi_s2.order_id = o.order_id
+            AND (tp_s.provider_name LIKE :search OR wallet_tp_s.provider_name LIKE :search)
         )
     )";
     $params['search'] = '%' . $filterSearch . '%';
@@ -212,12 +212,28 @@ $rows = Database::fetchAll(
         (SELECT GROUP_CONCAT(DISTINCT oi4.ticket_number SEPARATOR ', ')
          FROM pos_order_items oi4
          WHERE oi4.order_id = o.order_id AND oi4.item_type = 'TICKET' AND oi4.ticket_number IS NOT NULL) AS ticket_numbers,
-        (SELECT GROUP_CONCAT(DISTINCT CONCAT(tp2.provider_name, ' (', tp2.provider_type, ')') SEPARATOR ', ')
+        (SELECT GROUP_CONCAT(DISTINCT COALESCE(
+            CASE
+                WHEN pv.variant_name IS NOT NULL AND pv.variant_name != '' THEN CONCAT(pv.variant_name, IF(tp_op.provider_type IS NOT NULL AND tp_op.provider_type != '', CONCAT(' (', tp_op.provider_type, ')'), ''))
+                WHEN tp_parent.provider_name IS NOT NULL AND tp_parent.provider_name != '' THEN CONCAT(tp_parent.provider_name, ' - ', tp_op.provider_name, IF(tp_op.provider_type IS NOT NULL AND tp_op.provider_type != '', CONCAT(' (', tp_op.provider_type, ')'), ''))
+                ELSE CONCAT(tp_op.provider_name, IF(tp_op.provider_type IS NOT NULL AND tp_op.provider_type != '', CONCAT(' (', tp_op.provider_type, ')'), ''))
+            END, ''
+         ) SEPARATOR ', ')
          FROM pos_order_items oi5
          LEFT JOIN ticket_transactions tt5 ON oi5.reference_id = tt5.transaction_id AND oi5.item_type = 'TICKET'
-         LEFT JOIN provider_wallets pw2 ON tt5.wallet_id = pw2.wallet_id
-         LEFT JOIN ticket_providers tp2 ON pw2.provider_id = tp2.provider_id
+         LEFT JOIN ticket_providers tp_op ON tt5.provider_id = tp_op.provider_id
+         LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
+         LEFT JOIN provider_ticket_variants pv ON tt5.variant_id = pv.variant_id
          WHERE oi5.order_id = o.order_id) AS provider_names,
+        (SELECT GROUP_CONCAT(DISTINCT COALESCE(
+            CONCAT_WS(' - ', wallet_tp2.provider_name, pv_wallet.variant_name), ''
+         ) SEPARATOR ', ')
+         FROM pos_order_items oi5_wallet
+         LEFT JOIN ticket_transactions tt5_wallet ON oi5_wallet.reference_id = tt5_wallet.transaction_id AND oi5_wallet.item_type = 'TICKET'
+         LEFT JOIN provider_wallets pw2_wallet ON tt5_wallet.wallet_id = pw2_wallet.wallet_id
+         LEFT JOIN ticket_providers wallet_tp2 ON pw2_wallet.provider_id = wallet_tp2.provider_id
+         LEFT JOIN provider_ticket_variants pv_wallet ON pw2_wallet.variant_id = pv_wallet.variant_id
+         WHERE oi5_wallet.order_id = o.order_id) AS wallet_provider_names,
         (SELECT GROUP_CONCAT(DISTINCT CONCAT(tt6.origin, ' → ', tt6.destination) SEPARATOR ' | ')
          FROM pos_order_items oi6
          LEFT JOIN ticket_transactions tt6 ON oi6.reference_id = tt6.transaction_id AND oi6.item_type = 'TICKET'
@@ -316,10 +332,10 @@ $branches = Database::fetchAll(
 );
 
 $providers = Database::fetchAll(
-    "SELECT DISTINCT tp.provider_id, tp.provider_name, tp.provider_type
-     FROM ticket_providers tp
-     JOIN provider_wallets pw ON tp.provider_id = pw.provider_id
-     ORDER BY tp.provider_name"
+    "SELECT provider_id, provider_name, provider_type
+     FROM ticket_providers
+     WHERE status = 'active'
+     ORDER BY provider_name"
 );
 
 $providerTypes = Database::fetchAll(

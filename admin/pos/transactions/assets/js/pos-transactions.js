@@ -11,6 +11,32 @@ let allProviders = [];
 const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+function buildProviderWallet(item) {
+    const providerName = item.provider_name || '';
+    const parentName = item.parent_provider_name || '';
+    const variantName = item.variant_name || '';
+    const walletProvider = item.wallet_provider_name || '';
+    const walletVariant = item.wallet_variant_name || '';
+
+    let providerDisplay = providerName;
+    if (variantName) {
+        providerDisplay = variantName;
+    } else if (parentName) {
+        providerDisplay = `${parentName} - ${providerName}`;
+    }
+
+    let walletDisplay = walletProvider;
+    if (walletVariant) {
+        walletDisplay = walletDisplay ? `${walletDisplay} - ${walletVariant}` : walletVariant;
+    }
+
+    let html = esc(providerDisplay);
+    if (walletDisplay && walletDisplay !== providerDisplay) {
+        html += ` <span class="text-muted">(${esc(walletDisplay)})</span>`;
+    }
+    return html;
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -133,7 +159,7 @@ async function loadTransactions(page) {
     currentPage = page || 1;
 
     const tbody = document.getElementById('transactionsTableBody');
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-5 text-muted">
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-5 text-muted">
         <span class="fas fa-spinner fa-spin me-2"></span>Loading...</td></tr>`;
     document.getElementById('tableInfo').textContent = 'Loading...';
 
@@ -244,7 +270,7 @@ function populateDropdowns(filters) {
         filters.provider_types.forEach(pt => {
             const opt = document.createElement('option');
             opt.value = pt.provider_type;
-            opt.textContent = pt.provider_type;
+            opt.textContent = pt.provider_type ? (pt.provider_type.charAt(0).toUpperCase() + pt.provider_type.slice(1)) : pt.provider_type;
             providerTypeEl.appendChild(opt);
         });
 
@@ -289,7 +315,7 @@ const statusIcons  = { completed:'fa-check-circle', pending:'fa-clock', cancelle
 function renderTable(rows) {
     const tbody = document.getElementById('transactionsTableBody');
     if (!rows || rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9"><div class="text-center py-5 text-muted d-flex flex-column align-items-center justify-content-center">
+        tbody.innerHTML = `<tr><td colspan="11"><div class="text-center py-5 text-muted d-flex flex-column align-items-center justify-content-center">
             <span class="fas fa-receipt fs-2 d-block mb-2 opacity-25"></span>
             <div>No transactions found</div>
             <small>Try adjusting your filters</small>
@@ -328,7 +354,10 @@ function renderTable(rows) {
             : '';
         const providerLine = txn.provider_names
             ? `<div class="text-muted" style="font-size:.72rem">${esc(txn.provider_names)}</div>`
-            : '';
+            : '<span class="text-muted small">—</span>';
+        const walletProviderLine = txn.wallet_provider_names
+            ? `<div class="text-muted" style="font-size:.72rem">${esc(txn.wallet_provider_names)}</div>`
+            : '<span class="text-muted small">—</span>';
         const routeLine = txn.routes
             ? `<div class="text-muted" style="font-size:.7rem">${esc(txn.routes)}</div>`
             : '';
@@ -374,9 +403,10 @@ function renderTable(rows) {
                 ${passengerLine}
                 ${accommodationLine}
                 ${discountLine}
-                ${providerLine}
                 ${routeLine}
             </td>
+            <td class="py-2">${providerLine}</td>
+            <td class="py-2">${walletProviderLine}</td>
             <td class="py-2">
                 <div class="small">${esc(txn.cashier_full_name || txn.cashier_name || '—')}</div>
             </td>
@@ -488,7 +518,7 @@ function renderDetailModal(txn) {
                         ${item.travel_date ? `<div class="text-muted small mb-1"><span class="fas fa-calendar me-1"></span>Travel: ${formatDate(item.travel_date)}</div>` : ''}
                         ${item.accommodation_name ? `<div class="text-muted small mb-1"><span class="fas fa-bed me-1"></span>${esc(item.accommodation_name)}</div>` : ''}
                         ${item.discount_name ? `<div class="text-success small mb-1"><span class="fas fa-percent me-1"></span>${esc(item.discount_name)}</div>` : ''}
-                        ${item.provider_name ? `<div class="text-muted small mb-1"><span class="fas fa-building me-1"></span>${esc(item.provider_name)}</div>` : ''}
+                        ${item.provider_name || item.parent_provider_name || item.variant_name ? `<div class="text-muted small mb-1"><span class="fas fa-building me-1"></span>${buildProviderWallet(item)}</div>` : ''}
                         ${item.service_name ? `<div class="text-muted small mb-1"><span class="fas fa-cog me-1"></span>${esc(item.service_name)}</div>` : ''}
                         ${item.ticket_status ? `<span class="badge status-badge-${item.ticket_status} mt-1" style="font-size:0.65rem">${esc(item.ticket_status)}</span>` : ''}
                     </div>
@@ -558,7 +588,7 @@ function renderDetailModal(txn) {
                                 <span>-₱${fmt(txn.discount_total)}</span>
                             </div>` : ''}
                             <div class="d-flex justify-content-between mb-2">
-                                <span>Cost</span>
+                                <span>Base fare</span>
                                 <span>₱${fmt(txn.total_cost)}</span>
                             </div>
                             ${parseFloat(txn.total_service_fees || 0) > 0 ? `<div class="d-flex justify-content-between mb-2">
@@ -693,46 +723,30 @@ function printTransactions() {
         // Only include visible rows (not hidden by filter)
         if (row.style.display !== 'none') {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 8) {
-                // Format cashier name: "Anthony C." (first name + middle initial)
-                const cashierName = cells[3].textContent.trim();
-                const formattedCashier = formatCashierName(cashierName);
-                
+            if (cells.length >= 11) { // 11 columns in the visible table
                 // Extract order code and cancellation badge from cell 0
                 const orderCell = cells[0];
                 const orderCode = orderCell.querySelector('.fw-semibold')?.textContent.trim() || orderCell.textContent.trim();
                 const cancelBadge = orderCell.querySelector('.badge')?.outerHTML || '';
-                
-                // Extract type, provider, and passenger from cell 2
+
+                // Type / Provider
                 const typeCell = cells[1].textContent.trim();
+                const providerName = cells[3].textContent.trim();
+
+                // Passenger from cell 2
                 const detailsCell = cells[2].textContent.trim();
-                
-                // Try to extract provider and passenger from the details
-                // The details cell contains passenger names and provider names
-                let providerName = '';
-                let passengerName = '';
-                let passengerNumber = '';
-                
-                // Simple parsing - provider is usually shown after passenger
-                const lines = detailsCell.split('\n').map(l => l.trim()).filter(l => l);
-                if (lines.length > 0) {
-                    passengerName = lines[0];
-                    if (lines.length > 1) {
-                        providerName = lines[1];
-                    }
-                }
-                
-                // Get passenger number from data attribute if available
-                const rowElement = row;
-                if (rowElement.dataset && rowElement.dataset.passengerNumber) {
-                    passengerNumber = rowElement.dataset.passengerNumber;
-                }
-                
-                // Extract amount and refund from amount cell (cell 6)
-                const amountCell = cells[6];
+                const passengerName = detailsCell.split('\n').map(l => l.trim()).filter(l => l)[0] || '';
+                const passengerNumber = row.dataset?.passengerNumber || '';
+
+                // Cashier is cell 5, Branch cell 6, Payment cell 7, Amount cell 8, Status cell 9
+                const cashierName = cells[5].textContent.trim();
+                const formattedCashier = formatCashierName(cashierName);
+
+                // Amount and refund from cell 8
+                const amountCell = cells[8];
                 const amountMain = amountCell.querySelector('.fw-semibold')?.textContent.trim() || amountCell.textContent.trim();
                 const refundText = amountCell.querySelector('.text-danger')?.textContent.trim() || '';
-                
+
                 tableHTML += `
                     <tr>
                         <td>
@@ -745,16 +759,16 @@ function printTransactions() {
                         </td>
                         <td>
                             <div style="font-weight:600; margin-bottom:2px;">${passengerName}</div>
-                            <div style="font-size:6.5pt; color:#000;">${passengerNumber}</div>
+                            ${passengerNumber ? `<div style="font-size:6.5pt; color:#000;">${passengerNumber}</div>` : ''}
                         </td>
                         <td>${formattedCashier}</td>
-                        <td>${cells[4].textContent.trim()}</td>
-                        <td>${cells[5].textContent.trim()}</td>
+                        <td>${cells[6].textContent.trim()}</td>
+                        <td>${cells[7].textContent.trim()}</td>
                         <td>
                             <div style="font-weight:600; margin-bottom:2px;">${amountMain}</div>
                             ${refundText ? `<div style="font-size:6.5pt; color:#dc3545;">${refundText}</div>` : ''}
                         </td>
-                        <td>${cells[7].textContent.trim()}</td>
+                        <td>${cells[9].textContent.trim()}</td>
                     </tr>`;
             }
         }
@@ -925,7 +939,7 @@ function printTransactions() {
             <img src="${window.BASE_URL}/api/images/logo/logo_1779670787_4364a51c.png" alt="Logo" onerror="this.style.display='none'" />
         </div>
         <div class="text-section">
-            <h2 style="font-family: Arial, sans-serif; font-weight: normal;">POS TRANSACTIONS REPORT</h2>
+            <h2 style="font-family: Arial, sans-serif; font-weight: normal;">TICKETING TRANSACTIONS REPORT</h2>
             <div class="description">Comprehensive report of all point-of-sale transactions</div>
             <div class="meta">${filterDisplay}</div>
         </div>
@@ -1031,7 +1045,7 @@ function exportTransactions() {
                 return;
             }
             const rows  = result.data;
-            const header = ['Order Code','Status','Type','Passengers','Provider','Cashier','Branch','Payment','Total Amount','Refunded','Date'];
+            const header = ['Order Code','Status','Type','Passengers','Operating Provider','Wallet Owner','Cashier','Branch','Payment','Total Amount','Refunded','Date'];
             const csvRows = [header];
             rows.forEach(txn => {
                 const isTicket = txn.ticket_count > 0;
@@ -1044,7 +1058,8 @@ function exportTransactions() {
                     txn.status,
                     type,
                     txn.passenger_names || '',
-                    txn.provider_names  || '',
+                    txn.provider_names || '',
+                    txn.wallet_provider_names || '',
                     txn.cashier_full_name || txn.cashier_name || '',
                     txn.branch_name || '',
                     payments,

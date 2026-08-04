@@ -150,15 +150,23 @@ if ($useOrdersTable) {
                     dt.name as discount_name,
                     dt.code as discount_code,
                     tp_op.provider_name as provider_name,
-                    tp_wallet.provider_name as wallet_provider_name
+                    tp_op.provider_type as provider_type,
+                    tp_parent.provider_name as parent_provider_name,
+                    v.variant_name,
+                    v.variant_code,
+                    tp_wallet.provider_name as wallet_provider_name,
+                    pv_wallet.variant_name as wallet_variant_name
              FROM pos_order_items oi
              LEFT JOIN passenger_accounts p ON oi.passenger_id = p.passenger_id
              LEFT JOIN service_types st ON oi.service_type_id = st.service_type_id
              LEFT JOIN accommodation_types at ON oi.accommodation_id = at.accommodation_id
              LEFT JOIN discount_types dt ON oi.discount_id = dt.discount_id
              LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
+             LEFT JOIN provider_ticket_variants v ON oi.variant_id = v.variant_id
              LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
              LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
+             LEFT JOIN provider_ticket_variants pv_wallet ON pw.variant_id = pv_wallet.variant_id
              WHERE oi.order_id = :order_id",
             ['order_id' => $transaction['order_id']]
         );
@@ -279,6 +287,13 @@ if ($useOrdersTable) {
 if (!$transaction) {
     http_response_code(404);
     echo json_encode(['success' => false, 'error' => 'Transaction not found']);
+    exit;
+}
+
+// Branch access control
+if ($user['role_code'] !== 'SUPER_ADMIN' && (int)$user['branch_id'] !== (int)$transaction['branch_id']) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Access denied: transaction does not belong to your branch']);
     exit;
 }
 

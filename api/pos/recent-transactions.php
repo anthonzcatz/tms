@@ -143,10 +143,18 @@ if ($useOrdersTable) {
              FROM pos_order_items oi4
              LEFT JOIN ticket_transactions tt ON oi4.reference_id = tt.transaction_id AND oi4.item_type = 'TICKET'
              WHERE oi4.order_id = o.order_id AND oi4.item_type = 'TICKET') as travel_date,
-            (SELECT GROUP_CONCAT(DISTINCT tp2.provider_name SEPARATOR ', ')
+            (SELECT GROUP_CONCAT(DISTINCT COALESCE(
+                CASE
+                    WHEN pv2.variant_name IS NOT NULL AND pv2.variant_name != '' THEN pv2.variant_name
+                    WHEN tp_parent2.provider_name IS NOT NULL AND tp_parent2.provider_name != '' THEN CONCAT(tp_parent2.provider_name, ' - ', tp2.provider_name)
+                    ELSE tp2.provider_name
+                END, ''
+            ) SEPARATOR ', ')
              FROM pos_order_items oi5
              LEFT JOIN ticket_transactions tt ON oi5.reference_id = tt.transaction_id AND oi5.item_type = 'TICKET'
              LEFT JOIN ticket_providers tp2 ON tt.provider_id = tp2.provider_id
+             LEFT JOIN ticket_providers tp_parent2 ON tp2.parent_provider_id = tp_parent2.provider_id
+             LEFT JOIN provider_ticket_variants pv2 ON tt.variant_id = pv2.variant_id
              WHERE oi5.order_id = o.order_id AND oi5.item_type = 'TICKET') as provider_name,
             (SELECT GROUP_CONCAT(DISTINCT CONCAT(tt.origin, ' → ', tt.destination) SEPARATOR ' | ')
              FROM pos_order_items oi6
@@ -231,20 +239,26 @@ if ($useOrdersTable) {
         // Fetch line items for this order
         $order['order_items'] = Database::fetchAll(
             "SELECT oi.item_id, oi.order_id, oi.item_type, oi.reference_id, oi.transaction_code, oi.total_amount,
+                    oi.provider_id, oi.variant_id, oi.wallet_id,
                     tt.passenger_id, tt.origin, tt.destination, tt.travel_date, tt.service_fee, tt.status as ticket_status,
                     st.description as service_name, st_type.name as service_type_name, st.status as service_status,
                     pa.fullname as passenger_name,
-                    pw.wallet_id,
                     tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
-                    tp_wallet.provider_name as wallet_provider_name
+                    tp_parent.provider_name as parent_provider_name,
+                    pv.variant_name as variant_name, pv.variant_code as variant_code,
+                    tp_wallet.provider_name as wallet_provider_name,
+                    pv_wallet.variant_name as wallet_variant_name
              FROM pos_order_items oi
              LEFT JOIN ticket_transactions tt ON oi.reference_id = tt.transaction_id AND oi.item_type = 'TICKET'
              LEFT JOIN service_transactions st ON oi.reference_id = st.service_txn_id AND oi.item_type = 'SERVICE'
              LEFT JOIN service_types st_type ON st.service_type_id = st_type.service_type_id
              LEFT JOIN passenger_accounts pa ON COALESCE(tt.passenger_id, st.passenger_id) = pa.passenger_id
-             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
              LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
+             LEFT JOIN provider_ticket_variants pv ON oi.variant_id = pv.variant_id
+             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
              LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
+             LEFT JOIN provider_ticket_variants pv_wallet ON pw.variant_id = pv_wallet.variant_id
              WHERE oi.order_id = :oid
              ORDER BY oi.item_type DESC, oi.item_id ASC",
             ['oid' => $order['order_id']]
@@ -302,9 +316,14 @@ if ($useOrdersTable) {
         $ticketTxns = Database::fetchAll(
             "SELECT tt.transaction_id, tt.transaction_code, tt.base_amount, tt.service_fee, tt.discount_amount,
                     tt.total_amount, tt.status, tt.created_at, tt.travel_date, tt.origin, tt.destination,
-                    tt.remarks, tt.branch_id, tt.wallet_id, tt.created_by,
+                    tt.remarks, tt.branch_id, tt.wallet_id, tt.created_by, tt.provider_id, tt.variant_id,
                     'TICKET' as transaction_type,
-                    pa.fullname as passenger_name, b.branch_name, tp.provider_name, tp.provider_code, tp.provider_type,
+                    pa.fullname as passenger_name, b.branch_name,
+                    tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
+                    tp_parent.provider_name as parent_provider_name,
+                    pv.variant_name as variant_name, pv.variant_code as variant_code,
+                    tp_wallet.provider_name as wallet_provider_name,
+                    pv_wallet.variant_name as wallet_variant_name,
                     tc.cancellation_id as pending_cancellation_id, tc.status as cancellation_status,
                     tc.refund_amount as cancellation_refund_amount, tc.requested_at as cancellation_requested_at,
                     COALESCE(CONCAT(e.first_name, ' ', e.last_name), ua.username) as cancellation_requested_by,
@@ -312,8 +331,12 @@ if ($useOrdersTable) {
              FROM ticket_transactions tt
              LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
              LEFT JOIN business_branches b ON tt.branch_id = b.branch_id
+             LEFT JOIN ticket_providers tp_op ON tt.provider_id = tp_op.provider_id
+             LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
+             LEFT JOIN provider_ticket_variants pv ON tt.variant_id = pv.variant_id
              LEFT JOIN provider_wallets pw ON tt.wallet_id = pw.wallet_id
-             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+             LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
+             LEFT JOIN provider_ticket_variants pv_wallet ON pw.variant_id = pv_wallet.variant_id
              LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
              LEFT JOIN user_accounts ua ON tc.requested_by = ua.user_id
              LEFT JOIN employees e ON ua.emp_id = e.emp_id
