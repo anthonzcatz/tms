@@ -12,9 +12,43 @@ let currentEditFeeId = null; // Store current fee ID being edited
 document.addEventListener('DOMContentLoaded', function() {
     addFeeModal = new bootstrap.Modal(document.getElementById('addFeeModal'));
     editFeeModal = new bootstrap.Modal(document.getElementById('editFeeModal'));
+
+    ['addBranchId', 'addProviderId'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', checkExistingFee);
+    });
+
+    const addFeeTypeSelect = document.getElementById('addFeeType');
+    if (addFeeTypeSelect) {
+        addFeeTypeSelect.addEventListener('change', function() {
+            updateAddFeeTypeUI(this.value);
+            checkExistingFee();
+        });
+    }
+
+    const editFeeTypeSelect = document.getElementById('editFeeType');
+    if (editFeeTypeSelect) {
+        editFeeTypeSelect.addEventListener('change', function() {
+            updateEditFeeTypeUI(this.value);
+        });
+    }
+
+    const addStatusSwitch = document.getElementById('addStatus');
+    if (addStatusSwitch) {
+        addStatusSwitch.addEventListener('change', function() {
+            updateAddStatusLabel(this.checked);
+        });
+    }
+
+    const editStatusSwitch = document.getElementById('editStatus');
+    if (editStatusSwitch) {
+        editStatusSwitch.addEventListener('change', function() {
+            updateEditStatusLabel(this.checked);
+        });
+    }
 });
 
-// Load providers for dropdown
+// Load main providers for dropdown (sub-providers do not have their own service fees)
 async function loadProviders() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/ticket-providers`);
@@ -22,8 +56,9 @@ async function loadProviders() {
 
         if (result.success) {
             const select = document.getElementById('addProviderId');
-            select.innerHTML = '<option value="">Select Provider</option>';
+            select.innerHTML = '<option value="">Select Main Provider</option>';
             result.data.providers.forEach(provider => {
+                if (provider.parent_provider_id) return;
                 const encodedId = IdEncoder.encode(provider.provider_id);
                 select.innerHTML += `<option value="${encodedId}">${provider.provider_name}</option>`;
             });
@@ -59,8 +94,130 @@ function openAddFeeModal() {
     document.getElementById('addBranchId').value = '';
     document.getElementById('addFeeType').value = 'FIXED';
     document.getElementById('addFeeAmount').value = '';
-    document.getElementById('addStatus').value = 'active';
+
+    const statusSwitch = document.getElementById('addStatus');
+    if (statusSwitch) {
+        statusSwitch.checked = true;
+        updateAddStatusLabel(true);
+    }
+
+    updateAddFeeTypeUI('FIXED');
+
+    const alertEl = document.getElementById('addExistingFeeAlert');
+    if (alertEl) alertEl.classList.add('d-none');
+
     addFeeModal.show();
+}
+
+// Update add status label based on switch state
+function updateAddStatusLabel(isActive) {
+    const label = document.getElementById('addStatusLabel');
+    if (label) {
+        label.innerHTML = isActive
+            ? '<span class="text-success fw-bold">Active</span>'
+            : '<span class="text-muted">Inactive</span>';
+    }
+}
+
+// Update edit status label based on switch state
+function updateEditStatusLabel(isActive) {
+    const label = document.getElementById('editStatusLabel');
+    if (label) {
+        label.innerHTML = isActive
+            ? '<span class="text-success fw-bold">Active</span>'
+            : '<span class="text-muted">Inactive</span>';
+    }
+}
+
+// Update Add modal Fee Amount label/placeholder based on fee type
+function updateAddFeeTypeUI(feeType) {
+    const label = document.getElementById('addFeeAmountLabel');
+    const input = document.getElementById('addFeeAmount');
+    if (!label || !input) return;
+    if (feeType === 'PERCENT') {
+        label.textContent = 'Fee Percentage (%)';
+        input.placeholder = '0';
+    } else {
+        label.textContent = 'Fee Amount';
+        input.placeholder = '0.00';
+    }
+}
+
+// Update Edit modal Fee Amount label/placeholder based on fee type
+function updateEditFeeTypeUI(feeType) {
+    const label = document.getElementById('editFeeAmountLabel');
+    const input = document.getElementById('editFeeAmount');
+    if (!label || !input) return;
+    if (feeType === 'PERCENT') {
+        label.textContent = 'Fee Percentage (%)';
+        input.placeholder = '0';
+    } else {
+        label.textContent = 'Fee Amount';
+        input.placeholder = '0.00';
+    }
+}
+
+// Check if a fee already exists for the selected branch/provider/type and pre-fill it
+async function checkExistingFee() {
+    const providerId = document.getElementById('addProviderId').value;
+    const branchId = document.getElementById('addBranchId').value;
+    const feeType = document.getElementById('addFeeType').value;
+
+    updateAddFeeTypeUI(feeType);
+
+    const alertEl = document.getElementById('addExistingFeeAlert');
+    const messageEl = document.getElementById('addExistingFeeMessage');
+
+    if (!providerId || !branchId || !feeType) {
+        if (alertEl) alertEl.classList.add('d-none');
+
+        const amountInput = document.getElementById('addFeeAmount');
+        if (amountInput) amountInput.value = '';
+
+        const statusSwitch = document.getElementById('addStatus');
+        if (statusSwitch) {
+            statusSwitch.checked = true;
+            updateAddStatusLabel(true);
+        }
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams({ provider_id: providerId, branch_id: branchId, fee_type: feeType, include_inactive: '1' });
+        const response = await fetch(`${window.BASE_URL}/api/provider-service-fees?${params.toString()}`);
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.fees && result.data.fees.length > 0) {
+            const fee = result.data.fees[0];
+            document.getElementById('addFeeAmount').value = (fee.fee_value !== null && fee.fee_value !== undefined) ? fee.fee_value : '';
+
+            const statusSwitch = document.getElementById('addStatus');
+            if (statusSwitch) {
+                statusSwitch.checked = !!fee.is_active;
+                updateAddStatusLabel(!!fee.is_active);
+            }
+
+            if (alertEl && messageEl) {
+                const displayValue = (fee.fee_value !== null && fee.fee_value !== undefined) ? fee.fee_value : 0;
+                messageEl.textContent = `An existing ${fee.fee_type.toLowerCase()} fee of ${fee.fee_type === 'PERCENT' ? displayValue + '%' : '₱' + (parseFloat(displayValue).toFixed(2))} was found. Saving will update it.`;
+                alertEl.classList.remove('d-none');
+            }
+        } else {
+            if (alertEl) alertEl.classList.add('d-none');
+
+            // No existing fee for the new combination — clear pre-filled amount and reset status
+            const amountInput = document.getElementById('addFeeAmount');
+            if (amountInput) amountInput.value = '';
+
+            const statusSwitch = document.getElementById('addStatus');
+            if (statusSwitch) {
+                statusSwitch.checked = true;
+                updateAddStatusLabel(true);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking existing fee:', error);
+    }
 }
 
 // Save fee
@@ -68,26 +225,40 @@ async function saveFee() {
     const providerId = document.getElementById('addProviderId').value;
     const branchId = document.getElementById('addBranchId').value;
     const feeType = document.getElementById('addFeeType').value;
-    const feeAmount = document.getElementById('addFeeAmount').value;
-    const status = document.getElementById('addStatus').value;
-    
+    const amountInput = document.getElementById('addFeeAmount');
+    const rawAmount = String(amountInput.value).replace(/,/g, '');
+    const feeAmount = rawAmount ? parseFloat(rawAmount) : 0;
+    const status = document.getElementById('addStatus').checked ? 'active' : 'inactive';
+
     if (!providerId || !branchId || !feeType) {
-        showToast('warning', 'Warning', 'Please select provider, branch and enter fee type');
+        showToast('warning', 'Warning', 'Please select branch, provider and fee type');
         return;
     }
-    
+
+    if (rawAmount !== '' && isNaN(parseFloat(rawAmount))) {
+        showToast('warning', 'Warning', 'Please enter a valid fee amount');
+        amountInput.focus();
+        return;
+    }
+
+    if (feeAmount < 0) {
+        showToast('warning', 'Warning', 'Fee amount cannot be negative');
+        amountInput.focus();
+        return;
+    }
+
     try {
         // Get CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
+
         const headers = {
             'Content-Type': 'application/json'
         };
-        
+
         if (csrfToken) {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
-        
+
         const response = await fetch(`${window.BASE_URL}/api/provider-service-fees`, {
             method: 'POST',
             headers: headers,
@@ -95,7 +266,7 @@ async function saveFee() {
                 provider_id: providerId,
                 branch_id: branchId,
                 fee_type: feeType,
-                fee_value: parseFloat(feeAmount) || 0,
+                fee_value: feeAmount,
                 status: status
             })
         });
@@ -103,15 +274,15 @@ async function saveFee() {
         const result = await response.json();
         
         if (result.success) {
-            showToast('success', 'Success', 'Service fee created successfully');
+            showToast('success', 'Success', result.message || 'Service fee saved successfully');
             addFeeModal.hide();
             location.reload();
         } else {
-            showToast('error', 'Error', result.message || 'Failed to create service fee');
+            showToast('error', 'Error', result.message || 'Failed to save service fee');
         }
     } catch (error) {
         console.error('Error saving fee:', error);
-        showToast('error', 'Error', 'Failed to create service fee: ' + error.message);
+        showToast('error', 'Error', 'Failed to save service fee: ' + error.message);
     }
 }
 
@@ -146,8 +317,15 @@ async function editFee(feeId) {
             document.getElementById('editProviderId').value = encodedProviderId;
             document.getElementById('editBranchId').value = encodedBranchId;
             document.getElementById('editFeeType').value = fee.fee_type;
-            document.getElementById('editFeeAmount').value = fee.fee_value || '';
-            document.getElementById('editStatus').value = fee.is_active ? 'active' : 'inactive';
+            document.getElementById('editFeeAmount').value = (fee.fee_value !== null && fee.fee_value !== undefined) ? fee.fee_value : '';
+
+            updateEditFeeTypeUI(fee.fee_type);
+
+            const editStatusSwitch = document.getElementById('editStatus');
+            if (editStatusSwitch) {
+                editStatusSwitch.checked = fee.is_active ? true : false;
+                updateEditStatusLabel(!!fee.is_active);
+            }
 
             // Display current provider and branch names
             document.getElementById('editCurrentProviderName').textContent = fee.provider_name || '-';
@@ -163,7 +341,7 @@ async function editFee(feeId) {
     }
 }
 
-// Load providers for edit modal
+// Load main providers for edit modal (sub-providers do not have their own service fees)
 async function loadProvidersForEdit() {
     try {
         const response = await fetch(`${window.BASE_URL}/api/ticket-providers`);
@@ -171,8 +349,9 @@ async function loadProvidersForEdit() {
 
         if (result.success) {
             const select = document.getElementById('editProviderId');
-            select.innerHTML = '<option value="">Select Provider</option>';
+            select.innerHTML = '<option value="">Select Main Provider</option>';
             result.data.providers.forEach(provider => {
+                if (provider.parent_provider_id) return;
                 const encodedId = IdEncoder.encode(provider.provider_id);
                 select.innerHTML += `<option value="${encodedId}">${provider.provider_name}</option>`;
             });
@@ -207,17 +386,25 @@ async function updateFee() {
     const providerId = document.getElementById('editProviderId').value;
     const branchId = document.getElementById('editBranchId').value;
     const feeType = document.getElementById('editFeeType').value;
-    const feeAmount = document.getElementById('editFeeAmount').value;
-    const status = document.getElementById('editStatus').value;
-
-    console.log('updateFee - feeId (from global):', feeId);
-    console.log('updateFee - feeId type:', typeof feeId);
-    console.log('updateFee - providerId:', providerId);
-    console.log('updateFee - branchId:', branchId);
-    console.log('updateFee - feeType:', feeType);
+    const amountInput = document.getElementById('editFeeAmount');
+    const rawAmount = String(amountInput.value).replace(/,/g, '');
+    const feeAmount = rawAmount ? parseFloat(rawAmount) : 0;
+    const status = document.getElementById('editStatus').checked ? 'active' : 'inactive';
 
     if (!feeId) {
         showToast('warning', 'Warning', 'Missing fee ID');
+        return;
+    }
+
+    if (rawAmount !== '' && isNaN(parseFloat(rawAmount))) {
+        showToast('warning', 'Warning', 'Please enter a valid fee amount');
+        amountInput.focus();
+        return;
+    }
+
+    if (feeAmount < 0) {
+        showToast('warning', 'Warning', 'Fee amount cannot be negative');
+        amountInput.focus();
         return;
     }
 

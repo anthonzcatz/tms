@@ -43,8 +43,8 @@
                   <select class="form-select" id="addWalletId" name="wallet_id" required>
                     <option value="">Select Wallet</option>
                     <?php foreach ($wallets as $wallet): ?>
-                      <option value="<?php echo $wallet['wallet_id']; ?>" data-balance="<?php echo $wallet['current_balance']; ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>">
-                        <?php echo htmlspecialchars($wallet['wallet_name']); ?>
+                      <option value="<?php echo $wallet['wallet_id']; ?>" data-balance="<?php echo $wallet['current_balance']; ?>" data-name="<?php echo htmlspecialchars($wallet['add_wallet_name']); ?>">
+                        <?php echo htmlspecialchars($wallet['add_wallet_name']); ?>
                       </option>
                     <?php endforeach; ?>
                   </select>
@@ -69,7 +69,7 @@
                 </div>
                 <div class="col-md-6">
                   <label for="addAmount" class="form-label fw-bold">Amount <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="addAmount" name="amount" required placeholder="0.00" pattern="[0-9,.]*">
+                  <input type="text" inputmode="decimal" class="form-control" id="addAmount" name="amount" required placeholder="0.00" pattern="[0-9,.]*">
                 </div>
                 <div class="col-md-12">
                   <label for="addRemarks" class="form-label fw-bold">Remarks</label>

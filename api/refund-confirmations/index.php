@@ -121,11 +121,13 @@ $baseJoins = "FROM ticket_cancellations tc
      LEFT JOIN employees e_request       ON ua_request.emp_id = e_request.emp_id
      LEFT JOIN user_accounts ua_approve  ON tc.approved_by   = ua_approve.user_id
      LEFT JOIN employees e_approve       ON ua_approve.emp_id = e_approve.emp_id
-     LEFT JOIN ticket_transactions tt    ON tc.transaction_id = tt.transaction_id
-     LEFT JOIN provider_wallets pw       ON tt.wallet_id      = pw.wallet_id
-     LEFT JOIN ticket_providers tp       ON pw.provider_id    = tp.provider_id
-     LEFT JOIN business_branches bb      ON tt.branch_id      = bb.branch_id
-     LEFT JOIN passenger_accounts pa     ON tc.passenger_id   = pa.passenger_id";
+     LEFT JOIN ticket_transactions tt     ON tc.transaction_id = tt.transaction_id
+     LEFT JOIN provider_wallets pw        ON tt.wallet_id      = pw.wallet_id
+     LEFT JOIN ticket_providers tp        ON pw.provider_id    = tp.provider_id
+     LEFT JOIN provider_ticket_variants pv ON tt.variant_id    = pv.variant_id
+     LEFT JOIN business_branches bb       ON tt.branch_id      = bb.branch_id
+     LEFT JOIN business_branches wallet_bb ON pw.branch_id     = wallet_bb.branch_id
+     LEFT JOIN passenger_accounts pa      ON tc.passenger_id   = pa.passenger_id";
 
 // Total count for pagination
 $countSql = "SELECT COUNT(*) as total $baseJoins WHERE $whereClause";
@@ -139,6 +141,11 @@ $dataSql = "SELECT
         tc.transaction_id,
         tc.transaction_code,
         tt.ticket_number,
+        tt.wallet_id,
+        tt.variant_id,
+        pw.branch_id AS wallet_branch_id,
+        pw.variant_id AS wallet_variant_id,
+        pw.status AS wallet_status,
         tc.cancellation_type,
         tc.refund_amount,
         tc.charge_amount,
@@ -152,7 +159,9 @@ $dataSql = "SELECT
         COALESCE(CONCAT_WS(' ', e_request.first_name, e_request.last_name), ua_request.username) AS requested_by_name,
         COALESCE(CONCAT_WS(' ', e_approve.first_name, e_approve.last_name), ua_approve.username) AS approved_by_name,
         bb.branch_name,
+        wallet_bb.branch_name AS wallet_branch_name,
         tp.provider_name,
+        COALESCE(pv.variant_name, '') AS variant_name,
         tt.travel_date,
         tt.origin,
         tt.destination,

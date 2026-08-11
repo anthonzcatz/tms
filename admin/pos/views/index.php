@@ -240,8 +240,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   </div>
                   -->
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketBaseAmount">Cost (₱) <span class="text-danger">*</span></label>
-                    <input type="number" class="form-control" id="ticketBaseAmount" name="ticketBaseAmount" min="0" step="0.01" placeholder="0.00" oninput="computeTicketTotal()">
+                    <label class="form-label fw-semibold" for="ticketBaseAmount">Base fare (₱) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="ticketBaseAmount" name="ticketBaseAmount" inputmode="decimal" placeholder="0.00" oninput="formatBaseAmountInput(); computeTicketTotal()">
                   </div>
                   <div class="col-md-4">
                     <label class="form-label fw-semibold">Discount <span class="text-danger">*</span></label>
@@ -254,12 +254,28 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketProvider">Provider <span class="text-danger">*</span></label>
-                    <select class="form-select" id="ticketProvider" name="ticketProvider" onchange="onProviderChanged()">
-                      <option value="">Select Provider</option>
+                    <label class="form-label fw-semibold" for="ticketMainProvider">Main Provider <span class="text-danger">*</span></label>
+                    <select class="form-select" id="ticketMainProvider" onchange="onMainProviderChanged()">
+                      <option value="">Select Main Provider</option>
+                    </select>
+                    <div class="form-text text-muted small" id="mainProviderBalanceText"></div>
+                  </div>
+                  <div class="col-md-4 d-none" id="subProviderWrapper">
+                    <label class="form-label fw-semibold" for="ticketSubProvider">Sub-provider</label>
+                    <select class="form-select" id="ticketSubProvider" onchange="onSubProviderChanged()">
+                      <option value="">Select Sub-provider</option>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-4 d-none" id="ticketVariantWrapper">
+                    <label class="form-label fw-semibold" for="ticketVariant">Ticket Variant <span id="variantRequiredMarker" class="text-danger d-none">*</span></label>
+                    <select class="form-select" id="ticketVariant" name="ticketVariant" onchange="onTicketVariantChanged()" disabled>
+                      <option value="">Select Provider First</option>
+                    </select>
+                    <div class="form-text text-warning d-none" id="negativeStockWarningText">Negative stock is allowed for this sale.</div>
+                    <div class="form-text text-muted" id="variantAvailabilityText"></div>
+                  </div>
+                  <input type="hidden" id="ticketProvider" name="ticketProvider">
+                  <div class="col-md-4" id="walletWrapper">
                     <label class="form-label fw-semibold d-flex justify-content-between" for="ticketWallet">
                       <span>Wallet <span class="text-danger">*</span></span>
                       <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" onclick="refreshWallets()" title="Refresh Wallets">
@@ -274,12 +290,9 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     <label class="form-label fw-semibold">Service Fee</label>
                     <div class="form-control bg-light" id="ticketServiceFeeDisplay">-</div>
                   </div>
-                  <div class="col-md-4">
-                    <label class="form-label fw-semibold">Cost</label>
-                    <div class="form-control bg-light" id="ticketBaseAmountDisplay">₱0.00</div>
-                  </div>
-                  <!-- Hidden input for service fee value -->
+                  <!-- Hidden inputs for service fee and base amount display -->
                   <input type="hidden" id="ticketServiceFee" name="ticketServiceFee" value="0.00">
+                  <div id="ticketBaseAmountDisplay" class="d-none">₱0.00</div>
                   <div class="col-12">
                     <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
                       <span class="fw-bold">Ticket Total:</span>
@@ -310,7 +323,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                   $textColors = ['text-primary', 'text-success', 'text-info', 'text-warning'];
                   $bgGradients = ['bg-primary-gradient', 'bg-success-gradient', 'bg-info-gradient', 'bg-warning-gradient'];
                   $colorIndex = 0;
-                  foreach ($serviceTypes as $st):
+                  foreach ($addonServiceTypes as $st):
                     $iconColor = $iconColors[$colorIndex % count($iconColors)];
                     $textColor = $textColors[$colorIndex % count($textColors)];
                     $bgGradient = $bgGradients[$colorIndex % count($bgGradients)];
@@ -550,7 +563,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         cashier_can_open: <?php echo $posCashierOpenRaw === 1 ? 'true' : 'false'; ?>,
         cashier_can_close: <?php echo $posCashierCloseRaw === 1 ? 'true' : 'false'; ?>,
         manager_can_open: <?php echo $posManagerOpenRaw === 1 ? 'true' : 'false'; ?>,
-        manager_can_close: <?php echo $posManagerCloseRaw === 1 ? 'true' : 'false'; ?>
+        manager_can_close: <?php echo $posManagerCloseRaw === 1 ? 'true' : 'false'; ?>,
+        allow_negative_ticket_stock: <?php echo (int) ($posSettings['allow_negative_ticket_stock'] ?? 0) === 1 ? 'true' : 'false'; ?>
     };
     window.POS_USER_ROLE = '<?php echo $userRoleCode; ?>';
     window.POS_CAN_OPEN = (window.POS_USER_ROLE === 'SUPER_ADMIN' || window.POS_USER_ROLE === 'MANAGER') ? window.POS_SETTINGS.manager_can_open : window.POS_SETTINGS.cashier_can_open;

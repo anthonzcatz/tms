@@ -1,6 +1,6 @@
 <!-- Balance Adjustment Modal -->
 <div class="modal fade" id="balanceAdjustmentModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">
@@ -66,10 +66,10 @@
         </form>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
           <span class="fas fa-times me-1"></span>Cancel
         </button>
-        <button type="button" class="btn btn-primary" onclick="submitBalanceAdjustment()">
+        <button type="button" class="btn btn-sm btn-primary" onclick="submitBalanceAdjustment()">
           <span class="fas fa-check me-1"></span>Confirm Adjustment
         </button>
       </div>

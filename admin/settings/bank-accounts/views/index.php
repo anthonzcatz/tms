@@ -310,6 +310,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
   <?php include __DIR__ . '/modals/edit_account.php'; ?>
   <?php include __DIR__ . '/modals/view_transactions.php'; ?>
   <?php include __DIR__ . '/modals/balance_adjustment.php'; ?>
+  <?php include __DIR__ . '/modals/delete_account.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

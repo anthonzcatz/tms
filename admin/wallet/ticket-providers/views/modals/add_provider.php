@@ -46,6 +46,19 @@
               <small class="text-muted form-text">Toggle to activate or deactivate this provider</small>
             </div>
           </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label for="addParentProvider" class="form-label fw-bold">Main Provider</label>
+              <select class="form-select" id="addParentProvider" name="parent_provider_id">
+                <option value="">Standalone (no main provider)</option>
+                <?php foreach ($providers as $provider): ?>
+                  <?php if (!empty($provider['parent_provider_id'])) continue; ?>
+                  <option value="<?php echo $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_code'] . ' - ' . $provider['provider_name']); ?></option>
+                <?php endforeach; ?>
+              </select>
+              <small class="text-muted form-text">Select the main provider if this is a sub-provider.</small>
+            </div>
+          </div>
         </div>
       </form>
       <div class="modal-footer">

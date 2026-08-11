@@ -126,12 +126,26 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex align-items-center">
                 <div class="w-100">
                   <h6 class="mb-3 text-800">Provider Types</h6>
-                  <p class="font-sans-serif lh-1 mb-1 fs-5 fw-bold text-primary">
+                  <div class="d-flex flex-wrap gap-1 mb-1">
                     <?php
-                    $types = array_count_values(array_column($providers, 'provider_type'));
-                    echo implode(', ', array_keys($types));
+                    $providerTypeCounts = array_count_values(array_column($providers, 'provider_type'));
+                    ksort($providerTypeCounts);
+                    foreach ($providerTypeCounts as $typeName => $typeCount):
+                        $badgeClass = match (strtolower($typeName)) {
+                            'airline' => 'bg-primary',
+                            'shipping' => 'bg-info',
+                            'bus' => 'bg-warning text-dark',
+                            default => 'bg-secondary'
+                        };
                     ?>
-                  </p>
+                      <span class="badge <?php echo $badgeClass; ?> fs-10">
+                        <?php echo htmlspecialchars(ucfirst($typeName)); ?> (<?php echo (int) $typeCount; ?>)
+                      </span>
+                    <?php endforeach; ?>
+                    <?php if (empty($providerTypeCounts)): ?>
+                      <span class="badge bg-light text-muted border fs-10">No types</span>
+                    <?php endif; ?>
+                  </div>
                   <div class="fs-10 fw-semi-bold text-500">Available types</div>
                 </div>
               </div>
@@ -176,25 +190,74 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                 <h5 class="mb-0">Providers List</h5>
               </div>
               <div class="col-auto">
-                <button class="btn btn-primary btn-sm me-2" onclick="openAddProviderModal()">
+                <button class="btn btn-primary btn-sm" onclick="openAddProviderModal()">
                   <span class="fas fa-plus me-1"></span>Add Provider
                 </button>
-                <select class="form-select form-select-sm d-inline-block" style="width: auto; vertical-align: middle;" onchange="filterProviders(this.value)">
+              </div>
+            </div>
+          </div>
+          <div class="card-body border-bottom bg-light">
+            <div class="row g-3 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <div class="search-box position-relative">
+                  <input type="text" class="form-control" id="providerSearch" placeholder="Code, name, main provider..." oninput="applyFilters()">
+                  <span class="fas fa-search position-absolute top-50 end-0 translate-middle-y me-3 text-muted" style="pointer-events: none;"></span>
+                </div>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-1">Type</label>
+                <select class="form-select" id="providerTypeFilter" onchange="applyFilters()">
+                  <option value="">All Types</option>
+                  <?php foreach ($types as $type): ?>
+                    <option value="<?php echo $type; ?>"><?php echo ucfirst($type); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small text-muted mb-1">Main Provider</label>
+                <select class="form-select" id="providerMainProviderFilter" onchange="applyFilters()">
+                  <option value="">All Main Providers</option>
+                  <option value="standalone">Standalone (no main provider)</option>
+                  <?php foreach ($mainProviders as $mainId => $mainName): ?>
+                    <?php
+                      $mainCode = '';
+                      foreach ($providers as $p) {
+                          if ($p['provider_id'] == $mainId) {
+                              $mainCode = $p['provider_code'];
+                              break;
+                          }
+                      }
+                    ?>
+                    <option value="<?php echo $mainId; ?>"><?php echo htmlspecialchars($mainCode . ' - ' . $mainName); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select class="form-select" id="providerStatusFilter" onchange="applyFilters()">
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+              <div class="col-6 col-md-1">
+                <button type="button" class="btn btn-outline-secondary w-100" onclick="resetProviderFilters()" title="Reset filters">
+                  <span class="fas fa-redo"></span>
+                </button>
+              </div>
             </div>
+            <div class="mt-2 small text-muted" id="providerFilterInfo"></div>
           </div>
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-hover" id="providersTable">
                 <thead class="table-light">
                   <tr>
-                    <th>Provider Code</th>
-                    <th>Provider Name</th>
+                    <th>Main Provider</th>
+                    <th>Provider</th>
                     <th>Type</th>
+                    <th class="text-center">Variants</th>
                     <th>Status</th>
                     <th>Created At</th>
                     <th class="text-end">Actions</th>
@@ -203,7 +266,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                 <tbody>
                   <?php if (empty($providers)): ?>
                     <tr>
-                      <td colspan="6" class="text-center py-5">
+                      <td colspan="7" class="text-center py-5">
                         <div class="empty-state">
                           <div class="empty-state-icon">
                             <span class="fas fa-plane"></span>
@@ -215,11 +278,50 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </tr>
                   <?php else: ?>
                     <?php foreach ($providers as $provider): ?>
-                      <tr data-status="<?php echo $provider['status']; ?>">
+                      <?php
+                        $searchText = strtolower(
+                            $provider['provider_code'] . ' ' .
+                            $provider['provider_name'] . ' ' .
+                            ($provider['parent_provider_name'] ?? '') . ' ' .
+                            $provider['provider_type']
+                        );
+                      ?>
+                      <tr data-status="<?php echo $provider['status']; ?>"
+                          data-provider-type="<?php echo $provider['provider_type']; ?>"
+                          data-provider-id="<?php echo $provider['provider_id']; ?>"
+                          data-main-provider="<?php echo $provider['parent_provider_id'] ?? ''; ?>"
+                          data-search="<?php echo htmlspecialchars($searchText); ?>"
+                          class="<?php echo !empty($provider['parent_provider_id']) ? 'sub-provider-row' : 'main-provider-row'; ?>"
+                          <?php if (empty($provider['parent_provider_id'])): ?>data-expanded="false"<?php endif; ?>>
                         <td>
-                          <span class="fw-bold"><?php echo htmlspecialchars($provider['provider_code']); ?></span>
+                          <?php if (!empty($provider['parent_provider_name'])): ?>
+                            <span class="text-muted small"><?php echo htmlspecialchars($provider['parent_provider_name']); ?></span>
+                          <?php elseif (!empty($provider['sub_provider_count'])): ?>
+                            <span class="badge bg-light text-success border border-success">Main Provider</span>
+                            <div class="small text-muted mt-1"><?php echo (int) $provider['sub_provider_count']; ?> sub-provider<?php echo $provider['sub_provider_count'] > 1 ? 's' : ''; ?></div>
+                          <?php else: ?>
+                            <span class="text-muted small">—</span>
+                          <?php endif; ?>
                         </td>
-                        <td><?php echo htmlspecialchars($provider['provider_name']); ?></td>
+                        <td>
+                          <div class="fw-bold d-flex align-items-center <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3 border-start border-2 border-success'; ?>">
+                            <?php if (empty($provider['parent_provider_id']) && !empty($provider['sub_provider_count'])): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle d-inline-flex align-items-center justify-content-center me-2 toggle-sub-btn" data-main-id="<?php echo $provider['provider_id']; ?>" onclick="toggleSubProviders(<?php echo $provider['provider_id']; ?>, this)" title="Show/hide sub-providers" style="width: 1.5rem; height: 1.5rem; font-size: 0.75rem; line-height: 1; padding: 0; text-decoration: none;">
+                              <span class="toggle-icon-right"><i class="fas fa-chevron-right"></i></span>
+                              <span class="toggle-icon-down d-none"><i class="fas fa-chevron-down"></i></span>
+                            </button>
+                            <?php endif; ?>
+                            <span><?php echo htmlspecialchars($provider['provider_code']); ?></span>
+                            <?php if (!empty($provider['parent_provider_name'])): ?>
+                              <span class="badge bg-light text-success border border-success ms-1">Sub of <?php echo htmlspecialchars($provider['parent_provider_code'] ?? $provider['parent_provider_name']); ?></span>
+                            <?php elseif (!empty($provider['sub_provider_count'])): ?>
+                              <span class="badge bg-light text-primary border border-primary ms-1">Main</span>
+                            <?php else: ?>
+                              <span class="badge bg-light text-secondary border border-secondary ms-1">Standalone</span>
+                            <?php endif; ?>
+                          </div>
+                          <div class="small text-muted <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3'; ?>"><?php echo htmlspecialchars($provider['provider_name']); ?></div>
+                        </td>
                         <td>
                           <span class="badge <?php echo match($provider['provider_type']) {
                             'airline' => 'bg-primary',
@@ -229,6 +331,15 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                           }; ?>">
                             <?php echo ucfirst($provider['provider_type']); ?>
                           </span>
+                        </td>
+                        <td class="text-center">
+                          <?php if (!empty($provider['variant_count'])): ?>
+                            <span class="badge bg-info rounded-pill" title="<?php echo (int) $provider['variant_count']; ?> variant<?php echo $provider['variant_count'] > 1 ? 's' : ''; ?>">
+                              <?php echo (int) $provider['variant_count']; ?> variant<?php echo $provider['variant_count'] > 1 ? 's' : ''; ?>
+                            </span>
+                          <?php else: ?>
+                            <span class="badge bg-light text-muted border rounded-pill">No variants</span>
+                          <?php endif; ?>
                         </td>
                         <td>
                           <div class="form-check form-switch d-flex align-items-center ps-0 mb-0">
@@ -245,12 +356,21 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         <td><?php echo Auth::formatTimestamp($provider['created_at'], 'M d, Y'); ?></td>
                         <td class="text-end">
                           <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-outline-info" data-provider-id="<?php echo $provider['provider_id']; ?>" data-provider-name="<?php echo htmlspecialchars($provider['provider_name'], ENT_QUOTES, 'UTF-8'); ?>" data-provider-code="<?php echo htmlspecialchars($provider['provider_code'], ENT_QUOTES, 'UTF-8'); ?>" onclick="openManageVariantsModal(this)" title="Manage <?php echo (int) ($provider['variant_count'] ?? 0); ?> variant<?php echo ($provider['variant_count'] ?? 0) == 1 ? '' : 's'; ?>">
+                              <span class="fas fa-palette"></span> <span class="d-none d-md-inline">Variants</span>
+                            </button>
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="editProvider(<?php echo $provider['provider_id']; ?>)">
                               <span class="fas fa-edit"></span>
                             </button>
+                            <?php if (!empty($provider['sub_provider_count'])): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Cannot delete: has <?php echo (int) $provider['sub_provider_count']; ?> sub-provider<?php echo $provider['sub_provider_count'] > 1 ? 's' : ''; ?>">
+                              <span class="fas fa-trash"></span>
+                            </button>
+                            <?php else: ?>
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteProvider(<?php echo $provider['provider_id']; ?>)">
                               <span class="fas fa-trash"></span>
                             </button>
+                            <?php endif; ?>
                           </div>
                         </td>
                       </tr>
@@ -267,6 +387,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     <!-- Include Modals -->
     <?php include __DIR__ . '/modals/add_provider.php'; ?>
     <?php include __DIR__ . '/modals/edit_provider.php'; ?>
+    <?php include __DIR__ . '/modals/manage_variants.php'; ?>
 
     <script src="<?php echo BASE_URL; ?>/admin/wallet/ticket-providers/assets/js/ticket-providers.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/ticket-providers.js'); ?>"></script>
 

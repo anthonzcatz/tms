@@ -4,11 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Payment Methods module initialized');
 });
 
-let addMethodModal, editMethodModal;
+let addMethodModal, editMethodModal, deleteMethodModal;
+let pendingDeleteMethodId = null;
+let pendingDeleteMethodName = '';
 
 document.addEventListener('DOMContentLoaded', function() {
     addMethodModal = new bootstrap.Modal(document.getElementById('addMethodModal'));
     editMethodModal = new bootstrap.Modal(document.getElementById('editMethodModal'));
+    deleteMethodModal = new bootstrap.Modal(document.getElementById('deleteMethodModal'));
+
+    const confirmDeleteBtn = document.getElementById('confirmDeleteMethodBtn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', confirmDeleteMethod);
+    }
 });
 
 // Toggle How It Works
@@ -189,8 +197,17 @@ async function toggleMethodStatus(methodId, isActive) {
 }
 
 // Delete Method
-async function deleteMethod(methodId, methodName) {
-    if (!confirm(`Are you sure you want to delete "${methodName}"?\n\nThis cannot be undone if this method is already used in transactions.`)) return;
+function deleteMethod(methodId, methodName) {
+    pendingDeleteMethodId = methodId;
+    pendingDeleteMethodName = methodName;
+    document.getElementById('deleteMethodName').textContent = methodName;
+    deleteMethodModal.show();
+}
+
+async function confirmDeleteMethod() {
+    const methodId = pendingDeleteMethodId;
+    const methodName = pendingDeleteMethodName;
+    if (!methodId) return;
 
     try {
         const response = await fetch(`${window.BASE_URL}/api/payment-methods`, {
@@ -199,6 +216,7 @@ async function deleteMethod(methodId, methodName) {
             body: JSON.stringify({ method_id: methodId })
         });
         const result = await response.json();
+        deleteMethodModal.hide();
         if (result.success) {
             showToast('success', 'Method Deleted', `"${methodName}" has been deleted.`);
             setTimeout(() => location.reload(), 1200);
@@ -206,8 +224,12 @@ async function deleteMethod(methodId, methodName) {
             showToast('danger', 'Error', result.error || 'Failed to delete payment method.');
         }
     } catch (err) {
+        deleteMethodModal.hide();
         showToast('danger', 'Error', 'An unexpected error occurred.');
         console.error(err);
+    } finally {
+        pendingDeleteMethodId = null;
+        pendingDeleteMethodName = '';
     }
 }
 

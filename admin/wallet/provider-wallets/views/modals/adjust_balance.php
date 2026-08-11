@@ -22,6 +22,7 @@
               <div>
                 <strong>Provider:</strong> <span id="adjustProviderName">-</span><br>
                 <strong>Branch:</strong> <span id="adjustBranchName">-</span><br>
+                <strong>Variant:</strong> <span id="adjustVariantName">-</span><br>
                 <strong>Current Balance:</strong> ₱<span id="adjustCurrentBalance">0.00</span>
               </div>
             </div>
@@ -39,7 +40,7 @@
               <label for="adjustAmount" class="form-label fw-bold">Amount <span class="text-danger">*</span></label>
               <div class="input-group">
                 <span class="input-group-text">₱</span>
-                <input type="number" class="form-control" id="adjustAmount" name="amount" required placeholder="0.00" step="0.01" min="0">
+                <input type="text" inputmode="decimal" class="form-control number-format" id="adjustAmount" name="amount" required placeholder="0.00" value="0.00">
               </div>
             </div>
             <div class="col-md-12">

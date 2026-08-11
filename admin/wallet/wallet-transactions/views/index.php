@@ -224,6 +224,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </select>
                   </div>
                   <div class="col-6 col-md-2">
+                    <select class="form-select" id="operatingProviderFilter">
+                      <option value="">All Sub-providers</option>
+                      <?php foreach ($operatingProviders as $provider): ?>
+                        <option value="<?php echo $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_name']); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="col-6 col-md-2">
                     <select class="form-select" id="txnTypeFilter">
                       <option value="">All Types</option>
                       <option value="TOPUP">Topup</option>
@@ -273,7 +281,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <thead>
                       <tr>
                         <th>Txn Code</th>
-                        <th>Wallet / Provider</th>
+                        <th>Sub-provider</th>
+                        <th>Variant</th>
+                        <th>Main Provider</th>
                         <th>Type</th>
                         <th>Direction</th>
                         <th>Amount</th>
@@ -284,7 +294,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </thead>
                     <tbody id="transactionsTableBody">
                       <tr>
-                        <td colspan="8" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                           <span class="fas fa-spinner fa-spin"></span> Loading transactions...
                         </td>
                       </tr>

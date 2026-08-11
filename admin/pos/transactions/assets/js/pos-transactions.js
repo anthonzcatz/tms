@@ -42,15 +42,19 @@ function buildProviderWallet(item) {
 document.addEventListener('DOMContentLoaded', function () {
     txnDetailOffcanvas = new bootstrap.Offcanvas(document.getElementById('txnDetailModal'));
 
-    // Initialize date range picker with current date as default (or restore from localStorage)
-    const today = new Date();
-    const defaultDateStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
-    
+    // Initialize date range picker from a saved range; no date filter is applied by default
     // Try to restore saved date from localStorage
     const savedDateFrom = localStorage.getItem('posTxnDateFrom');
     const savedDateTo = localStorage.getItem('posTxnDateTo');
-    const dateStr = savedDateFrom || defaultDateStr;
-    const dateToStr = savedDateTo || defaultDateStr;
+    const today = new Date();
+    const todayDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const isDefaultTodayRange = savedDateFrom === todayDateStr && savedDateTo === todayDateStr;
+    if (isDefaultTodayRange) {
+        localStorage.removeItem('posTxnDateFrom');
+        localStorage.removeItem('posTxnDateTo');
+    }
+    const dateStr = isDefaultTodayRange ? '' : (savedDateFrom || '');
+    const dateToStr = isDefaultTodayRange ? '' : (savedDateTo || '');
     
     document.getElementById('filterDateFrom').value = dateStr;
     document.getElementById('filterDateTo').value = dateToStr;
@@ -80,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const fp = flatpickr(dateRangeEl, {
             mode: 'range',
             dateFormat: 'Y-m-d',
-            defaultDate: [dateStr, dateToStr],
+            defaultDate: dateStr && dateToStr ? [dateStr, dateToStr] : [],
             clickOpens: true,
             showMonths: 1,
             appendTo: document.body,
@@ -127,7 +131,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
         // Show single date if from and to are the same, otherwise show range
-        if (dateStr === dateToStr) {
+        if (!dateStr || !dateToStr) {
+            dateRangeEl.value = '';
+        } else if (dateStr === dateToStr) {
             dateRangeEl.value = dateStr;
         } else {
             dateRangeEl.value = `${dateStr} to ${dateToStr}`;
@@ -219,16 +225,14 @@ function resetFilters() {
     document.getElementById('filterStatus').value  = 'all';
     document.getElementById('filterType').value    = 'all';
     
-    // Reset date to today (single date) and clear localStorage
-    const today = new Date();
-    const dateStr = today.toLocaleDateString('en-CA');
-    document.getElementById('filterDateFrom').value = dateStr;
-    document.getElementById('filterDateTo').value = dateStr;
+    // Reset date filter and clear localStorage
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
     localStorage.removeItem('posTxnDateFrom');
     localStorage.removeItem('posTxnDateTo');
     const fp = document.getElementById('filterDateRange')._flatpickr;
-    if (fp) fp.setDate([dateStr, dateStr]);
-    else { const el = document.getElementById('filterDateRange'); if (el) el.value = dateStr; }
+    if (fp) fp.clear();
+    else { const el = document.getElementById('filterDateRange'); if (el) el.value = ''; }
     
     const branch = document.getElementById('filterBranch');
     if (branch) branch.value = '';
@@ -567,6 +571,14 @@ function renderDetailModal(txn) {
                         <span class="small fw-semibold text-success">${esc(txn.or_full_number)}</span>
                     </div>
                 </div>` : ''}
+                <div class="mb-3">
+                    <label class="text-muted small fw-bold text-uppercase mb-1">Payment</label>
+                    <div>${paymentsHtml || '<span class="text-muted small">—</span>'}</div>
+                    ${parseFloat(txn.amount_paid || 0) > 0 ? `<div class="text-muted small mt-2">
+                        <div><span class="fas fa-check-circle text-success me-1"></span>Paid: ₱${fmt(txn.amount_paid)}</div>
+                        <div class="mt-1"><span class="fas fa-check-circle text-success me-1"></span>Change: ₱${fmt(txn.change_amount)}</div>
+                    </div>` : ''}
+                </div>
             </div>
             <div class="col-md-6">
                 <div class="mb-3">
@@ -577,7 +589,7 @@ function renderDetailModal(txn) {
                 </div>
                 <div class="mb-3">
                     <label class="text-muted small fw-bold text-uppercase mb-1">Amount Breakdown</label>
-                    <div class="card bg-light border-0">
+                    <div class="card bg-light border-0 txn-amount-breakdown">
                         <div class="card-body p-3">
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Subtotal</span>
@@ -617,11 +629,6 @@ function renderDetailModal(txn) {
                             </div>` : ''}
                         </div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <label class="text-muted small fw-bold text-uppercase mb-1">Payment</label>
-                    <div>${paymentsHtml || '<span class="text-muted small">—</span>'}</div>
-                    ${parseFloat(txn.amount_paid || 0) > 0 ? `<div class="text-muted small mt-2"><span class="fas fa-check-circle text-success me-1"></span>Paid: ₱${fmt(txn.amount_paid)} | Change: ₱${fmt(txn.change_amount)}</div>` : ''}
                 </div>
             </div>
         </div>

@@ -213,7 +213,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <tr>
                     <th class="ps-3">Order</th>
                     <th>Type</th>
-                    <th>Passenger / Provider</th>
+                    <th>Passenger</th>
+                    <th>Operating Provider</th>
+                    <th>Wallet Owner</th>
                     <th>Cashier</th>
                     <th>Branch</th>
                     <th>Payment</th>
@@ -223,7 +225,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   </tr>
                 </thead>
                 <tbody id="transactionsTableBody">
-                  <tr><td colspan="9" class="text-center py-5 text-muted">
+                  <tr><td colspan="11" class="text-center py-5 text-muted">
                     <span class="fas fa-spinner fa-spin me-2"></span>Loading...
                   </td></tr>
                 </tbody>

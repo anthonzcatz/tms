@@ -437,16 +437,18 @@ function renderUsersTable() {
             // Build transport assignments display for cashiers
             let transportDisplay = '';
             if (user.role_code === 'CASHIER' && user.transport_assignments && user.transport_assignments.length > 0) {
-                const transportTypes = user.transport_assignments.map(a => {
-                    if (a.provider_name) return a.provider_name;
-                    if (a.transport_type) return a.transport_type.toUpperCase();
+                const transportBadges = user.transport_assignments.map(a => {
+                    if (a.provider_name) {
+                        return `<span class="badge bg-100 text-600 fs-10" title="Wallet Owner: ${a.parent_provider_name || 'Self'}"><span class="fas fa-plane me-1"></span>${a.provider_name}${a.parent_provider_name ? ' <span class="text-muted">(' + a.parent_provider_name + ')</span>' : ''}</span>`;
+                    }
+                    if (a.transport_type) return `<span class="badge bg-100 text-600 fs-10"><span class="fas fa-plane me-1"></span>${a.transport_type.toUpperCase()}</span>`;
                     return '';
                 }).filter(t => t);
                 
-                if (transportTypes.length > 0) {
+                if (transportBadges.length > 0) {
                     transportDisplay = `<div class="d-flex gap-1 flex-wrap mt-1">
-                        ${transportTypes.slice(0, 3).map(t => `<span class="badge bg-100 text-600 fs-10"><span class="fas fa-plane me-1"></span>${t}</span>`).join('')}
-                        ${transportTypes.length > 3 ? `<span class="badge bg-100 text-600 fs-10">+${transportTypes.length - 3}</span>` : ''}
+                        ${transportBadges.slice(0, 3).join('')}
+                        ${transportBadges.length > 3 ? `<span class="badge bg-100 text-600 fs-10">+${transportBadges.length - 3}</span>` : ''}
                     </div>`;
                 }
             }

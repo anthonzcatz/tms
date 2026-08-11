@@ -98,7 +98,12 @@ function buildParams(page) {
 function handleReviewClick(btn) {
     try {
         const data = JSON.parse(btn.getAttribute('data-cancel'));
-        openConfirmModal(data.id, data.code, data.ticketNumber, data.amount, data.type, data.reason, data.requestedBy, data.passenger, data.origin, data.destination, data.requestedAt, data.cashAmount, data.chargeAmount);
+        openConfirmModal(
+            data.id, data.code, data.ticketNumber, data.amount, data.type, data.reason,
+            data.requestedBy, data.passenger, data.origin, data.destination, data.requestedAt,
+            data.cashAmount, data.chargeAmount,
+            data.providerName, data.branchName, data.variantName, data.walletId
+        );
     } catch (e) {
         console.error('Failed to parse cancellation data:', e);
         showToast('danger', 'Error', 'Failed to load cancellation details');
@@ -106,7 +111,7 @@ function handleReviewClick(btn) {
 }
 
 // Open confirmation modal
-function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt, cashAmount, chargeAmount) {
+function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt, cashAmount, chargeAmount, providerName, branchName, variantName, walletId) {
     currentCancellationId = cancellationId;
 
     const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
@@ -158,6 +163,21 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
             chargeWarningEl.style.display = 'block';
         } else {
             chargeWarningEl.style.display = 'none';
+        }
+    }
+
+    // Show wallet-to-credit info
+    const walletToCreditEl = document.getElementById('modalWalletToCredit');
+    if (walletToCreditEl) {
+        if (walletId) {
+            let walletLabel = providerName || 'Provider wallet';
+            if (variantName) walletLabel += ' - ' + variantName;
+            if (branchName) walletLabel += ' (' + branchName + ')';
+            walletToCreditEl.textContent = walletLabel;
+            walletToCreditEl.parentElement.style.display = 'block';
+        } else {
+            walletToCreditEl.textContent = '—';
+            walletToCreditEl.parentElement.style.display = 'block';
         }
     }
 
@@ -283,7 +303,11 @@ function renderTable(rows) {
                    passenger: c.passenger_name || '—',
                    origin: c.origin || '',
                    destination: c.destination || '',
-                   requestedAt: requestedAt
+                   requestedAt: requestedAt,
+                   providerName: c.provider_name || '—',
+                   branchName: c.wallet_branch_name || c.branch_name || '—',
+                   variantName: c.variant_name || '',
+                   walletId: c.wallet_id || null
                  })}' onclick="handleReviewClick(this)"><span class="fas fa-check-double me-1"></span>Review</button>`
             : `<span class="text-muted small">Reviewed</span>`;
 

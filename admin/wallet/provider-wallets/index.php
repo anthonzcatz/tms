@@ -24,9 +24,28 @@ $userRoleCode = Auth::userRoleCode() ?? '';
 // Check if user can create wallets
 $canCreateWallet = ($userRoleCode === 'SUPER_ADMIN') || Auth::can('CREATE_WALLET');
 
-// Get all providers and branches for "Add Wallet" dropdown (not for filter)
+// Get all providers and branches for "Add Wallet" dropdown (only top-level providers)
 $allProviders = Database::fetchAll(
-    "SELECT provider_id, provider_name FROM ticket_providers WHERE status = 'active' ORDER BY provider_name"
+    "SELECT tp.provider_id,
+            tp.provider_code,
+            tp.provider_name,
+            tp.provider_type,
+            (
+                SELECT COUNT(*)
+                FROM provider_ticket_variants v
+                WHERE v.provider_id = tp.provider_id
+                  AND v.deleted_at IS NULL
+                  AND v.is_active = 1
+            ) AS variant_count,
+            (
+                SELECT COUNT(*)
+                FROM ticket_providers sp
+                WHERE sp.parent_provider_id = tp.provider_id
+            ) AS sub_provider_count
+     FROM ticket_providers tp
+     WHERE tp.status = 'active'
+       AND tp.parent_provider_id IS NULL
+     ORDER BY tp.provider_name"
 );
 
 // Get all branches for "Add Wallet" dropdown based on user access
@@ -83,6 +102,9 @@ if ($filterBranch && ($userRoleCode === 'SUPER_ADMIN' || in_array($filterBranch,
     }
 }
 
+// Only main/standalone providers have wallets; sub-providers share the main provider wallet
+$whereConditions[] = "tp.parent_provider_id IS NULL";
+
 // Status filter
 if ($filterStatus) {
     $whereConditions[] = "pw.status = ?";
@@ -96,15 +118,63 @@ $whereClause = $whereConditions ? 'WHERE ' . implode(' AND ', $whereConditions) 
 $wallets = Database::fetchAll(
     "SELECT pw.*,
             tp.provider_name,
+            tp.provider_type,
+            tp.parent_provider_id,
+            ptp.provider_name as parent_provider_name,
             bb.branch_name,
-            CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name
+            pv.variant_id as variant_id,
+            pv.variant_code as variant_code,
+            pv.variant_name as variant_name,
+            pv.display_color as variant_color,
+            CONCAT(tp.provider_name,
+                   IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
+                   ' - ', bb.branch_name) as wallet_name,
+            (
+                SELECT GROUP_CONCAT(child.provider_name ORDER BY child.provider_name SEPARATOR ', ')
+                FROM ticket_providers child
+                WHERE child.parent_provider_id = pw.provider_id
+                AND child.status = 'active'
+            ) AS child_provider_names,
+            (
+                SELECT COUNT(*)
+                FROM provider_ticket_variants v
+                WHERE v.provider_id = pw.provider_id
+                  AND v.deleted_at IS NULL
+            ) AS variant_count
      FROM provider_wallets pw
      LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
+     LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
      LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+     LEFT JOIN provider_ticket_variants pv ON pw.variant_id = pv.variant_id
      $whereClause
-     ORDER BY tp.provider_name, bb.branch_name",
+     ORDER BY tp.provider_name, pv.variant_name, bb.branch_name",
     $params
 );
+
+// Filter: show variant wallets and main wallets with sub-providers;
+// hide provider-level main wallets that have variant wallets but no sub-providers.
+$hasVariantWalletByProviderBranch = [];
+foreach ($wallets as $wallet) {
+    if (!empty($wallet['variant_id'])) {
+        $hasVariantWalletByProviderBranch[$wallet['provider_id'] . '|' . $wallet['branch_id']] = true;
+    }
+}
+
+$wallets = array_values(array_filter($wallets, function ($wallet) use ($hasVariantWalletByProviderBranch) {
+    // Variant wallets always display
+    if (!empty($wallet['variant_id'])) {
+        return true;
+    }
+
+    // Provider-level wallet with sub-providers (main-sub shared wallet) always display
+    if (!empty($wallet['child_provider_names'])) {
+        return true;
+    }
+
+    // Provider-level wallet without sub-providers: hide if variant wallets exist for the same provider/branch
+    $key = $wallet['provider_id'] . '|' . $wallet['branch_id'];
+    return !isset($hasVariantWalletByProviderBranch[$key]);
+}));
 
 // Derive filter providers and branches from the wallets the user can access
 $filterProviders = [];

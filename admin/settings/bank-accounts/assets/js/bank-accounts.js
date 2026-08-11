@@ -4,11 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Bank Accounts module initialized');
 });
 
-let addAccountModal, editAccountModal;
+let addAccountModal, editAccountModal, deleteAccountModal;
+let pendingDeleteAccountId = null;
+let pendingDeleteAccountName = '';
 
 document.addEventListener('DOMContentLoaded', function() {
     addAccountModal = new bootstrap.Modal(document.getElementById('addAccountModal'));
     editAccountModal = new bootstrap.Modal(document.getElementById('editAccountModal'));
+    deleteAccountModal = new bootstrap.Modal(document.getElementById('deleteAccountModal'));
+
+    const confirmDeleteBtn = document.getElementById('confirmDeleteAccountBtn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', confirmDeleteAccount);
+    }
 });
 
 // Toggle How It Works
@@ -186,8 +194,17 @@ async function toggleAccountStatus(accountId, isActive) {
 }
 
 // Delete Account
-async function deleteAccount(accountId, accountLabel) {
-    if (!confirm(`Are you sure you want to delete "${accountLabel}"?\n\nThis cannot be undone if this account is already used in transactions.`)) return;
+function deleteAccount(accountId, accountLabel) {
+    pendingDeleteAccountId = accountId;
+    pendingDeleteAccountName = accountLabel;
+    document.getElementById('deleteAccountName').textContent = accountLabel;
+    deleteAccountModal.show();
+}
+
+async function confirmDeleteAccount() {
+    const accountId = pendingDeleteAccountId;
+    const accountLabel = pendingDeleteAccountName;
+    if (!accountId) return;
 
     try {
         const response = await fetch(`${window.BASE_URL}/api/bank-accounts`, {
@@ -196,6 +213,7 @@ async function deleteAccount(accountId, accountLabel) {
             body: JSON.stringify({ bank_account_id: accountId })
         });
         const result = await response.json();
+        deleteAccountModal.hide();
         if (result.success) {
             showToast('success', 'Account Deleted', `"${accountLabel}" has been deleted.`);
             setTimeout(() => location.reload(), 1200);
@@ -203,8 +221,12 @@ async function deleteAccount(accountId, accountLabel) {
             showToast('danger', 'Error', result.error || 'Failed to delete bank account.');
         }
     } catch (err) {
+        deleteAccountModal.hide();
         showToast('danger', 'Error', 'An unexpected error occurred.');
         console.error(err);
+    } finally {
+        pendingDeleteAccountId = null;
+        pendingDeleteAccountName = '';
     }
 }
 

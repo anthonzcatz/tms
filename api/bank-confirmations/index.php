@@ -105,7 +105,7 @@ if ($method === 'PUT') {
 
             if ($payId) {
                 // Handle transaction_payments confirmation (existing logic)
-                $existing = Database::fetch("SELECT * FROM transaction_payments WHERE payment_id = :id", ['id' => $payId]);
+                $existing = Database::fetch("SELECT * FROM transaction_payments WHERE payment_id = :id FOR UPDATE", ['id' => $payId]);
                 if (!$existing) {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Payment not found']);
@@ -151,7 +151,7 @@ if ($method === 'PUT') {
                         );
                         
                         Database::execute(
-                            "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                            "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
                             ['balance' => $balAfterBank, 'id' => $existing['bank_account_id']]
                         );
                         
@@ -198,7 +198,7 @@ if ($method === 'PUT') {
 
             if ($depositId) {
                 // Handle bank_transactions confirmation (new deposit logic)
-                $existing = Database::fetch("SELECT * FROM bank_transactions WHERE bank_txn_id = :id", ['id' => $depositId]);
+                $existing = Database::fetch("SELECT * FROM bank_transactions WHERE bank_txn_id = :id FOR UPDATE", ['id' => $depositId]);
                 if (!$existing) {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Deposit not found']);
@@ -218,13 +218,13 @@ if ($method === 'PUT') {
 
                 // Update bank account balance when confirming a deposit
                 if ($action === 'CONFIRMED') {
-                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $existing['bank_account_id']]);
+                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id FOR UPDATE", ['id' => $existing['bank_account_id']]);
                     if ($bankAccount) {
                         $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
                         $balAfterBank = $balBeforeBank + $existing['amount'];
                         
                         Database::execute(
-                            "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                            "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
                             ['balance' => $balAfterBank, 'id' => $existing['bank_account_id']]
                         );
                     }
@@ -235,7 +235,7 @@ if ($method === 'PUT') {
 
             if ($chargePaymentId) {
                 // Handle charge_payments confirmation (new logic)
-                $existing = Database::fetch("SELECT * FROM charge_payments WHERE charge_payment_id = :id", ['id' => $chargePaymentId]);
+                $existing = Database::fetch("SELECT * FROM charge_payments WHERE charge_payment_id = :id FOR UPDATE", ['id' => $chargePaymentId]);
                 if (!$existing) {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Charge payment not found']);
@@ -262,7 +262,7 @@ if ($method === 'PUT') {
 
                 // Create bank transaction when confirming bank/e-wallet charge payments
                 if ($action === 'CONFIRMED' && $existing['bank_account_id'] && ($pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET')) {
-                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $existing['bank_account_id']]);
+                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id FOR UPDATE", ['id' => $existing['bank_account_id']]);
                     if ($bankAccount) {
                         $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
                         $balAfterBank = $balBeforeBank + $existing['amount_paid'];
@@ -287,7 +287,7 @@ if ($method === 'PUT') {
                         );
                         
                         Database::execute(
-                            "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                            "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
                             ['balance' => $balAfterBank, 'id' => $existing['bank_account_id']]
                         );
                         
@@ -299,16 +299,25 @@ if ($method === 'PUT') {
                 // Note: Customer balance is already updated when payment is made
                 // On confirmation: bank balance is updated
                 // On rejection: customer balance is reverted
-                if ($action === 'REJECTED') {
-                    Database::execute(
-                        "UPDATE customer_charges SET 
-                            total_paid = total_paid - :paid1,
-                            balance = balance + :paid2,
-                            status = 'OUTSTANDING',
-                            updated_at = :updated_at
-                         WHERE passenger_id = :pid",
-                        ['paid1' => $existing['amount_paid'], 'paid2' => $existing['amount_paid'], 'pid' => $existing['passenger_id'], 'updated_at' => date('Y-m-d H:i:s')]
+                if ($action === 'REJECTED' && $existing['passenger_id']) {
+                    $chargeRow = Database::fetch(
+                        "SELECT * FROM customer_charges WHERE passenger_id = :pid FOR UPDATE",
+                        ['pid' => $existing['passenger_id']]
                     );
+                    if ($chargeRow) {
+                        $newBalance = floatval($chargeRow['balance']) + floatval($existing['amount_paid']);
+                        $newPaid    = max(0, floatval($chargeRow['total_paid']) - floatval($existing['amount_paid']));
+                        $newStatus  = $newBalance > 0 ? 'OUTSTANDING' : 'CLEAR';
+                        Database::execute(
+                            "UPDATE customer_charges SET 
+                                total_paid = :paid,
+                                balance = :balance,
+                                status = :status,
+                                updated_at = :updated_at
+                             WHERE passenger_id = :pid",
+                            ['paid' => $newPaid, 'balance' => $newBalance, 'status' => $newStatus, 'pid' => $existing['passenger_id'], 'updated_at' => date('Y-m-d H:i:s')]
+                        );
+                    }
                 }
 
                 logActivity($user['user_id'], $action . '_CHARGE_PAYMENT', 'Bank Confirmations', "CP-{$chargePaymentId}", null, ['status' => $action]);

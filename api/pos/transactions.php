@@ -44,9 +44,14 @@ if (!$branchId)         { echo json_encode(['success' => false, 'error' => 'Bran
 if (empty($items))      { echo json_encode(['success' => false, 'error' => 'No items in order.']); exit; }
 if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No payment provided.']); exit; }
 
-// Verify session is open
+// Verify session is open and belongs to the current user/branch
 $session = Database::fetch("SELECT * FROM cashier_sessions WHERE session_id = :id AND status = 'OPEN'", ['id' => $sessionId]);
 if (!$session) { echo json_encode(['success' => false, 'error' => 'No active session found.']); exit; }
+if ((int)$session['cashier_user_id'] !== (int)$user['user_id'] || (int)$session['branch_id'] !== (int)$branchId) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Session/branch mismatch.']);
+    exit;
+}
 
 // Compute totals
 $orderTotal = 0;
@@ -292,11 +297,17 @@ try {
             $methodType    = $methodInfo['method_type'] ?? '';
             $tracksCredit  = !empty($methodInfo['tracks_credit']);
 
+            if (in_array($methodType, ['BANK_TRANSFER', 'E_WALLET'], true) && !$bankAcctId) {
+                Database::connection()->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Please select a bank account for ' . ($methodInfo['method_name'] ?? 'this payment method') . '.']); exit;
+            }
+
             // Handle credit-tracking payments — post to customer_charges
             if ($tracksCredit && $passengerId) {
-                // Ensure customer_charges record exists
+                // Ensure customer_charges record exists. Use FOR UPDATE since we will
+                // immediately update the aggregate in the same transaction.
                 $existingCharge = Database::fetch(
-                    "SELECT * FROM customer_charges WHERE passenger_id = :pid",
+                    "SELECT * FROM customer_charges WHERE passenger_id = :pid FOR UPDATE",
                     ['pid' => $passengerId]
                 );
                 if (!$existingCharge) {

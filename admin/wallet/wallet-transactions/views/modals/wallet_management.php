@@ -20,6 +20,7 @@
             <tr>
               <th>Wallet</th>
               <th>Provider</th>
+              <th>Variant</th>
               <th>Branch</th>
               <th>Current Balance</th>
               <th>Status</th>
@@ -28,7 +29,7 @@
           </thead>
           <tbody id="walletsTableBody">
             <tr>
-              <td colspan="6" class="text-center py-4">
+              <td colspan="7" class="text-center py-4">
                 <span class="fas fa-spinner fa-spin"></span> Loading wallets...
               </td>
             </tr>

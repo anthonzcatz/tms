@@ -494,6 +494,9 @@
                                          onchange="handleTransportSelection()">
                                   <label class="form-check-label" for="provider-<?php echo $provider['provider_id']; ?>">
                                     <?php echo htmlspecialchars($provider['provider_name']); ?>
+                                    <?php if (!empty($provider['parent_provider_name'])): ?>
+                                      <span class="text-muted small ms-1">(Wallet Owner: <?php echo htmlspecialchars($provider['parent_provider_name']); ?>)</span>
+                                    <?php endif; ?>
                                   </label>
                                 </div>
                               <?php endforeach; ?>

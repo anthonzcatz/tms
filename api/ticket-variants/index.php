@@ -105,20 +105,89 @@ function canManageVariants(): bool {
     return Auth::can('MANAGE_TICKET_VARIANTS');
 }
 
+function getAllowedBranchIds(): array {
+    $user = Auth::user();
+    if (!$user) {
+        return [];
+    }
+
+    if ($user['role_code'] === 'SUPER_ADMIN') {
+        return [];
+    }
+
+    $branchIds = [];
+    if (!empty($user['branch_id'])) {
+        $branchIds = array_values(array_filter(array_map('intval', explode(',', $user['branch_id']))));
+    }
+
+    if (($user['role_code'] === 'CASHIER') && !empty($user['user_id'])) {
+        $activeSession = Database::fetch(
+            "SELECT branch_id FROM cashier_sessions
+             WHERE cashier_user_id = :user_id
+               AND status = 'OPEN'
+               AND ended_at IS NULL
+             ORDER BY started_at DESC
+             LIMIT 1",
+            ['user_id' => (int)$user['user_id']]
+        );
+        if (!empty($activeSession['branch_id'])) {
+            $branchIds[] = (int)$activeSession['branch_id'];
+        }
+    }
+
+    return array_values(array_unique($branchIds));
+}
+
+function getWalletBranchIds(?int $branchId): array {
+    $user = Auth::user();
+    if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+        $allBranches = Database::fetchAll(
+            "SELECT branch_id FROM business_branches WHERE status = 'active' OR status IS NULL"
+        );
+        if (!empty($allBranches)) {
+            return array_values(array_filter(array_map('intval', array_column($allBranches, 'branch_id'))));
+        }
+        return $branchId ? [$branchId] : [0];
+    }
+
+    $allowed = getAllowedBranchIds();
+    if (empty($allowed)) {
+        return $branchId ? [$branchId] : [0];
+    }
+
+    return $allowed;
+}
+
+function validateBranchAccess(?int $branchId): void {
+    $user = Auth::user();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+        exit;
+    }
+
+    if ($user['role_code'] === 'SUPER_ADMIN' || !$branchId) {
+        return;
+    }
+
+    $allowed = getAllowedBranchIds();
+    if (in_array($branchId, $allowed, true)) {
+        return;
+    }
+
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Access denied: branch not allowed']);
+    exit;
+}
+
 function handleGet(): void {
     $providerId = $_GET['provider_id'] ?? null;
     $variantId  = $_GET['variant_id']  ?? null;
     $branchId   = $_GET['branch_id']   ?? null;
     $includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] == '1';
 
-    $user = Auth::user();
-    if ($user['role_code'] !== 'SUPER_ADMIN' && $branchId) {
-        if ((int)$user['branch_id'] !== (int)$branchId) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Access denied: branch mismatch']);
-            exit;
-        }
-    }
+    // Enforce branch access based on the user's assigned branches and active cashier session.
+    validateBranchAccess($branchId ? (int)$branchId : null);
 
     // Fetch single variant by ID
     if ($variantId && is_numeric($variantId)) {
@@ -200,6 +269,8 @@ function handleGet(): void {
     $providerId = (int) $providerId;
     $branchId   = $branchId ? (int) $branchId : null;
 
+    // Fetch variants with branch-specific stock; wallet data is resolved separately
+    // so it can fall back to any branch the user has access to.
     $sql = "SELECT
                 v.variant_id,
                 v.provider_id,
@@ -213,27 +284,13 @@ function handleGet(): void {
                 v.is_active,
                 COALESCE(s.on_hand_qty, 0) AS on_hand_qty,
                 COALESCE(s.reserved_qty, 0) AS reserved_qty,
-                (COALESCE(s.on_hand_qty, 0) - COALESCE(s.reserved_qty, 0)) AS available_qty,
-                pw.wallet_id,
-                COALESCE(pw.current_balance, 0) AS wallet_balance,
-                pw_main.wallet_id AS main_wallet_id,
-                COALESCE(pw_main.current_balance, 0) AS main_wallet_balance
+                (COALESCE(s.on_hand_qty, 0) - COALESCE(s.reserved_qty, 0)) AS available_qty
             FROM provider_ticket_variants v
             LEFT JOIN ticket_providers p ON p.provider_id = v.provider_id
             LEFT JOIN branch_ticket_stocks s
                 ON s.variant_id = v.variant_id
                AND s.provider_id = v.provider_id
                AND s.branch_id = :stock_branch_id
-            LEFT JOIN provider_wallets pw
-                ON pw.provider_id = v.provider_id
-               AND pw.variant_id = v.variant_id
-               AND pw.branch_id = :wallet_branch_id
-               AND pw.status = 'active'
-            LEFT JOIN provider_wallets pw_main
-                ON pw_main.provider_id = v.provider_id
-               AND pw_main.variant_id IS NULL
-               AND pw_main.branch_id = :wallet_branch_id
-               AND pw_main.status = 'active'
             WHERE v.provider_id = :provider_id
               AND v.deleted_at IS NULL";
 
@@ -244,10 +301,65 @@ function handleGet(): void {
     $sql .= " ORDER BY v.variant_name ASC";
 
     $data = Database::fetchAll($sql, [
-        'provider_id'      => $providerId,
-        'stock_branch_id'  => $branchId ?? 0,
-        'wallet_branch_id' => $branchId ?? 0,
+        'provider_id'     => $providerId,
+        'stock_branch_id' => $branchId ?? 0,
     ]);
+
+    // Resolve the best active wallet for each variant across accessible branches.
+    // Priority is given to the requested branch, then to any other allowed branch.
+    $walletBranchIds = getWalletBranchIds($branchId);
+    $walletParams = ['provider_id' => $providerId, 'priority_branch' => ($branchId ?? 0)];
+    $walletWhere = "provider_id = :provider_id AND status = 'active'";
+
+    if (!empty($walletBranchIds)) {
+        $walletPlaceholders = [];
+        foreach ($walletBranchIds as $i => $walletBranchId) {
+            $walletPlaceholders[] = ':wb_' . $i;
+            $walletParams['wb_' . $i] = $walletBranchId;
+        }
+        $walletWhere .= ' AND branch_id IN (' . implode(',', $walletPlaceholders) . ')';
+    }
+
+    $walletSql = "SELECT wallet_id, provider_id, variant_id, current_balance, branch_id
+                  FROM provider_wallets
+                  WHERE {$walletWhere}
+                  ORDER BY CASE WHEN branch_id = :priority_branch THEN 0 ELSE 1 END, branch_id ASC";
+
+    $wallets = Database::fetchAll($walletSql, $walletParams);
+
+    $variantWalletMap = [];
+    $mainWallet = null;
+    foreach ($wallets as $w) {
+        $vid = $w['variant_id'] ? (int)$w['variant_id'] : null;
+        if ($vid) {
+            if (!isset($variantWalletMap[$vid])) {
+                $variantWalletMap[$vid] = $w;
+            }
+        } else {
+            if ($mainWallet === null) {
+                $mainWallet = $w;
+            }
+        }
+    }
+
+    foreach ($data as $key => $row) {
+        $vid = (int)$row['variant_id'];
+        if (isset($variantWalletMap[$vid])) {
+            $data[$key]['wallet_id'] = $variantWalletMap[$vid]['wallet_id'];
+            $data[$key]['wallet_balance'] = $variantWalletMap[$vid]['current_balance'];
+        } else {
+            $data[$key]['wallet_id'] = null;
+            $data[$key]['wallet_balance'] = 0;
+        }
+
+        if ($mainWallet) {
+            $data[$key]['main_wallet_id'] = $mainWallet['wallet_id'];
+            $data[$key]['main_wallet_balance'] = $mainWallet['current_balance'];
+        } else {
+            $data[$key]['main_wallet_id'] = null;
+            $data[$key]['main_wallet_balance'] = 0;
+        }
+    }
 
     echo json_encode(['success' => true, 'data' => $data]);
 }

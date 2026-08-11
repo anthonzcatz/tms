@@ -93,14 +93,15 @@ function handlePost() {
     }
 
     Database::execute(
-        "INSERT INTO service_types (code, name, description, default_amount, allow_custom_amount, requires_wallet, is_active, created_at)
-         VALUES (:code, :name, :description, :default_amount, :allow_custom_amount, :requires_wallet, :is_active, :created_at)",
+        "INSERT INTO service_types (code, name, description, default_amount, allow_custom_amount, requires_wallet, requires_ticket_variant, is_active, created_at)
+         VALUES (:code, :name, :description, :default_amount, :allow_custom_amount, :requires_wallet, :requires_ticket_variant, :is_active, :created_at)",
         [
             'code' => $code, 'name' => $name,
             'description' => $input['description'] ?? null,
             'default_amount' => $input['default_amount'] ?? 0,
             'allow_custom_amount' => $input['allow_custom_amount'] ?? 1,
             'requires_wallet' => $input['requires_wallet'] ?? 0,
+            'requires_ticket_variant' => $input['requires_ticket_variant'] ?? 0,
             'is_active' => $input['is_active'] ?? 1,
             'created_at' => date('Y-m-d H:i:s'),
         ]
@@ -148,7 +149,7 @@ function handlePut() {
     Database::execute(
         "UPDATE service_types SET code = :code, name = :name, description = :description,
             default_amount = :default_amount, allow_custom_amount = :allow_custom_amount,
-            requires_wallet = :requires_wallet, is_active = :is_active, updated_at = :updated_at
+            requires_wallet = :requires_wallet, requires_ticket_variant = :requires_ticket_variant, is_active = :is_active, updated_at = :updated_at
          WHERE service_type_id = :id",
         [
             'code' => $code, 'name' => $name,
@@ -156,6 +157,7 @@ function handlePut() {
             'default_amount' => $input['default_amount'] ?? 0,
             'allow_custom_amount' => $input['allow_custom_amount'] ?? 1,
             'requires_wallet' => $input['requires_wallet'] ?? 0,
+            'requires_ticket_variant' => $input['requires_ticket_variant'] ?? 0,
             'is_active' => $input['is_active'] ?? 1,
             'updated_at' => date('Y-m-d H:i:s'),
             'id' => $id

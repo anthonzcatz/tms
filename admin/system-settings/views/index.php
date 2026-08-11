@@ -212,6 +212,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                   <h6 class="mb-0 text-600">Security</h6>
                 </a>
               </li>
+              <li class="nav-item text-nowrap" role="presentation">
+                <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="ticket-stock-tab" data-bs-toggle="tab" href="#ticket-stock" role="tab" aria-controls="ticket-stock" aria-selected="false">
+                  <span class="fas fa-boxes icon text-600"></span>
+                  <h6 class="mb-0 text-600">Ticket Stock</h6>
+                </a>
+              </li>
             </ul>
           </div>
           <div class="card-body p-0">
@@ -814,8 +820,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                             <label class="form-label fw-semibold">Session Warning Timeout <span class="text-muted fw-normal">(minutes)</span></label>
                             <input type="number" class="form-control" name="session_warning_timeout"
                                    value="<?php echo intval($settings['session_warning_timeout'] ?? 15); ?>"
-                                   min="1" max="60" step="1">
-                            <small class="text-muted">Minutes before expiry to show idle warning. Default: 15.</small>
+                                   min="1" max="120" step="1">
+                            <small class="text-muted">Minutes before expiry to show idle warning. Default: 15. Range 1–120.</small>
                           </div>
                           <div class="col-md-4">
                             <label class="form-label fw-semibold">Max Concurrent Sessions per User</label>
@@ -952,6 +958,37 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                 </div>
               </div>
 
+              <!-- Ticket Stock Settings Tab -->
+              <div class="tab-pane" id="ticket-stock" role="tabpanel" aria-labelledby="ticket-stock-tab">
+                <div class="card border-0">
+                  <div class="card-body">
+                    <h5 class="card-title mb-4"><span class="fas fa-boxes me-2"></span>Ticket Stock Settings</h5>
+                    <div class="alert alert-info fs-10 mb-4">
+                      <span class="fas fa-info-circle me-2"></span>
+                      <strong>Controlled Ticket Stock:</strong> Configure how physical ticket inventory is managed at POS and during fulfillment.
+                    </div>
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="allow_negative_ticket_stock" id="allowNegativeTicketStock" <?php echo ($settings['allow_negative_ticket_stock'] ?? 0) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="allowNegativeTicketStock">
+                            Allow Negative Ticket Stock Balance
+                          </label>
+                        </div>
+                        <small class="text-muted">
+                          When <strong>enabled</strong>, the system permits a provider/variant stock balance to go below zero during POS sale, dispatch, or manual adjustment.
+                          This should only be used temporarily for providers that allow overdraft-style issuance; monitor stock closely.
+                          <br>When <strong>disabled</strong> (recommended), sales, transfers, and adjustments are blocked once available quantity reaches zero.
+                        </small>
+                        <div class="alert alert-warning mt-2 py-2 fs-10 <?php echo ($settings['allow_negative_ticket_stock'] ?? 0) ? '' : 'd-none'; ?>" id="negativeStockWarning">
+                          <span class="fas fa-exclamation-triangle me-1"></span>
+                          <strong>Warning:</strong> Negative stock is currently <strong>enabled</strong>. Ensure reconciliation is performed regularly to avoid unaccounted inventory discrepancies.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1137,6 +1174,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
   if (cb && warn) {
     cb.addEventListener('change', function() {
       warn.classList.toggle('d-none', !this.checked);
+    });
+  }
+
+  var negativeCb = document.getElementById('allowNegativeTicketStock');
+  var negativeWarn = document.getElementById('negativeStockWarning');
+  if (negativeCb && negativeWarn) {
+    negativeCb.addEventListener('change', function() {
+      negativeWarn.classList.toggle('d-none', !this.checked);
     });
   }
 })();

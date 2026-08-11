@@ -235,6 +235,244 @@
     min-width: 0;
 }
 
+.cart-ticket-item {
+    margin-bottom: 0.75rem;
+    padding: 0.8rem;
+    cursor: default;
+    background: linear-gradient(145deg, #ffffff 0%, #f7faff 100%);
+    border: 1px solid #dbeafe;
+    border-left: 4px solid #2563eb;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 8px rgba(30, 64, 175, 0.08);
+}
+
+.cart-ticket-item:hover {
+    padding-left: 0.8rem;
+    background: linear-gradient(145deg, #ffffff 0%, #eff6ff 100%);
+    border-color: #93c5fd;
+    box-shadow: 0 5px 16px rgba(30, 64, 175, 0.13);
+    transform: translateY(-1px);
+}
+
+.cart-ticket-header,
+.cart-ticket-identity,
+.cart-ticket-actions {
+    display: flex;
+    align-items: center;
+}
+
+.cart-ticket-header {
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.cart-ticket-identity {
+    gap: 0.6rem;
+}
+
+.cart-ticket-icon {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-radius: 0.55rem;
+    box-shadow: 0 3px 8px rgba(37, 99, 235, 0.25);
+}
+
+.cart-ticket-passenger {
+    overflow: hidden;
+    color: #172554;
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cart-ticket-number {
+    margin-top: 0.1rem;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.cart-ticket-actions {
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.cart-ticket-total {
+    color: #047857;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.cart-ticket-remove {
+    display: inline-flex;
+    width: 1.75rem;
+    height: 1.75rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: #dc2626;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 0.45rem;
+    transition: all 0.15s ease;
+}
+
+.cart-ticket-remove:hover {
+    color: #ffffff;
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.cart-ticket-attributes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+.cart-ticket-attribute {
+    display: flex;
+    min-width: 0;
+    gap: 0.4rem;
+    padding: 0.4rem 0.45rem;
+    color: #475569;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.45rem;
+}
+
+.cart-ticket-attribute > .fas {
+    width: 0.85rem;
+    margin-top: 0.15rem;
+    color: #2563eb;
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.cart-ticket-attribute > div {
+    min-width: 0;
+}
+
+.cart-ticket-attribute span:not(.fas),
+.cart-ticket-attribute strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cart-ticket-attribute span:not(.fas) {
+    color: #94a3b8;
+    font-size: 0.61rem;
+    font-weight: 700;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.cart-ticket-attribute strong {
+    margin-top: 0.05rem;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.cart-ticket-attribute-sub-provider > .fas {
+    color: #7c3aed;
+}
+
+.cart-ticket-attribute-variant > .fas {
+    color: #0284c7;
+}
+
+.cart-ticket-attribute-accommodation > .fas {
+    color: #c2410c;
+}
+
+.cart-ticket-pricing {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px dashed #cbd5e1;
+}
+
+.cart-ticket-pricing > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.4rem;
+    color: #64748b;
+    font-size: 0.7rem;
+}
+
+.cart-ticket-pricing strong {
+    color: #334155;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.cart-ticket-pricing .cart-ticket-discount,
+.cart-ticket-pricing .cart-ticket-discount strong {
+    color: #059669;
+}
+
+@media (max-width: 380px) {
+    .cart-ticket-attributes,
+    .cart-ticket-pricing {
+        grid-template-columns: 1fr;
+    }
+}
+
+.cart-detail-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.3rem;
+}
+
+.cart-detail-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: 0.15rem 0.4rem;
+    color: #4b5563;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cart-detail-badge-sub {
+    color: #5b21b6;
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
+
+.cart-detail-badge-variant {
+    color: #075985;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+.payment-cart-ticket .cart-detail-badge {
+    font-size: 0.69rem;
+}
+
 /* ---- Payment Method Buttons ---- */
 .payment-method-btn {
     cursor: pointer;
@@ -608,4 +846,329 @@ select.address-choices:disabled {
     display: block !important;
     background-color: #e9ecef;
     opacity: 1;
+}
+
+/* ---- Variant Choices.js dropdown — 2-row layout with color swatch ---- */
+#ticketVariant + .choices .choices__item {
+    white-space: normal;
+    line-height: 1.3;
+}
+
+#ticketVariant + .choices .choices__list--dropdown .choices__item {
+    padding: 0.5rem 0.75rem;
+}
+
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover {
+    background-color: #0d6efd !important;
+}
+
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted div,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover div,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted span,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover span {
+    color: #fff !important;
+}
+
+/* ---- Main Provider Choices.js dropdown — 2-row layout ---- */
+#ticketMainProvider + .choices .choices__inner {
+    min-height: 38px;
+    height: auto;
+    padding: 0.375rem 0.75rem;
+}
+
+#mainProviderBalanceText {
+    display: none !important;
+}
+
+#ticketMainProvider + .choices .choices__item {
+    white-space: normal;
+    line-height: 1.3;
+}
+
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item {
+    padding: 0.5rem 0.75rem;
+}
+
+#ticketMainProvider + .choices .mp-row-name,
+#ticketMainProvider + .choices .mp-row-amount {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#ticketMainProvider + .choices .mp-row-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1rem;
+    font-weight: 400;
+    color: #212529;
+    line-height: 1.3;
+}
+
+#ticketMainProvider + .choices .mp-row-amount {
+    display: block;
+    font-family: 'Century Gothic', CenturyGothic, AppleGothic, Arial, sans-serif !important;
+    font-size: 0.65rem !important;
+    font-weight: 700 !important;
+    color: #6c757d !important;
+    line-height: 1.3 !important;
+    margin-top: 2px !important;
+}
+
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .mp-row-name,
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item--selectable:hover .mp-row-name,
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .mp-row-amount,
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item--selectable:hover .mp-row-amount {
+    color: #fff !important;
+}
+
+/* ---- Variant row styling for two-row layout ---- */
+#ticketVariant + .choices .choices__inner {
+    min-height: 38px;
+    height: auto;
+    padding: 0.375rem 0.75rem;
+}
+
+#ticketVariant + .choices .vr-row-name,
+#ticketVariant + .choices .vr-row-desc {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#ticketVariant + .choices .vr-row-desc {
+    font-family: 'Century Gothic', CenturyGothic, AppleGothic, Arial, sans-serif;
+    font-size: 0.65rem !important;
+    font-weight: 700;
+}
+
+#ticketVariant + .choices .vr-row-desc span {
+    font-weight: 700 !important;
+}
+
+/* ---- Bank account Choices.js dropdown — three-row account details ---- */
+#bankAccountRow .choices {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+#bankAccountRow .choices .choices__inner {
+    min-height: 38px;
+    height: auto;
+    padding: 0.375rem 0.75rem;
+    background: #fff;
+    border-color: #ced4da;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#bankAccountRow .choices.is-focused .choices__inner,
+#bankAccountRow .choices.is-open .choices__inner {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+#bankAccountRow .choices .choices__item {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+#bankAccountRow .choices .choices__list--dropdown,
+#bankAccountRow .choices .choices__list[aria-expanded] {
+    min-width: 100%;
+    max-height: 320px;
+    overflow: hidden;
+    border-color: #b8c7dc;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.16);
+}
+
+#bankAccountRow .choices .choices__list--dropdown .choices__item,
+#bankAccountRow .choices .choices__list[aria-expanded] .choices__item {
+    padding: 0.65rem 0.8rem;
+}
+
+#bankAccountRow .choices .choices__list--dropdown .choices__item:not(:last-child),
+#bankAccountRow .choices .choices__list[aria-expanded] .choices__item:not(:last-child) {
+    border-bottom-color: #e8eef7;
+}
+
+#bankAccountRow .choices .ba-account-option {
+    display: grid;
+    gap: 0.12rem;
+    min-width: 0;
+}
+
+#bankAccountRow .choices .ba-row {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#bankAccountRow .choices .ba-row-bank {
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+#bankAccountRow .choices .ba-row-account {
+    color: #1f2937;
+    font-size: 0.86rem;
+    font-weight: 800 !important;
+}
+
+#bankAccountRow .choices .ba-row-meta,
+#bankAccountRow .choices .ba-selected-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+#bankAccountRow .choices .ba-row-meta {
+    justify-content: flex-start;
+}
+
+#bankAccountRow .choices .choices__list--single,
+#bankAccountRow .choices .ba-selected-row {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+#bankAccountRow .choices .ba-row-type {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+#bankAccountRow .choices .ba-type-badge {
+    display: inline-block;
+    padding: 0.12rem 0.38rem;
+    color: #0369a1;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700 !important;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+#bankAccountRow .choices .ba-row-separator {
+    flex: 0 0 auto;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+#bankAccountRow .choices .ba-row-balance {
+    flex: 0 0 auto;
+    color: #047857;
+    font-family: 'Century Gothic', CenturyGothic, AppleGothic, Arial, sans-serif;
+    font-size: 0.64rem;
+    font-weight: 800 !important;
+    white-space: nowrap;
+}
+
+#bankAccountRow .choices .ba-selected-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: #334155;
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#bankAccountRow .choices .ba-selected-separator {
+    color: #94a3b8;
+}
+
+#bankAccountRow .choices .ba-placeholder {
+    color: #6c757d;
+}
+
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-row-bank,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-row-bank,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-row-account,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-row-account,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-row-type,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-row-type,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-row-balance,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-row-balance {
+    color: #fff !important;
+}
+
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-row-balance,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-row-balance {
+    opacity: 0.95;
+}
+
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-type-badge,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-type-badge {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .ba-row-separator,
+#bankAccountRow .choices .choices__list--dropdown .choices__item--selectable:hover .ba-row-separator {
+    color: #fff !important;
+}
+
+/* ---- Payment entry field proportions ---- */
+@media (min-width: 768px) {
+    #paymentEntryRow .payment-method-field,
+    #paymentEntryRow .payment-amount-field,
+    #paymentEntryRow .payment-reference-field,
+    #paymentEntryRow .payment-bank-field,
+    #paymentEntryRow .payment-actions-field {
+        flex: 0 0 auto;
+    }
+
+    #paymentEntryRow.payment-has-reference:not(.payment-has-bank-account) .payment-method-field,
+    #paymentEntryRow.payment-has-reference:not(.payment-has-bank-account) .payment-amount-field,
+    #paymentEntryRow.payment-has-bank-account:not(.payment-has-reference) .payment-method-field,
+    #paymentEntryRow.payment-has-bank-account:not(.payment-has-reference) .payment-amount-field {
+        width: 20%;
+        max-width: 20%;
+    }
+
+    #paymentEntryRow.payment-has-reference:not(.payment-has-bank-account) .payment-reference-field,
+    #paymentEntryRow.payment-has-bank-account:not(.payment-has-reference) .payment-bank-field {
+        width: 35%;
+        max-width: 35%;
+    }
+
+    #paymentEntryRow.payment-has-reference:not(.payment-has-bank-account) .payment-actions-field,
+    #paymentEntryRow.payment-has-bank-account:not(.payment-has-reference) .payment-actions-field {
+        width: 25%;
+        max-width: 25%;
+    }
+
+    #paymentEntryRow.payment-has-bank-account.payment-has-reference .payment-method-field,
+    #paymentEntryRow.payment-has-bank-account.payment-has-reference .payment-amount-field {
+        width: 15%;
+        max-width: 15%;
+    }
+
+    #paymentEntryRow.payment-has-bank-account.payment-has-reference .payment-reference-field {
+        width: 18%;
+        max-width: 18%;
+    }
+
+    #paymentEntryRow.payment-has-bank-account.payment-has-reference .payment-bank-field {
+        width: 32%;
+        max-width: 32%;
+    }
+
+    #paymentEntryRow.payment-has-bank-account.payment-has-reference .payment-actions-field {
+        width: 20%;
+        max-width: 20%;
+    }
 }

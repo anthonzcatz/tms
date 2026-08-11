@@ -1,0 +1,12 @@
+/* Ticket Variants admin page styles */
+.variant-color-swatch {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+
+#variantsTable .badge {
+    font-size: 0.75rem;
+}

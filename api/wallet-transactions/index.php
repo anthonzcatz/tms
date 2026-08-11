@@ -63,6 +63,14 @@ if (!$canViewTransactions) {
 $userBranchId = $user['branch_id'] ?? null;
 $userRoleCode = $user['role_code'] ?? '';
 
+function canAccessBranch($branchId) {
+    global $userRoleCode, $userBranchId;
+    if ($userRoleCode === 'SUPER_ADMIN') return true;
+    if (!$branchId || !$userBranchId) return false;
+    $allowed = array_filter(array_map('intval', explode(',', $userBranchId)));
+    return in_array((int)$branchId, $allowed);
+}
+
 // CSRF protection for POST/PUT/DELETE requests
 if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'])) {
     $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['_token'] ?? $_GET['_token'] ?? null;
@@ -109,6 +117,7 @@ try {
 function handleGet() {
     $txnId = $_GET['id'] ?? null;
     $walletId = $_GET['wallet_id'] ?? null;
+    $operatingProviderId = $_GET['operating_provider_id'] ?? null;
     $txnType = $_GET['txn_type'] ?? null;
     $direction = $_GET['direction'] ?? null;
     $search = $_GET['search'] ?? '';
@@ -133,13 +142,24 @@ function handleGet() {
         }
         $walletId = $decodedWalletId;
     }
+    if ($operatingProviderId && !ctype_digit((string)$operatingProviderId)) {
+        $decodedOperatingProviderId = IdEncoder::decode($operatingProviderId);
+        if ($decodedOperatingProviderId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid operating provider ID']);
+            return;
+        }
+        $operatingProviderId = $decodedOperatingProviderId;
+    }
 
     // Get single transaction
     if ($txnId) {
         $sql = "SELECT wt.*,
+                       pw.branch_id,
                        tp.provider_name as wallet_provider_name,
                        bb.branch_name,
-                       CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name,
+                       CONCAT(tp.provider_name,
+                              IF(pwv.variant_name IS NOT NULL, CONCAT(' - ', pwv.variant_name), ''),
+                              ' - ', bb.branch_name) as wallet_name,
                        ua.username as created_by_username,
                        CONCAT(
                            COALESCE(e.first_name, 'System'),
@@ -158,32 +178,47 @@ function handleGet() {
                        tt.origin, tt.destination, tt.travel_date,
                        tt.base_amount, tt.service_fee, tt.discount_amount, tt.total_amount as ticket_total_amount,
                        tt.status as ticket_status,
-                       pa.fullname as passenger_name
+                       pa.fullname as passenger_name,
+                       pv.variant_id as ticket_variant_id, pv.variant_code as ticket_variant_code,
+                       pv.variant_name as ticket_variant_name, pv.display_color as ticket_variant_color,
+                       pwv.variant_id as wallet_variant_id, pwv.variant_code as wallet_variant_code,
+                       pwv.variant_name as wallet_variant_name, pwv.display_color as wallet_variant_color,
+                       COALESCE(pv.variant_name, pwv.variant_name) as variant_name,
+                       COALESCE(pv.variant_code, pwv.variant_code) as variant_code,
+                       COALESCE(pv.display_color, pwv.display_color) as variant_color
                 FROM wallet_transactions wt
                 LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
                 LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
                 LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+                LEFT JOIN provider_ticket_variants pwv ON pw.variant_id = pwv.variant_id
                 LEFT JOIN user_accounts ua ON wt.created_by = ua.user_id
                 LEFT JOIN employees e ON ua.emp_id = e.emp_id
                 LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
                 LEFT JOIN ticket_providers tp_op ON tt.provider_id = tp_op.provider_id
                 LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
+                LEFT JOIN provider_ticket_variants pv ON tt.variant_id = pv.variant_id
                 WHERE wt.wallet_txn_id = :txn_id";
         
         $txn = Database::fetch($sql, ['txn_id' => (int)$txnId]);
-        
-        if ($txn) {
-            echo json_encode(['success' => true, 'data' => $txn]);
-        } else {
+
+        if (!$txn) {
             echo json_encode(['success' => false, 'error' => 'Transaction not found']);
+            return;
         }
+
+        if (!canAccessBranch($txn['branch_id'] ?? null)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied: transaction does not belong to your branch']);
+            return;
+        }
+
+        echo json_encode(['success' => true, 'data' => $txn]);
         return;
     }
 
     // List transactions with filters
     $where = ['1=1'];
     $params = [];
-    $branchJoin = '';
 
     // SUPER_ADMIN can see all transactions, others are restricted to their branch
     global $userRoleCode, $userBranchId;
@@ -195,13 +230,18 @@ function handleGet() {
                 $branchPlaceholders[] = ':user_branch_' . $i;
                 $params['user_branch_' . $i] = $branchId;
             }
-            $branchJoin = "AND pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+            $where[] = "pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
         }
     }
 
     if ($walletId) {
         $where[] = 'wt.wallet_id = :wallet_id';
         $params['wallet_id'] = (int)$walletId;
+    }
+
+    if ($operatingProviderId) {
+        $where[] = 'tt.provider_id = :operating_provider_id';
+        $params['operating_provider_id'] = (int)$operatingProviderId;
     }
 
     if ($txnType) {
@@ -215,7 +255,7 @@ function handleGet() {
     }
 
     if ($search) {
-        $where[] = '(wt.txn_code LIKE :search OR tp.provider_name LIKE :search OR tp_op.provider_name LIKE :search OR tt.transaction_code LIKE :search OR bb.branch_name LIKE :search OR wt.remarks LIKE :search)';
+        $where[] = '(wt.txn_code LIKE :search OR tp.provider_name LIKE :search OR tp_op.provider_name LIKE :search OR tt.transaction_code LIKE :search OR pwv.variant_code LIKE :search OR pwv.variant_name LIKE :search OR pv.variant_code LIKE :search OR pv.variant_name LIKE :search OR bb.branch_name LIKE :search OR wt.remarks LIKE :search)';
         $params['search'] = '%' . $search . '%';
     }
 
@@ -230,7 +270,9 @@ function handleGet() {
     $sql = "SELECT wt.*,
                    tp.provider_name as wallet_provider_name,
                    bb.branch_name,
-                   CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_name,
+                   CONCAT(tp.provider_name,
+                          IF(pwv.variant_name IS NOT NULL, CONCAT(' - ', pwv.variant_name), ''),
+                          ' - ', bb.branch_name) as wallet_name,
                    ua.username as created_by_username,
                    CONCAT(
                        COALESCE(e.first_name, 'System'),
@@ -248,16 +290,25 @@ function handleGet() {
                    tt.origin, tt.destination, tt.travel_date,
                    tt.base_amount, tt.service_fee, tt.discount_amount, tt.total_amount as ticket_total_amount,
                    tt.status as ticket_status,
-                   pa.fullname as passenger_name
+                   pa.fullname as passenger_name,
+                   pv.variant_id as ticket_variant_id, pv.variant_code as ticket_variant_code,
+                   pv.variant_name as ticket_variant_name, pv.display_color as ticket_variant_color,
+                   pwv.variant_id as wallet_variant_id, pwv.variant_code as wallet_variant_code,
+                   pwv.variant_name as wallet_variant_name, pwv.display_color as wallet_variant_color,
+                   COALESCE(pv.variant_name, pwv.variant_name) as variant_name,
+                   COALESCE(pv.variant_code, pwv.variant_code) as variant_code,
+                   COALESCE(pv.display_color, pwv.display_color) as variant_color
             FROM wallet_transactions wt
-            LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id $branchJoin
+            LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
             LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
             LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
+            LEFT JOIN provider_ticket_variants pwv ON pw.variant_id = pwv.variant_id
             LEFT JOIN user_accounts ua ON wt.created_by = ua.user_id
             LEFT JOIN employees e ON ua.emp_id = e.emp_id
             LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
             LEFT JOIN ticket_providers tp_op ON tt.provider_id = tp_op.provider_id
             LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
+            LEFT JOIN provider_ticket_variants pv ON tt.variant_id = pv.variant_id
             WHERE $whereClause
             ORDER BY wt.created_at DESC
             LIMIT :limit OFFSET :offset";
@@ -274,7 +325,9 @@ function handleGet() {
                     SUM(CASE WHEN direction = 'OUT' THEN amount ELSE 0 END) as totalOutflow,
                     SUM(CASE WHEN direction = 'IN' THEN amount ELSE -amount END) as netBalance
                  FROM wallet_transactions wt
-                 LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id $branchJoin
+                 LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
+                 LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
+                 LEFT JOIN provider_ticket_variants pv ON tt.variant_id = pv.variant_id
                  WHERE $whereClause";
 
     $statsParams = $params;
@@ -349,40 +402,49 @@ function handlePost() {
         return;
     }
 
-    // Get current wallet balance
-    $wallet = Database::fetch(
-        "SELECT current_balance FROM provider_wallets WHERE wallet_id = :wallet_id",
-        ['wallet_id' => (int)$walletId]
-    );
-
-    if (!$wallet) {
-        echo json_encode(['success' => false, 'error' => 'Wallet not found']);
-        return;
-    }
-
-    $currentBalance = (float)$wallet['current_balance'];
-    $balanceBefore = $currentBalance;
-
-    // Calculate new balance
-    if ($direction === 'IN') {
-        $balanceAfter = $currentBalance + (float)$amount;
-    } else {
-        // Check if sufficient balance for OUT transactions (unless overdraft is allowed)
-        global $allowWalletOverdraft;
-        if ($currentBalance < (float)$amount && !$allowWalletOverdraft) {
-            echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Enable overdraft in System Settings > POS Settings to allow negative balances.']);
-            return;
-        }
-        $balanceAfter = $currentBalance - (float)$amount;
-    }
-
     // Generate transaction code
     $txnCode = generateTransactionCode($txnType);
 
-    // Start transaction
+    // Start transaction before reading the wallet so we can lock the row.
     Database::connection()->beginTransaction();
 
     try {
+        // Get current wallet balance with FOR UPDATE to prevent concurrent overwrites.
+        $wallet = Database::fetch(
+            "SELECT wallet_id, current_balance, branch_id FROM provider_wallets WHERE wallet_id = :wallet_id AND status = 'active' FOR UPDATE",
+            ['wallet_id' => (int)$walletId]
+        );
+
+        if (!$wallet) {
+            Database::connection()->rollBack();
+            echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive']);
+            return;
+        }
+
+        if (!canAccessBranch($wallet['branch_id'] ?? null)) {
+            Database::connection()->rollBack();
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied: wallet does not belong to your branch']);
+            return;
+        }
+
+        $currentBalance = (float)$wallet['current_balance'];
+        $balanceBefore = $currentBalance;
+
+        // Calculate new balance
+        if ($direction === 'IN') {
+            $balanceAfter = $currentBalance + (float)$amount;
+        } else {
+            // Check if sufficient balance for OUT transactions (unless overdraft is allowed)
+            global $allowWalletOverdraft;
+            if ($currentBalance < (float)$amount && !$allowWalletOverdraft) {
+                Database::connection()->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Enable overdraft in System Settings > POS Settings to allow negative balances.']);
+                return;
+            }
+            $balanceAfter = $currentBalance - (float)$amount;
+        }
+
         // Insert transaction record
         $sql = "INSERT INTO wallet_transactions 
                 (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, 
@@ -409,7 +471,7 @@ function handlePost() {
 
         // Update wallet balance
         Database::execute(
-            "UPDATE provider_wallets SET current_balance = :new_balance WHERE wallet_id = :wallet_id",
+            "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wallet_id",
             ['new_balance' => $balanceAfter, 'wallet_id' => (int)$walletId]
         );
 
@@ -454,12 +516,13 @@ function handlePost() {
             $lowBalanceThreshold = $wallet['min_balance'] ?? 1000; // Use wallet's threshold or default to 1000
 
             if ($balanceAfter < $lowBalanceThreshold && $direction === 'OUT') {
-                // Notify wallet owner (provider admin)
+                // Notify wallet owner / branch admin users (SUPER_ADMIN handled separately below)
                 $providerAdmins = Database::fetchAll(
                     "SELECT ua.user_id 
                      FROM user_accounts ua
+                     JOIN user_roles r ON ua.role_id = r.role_id
                      WHERE ua.branch_id = :branch_id 
-                     AND ua.role_code IN ('SUPER_ADMIN', 'ADMIN')
+                     AND r.role_code = 'ADMIN'
                      AND ua.status = 'active'",
                     ['branch_id' => $wallet['branch_id']]
                 );

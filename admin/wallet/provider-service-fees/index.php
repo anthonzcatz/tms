@@ -18,7 +18,7 @@ header('Expires: 0');
 
 // Get current user
 $user = Auth::user();
-$userBranchId = $user['branch_id'] ?? null;
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
 $userRoleCode = $user['role_code'] ?? '';
 
 // SUPER_ADMIN can see all fees, others are restricted to their branch
@@ -26,8 +26,15 @@ $branchFilter = "";
 $params = [];
 
 if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchFilter = "WHERE psf.branch_id = :branch_id";
-    $params['branch_id'] = $userBranchId;
+    $branchIds = array_filter(array_map('trim', explode(',', $userBranchId)));
+    if (!empty($branchIds)) {
+        $branchPlaceholders = [];
+        foreach ($branchIds as $i => $branchId) {
+            $branchPlaceholders[] = ':branch_' . $i;
+            $params['branch_' . $i] = (int)$branchId;
+        }
+        $branchFilter = "WHERE psf.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+    }
 }
 
 // Get all service fees

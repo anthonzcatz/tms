@@ -33,9 +33,31 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 // Get current user
 $user = Auth::user();
 
-// Fetch all providers
-$sql = "SELECT * FROM ticket_providers ORDER BY provider_name";
+// Fetch all providers with main/sub-provider info, variant counts and sub-provider counts
+$sql = "SELECT tp.*, ptp.provider_name as parent_provider_name, ptp.provider_code as parent_provider_code,
+            (SELECT COUNT(*)
+             FROM provider_ticket_variants v
+             WHERE v.provider_id = tp.provider_id
+               AND v.deleted_at IS NULL) AS variant_count,
+            (SELECT COUNT(*)
+             FROM ticket_providers sp
+             WHERE sp.parent_provider_id = tp.provider_id) AS sub_provider_count
+        FROM ticket_providers tp
+        LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
+        ORDER BY COALESCE(ptp.provider_name, tp.provider_name), tp.parent_provider_id IS NOT NULL ASC, tp.provider_name";
 $providers = Database::fetchAll($sql);
+
+// Build filter dropdown data
+$types = array_unique(array_column($providers, 'provider_type'));
+sort($types);
+
+$mainProviders = [];
+foreach ($providers as $provider) {
+    if (!empty($provider['parent_provider_id']) && !empty($provider['parent_provider_name'])) {
+        $mainProviders[$provider['parent_provider_id']] = $provider['parent_provider_name'];
+    }
+}
+asort($mainProviders);
 
 // Include the main view
 include __DIR__ . '/views/index.php';

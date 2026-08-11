@@ -4,11 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Service Types module initialized');
 });
 
-let addServiceTypeModal, editServiceTypeModal;
+let addServiceTypeModal, editServiceTypeModal, deleteServiceTypeModal;
+let pendingDeleteServiceTypeId = null;
+let pendingDeleteServiceTypeName = '';
 
 document.addEventListener('DOMContentLoaded', function() {
     addServiceTypeModal = new bootstrap.Modal(document.getElementById('addServiceTypeModal'));
     editServiceTypeModal = new bootstrap.Modal(document.getElementById('editServiceTypeModal'));
+    deleteServiceTypeModal = new bootstrap.Modal(document.getElementById('deleteServiceTypeModal'));
+
+    const confirmDeleteBtn = document.getElementById('confirmDeleteServiceTypeBtn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', confirmDeleteServiceType);
+    }
 });
 
 function toggleHowItWorks() {
@@ -160,8 +168,17 @@ async function toggleServiceTypeStatus(id, isActive) {
     }
 }
 
-async function deleteServiceType(id, name) {
-    if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis cannot be undone if already used in transactions.`)) return;
+function deleteServiceType(id, name) {
+    pendingDeleteServiceTypeId = id;
+    pendingDeleteServiceTypeName = name;
+    document.getElementById('deleteServiceTypeName').textContent = name;
+    deleteServiceTypeModal.show();
+}
+
+async function confirmDeleteServiceType() {
+    const id = pendingDeleteServiceTypeId;
+    const name = pendingDeleteServiceTypeName;
+    if (!id) return;
 
     try {
         const response = await fetch(`${window.BASE_URL}/api/service-types`, {
@@ -170,6 +187,7 @@ async function deleteServiceType(id, name) {
             body: JSON.stringify({ service_type_id: id })
         });
         const result = await response.json();
+        deleteServiceTypeModal.hide();
         if (result.success) {
             showToast('success', 'Deleted', `"${name}" has been deleted.`);
             setTimeout(() => location.reload(), 1200);
@@ -177,8 +195,12 @@ async function deleteServiceType(id, name) {
             showToast('danger', 'Error', result.error || 'Failed to delete service type.');
         }
     } catch (err) {
+        deleteServiceTypeModal.hide();
         showToast('danger', 'Error', 'An unexpected error occurred.');
         console.error(err);
+    } finally {
+        pendingDeleteServiceTypeId = null;
+        pendingDeleteServiceTypeName = '';
     }
 }
 

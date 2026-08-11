@@ -2,10 +2,28 @@
 class SecurityHelper {
     // Generate CSRF token
     public static function generateCSRFToken(): string {
-        if (empty($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            $_SESSION['csrf_token_time'] = time();
+        $lifetimeMinutes = 480;
+        try {
+            $row = Database::fetch("SELECT csrf_token_lifetime_minutes FROM system_settings LIMIT 1");
+            $lifetimeMinutes = (int) ($row['csrf_token_lifetime_minutes'] ?? 480);
+        } catch (\Exception $e) {
+            $lifetimeMinutes = 480;
         }
+
+        $needsNewToken = empty($_SESSION['csrf_token'])
+            || empty($_SESSION['csrf_token_time']);
+
+        if (!$needsNewToken) {
+            $tokenTime = (int) $_SESSION['csrf_token_time'];
+            if (time() - $tokenTime > $lifetimeMinutes * 60) {
+                $needsNewToken = true;
+            }
+        }
+
+        if ($needsNewToken) {
+            self::regenerateCSRFToken();
+        }
+
         return $_SESSION['csrf_token'];
     }
     

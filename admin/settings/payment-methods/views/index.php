@@ -377,6 +377,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
 
   <?php include __DIR__ . '/modals/add_method.php'; ?>
   <?php include __DIR__ . '/modals/edit_method.php'; ?>
+  <?php include __DIR__ . '/modals/delete_method.php'; ?>
   <?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
 </body>
 </html>

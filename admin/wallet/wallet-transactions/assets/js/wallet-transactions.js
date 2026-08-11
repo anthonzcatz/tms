@@ -47,6 +47,7 @@ function setupEventListeners() {
         filterTransactions();
         updateCurrentBalance();
     });
+    document.getElementById('operatingProviderFilter').addEventListener('change', filterTransactions);
     document.getElementById('txnTypeFilter').addEventListener('change', filterTransactions);
     document.getElementById('directionFilter').addEventListener('change', filterTransactions);
 
@@ -156,8 +157,7 @@ async function updateCurrentBalance() {
         return;
     }
     try {
-        const encodedWalletId = IdEncoder.encode(walletId);
-        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${encodedWalletId}`);
+        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${walletId}`);
         const result = await res.json();
         if (result.success && result.data) {
             el.textContent = formatCurrency(result.data.current_balance ?? result.data.wallet?.current_balance ?? 0);
@@ -205,8 +205,7 @@ async function refreshWalletBalance() {
     if (refreshBtn) refreshBtn.disabled = true;
 
     try {
-        const encodedWalletId = IdEncoder.encode(walletId);
-        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${encodedWalletId}`);
+        const res = await fetch(`${window.BASE_URL}/api/wallets?id=${walletId}`);
         const result = await res.json();
         if (result.success && result.data) {
             const newBalance = result.data.current_balance ?? 0;
@@ -239,6 +238,7 @@ async function refreshWalletBalance() {
 function filterTransactions() {
     const search = document.getElementById('transactionSearch').value.toLowerCase();
     const walletId = document.getElementById('walletFilter').value;
+    const operatingProviderId = document.getElementById('operatingProviderFilter').value;
     const txnType = document.getElementById('txnTypeFilter').value;
     const direction = document.getElementById('directionFilter').value;
     const dateFilterEl = document.getElementById('dateFilter');
@@ -249,15 +249,22 @@ function filterTransactions() {
         const matchesSearch = !search || 
             txn.txn_code?.toLowerCase().includes(search) ||
             txn.wallet_name?.toLowerCase().includes(search) ||
+            txn.wallet_provider_name?.toLowerCase().includes(search) ||
+            txn.operating_provider_name?.toLowerCase().includes(search) ||
             txn.remarks?.toLowerCase().includes(search) ||
             txn.ticket_txn_code?.toLowerCase().includes(search) ||
             txn.passenger_name?.toLowerCase().includes(search) ||
+            txn.variant_code?.toLowerCase().includes(search) ||
+            txn.variant_name?.toLowerCase().includes(search) ||
             txn.origin?.toLowerCase().includes(search) ||
             txn.destination?.toLowerCase().includes(search);
         
         // Wallet filter
         const matchesWallet = !walletId || txn.wallet_id == walletId;
         
+        // Operating provider filter
+        const matchesOperatingProvider = !operatingProviderId || txn.operating_provider_id == operatingProviderId;
+
         // Transaction type filter
         const matchesTxnType = !txnType || txn.txn_type === txnType;
         
@@ -281,7 +288,7 @@ function filterTransactions() {
             matchesDate = txnDate === dateFilterEl.value;
         }
         
-        return matchesSearch && matchesWallet && matchesTxnType && matchesDirection && matchesDate;
+        return matchesSearch && matchesWallet && matchesOperatingProvider && matchesTxnType && matchesDirection && matchesDate;
     });
     
     currentPage = 1;
@@ -307,9 +314,20 @@ function renderTransactions() {
                 <span class="fw-bold">${txn.txn_code || '-'}</span>
             </td>
             <td>
-                <div class="fw-bold">${txn.wallet_name || '-'}</div>
-                <small class="text-muted">${txn.wallet_provider_name || ''}</small>
-                ${txn.operating_provider_name && txn.operating_provider_name !== (txn.wallet_provider_name || txn.provider_name) ? `<div class="small text-muted">Op: ${txn.operating_provider_name}</div>` : ''}
+                <div class="fw-bold">${txn.operating_provider_name || txn.wallet_provider_name || '-'}</div>
+            </td>
+            <td>
+                ${txn.variant_name ? `
+                <div class="d-flex align-items-center">
+                    <span class="d-inline-block rounded me-2" style="width:12px;height:12px;background:${txn.variant_color || '#0d6efd'};border:1px solid #dee2e6;"></span>
+                    <span class="fw-bold small">${txn.variant_name}</span>
+                </div>
+                ${txn.variant_code ? `<small class="text-muted d-block ms-4">${txn.variant_code}</small>` : ''}
+                ` : '<span class="text-muted">-</span>'}
+            </td>
+            <td>
+                <div class="fw-bold">${txn.wallet_provider_name || '-'}</div>
+                <small class="text-muted">${txn.wallet_name || '-'}</small>
             </td>
             <td>
                 <span class="txn-type-badge txn-type-${txn.txn_type}">${txn.txn_type}</span>
@@ -344,7 +362,7 @@ function renderEmptyState() {
     const tbody = document.getElementById('transactionsTableBody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="8">
+            <td colspan="10">
                 <div class="empty-state">
                     <div class="empty-state-icon">
                         <span class="fas fa-receipt"></span>
@@ -411,6 +429,7 @@ function changePage(page) {
 function resetFilters() {
     document.getElementById('transactionSearch').value = '';
     document.getElementById('walletFilter').value = '';
+    document.getElementById('operatingProviderFilter').value = '';
     document.getElementById('txnTypeFilter').value = '';
     document.getElementById('directionFilter').value = '';
     const dateEl = document.getElementById('dateFilter');
@@ -489,7 +508,8 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
             if (!walletId) {
                 addTransactionModal.hide();
             }
-            loadTransactions();
+            await loadTransactions();
+            updateCurrentBalance();
             if (walletManagementModal._isShown) {
                 loadWallets();
             }
@@ -529,6 +549,12 @@ async function viewTransaction(txnId) {
                             <div class="col-md-6">
                                 <label class="fw-bold text-muted small mb-1">Ticket Status</label>
                                 <div><span class="badge ${txn.ticket_status === 'cancelled' ? 'bg-danger' : txn.ticket_status === 'refunded' ? 'bg-warning' : 'bg-success'}">${txn.ticket_status || '-'}</span></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Variant</label>
+                                <div>
+                                    ${txn.variant_name ? `<span class="d-inline-block rounded me-1" style="width:14px;height:14px;background:${txn.variant_color || '#0d6efd'};border:1px solid #dee2e6;"></span><span class="fw-semibold">${txn.variant_name}</span>${txn.variant_code ? ` <small class="text-muted">(${txn.variant_code})</small>` : ''}` : '-'}
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="fw-bold text-muted small mb-1">Passenger</label>
@@ -653,7 +679,33 @@ async function viewTransaction(txnId) {
 
 // Export transactions
 function exportTransactions() {
-    showToast('info', 'Info', 'Export feature coming soon');
+    if (!filteredTransactions.length) {
+        showToast('warning', 'Warning', 'No transactions to export');
+        return;
+    }
+
+    const header = ['Transaction Code', 'Sub-provider', 'Variant', 'Main Provider', 'Wallet', 'Type', 'Direction', 'Amount', 'Balance After', 'Remarks', 'Date'];
+    const rows = filteredTransactions.map(txn => [
+        txn.txn_code || '',
+        txn.operating_provider_name || txn.wallet_provider_name || '',
+        txn.variant_name || '',
+        txn.wallet_provider_name || '',
+        txn.wallet_name || '',
+        txn.txn_type || '',
+        txn.direction || '',
+        Number(txn.amount || 0).toFixed(2),
+        Number(txn.balance_after || 0).toFixed(2),
+        txn.remarks || '',
+        txn.created_at || ''
+    ]);
+    const csv = [header, ...rows]
+        .map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    link.download = `wallet-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
 }
 
 // Open wallet management modal
@@ -695,6 +747,15 @@ function renderWalletsTable() {
         <tr>
             <td><strong>${wallet.wallet_name || '-'}</strong></td>
             <td>${wallet.provider_name || '-'}</td>
+            <td>
+                ${wallet.variant_name ? `
+                <div class="d-flex align-items-center">
+                    <span class="d-inline-block rounded me-2" style="width:12px;height:12px;background:${wallet.variant_color || '#0d6efd'};border:1px solid #dee2e6;"></span>
+                    <span class="small">${wallet.variant_name}</span>
+                </div>
+                ${wallet.variant_code ? `<small class="text-muted d-block ms-4">${wallet.variant_code}</small>` : ''}
+                ` : '<span class="text-muted">-</span>'}
+            </td>
             <td>${wallet.branch_name || '-'}</td>
             <td class="${wallet.current_balance >= 0 ? 'balance-positive' : 'balance-negative'}">
                 ${formatCurrency(wallet.current_balance)}
@@ -723,7 +784,7 @@ function renderEmptyWalletsState() {
     const tbody = document.getElementById('walletsTableBody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="6">
+            <td colspan="7">
                 <div class="empty-state">
                     <div class="empty-state-icon">
                         <span class="fas fa-wallet"></span>
@@ -764,18 +825,23 @@ function adjustWalletBalance(walletId) {
     openAddTransactionModal();
 
     // Pre-fill the form
-    document.getElementById('addWalletId').value = walletId;
+    const addWalletId = document.getElementById('addWalletId');
+    addWalletId.value = walletId;
     document.getElementById('addTxnType').value = 'ADJUSTMENT';
     document.getElementById('addDirection').value = '';
     document.getElementById('addAmount').value = '';
-    document.getElementById('addRemarks').value = `Balance adjustment for ${wallet.wallet_name}`;
+
+    // Use the add transaction dropdown display name if available
+    const selectedOption = addWalletId.options[addWalletId.selectedIndex];
+    const displayWalletName = selectedOption?.getAttribute('data-name') || wallet.wallet_name || '-';
+    document.getElementById('addRemarks').value = `Balance adjustment for ${displayWalletName}`;
 
     // Update the balance display using the wallet data we already have
     const alertEl = document.getElementById('currentBalanceAlert');
     const balanceEl = document.getElementById('displayCurrentBalance');
     const walletNameEl = document.getElementById('displayWalletName');
     balanceEl.textContent = formatCurrency(wallet.current_balance ?? 0);
-    walletNameEl.textContent = wallet.wallet_name || '-';
+    walletNameEl.textContent = displayWalletName;
     alertEl.style.display = 'block';
 
     showToast('info', 'Info', 'Please select direction and enter adjustment amount');

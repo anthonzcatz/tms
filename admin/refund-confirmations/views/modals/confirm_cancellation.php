@@ -57,6 +57,10 @@
                     <small class="text-muted d-block">Cancellation Type</small>
                     <strong id="modalCancellationType">-</strong>
                   </div>
+                  <div class="col-md-6" id="modalWalletToCreditContainer">
+                    <small class="text-muted d-block">Wallet to Credit</small>
+                    <strong id="modalWalletToCredit">-</strong>
+                  </div>
                   <div class="col-md-6">
                     <small class="text-muted d-block">Passenger</small>
                     <strong id="modalPassenger">-</strong>

@@ -154,9 +154,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
           <div class="card-body" id="howItWorksContent" style="display: none;">
             <ul class="mb-0">
-              <li>Manage service fees for different providers and branches</li>
-              <li>Fees can be fixed amount or percentage based</li>
+              <li>Manage service fees for main providers and branches</li>
+              <li>Fees can be a fixed amount or a percentage of the transaction</li>
+              <li>Service fees can only be assigned to main (top-level) providers; sub-providers share the main provider fee</li>
               <li>Active fees are applied to transactions, inactive fees are paused</li>
+              <li>Smart detection pre-fills and updates an existing fee when the same branch/provider/type is selected</li>
               <li>Only users with VIEW_WALLET_MANAGEMENT permission can access this module</li>
             </ul>
           </div>
@@ -224,7 +226,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <?php
                   $feeTypes = array_unique(array_column($fees, 'fee_type'));
                   foreach ($feeTypes as $type) {
-                      echo '<option value="' . htmlspecialchars($type) . '">' . htmlspecialchars($type) . '</option>';
+                      $feeTypeLabel = ucfirst(strtolower($type));
+                      echo '<option value="' . htmlspecialchars($type) . '">' . htmlspecialchars($feeTypeLabel) . '</option>';
                   }
                   ?>
                 </select>

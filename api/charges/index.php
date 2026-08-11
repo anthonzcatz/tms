@@ -110,15 +110,6 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'error' => 'branch_id is required.']); return;
     }
 
-    // Get current balance
-    $chargeRow = Database::fetch("SELECT * FROM customer_charges WHERE passenger_id = :pid", ['pid' => $passengerId]);
-    if (!$chargeRow) { echo json_encode(['success' => false, 'error' => 'No charge record found for this customer.']); return; }
-    if ($chargeRow['balance'] <= 0) { echo json_encode(['success' => false, 'error' => 'Customer has no outstanding balance.']); return; }
-
-    $balBefore = floatval($chargeRow['balance']);
-    $applied   = min($amountPaid, $balBefore);
-    $balAfter  = $balBefore - $applied;
-
     $payCode = 'CP-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
     $pm = Database::fetch("SELECT * FROM payment_methods WHERE method_id = :id", ['id' => $methodId]);
     
@@ -140,6 +131,24 @@ if ($method === 'POST') {
     try {
         Database::connection()->beginTransaction();
 
+        // Re-read customer_charges inside the transaction and lock the row to prevent
+        // concurrent charge payments from over-applying or corrupting the balance.
+        $chargeRow = Database::fetch("SELECT * FROM customer_charges WHERE passenger_id = :pid FOR UPDATE", ['pid' => $passengerId]);
+        if (!$chargeRow) {
+            Database::connection()->rollBack();
+            echo json_encode(['success' => false, 'error' => 'No charge record found for this customer.']);
+            return;
+        }
+        if ($chargeRow['balance'] <= 0) {
+            Database::connection()->rollBack();
+            echo json_encode(['success' => false, 'error' => 'Customer has no outstanding balance.']);
+            return;
+        }
+
+        $balBefore = floatval($chargeRow['balance']);
+        $applied   = min($amountPaid, $balBefore);
+        $balAfter  = $balBefore - $applied;
+
         Database::execute(
             "INSERT INTO charge_payments
                 (payment_code, passenger_id, branch_id, payment_method_id, bank_account_id, amount_paid, balance_before, balance_after,
@@ -151,10 +160,12 @@ if ($method === 'POST') {
              'created_at' => date('Y-m-d H:i:s')]
         );
 
+        $chargePaymentId = Database::connection()->lastInsertId();
+
         // Create bank transaction if payment method is bank/e-wallet and bank_account_id is provided
         // Only create immediately if confirmation is NOT required
         if ($bankAcctId && ($pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET') && !$requireConfirmation) {
-            $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $bankAcctId]);
+            $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id FOR UPDATE", ['id' => $bankAcctId]);
             if ($bankAccount) {
                 $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
                 $balAfterBank = $balBeforeBank + $applied;
@@ -171,7 +182,7 @@ if ($method === 'POST') {
                         'amount' => $applied,
                         'before' => $balBeforeBank,
                         'after' => $balAfterBank,
-                        'ref_id' => Database::connection()->lastInsertId(),
+                        'ref_id' => $chargePaymentId,
                         'remarks' => "Payment collection from passenger {$passengerId}",
                         'uid' => $user['user_id'],
                         'created_at' => date('Y-m-d H:i:s')
@@ -179,7 +190,7 @@ if ($method === 'POST') {
                 );
                 
                 Database::execute(
-                    "UPDATE bank_accounts SET current_balance = :balance WHERE bank_account_id = :id",
+                    "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
                     ['balance' => $balAfterBank, 'id' => $bankAcctId]
                 );
                 

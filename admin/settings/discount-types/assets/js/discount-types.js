@@ -1,10 +1,18 @@
 // Discount Types Module
 
-let addDiscountTypeModal, editDiscountTypeModal;
+let addDiscountTypeModal, editDiscountTypeModal, deleteDiscountTypeModal;
+let pendingDeleteDiscountTypeId = null;
+let pendingDeleteDiscountTypeName = '';
 
 document.addEventListener('DOMContentLoaded', function () {
     addDiscountTypeModal = new bootstrap.Modal(document.getElementById('addDiscountTypeModal'));
     editDiscountTypeModal = new bootstrap.Modal(document.getElementById('editDiscountTypeModal'));
+    deleteDiscountTypeModal = new bootstrap.Modal(document.getElementById('deleteDiscountTypeModal'));
+
+    const confirmDeleteBtn = document.getElementById('confirmDeleteDiscountTypeBtn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', confirmDeleteDiscountType);
+    }
 });
 
 function openAddDiscountTypeModal() {
@@ -115,12 +123,17 @@ async function submitEditDiscountType() {
     }
 }
 
-async function deleteDiscountType(id, name) {
-    const confirmed = await showConfirmToast(
-        'Delete Discount Type',
-        `Are you sure you want to delete "<strong>${name}</strong>"? Types used in transactions cannot be deleted.`
-    );
-    if (!confirmed) return;
+function deleteDiscountType(id, name) {
+    pendingDeleteDiscountTypeId = id;
+    pendingDeleteDiscountTypeName = name;
+    document.getElementById('deleteDiscountTypeName').textContent = name;
+    deleteDiscountTypeModal.show();
+}
+
+async function confirmDeleteDiscountType() {
+    const id = pendingDeleteDiscountTypeId;
+    const name = pendingDeleteDiscountTypeName;
+    if (!id) return;
 
     try {
         const res = await fetch(`${window.BASE_URL}/api/discount-types`, {
@@ -129,6 +142,7 @@ async function deleteDiscountType(id, name) {
             body: JSON.stringify({ discount_id: id }),
         });
         const result = await res.json();
+        deleteDiscountTypeModal.hide();
         if (result.success) {
             showToast('success', 'Deleted', `"${name}" has been deleted.`);
             setTimeout(() => location.reload(), 1200);
@@ -136,8 +150,12 @@ async function deleteDiscountType(id, name) {
             showToast('danger', 'Error', result.error || 'Failed to delete discount type.');
         }
     } catch (err) {
+        deleteDiscountTypeModal.hide();
         showToast('danger', 'Error', 'An unexpected error occurred.');
         console.error(err);
+    } finally {
+        pendingDeleteDiscountTypeId = null;
+        pendingDeleteDiscountTypeName = '';
     }
 }
 
@@ -160,40 +178,6 @@ function applyFilters() {
 function resetFilters() {
     document.getElementById('filterSearch').value = '';
     applyFilters();
-}
-
-function showConfirmToast(title, message) {
-    return new Promise(resolve => {
-        document.querySelectorAll('.custom-confirm-toast').forEach(t => t.remove());
-        const toast = document.createElement('div');
-        toast.className = 'custom-confirm-toast position-fixed';
-        toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 360px; max-width: 460px;';
-        toast.innerHTML = `
-            <div class="card shadow border-0" style="border-radius: 10px; overflow: hidden;">
-                <div class="card-header bg-danger text-white py-2 px-3 d-flex align-items-center">
-                    <span class="fas fa-exclamation-triangle me-2"></span>
-                    <strong>${title}</strong>
-                </div>
-                <div class="card-body px-3 py-3">
-                    <p class="mb-3" style="font-size:0.9rem;">${message}</p>
-                    <div class="d-flex gap-2 justify-content-end">
-                        <button class="btn btn-sm btn-secondary" id="confirmToastCancel">
-                            <span class="fas fa-times me-1"></span>Cancel
-                        </button>
-                        <button class="btn btn-sm btn-danger" id="confirmToastOk">
-                            <span class="fas fa-trash me-1"></span>Delete
-                        </button>
-                    </div>
-                </div>
-            </div>`;
-        document.body.appendChild(toast);
-        toast.querySelector('#confirmToastOk').addEventListener('click', () => {
-            toast.remove(); resolve(true);
-        });
-        toast.querySelector('#confirmToastCancel').addEventListener('click', () => {
-            toast.remove(); resolve(false);
-        });
-    });
 }
 
 function showToast(type, title, message) {

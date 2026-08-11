@@ -27,9 +27,9 @@ $paymentMethods = Database::fetchAll(
     "SELECT * FROM payment_methods WHERE is_active = 1 ORDER BY sort_order ASC, method_name ASC"
 );
 
-// Fetch active service types
-$serviceTypes = Database::fetchAll(
-    "SELECT * FROM service_types WHERE is_active = 1 ORDER BY name ASC"
+// Fetch active add-on service types (does NOT require a wallet)
+$addonServiceTypes = Database::fetchAll(
+    "SELECT * FROM service_types WHERE is_active = 1 AND (requires_wallet = 0 OR requires_wallet IS NULL) ORDER BY name ASC"
 );
 
 // Fetch active branches for this user
@@ -93,7 +93,7 @@ if ($activeBranchId) {
 
 // Fetch active bank accounts for bank transfer/e-wallet methods
 $bankAccounts = Database::fetchAll(
-    "SELECT ba.*, pm.method_code, pm.method_name
+    "SELECT ba.*, pm.method_code, pm.method_name, pm.method_type
      FROM bank_accounts ba
      LEFT JOIN payment_methods pm ON ba.payment_method_id = pm.method_id
      WHERE ba.is_active = 1
@@ -122,7 +122,8 @@ $posSettings = Database::fetch(
     "SELECT pos_cashier_can_open_session,
             pos_cashier_can_close_session,
             pos_manager_can_open_for_cashier,
-            pos_manager_can_close_for_cashier
+            pos_manager_can_close_for_cashier,
+            allow_negative_ticket_stock
      FROM system_settings
      WHERE setting_id = 1"
 );
@@ -172,7 +173,7 @@ $printerSettings = Database::fetch(
 $viewData = [
     'userBranchId' => $userBranchId,
     'activeSession' => $activeSession,
-    'serviceTypes' => $serviceTypes,
+    'addonServiceTypes' => $addonServiceTypes,
     'paymentMethods' => $paymentMethods,
     'bankAccounts' => $bankAccounts,
     'passengers' => $passengers,

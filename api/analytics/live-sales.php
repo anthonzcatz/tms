@@ -15,37 +15,59 @@ try {
     // Get time range (default to last 1 hour for real-time data)
     $hours = isset($_GET['hours']) ? intval($_GET['hours']) : 1;
     $today = isset($_GET['today']) && $_GET['today'] === 'true';
-    $branchId = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
+    $branchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
+        ? $_GET['branch_id']
+        : null;
+    $branchId = null;
 
     // Decode branch_id if provided
-    if ($branchId) {
-        $decodedBranchId = IdEncoder::decode($branchId);
-        if ($decodedBranchId === false) {
+    if ($branchIdRaw !== null) {
+        $branchId = IdEncoder::decode($branchIdRaw);
+        if ($branchId === false) {
             echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
             exit;
         }
-        $branchId = $decodedBranchId;
+    }
+
+    // Build a named branch condition so the totals, recent transactions,
+    // and every chart bucket use the exact same branch scope.
+    $branchWhere = '';
+    $branchParams = [];
+    if ($branchId !== null) {
+        if ($user['role_code'] !== 'SUPER_ADMIN') {
+            $allowedBranchIds = array_map('intval', array_filter(explode(',', $user['branch_id'] ?? ''), function ($id) {
+                return trim($id) !== '';
+            }));
+            if (!in_array((int)$branchId, $allowedBranchIds, true)) {
+                echo json_encode(['success' => false, 'error' => 'Access denied for this branch']);
+                exit;
+            }
+        }
+
+        $branchWhere = ' AND po.branch_id = :branch_id';
+        $branchParams['branch_id'] = (int)$branchId;
+    } elseif ($user['role_code'] !== 'SUPER_ADMIN' && !empty($user['branch_id'])) {
+        $branchIds = array_filter(explode(',', $user['branch_id']), function ($id) {
+            return trim($id) !== '';
+        });
+        $branchPlaceholders = [];
+        foreach ($branchIds as $index => $id) {
+            $key = 'user_branch_' . $index;
+            $branchPlaceholders[] = ':' . $key;
+            $branchParams[$key] = trim($id);
+        }
+        if ($branchPlaceholders) {
+            $branchWhere = ' AND po.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
+        }
     }
 
     // Build query for live sales from POS orders
     if ($today) {
-        $whereClause = "WHERE po.status = 'completed' AND DATE(po.created_at) = CURDATE()";
-        $params = [];
+        $whereClause = "WHERE po.status = 'completed' AND DATE(po.created_at) = CURDATE()" . $branchWhere;
+        $params = $branchParams;
     } else {
-        $whereClause = "WHERE po.status = 'completed' AND po.created_at >= DATE_SUB(NOW(), INTERVAL :hours HOUR)";
-        $params = ['hours' => $hours];
-    }
-
-    // Filter by branch if specified and user is not SUPER_ADMIN
-    if ($branchId && $user['role_code'] !== 'SUPER_ADMIN') {
-        $whereClause .= " AND po.branch_id = :branch_id";
-        $params['branch_id'] = $branchId;
-    } elseif ($user['role_code'] !== 'SUPER_ADMIN' && $user['branch_id']) {
-        // Filter by user's assigned branches
-        $userBranchIds = array_map('trim', explode(',', $user['branch_id']));
-        $placeholders = implode(',', array_fill(0, count($userBranchIds), '?'));
-        $whereClause .= " AND po.branch_id IN ($placeholders)";
-        $params = array_merge($params, $userBranchIds);
+        $whereClause = "WHERE po.status = 'completed' AND po.created_at >= DATE_SUB(NOW(), INTERVAL :hours HOUR)" . $branchWhere;
+        $params = array_merge(['hours' => $hours], $branchParams);
     }
 
     // Get total sales amount
@@ -95,8 +117,9 @@ try {
                  FROM pos_orders po
                  WHERE po.status = 'completed'
                  AND DATE(po.created_at) = CURDATE()
-                 AND HOUR(po.created_at) = :hour",
-                ['hour' => $hour]
+                 AND HOUR(po.created_at) = :hour
+                 $branchWhere",
+                array_merge(['hour' => $hour], $branchParams)
             );
 
             $salesByMinute[] = [
@@ -119,8 +142,9 @@ try {
                         COUNT(*) as count
                  FROM pos_orders po
                  WHERE po.status = 'completed'
-                 AND po.created_at >= :start AND po.created_at < :end",
-                ['start' => $bucketStart, 'end' => $bucketEnd]
+                 AND po.created_at >= :start AND po.created_at < :end
+                 $branchWhere",
+                array_merge(['start' => $bucketStart, 'end' => $bucketEnd], $branchParams)
             );
 
             $salesByMinute[] = [
@@ -143,8 +167,9 @@ try {
                         COUNT(*) as count
                  FROM pos_orders po
                  WHERE po.status = 'completed'
-                 AND po.created_at >= :start AND po.created_at < :end",
-                ['start' => $bucketStart, 'end' => $bucketEnd]
+                 AND po.created_at >= :start AND po.created_at < :end
+                 $branchWhere",
+                array_merge(['start' => $bucketStart, 'end' => $bucketEnd], $branchParams)
             );
 
             $salesByMinute[] = [
@@ -167,8 +192,9 @@ try {
                         COUNT(*) as count
                  FROM pos_orders po
                  WHERE po.status = 'completed'
-                 AND po.created_at >= :start AND po.created_at < :end",
-                ['start' => $bucketStart, 'end' => $bucketEnd]
+                 AND po.created_at >= :start AND po.created_at < :end
+                 $branchWhere",
+                array_merge(['start' => $bucketStart, 'end' => $bucketEnd], $branchParams)
             );
 
             $salesByMinute[] = [

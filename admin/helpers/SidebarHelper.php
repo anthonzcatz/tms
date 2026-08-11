@@ -350,6 +350,38 @@ class SidebarHelper {
             
             $html .= self::renderMenuItem($item, 0, $activePage);
         }
+
+        // Fallback: if ticket-stock permissions were not yet migrated,
+        // show Ticket Stock > Variants to SUPER_ADMIN so the new page is reachable.
+        $hasTicketStock = false;
+        foreach ($tree as $item) {
+            if (($item['permission_code'] ?? '') === 'VIEW_TICKET_STOCK') {
+                $hasTicketStock = true;
+                break;
+            }
+        }
+
+        if (!$hasTicketStock && !empty($_SESSION['user']['role_code']) && $_SESSION['user']['role_code'] === 'SUPER_ADMIN') {
+            $html .= self::renderLabel('TICKET STOCK');
+            $fallbackItem = [
+                'permission_code' => 'VIEW_TICKET_STOCK',
+                'permission_name' => 'Ticket Stock',
+                'module_name' => 'TICKET_STOCK',
+                'menu_icon' => 'fas fa-boxes',
+                'menu_url' => null,
+                'children' => [
+                    [
+                        'permission_code' => 'MANAGE_TICKET_VARIANTS',
+                        'permission_name' => 'Variants',
+                        'module_name' => 'TICKET_STOCK',
+                        'menu_icon' => 'fas fa-palette',
+                        'menu_url' => 'admin/ticket-stock/variants',
+                        'children' => []
+                    ]
+                ]
+            ];
+            $html .= self::renderMenuItem($fallbackItem, 0, $activePage);
+        }
         
         return $html;
     }

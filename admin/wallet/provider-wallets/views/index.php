@@ -304,6 +304,36 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         </label>
                       </div>
                     </div>
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      <?php
+                        $providerType = $wallet['provider_type'] ?? '';
+                        $providerTypeClass = 'bg-secondary';
+                        if ($providerType === 'airline') {
+                            $providerTypeClass = 'bg-primary';
+                        } elseif ($providerType === 'shipping') {
+                            $providerTypeClass = 'bg-info';
+                        } elseif ($providerType === 'bus') {
+                            $providerTypeClass = 'bg-warning';
+                        }
+                      ?>
+                      <span class="badge <?php echo $providerTypeClass; ?>"><?php echo ucfirst(htmlspecialchars($providerType ?: 'Unknown')); ?></span>
+                      <?php if (!empty($wallet['parent_provider_id'])): ?>
+                        <span class="badge bg-light text-success border border-success" title="This wallet belongs to a sub-provider"><span class="fas fa-sitemap me-1"></span>Sub-provider of <?php echo htmlspecialchars($wallet['parent_provider_name'] ?? 'Main Provider'); ?></span>
+                      <?php elseif (!empty($wallet['child_provider_names'])): ?>
+                        <span class="badge bg-light text-primary border border-primary" title="This wallet belongs to a main provider"><span class="fas fa-sitemap me-1"></span>Main Provider</span>
+                      <?php else: ?>
+                        <span class="badge bg-light text-secondary border border-secondary" title="Standalone provider wallet"><span class="fas fa-building me-1"></span>Standalone</span>
+                      <?php endif; ?>
+                      <?php if (!empty($wallet['variant_name'])): ?>
+                        <span class="badge bg-light text-dark border rounded-pill" title="Variant-specific wallet">
+                          <span class="fas fa-palette me-1"></span>
+                          <?php echo htmlspecialchars($wallet['variant_name']); ?>
+                          <span class="d-inline-block rounded-circle ms-1" style="width:10px;height:10px;background-color:<?php echo htmlspecialchars($wallet['variant_color'] ?: '#0d6efd'); ?>;border:1px solid rgba(0,0,0,0.25);"></span>
+                        </span>
+                      <?php elseif (!empty($wallet['variant_count'])): ?>
+                        <span class="badge bg-info rounded-pill" title="<?php echo (int) $wallet['variant_count']; ?> ticket variant(s) for this provider"><span class="fas fa-palette me-1"></span><?php echo (int) $wallet['variant_count']; ?> variant<?php echo $wallet['variant_count'] > 1 ? 's' : ''; ?></span>
+                      <?php endif; ?>
+                    </div>
                     <div class="display-4 fs-5 mb-2 fw-normal font-sans-serif <?php echo $wallet['current_balance'] >= 0 ? 'text-success' : 'text-danger'; ?>">
                       ₱<?php echo number_format($wallet['current_balance'], 2); ?>
                     </div>
@@ -313,7 +343,17 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <p class="mb-2 text-muted fs-10">
                       <span class="fas fa-exclamation-triangle me-1"></span>Min: ₱<?php echo number_format($wallet['min_balance'] ?? 1000, 2); ?>
                     </p>
+                    <?php if (!empty($wallet['child_provider_names'])): ?>
+                    <p class="mb-2 text-muted fs-10">
+                      <span class="fas fa-sitemap me-1"></span>Shared with: <?php echo htmlspecialchars($wallet['child_provider_names']); ?>
+                    </p>
+                    <?php endif; ?>
                     <div class="d-flex flex-wrap gap-2 mt-3">
+                      <?php if (!empty($wallet['variant_count']) && $wallet['variant_count'] > 0): ?>
+                      <button type="button" class="btn btn-sm btn-outline-dark flex-grow-1 flex-sm-grow-0" onclick="openManageProviderWallets(<?php echo (int)$wallet['provider_id']; ?>, <?php echo (int)$wallet['branch_id']; ?>, '<?php echo htmlspecialchars($wallet['provider_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($wallet['branch_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>')">
+                        <span class="fas fa-list me-1"></span>Variants
+                      </button>
+                      <?php endif; ?>
                       <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1 flex-sm-grow-0" onclick="viewWallet(<?php echo $wallet['wallet_id']; ?>)">
                         <span class="fas fa-eye me-1"></span>View
                       </button>
@@ -356,7 +396,27 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <?php include __DIR__ . '/modals/add_wallet.php'; ?>
         <?php include __DIR__ . '/modals/edit_wallet.php'; ?>
         <?php include __DIR__ . '/modals/adjust_balance.php'; ?>
+        <?php include __DIR__ . '/modals/view_wallet.php'; ?>
+        <?php include __DIR__ . '/modals/manage_wallets.php'; ?>
 
+        <script>
+          window.providerWalletData = {
+            providers: <?php echo json_encode(array_map(fn($p) => [
+                'provider_id' => (int)$p['provider_id'],
+                'provider_name' => $p['provider_name'],
+                'variant_count' => (int)$p['variant_count']
+            ], $allProviders)); ?>,
+            existingWallets: <?php echo json_encode(array_map(fn($w) => [
+                'wallet_id' => (int)$w['wallet_id'],
+                'provider_id' => (int)$w['provider_id'],
+                'branch_id' => (int)$w['branch_id'],
+                'variant_id' => $w['variant_id'] ? (int)$w['variant_id'] : null,
+                'current_balance' => (float)$w['current_balance'],
+                'min_balance' => (float)$w['min_balance'],
+                'status' => $w['status']
+            ], $wallets)); ?>
+          };
+        </script>
         <script>
           window.COMPANY_INFO = {
             name: '<?php echo htmlspecialchars($systemSettings['company_name'] ?? $systemSettings['system_name'] ?? 'TMS'); ?>',

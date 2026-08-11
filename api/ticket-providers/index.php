@@ -12,6 +12,33 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 // Helper function for logging activity
+/**
+ * Check if a provider is a descendant of another provider (used for cycle detection)
+ */
+function isDescendantOf($descendantId, $ancestorId) {
+    $currentId = $descendantId;
+    $visited = [];
+
+    while ($currentId) {
+        if (isset($visited[$currentId])) {
+            break; // Cycle in existing data, stop to avoid infinite loop
+        }
+        $visited[$currentId] = true;
+
+        if ($currentId == $ancestorId) {
+            return true;
+        }
+
+        $row = Database::fetch(
+            "SELECT parent_provider_id FROM ticket_providers WHERE provider_id = :provider_id",
+            ['provider_id' => (int)$currentId]
+        );
+        $currentId = $row['parent_provider_id'] ?? null;
+    }
+
+    return false;
+}
+
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
@@ -142,8 +169,20 @@ function handleGet() {
         return;
     }
 
-    // List all providers with parent info
-    $sql = "SELECT tp.*, ptp.provider_name as parent_provider_name
+    // List all providers with parent info and active variant count
+    $sql = "SELECT tp.*, ptp.provider_name as parent_provider_name,
+                   (
+                       SELECT COUNT(*)
+                       FROM provider_ticket_variants v
+                       WHERE v.provider_id = tp.provider_id
+                         AND v.deleted_at IS NULL
+                   ) AS variant_count,
+                   (
+                       SELECT GROUP_CONCAT(v.variant_name ORDER BY v.variant_name SEPARATOR ', ')
+                       FROM provider_ticket_variants v
+                       WHERE v.provider_id = tp.provider_id
+                         AND v.deleted_at IS NULL
+                   ) AS variant_names
             FROM ticket_providers tp
             LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
             ORDER BY tp.provider_name";
@@ -302,6 +341,10 @@ function handlePut() {
             echo json_encode(['success' => false, 'error' => 'Parent provider not found']);
             return;
         }
+        if (isDescendantOf((int)$parentProviderId, (int)$providerId)) {
+            echo json_encode(['success' => false, 'error' => 'Cannot set a descendant provider as the parent']);
+            return;
+        }
     }
 
     // Build update query
@@ -436,6 +479,39 @@ function handleDelete() {
     
     if ($hasServiceFees && $hasServiceFees['count'] > 0) {
         echo json_encode(['success' => false, 'error' => 'Cannot delete provider with existing service fees']);
+        return;
+    }
+
+    // Check if provider has child providers
+    $hasChildren = Database::fetch(
+        "SELECT COUNT(*) as count FROM ticket_providers WHERE parent_provider_id = :provider_id",
+        ['provider_id' => (int)$providerId]
+    );
+
+    if ($hasChildren && $hasChildren['count'] > 0) {
+        echo json_encode(['success' => false, 'error' => 'Cannot delete provider with child providers. Reassign or delete the child providers first.']);
+        return;
+    }
+
+    // Check if provider is referenced by ticket transactions
+    $hasTickets = Database::fetch(
+        "SELECT COUNT(*) as count FROM ticket_transactions WHERE provider_id = :provider_id",
+        ['provider_id' => (int)$providerId]
+    );
+
+    if ($hasTickets && $hasTickets['count'] > 0) {
+        echo json_encode(['success' => false, 'error' => 'Cannot delete provider with existing ticket transactions']);
+        return;
+    }
+
+    // Check if provider is assigned to cashiers
+    $hasCashierAssignments = Database::fetch(
+        "SELECT COUNT(*) as count FROM cashier_transport_assignments WHERE provider_id = :provider_id",
+        ['provider_id' => (int)$providerId]
+    );
+
+    if ($hasCashierAssignments && $hasCashierAssignments['count'] > 0) {
+        echo json_encode(['success' => false, 'error' => 'Cannot delete provider assigned to cashiers']);
         return;
     }
     

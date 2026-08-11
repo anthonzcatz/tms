@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet Hierarchy Flow Proposal</title>
+    <style>
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            color: #000;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+        h1 {
+            font-size: 24pt;
+            color: #1a5490;
+            border-bottom: 3px solid #1a5490;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        h2 {
+            font-size: 16pt;
+            color: #1a5490;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        h3 {
+            font-size: 14pt;
+            color: #333;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+        p {
+            margin: 10px 0;
+            text-align: justify;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 11pt;
+        }
+        th, td {
+            border: 1px solid #333;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #1a5490;
+            color: #fff;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-left: 5px solid #ffc107;
+            margin: 20px 0;
+        }
+        .approval-box {
+            border: 2px solid #333;
+            padding: 20px;
+            margin: 30px 0;
+            background-color: #f9f9f9;
+        }
+        .approval-box h2 {
+            margin-top: 0;
+        }
+        .checkbox {
+            margin: 10px 0;
+        }
+        .footer {
+            margin-top: 40px;
+            font-size: 10pt;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+        }
+        .no-print {
+            background-color: #e9ecef;
+            padding: 15px;
+            border: 1px solid #ced4da;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <strong>Print Instructions:</strong> This HTML file is formatted for Microsoft Word. Open this file in Word, then go to <strong>File &gt; Save As &gt; Word Document (*.docx)</strong> to create a true .docx file, or print directly from the browser.
+    </div>
+
+    <h1>Wallet Hierarchy Flow Proposal</h1>
+
+    <h2>Overview</h2>
+    <p>
+        This document proposes the wallet hierarchy and transaction flow for the TMS wallet system.
+        The goal is to clarify how balances are shared between Main Providers, Sub-providers, and ticket variants.
+    </p>
+    <p class="highlight">
+        <strong>Please review the scenarios below and confirm if the proposed flow is correct before implementation.</strong>
+    </p>
+
+    <h2>Proposed Wallet Structure</h2>
+
+    <h3>1. Main Provider Wallet Sharing</h3>
+    <ul>
+        <li>A <strong>Main Provider</strong> owns the wallet balance.</li>
+        <li><strong>Sub-providers</strong> under a Main Provider can transact, but the balance is deducted from the Main Provider's wallet.</li>
+        <li>Sub-providers do <strong>not</strong> need their own wallets.</li>
+    </ul>
+
+    <h3>2. Variant-Specific Wallets</h3>
+    <ul>
+        <li>A Main Provider or Provider can have <strong>ticket variants</strong> (e.g., Red, White).</li>
+        <li>Each variant can have its own wallet balance.</li>
+        <li>Transactions for a specific variant deduct from that variant's wallet.</li>
+    </ul>
+
+    <h2>Scenario 1: Main / Sub-provider Wallet Sharing</h2>
+
+    <h3>Initial Balances</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Provider</th>
+                <th>Type</th>
+                <th>Wallet Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>VIA</td>
+                <td>Main Provider</td>
+                <td>₱50,000.00</td>
+            </tr>
+            <tr>
+                <td>PAL</td>
+                <td>Sub-provider of VIA</td>
+                <td>No wallet</td>
+            </tr>
+            <tr>
+                <td>Cebu Pacific</td>
+                <td>Sub-provider of VIA</td>
+                <td>No wallet</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Transactions</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Transaction</th>
+                <th>Operating Provider</th>
+                <th>Amount</th>
+                <th>Deducted From</th>
+                <th>New Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>POS sale</td>
+                <td>PAL</td>
+                <td>₱10,000.00</td>
+                <td>VIA wallet</td>
+                <td>VIA: ₱40,000.00</td>
+            </tr>
+            <tr>
+                <td>POS sale</td>
+                <td>Cebu Pacific</td>
+                <td>₱5,000.00</td>
+                <td>VIA wallet</td>
+                <td>VIA: ₱35,000.00</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Expected Result</h3>
+    <ul>
+        <li>PAL and Cebu Pacific do not have their own wallets.</li>
+        <li>All transactions by PAL and Cebu Pacific are charged to VIA's wallet.</li>
+        <li>VIA's final balance after the two sub-provider transactions is <strong>₱35,000.00</strong>.</li>
+    </ul>
+
+    <h2>Scenario 2: Variant-Specific Wallets</h2>
+
+    <h3>Initial Balances</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Provider</th>
+                <th>Variant</th>
+                <th>Wallet Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Cokaliong</td>
+                <td>White</td>
+                <td>₱10,000.00</td>
+            </tr>
+            <tr>
+                <td>Cokaliong</td>
+                <td>Red</td>
+                <td>₱10,000.00</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Transactions</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Transaction</th>
+                <th>Provider</th>
+                <th>Variant</th>
+                <th>Amount</th>
+                <th>Deducted From</th>
+                <th>New Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>POS sale</td>
+                <td>Cokaliong</td>
+                <td>White</td>
+                <td>₱2,000.00</td>
+                <td>White variant wallet</td>
+                <td>White: ₱8,000.00</td>
+            </tr>
+            <tr>
+                <td>POS sale</td>
+                <td>Cokaliong</td>
+                <td>Red</td>
+                <td>₱3,000.00</td>
+                <td>Red variant wallet</td>
+                <td>Red: ₱7,000.00</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Expected Result</h3>
+    <ul>
+        <li>White variant sale deducts from the White variant wallet only.</li>
+        <li>Red variant sale deducts from the Red variant wallet only.</li>
+        <li>Variant wallets do not share balances with each other.</li>
+    </ul>
+
+    <h2>Summary</h2>
+    <ol>
+        <li><strong>Main Provider wallets can be shared</strong> with Sub-providers.</li>
+        <li><strong>Sub-providers do not need their own wallets</strong> to transact.</li>
+        <li><strong>Variant wallets are separate</strong> and transactions for each variant deduct from that variant's own balance.</li>
+        <li><strong>No cross-variant or cross-provider sharing</strong> except through the Main / Sub-provider relationship.</li>
+    </ol>
+
+    <div class="approval-box">
+        <h2>Management Approval</h2>
+        <p>Please confirm:</p>
+        <div class="checkbox">☐ The proposed Main / Sub-provider wallet sharing flow is correct.</div>
+        <div class="checkbox">☐ The proposed variant-specific wallet flow is correct.</div>
+        <div class="checkbox">☐ We can proceed with implementation.</div>
+        <p style="margin-top: 20px;">If any scenario needs adjustment, please provide feedback before development begins.</p>
+    </div>
+
+    <div class="footer">
+        Wallet Hierarchy Flow Proposal — TMS Wallet System
+    </div>
+</body>
+</html>

@@ -80,40 +80,49 @@
         <div id="paymentEntryRow" class="card mb-4 border-0 shadow-sm" style="display:none;">
           <div class="card-body">
             <div class="row g-3 align-items-end">
-              <div class="col-md-4">
+              <div class="col-md-4 payment-method-field">
                 <label class="form-label fw-semibold" for="selectedMethodName">
                   <span class="fas fa-tag me-1 text-muted"></span>Method
                 </label>
                 <input type="text" class="form-control bg-light" id="selectedMethodName" name="selectedMethodName" readonly>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-4 payment-amount-field">
                 <label class="form-label fw-semibold" for="paymentAmount">
                   <span class="fas fa-money-bill-wave me-1 text-muted"></span>Amount (₱)
                 </label>
                 <input type="number" class="form-control fw-bold" id="paymentAmount" name="paymentAmount" min="0" step="0.01" placeholder="0.00" oninput="computeChange()">
               </div>
-              <div class="col-md-4" id="referenceRow" style="display:none;">
+              <div class="col-md-4 payment-reference-field" id="referenceRow" style="display:none;">
                 <label class="form-label fw-semibold" for="referenceNumber">
                   <span class="fas fa-hashtag me-1 text-muted"></span>Reference # <span class="text-danger">*</span>
                 </label>
                 <input type="text" class="form-control" id="referenceNumber" name="referenceNumber" placeholder="e.g. GCash ref">
               </div>
-              <div class="col-md-4" id="bankAccountRow" style="display:none;">
+              <div class="col-md-4 payment-bank-field" id="bankAccountRow" style="display:none;">
                 <label class="form-label fw-semibold" for="bankAccountSelect">
                   <span class="fas fa-university me-1 text-muted"></span>Bank Account
                 </label>
                 <select class="form-select" id="bankAccountSelect" name="bankAccountSelect">
                   <option value="">Select Account</option>
-                  <?php foreach ($bankAccounts as $ba): ?>
-                    <option value="<?php echo $ba['bank_account_id']; ?>"
-                            data-method="<?php echo htmlspecialchars($ba['method_code'] ?? ''); ?>"
-                            data-method-type="<?php echo htmlspecialchars($ba['method_code'] ?? ''); ?>">
-                      <?php echo htmlspecialchars($ba['bank_name'] . ' — ' . $ba['account_name']); ?>
+                  <?php foreach ($bankAccounts as $ba):
+                    $bankName = trim((string) ($ba['bank_name'] ?? ''));
+                    $accountName = trim((string) ($ba['account_name'] ?? ''));
+                    $accountType = trim((string) ($ba['account_type'] ?? ''));
+                    $accountBalance = '₱' . number_format((float) ($ba['current_balance'] ?? 0), 2);
+                  ?>
+                    <option value="<?php echo (int) $ba['bank_account_id']; ?>"
+                            data-method="<?php echo htmlspecialchars($ba['method_code'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                            data-method-type="<?php echo htmlspecialchars($ba['method_type'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                            data-bank-name="<?php echo htmlspecialchars($bankName, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-account-name="<?php echo htmlspecialchars($accountName, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-account-type="<?php echo htmlspecialchars($accountType, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-balance="<?php echo htmlspecialchars($accountBalance, ENT_QUOTES, 'UTF-8'); ?>">
+                      <?php echo htmlspecialchars($bankName . ' — ' . $accountName, ENT_QUOTES, 'UTF-8'); ?>
                     </option>
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-4 d-flex gap-2">
+              <div class="col-md-4 payment-actions-field d-flex gap-2">
                 <button class="btn btn-primary flex-grow-1" onclick="addPaymentLine()">
                   <span class="fas fa-plus me-1"></span>Add Payment
                 </button>

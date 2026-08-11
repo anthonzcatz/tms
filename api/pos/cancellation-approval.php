@@ -19,6 +19,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/CancellationService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -28,36 +29,6 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
         ['uid' => $userId, 'action' => $action, 'mod' => $module, 'ref' => $ref,
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
          'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
-    );
-}
-
-/**
- * Reverse the customer_charges balance for a passenger by the given charge amount.
- *
- * @param int   $passengerId
- * @param float $chargeAmount  The portion of the refund that was originally charged as debt.
- */
-function reverseCustomerCharge(int $passengerId, float $chargeAmount): void {
-    if ($chargeAmount <= 0) return;
-
-    $chargeRow = Database::fetch(
-        "SELECT * FROM customer_charges WHERE passenger_id = :pid",
-        ['pid' => $passengerId]
-    );
-    if (!$chargeRow) return;
-
-    $newBalance = max(0, floatval($chargeRow['balance'])       - $chargeAmount);
-    $newCharged = max(0, floatval($chargeRow['total_charged']) - $chargeAmount);
-    $newStatus  = $newBalance <= 0 ? 'CLEAR' : $chargeRow['status'];
-
-    Database::execute(
-        "UPDATE customer_charges
-         SET total_charged = :charged,
-             balance       = :balance,
-             status        = :status,
-             updated_at    = NOW()
-         WHERE passenger_id = :pid",
-        ['charged' => $newCharged, 'balance' => $newBalance, 'status' => $newStatus, 'pid' => $passengerId]
     );
 }
 
@@ -106,6 +77,12 @@ if (!$ticketTxn) {
     echo json_encode(['success' => false, 'error' => 'Ticket transaction not found.']); exit;
 }
 
+// Branch access control
+if ($user['role_code'] !== 'SUPER_ADMIN' && (int)$user['branch_id'] !== (int)$ticketTxn['branch_id']) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Access denied: ticket does not belong to your branch']); exit;
+}
+
 // Identify the operating provider for wallet resolution
 $providerId = $ticketTxn['provider_id'] ?? null;
 $walletId   = $ticketTxn['wallet_id'] ?? null;
@@ -132,7 +109,6 @@ $settings = Database::fetch(
 $refundAmount     = floatval($cancellation['refund_amount']);
 $chargeAmount     = floatval($cancellation['charge_amount'] ?? 0);
 $cashRefundAmount = floatval($cancellation['cash_refund_amount'] ?? ($refundAmount - $chargeAmount)); // Use stored value, fallback to calculation
-$passengerId      = $ticketTxn['passenger_id'] ?? null;
 
 // Start database transaction
 Database::connection()->beginTransaction();
@@ -152,108 +128,18 @@ try {
         $updateSql .= " WHERE cancellation_id = :cid";
         Database::execute($updateSql, $updateParams);
 
-        // Mark ticket as cancelled
-        Database::execute(
-            "UPDATE ticket_transactions SET status = 'cancelled' WHERE transaction_id = :tid",
-            ['tid' => $ticketTxn['transaction_id']]
-        );
-
-        // Reverse the CHARGE portion from customer_charges
-        if ($chargeAmount > 0 && $passengerId) {
-            reverseCustomerCharge((int)$passengerId, $chargeAmount);
-        }
-
-        // Resolve the correct wallet to credit (walks up parent chain if needed)
-        $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$ticketTxn['branch_id']);
-        if (!$resolvedWallet) {
-            throw new Exception('No active wallet found for the provider and branch to process refund.');
-        }
-        $walletId = $resolvedWallet['wallet_id'];
-
-        // Fetch the wallet inside the transaction for accurate balance
-        $wallet = Database::fetch(
-            "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active' FOR UPDATE",
-            ['wid' => $walletId]
-        );
-        if (!$wallet) {
-            throw new Exception('Wallet not found or inactive during refund processing.');
-        }
-
-        // Restore provider wallet balance
-        $balanceBefore = floatval($wallet['current_balance']);
-        $balanceAfter  = $balanceBefore + $refundAmount;
-
-        Database::execute(
-            "UPDATE provider_wallets SET current_balance = :new_balance WHERE wallet_id = :wid",
-            ['new_balance' => $balanceAfter, 'wid' => $walletId]
-        );
-
-        // Record wallet transaction
-        $wTxnCode    = 'RF-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
-        $wTxnRemarks = 'Refund: ' . $ticketTxn['transaction_code']
-            . ' | Cancellation #' . $cancellationId
-            . ($remarks ? ' | ' . $remarks : '');
-        Database::execute(
-            "INSERT INTO wallet_transactions
-                (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after,
-                 reference_table, reference_id, remarks, created_by, created_at)
-             VALUES (:wid, :code, 'REFUND', 'IN', :amount, :before, :after,
-                     'ticket_transactions', :ref_id, :remarks, :uid, NOW())",
-            [
-                'wid'     => $walletId,
-                'code'    => $wTxnCode,
-                'amount'  => $refundAmount,
-                'before'  => $balanceBefore,
-                'after'   => $balanceAfter,
-                'ref_id'  => $ticketTxn['transaction_id'],
-                'remarks' => $wTxnRemarks,
-                'uid'     => $user['user_id'],
-            ]
-        );
-
-        // Zero out order item and increment total_refunded_amount (deferred from pending step)
-        $orderItem = Database::fetch(
-            "SELECT oi.item_id, oi.order_id FROM pos_order_items oi
-             WHERE oi.reference_id = :tid AND oi.item_type = 'TICKET' LIMIT 1",
-            ['tid' => $ticketTxn['transaction_id']]
-        );
-
-        if ($orderItem) {
-            Database::execute(
-                "UPDATE pos_order_items SET total_amount = 0 WHERE item_id = :iid",
-                ['iid' => $orderItem['item_id']]
-            );
-            Database::execute(
-                "UPDATE pos_orders SET total_refunded_amount = COALESCE(total_refunded_amount, 0) + :ramount WHERE order_id = :oid",
-                ['ramount' => $refundAmount, 'oid' => $orderItem['order_id']]
-            );
-        }
-
-        // Create refund record
         $processingDays = $settings['cancellation_refund_processing_days'] ?? 0;
-        $refundStatus   = ($processingDays > 0) ? 'processing' : 'completed';
-        Database::execute(
-            "INSERT INTO ticket_refunds
-                (transaction_id, transaction_code, cancellation_id, passenger_id, refund_amount,
-                 cash_amount, charge_reversal_amount,
-                 refund_method, status, requested_by, cashier_session_id, requested_at, processed_by, processed_at)
-             VALUES (:tid, :code, :cid, :pid, :ramount,
-                     :camount, :cramount,
-                     'cash', :status, :ruid, :rcsid, :rtime, :puid, NOW())",
-            [
-                'tid'     => $ticketTxn['transaction_id'],
-                'code'    => $ticketTxn['transaction_code'],
-                'cid'     => $cancellationId,
-                'pid'     => $passengerId,
-                'ramount' => $refundAmount,
-                'camount' => $cashRefundAmount,
-                'cramount'=> $chargeAmount,
-                'status'  => $refundStatus,
-                'ruid'    => $cancellation['requested_by'],
-                'rcsid'   => $cancellation['cashier_session_id'],
-                'rtime'   => $cancellation['requested_at'],
-                'puid'    => $user['user_id'],
-            ]
+
+        $effects = CancellationService::processCancellationEffects(
+            $ticketTxn,
+            $cancellation,
+            $refundAmount,
+            $cashRefundAmount,
+            $chargeAmount,
+            (int) $user['user_id'],
+            (int) $processingDays,
+            $cancellation['reason'] ?? '',
+            $remarks
         );
 
         logActivity($user['user_id'], 'CANCELLATION_APPROVED', 'POS', $ticketTxn['transaction_code'],
@@ -261,8 +147,9 @@ try {
             ['status' => 'approved', 'cancellation_id' => $cancellationId,
              'ticket_txn_id' => $ticketTxn['transaction_id'],
              'refund_amount' => $refundAmount, 'charge_amount' => $chargeAmount,
-             'wallet_balance_before' => $balanceBefore, 'wallet_balance_after' => $balanceAfter,
-             'wallet_txn_code' => $wTxnCode, 'remarks' => $remarks]);
+             'wallet_balance_before' => $effects['wallet_balance_before'],
+             'wallet_balance_after'  => $effects['wallet_balance_after'],
+             'wallet_txn_code' => $effects['wallet_txn_code'], 'remarks' => $remarks]);
 
         Database::connection()->commit();
 
@@ -273,7 +160,7 @@ try {
             'transaction_code' => $ticketTxn['transaction_code'],
             'refund_amount'    => $refundAmount,
             'charge_amount'    => $chargeAmount,
-            'refund_status'    => $refundStatus,
+            'refund_status'    => $effects['refund_status'],
         ]);
 
     } else {

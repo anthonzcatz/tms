@@ -511,9 +511,13 @@
                         : itemName.padEnd(nameMax);
                     data.push(`${dispName} ${amtStr}\n`);
 
+                    (item.details || []).forEach(detail => {
+                        this.wrapText(`  ${detail}`, width).forEach(line => data.push(`${line}\n`));
+                    });
+
                     // Qty × base price sub-line
                     if (this.config.showBaseAmount && baseAmt > 0) {
-                        data.push(`  ${qty} x ${baseAmt.toFixed(2)}\n`);
+                        data.push(`  Base fare : ${qty} x ${baseAmt.toFixed(2)}\n`);
                     }
                     // Service fee sub-line (per item)
                     if (this.config.showServiceFee && svcFee > 0) {
@@ -679,6 +683,24 @@
         formatLine: function(label, amount, width) {
             const labelWidth = width - amount.length - 1;
             return label.substring(0, labelWidth).padEnd(labelWidth) + ' ' + amount + '\n';
+        },
+
+        wrapText: function(text, width) {
+            const words = String(text || '').split(/\s+/).filter(Boolean);
+            const lines = [];
+            let line = '';
+
+            words.forEach(word => {
+                if (line && `${line} ${word}`.length > width) {
+                    lines.push(line);
+                    line = word;
+                } else {
+                    line = line ? `${line} ${word}` : word;
+                }
+            });
+
+            if (line) lines.push(line);
+            return lines.length ? lines : [''];
         },
 
         /**

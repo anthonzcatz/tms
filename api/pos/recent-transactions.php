@@ -24,7 +24,7 @@ $offset = $_GET['offset'] ?? 0;
 $offset = max(intval($offset), 0);
 
 // Get filter parameters
-$search    = $_GET['search'] ?? null;
+$search    = trim($_GET['search'] ?? '');
 $type      = $_GET['type'] ?? null;
 $status    = $_GET['status'] ?? null;
 $date      = $_GET['date'] ?? null;
@@ -34,6 +34,10 @@ $endDate   = $_GET['end_date'] ?? null;
 // Get user branch for filtering
 $branchId = $user['branch_id'] ?? null;
 $userRoleCode = $user['role_code'] ?? '';
+$branchIds = $branchId
+    ? array_values(array_filter(array_map('intval', explode(',', (string)$branchId))))
+    : [];
+$canViewBranchTransactions = in_array($userRoleCode, ['SUPER_ADMIN', 'MANAGER'], true);
 
 // ---------------------------------------------------------------
 // Strategy: Query pos_orders (grouped) if table exists,
@@ -56,25 +60,34 @@ if ($useOrdersTable) {
     $where  = [];
     $params = [];
 
-    if ($branchId && $userRoleCode !== 'SUPER_ADMIN') {
-        $branchIds = array_filter(array_map('intval', explode(',', $branchId)));
-        if (!empty($branchIds)) {
-            $branchPlaceholders = implode(',', array_fill(0, count($branchIds), '?'));
-            $where[] = "o.branch_id IN ($branchPlaceholders)";
-            $params = array_merge($params, $branchIds);
+    if ($userRoleCode !== 'SUPER_ADMIN' && !empty($branchIds)) {
+        $branchPlaceholders = [];
+        foreach ($branchIds as $index => $allowedBranchId) {
+            $placeholder = ':branch_id_' . $index;
+            $branchPlaceholders[] = $placeholder;
+            $params['branch_id_' . $index] = $allowedBranchId;
         }
+        $where[] = 'o.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
     }
 
-    $where[] = 'o.created_by = :created_by';
-    $params['created_by'] = $user['user_id'];
+    if (!$canViewBranchTransactions) {
+        $where[] = 'o.created_by = :created_by';
+        $params['created_by'] = $user['user_id'];
+    }
 
     if ($search) {
-        $where[] = '(o.order_code LIKE :search OR oi.transaction_code LIKE :search OR 
-                      EXISTS (SELECT 1 FROM pos_order_items oi_search
-                               LEFT JOIN ticket_transactions tt_search ON oi_search.reference_id = tt_search.transaction_id AND oi_search.item_type = \'TICKET\'
-                               LEFT JOIN passenger_accounts pa_search ON tt_search.passenger_id = pa_search.passenger_id
-                               WHERE oi_search.order_id = o.order_id AND pa_search.fullname LIKE :search))';
-        $params['search'] = '%' . $search . '%';
+        $where[] = '(o.order_code LIKE :search_order
+                      OR EXISTS (SELECT 1 FROM pos_order_items oi_search
+                                 WHERE oi_search.order_id = o.order_id
+                                   AND oi_search.transaction_code LIKE :search_item)
+                      OR EXISTS (SELECT 1 FROM pos_order_items oi_search_passenger
+                                 LEFT JOIN ticket_transactions tt_search ON oi_search_passenger.reference_id = tt_search.transaction_id AND oi_search_passenger.item_type = \'TICKET\'
+                                 LEFT JOIN passenger_accounts pa_search ON tt_search.passenger_id = pa_search.passenger_id
+                                 WHERE oi_search_passenger.order_id = o.order_id AND pa_search.fullname LIKE :search_passenger))';
+        $searchValue = '%' . $search . '%';
+        $params['search_order'] = $searchValue;
+        $params['search_item'] = $searchValue;
+        $params['search_passenger'] = $searchValue;
     }
 
     if ($status) {
@@ -304,9 +317,25 @@ if ($useOrdersTable) {
         $where  = [];
         $params = [];
 
-        if ($branchId) { $where[] = 'tt.branch_id = :branch_id'; $params['branch_id'] = $branchId; }
-        $where[] = 'tt.created_by = :created_by'; $params['created_by'] = $user['user_id'];
-        if ($search) { $where[] = '(tt.transaction_code LIKE :search OR pa.fullname LIKE :search)'; $params['search'] = '%' . $search . '%'; }
+        if ($userRoleCode !== 'SUPER_ADMIN' && !empty($branchIds)) {
+            $branchPlaceholders = [];
+            foreach ($branchIds as $index => $allowedBranchId) {
+                $placeholder = ':ticket_branch_id_' . $index;
+                $branchPlaceholders[] = $placeholder;
+                $params['ticket_branch_id_' . $index] = $allowedBranchId;
+            }
+            $where[] = 'tt.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
+        }
+        if (!$canViewBranchTransactions) {
+            $where[] = 'tt.created_by = :created_by';
+            $params['created_by'] = $user['user_id'];
+        }
+        if ($search) {
+            $where[] = '(tt.transaction_code LIKE :ticket_search_code OR pa.fullname LIKE :ticket_search_passenger)';
+            $searchValue = '%' . $search . '%';
+            $params['ticket_search_code'] = $searchValue;
+            $params['ticket_search_passenger'] = $searchValue;
+        }
         if ($status) { $where[] = 'tt.status = :status'; $params['status'] = $status; }
         if ($date) { $where[] = 'DATE(tt.created_at) = :date'; $params['date'] = $date; }
         if ($startDate && $endDate) { $where[] = 'DATE(tt.created_at) BETWEEN :start_date AND :end_date'; $params['start_date'] = $startDate; $params['end_date'] = $endDate; }
@@ -355,9 +384,25 @@ if ($useOrdersTable) {
         $whereS  = [];
         $paramsS = [];
 
-        if ($branchId) { $whereS[] = 'st.branch_id = :branch_id'; $paramsS['branch_id'] = $branchId; }
-        $whereS[] = 'st.created_by = :created_by'; $paramsS['created_by'] = $user['user_id'];
-        if ($search) { $whereS[] = '(st.transaction_code LIKE :search OR st.description LIKE :search)'; $paramsS['search'] = '%' . $search . '%'; }
+        if ($userRoleCode !== 'SUPER_ADMIN' && !empty($branchIds)) {
+            $branchPlaceholders = [];
+            foreach ($branchIds as $index => $allowedBranchId) {
+                $placeholder = ':service_branch_id_' . $index;
+                $branchPlaceholders[] = $placeholder;
+                $paramsS['service_branch_id_' . $index] = $allowedBranchId;
+            }
+            $whereS[] = 'st.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
+        }
+        if (!$canViewBranchTransactions) {
+            $whereS[] = 'st.created_by = :created_by';
+            $paramsS['created_by'] = $user['user_id'];
+        }
+        if ($search) {
+            $whereS[] = '(st.transaction_code LIKE :service_search_code OR st.description LIKE :service_search_description)';
+            $searchValue = '%' . $search . '%';
+            $paramsS['service_search_code'] = $searchValue;
+            $paramsS['service_search_description'] = $searchValue;
+        }
         if ($status) { $whereS[] = 'st.status = :status'; $paramsS['status'] = $status; }
         if ($date) { $whereS[] = 'DATE(st.created_at) = :date'; $paramsS['date'] = $date; }
         if ($startDate && $endDate) { $whereS[] = 'DATE(st.created_at) BETWEEN :start_date AND :end_date'; $paramsS['start_date'] = $startDate; $paramsS['end_date'] = $endDate; }

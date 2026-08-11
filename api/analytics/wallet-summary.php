@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -23,8 +24,19 @@ try {
     $userRoleCode  = $user['role_code'] ?? '';
     $userBranchId  = $user['branch_id'] ?? null;
 
-    // Optional branch filter from request
-    $filterBranchId = isset($_GET['branch_id']) ? intval($_GET['branch_id']) : null;
+    // Optional encoded branch filter from request
+    $filterBranchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
+        ? $_GET['branch_id']
+        : null;
+    $filterBranchId = null;
+
+    if ($filterBranchIdRaw !== null) {
+        $filterBranchId = IdEncoder::decode($filterBranchIdRaw);
+        if ($filterBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            exit;
+        }
+    }
 
     // Build branch restriction
     $branchWhere  = '';
@@ -39,7 +51,10 @@ try {
         } elseif ($userBranchId) {
             // Non-SUPER_ADMIN can only filter within their allowed branches
             $branchIds = array_map('trim', explode(',', $userBranchId));
-            if (in_array($filterBranchId, $branchIds)) {
+            $allowedBranchIds = array_map('intval', array_filter($branchIds, function ($id) {
+                return $id !== '';
+            }));
+            if (in_array((int)$filterBranchId, $allowedBranchIds, true)) {
                 // User has access to this specific branch
                 $branchWhere  = "AND pw.branch_id = ?";
                 $branchParams = [$filterBranchId];

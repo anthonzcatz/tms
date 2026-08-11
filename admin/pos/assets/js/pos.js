@@ -146,6 +146,7 @@ let paymentLines = [];    // Array of payment method entries
 let activeServiceType = null;
 let activePaymentMethod = null;
 let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal, cancelTicketModal, reprintReceiptModal;
+let restoreCancelTicketModal = false;
 let selectedCustomerId = null;
 let currentReprintTransaction = null;
 let transactionType = localStorage.getItem('posTransactionType') || 'ticket'; // 'ticket' or 'service'
@@ -1174,6 +1175,8 @@ function loadProviders() {
     const operatingInput = document.getElementById('ticketProvider');
     const walletSelect = document.getElementById('ticketWallet');
 
+    destroyMainProviderChoices();
+
     const providersPromise = fetch(`${window.BASE_URL}/api/ticket-providers`).then(r => r.json());
     // Load wallets from all branches the user has access to so the provider dropdown
     // can show a wallet even when the active session branch does not have one.
@@ -1207,20 +1210,36 @@ function loadProviders() {
                 window.allTicketProviders
                     .filter(p => !p.parent_provider_id)
                     .forEach(p => {
-                        const option = document.createElement('option');
-                        option.value = p.provider_id;
-                        option.dataset.providerCode = p.provider_code || '';
-                        option.dataset.providerType = p.provider_type || '';
-                        const balance = walletBalances[p.provider_id];
+                        let hasWallet = false;
+                        let totalBalance = 0;
+
+                        if (walletBalances[p.provider_id] !== undefined) {
+                            hasWallet = true;
+                            totalBalance += walletBalances[p.provider_id];
+                        }
+
+                        window.allTicketProviders
+                            .filter(v => v.parent_provider_id == p.provider_id)
+                            .forEach(v => {
+                                if (walletBalances[v.provider_id] !== undefined) {
+                                    hasWallet = true;
+                                    totalBalance += walletBalances[v.provider_id];
+                                }
+                            });
+
                         let balanceText;
-                        if (balance !== undefined) {
-                            balanceText = `₱${fmt(balance)}`;
+                        if (hasWallet) {
+                            balanceText = `₱${fmt(totalBalance)}`;
                         } else if (parseInt(p.variant_count, 10) > 0) {
                             balanceText = 'Variant wallet';
                         } else {
                             balanceText = 'No wallet';
                         }
-                        option.textContent = `${p.provider_name} • ${balanceText}`;
+                        const option = document.createElement('option');
+                        option.value = p.provider_id;
+                        option.dataset.providerCode = p.provider_code || '';
+                        option.dataset.providerType = p.provider_type || '';
+                        option.text = p.provider_name + '\u001F' + balanceText;
                         mainSelect.appendChild(option);
                     });
             } else if (providersData.error && providersData.error.includes('Permission denied')) {
@@ -1236,6 +1255,7 @@ function loadProviders() {
             walletSelect.disabled = true;
             const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
             if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
+            refreshMainProviderChoices();
         })
         .catch(error => {
             console.error('Error loading providers:', error);
@@ -1245,6 +1265,7 @@ function loadProviders() {
             walletSelect.disabled = true;
             const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
             if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
+            refreshMainProviderChoices();
         });
 }
 
@@ -1452,6 +1473,221 @@ function onProviderChanged() {
     });
 }
 
+let mainProviderChoices = null;
+
+function destroyMainProviderChoices() {
+    if (mainProviderChoices) {
+        try { mainProviderChoices.destroy(); } catch(e) {}
+        mainProviderChoices = null;
+    }
+}
+
+function refreshMainProviderChoices() {
+    const select = document.getElementById('ticketMainProvider');
+    if (!select) return;
+    destroyMainProviderChoices();
+
+    mainProviderChoices = new Choices(select, {
+        searchEnabled: false,
+        shouldSort: false,
+        itemSelectText: '',
+        allowHTML: true,
+        removeItemButton: false,
+        position: 'auto',
+        resetScrollPosition: false,
+        callbackOnCreateTemplates: function() {
+            function buildTwoRow(config, data, isChoice, itemSelectText, oneRow) {
+                const label = data.label || '';
+                const parts = label.split('\u001F');
+                const name = parts[0] || label;
+                const amount = parts[1] || '';
+
+                const classes = [].concat(config.classNames.item);
+                if (isChoice) classes.push(...config.classNames.itemChoice);
+                classes.push(...config.classNames.itemSelectable);
+                if (data.selected) classes.push(...config.classNames.selectedState);
+                if (data.disabled) classes.push(...config.classNames.itemDisabled);
+                if (data.placeholder) classes.push(...config.classNames.placeholder);
+
+                const div = document.createElement('div');
+                div.className = classes.filter(Boolean).join(' ');
+
+                if (isChoice) {
+                    div.id = data.elementId;
+                    div.dataset.choice = '';
+                    div.dataset.selectText = itemSelectText || '';
+                    div.setAttribute('role', data.group ? 'treeitem' : 'option');
+                } else {
+                    div.dataset.item = '';
+                    if (data.active) div.setAttribute('aria-selected', 'true');
+                }
+
+                div.dataset.id = data.id;
+                div.dataset.value = data.value;
+                if (data.disabled) div.setAttribute('aria-disabled', 'true');
+
+                if (oneRow) {
+                    const separator = amount ? `<span style='flex:0 0 auto;'>&nbsp;•&nbsp;</span>` : '';
+                    div.innerHTML = `<div style='display:flex;align-items:center;gap:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'><div class='mp-row-name' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeHtml(name)}</div>${separator}<div class='mp-row-amount' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Century Gothic",CenturyGothic,AppleGothic,Arial,sans-serif;font-size:0.65rem !important;font-weight:700 !important;color:#6c757d !important;line-height:1.3 !important;margin-top:2px !important;'>${escapeHtml(amount)}</div></div>`;
+                } else {
+                    div.innerHTML = `<div class='mp-row-name'>${escapeHtml(name)}</div>${amount ? `<div class='mp-row-amount' style='font-family:"Century Gothic",CenturyGothic,AppleGothic,Arial,sans-serif;font-size:0.65rem !important;font-weight:700 !important;color:#6c757d !important;line-height:1.3 !important;margin-top:2px !important;'>${escapeHtml(amount)}</div>` : ''}`;
+                }
+
+                return div;
+            }
+
+            return {
+                item: function(config, data) {
+                    return buildTwoRow(config, data, false, null, true);
+                },
+                choice: function(config, data, itemSelectText) {
+                    return buildTwoRow(config, data, true, itemSelectText, false);
+                }
+            };
+        }
+    });
+}
+
+let bankAccountChoices = null;
+let bankAccountChoiceData = [];
+
+function getBankAccountChoiceData(select) {
+    return Array.from(select.options).map(option => ({
+        value: option.value,
+        label: option.textContent.trim(),
+        selected: option.selected,
+        disabled: option.disabled,
+        customProperties: {
+            methodType: option.dataset.methodType || '',
+            bankName: option.dataset.bankName || '',
+            accountName: option.dataset.accountName || '',
+            accountType: option.dataset.accountType || '',
+            balance: option.dataset.balance || ''
+        }
+    }));
+}
+
+function getBankAccountDetails(select, data) {
+    const props = data.customProperties || {};
+    const option = Array.from(select.options).find(item => String(item.value) === String(data.value));
+    const fallbackParts = (data.label || '').split('\u001F');
+    const fallbackNameParts = (fallbackParts[0] || '').split(' — ');
+
+    return {
+        bankName: props.bankName || option?.dataset.bankName || fallbackNameParts[0] || data.label || '',
+        accountName: props.accountName || option?.dataset.accountName || fallbackNameParts[1] || fallbackParts[1] || '',
+        accountType: props.accountType || option?.dataset.accountType || fallbackParts[2] || '',
+        balance: props.balance || option?.dataset.balance || fallbackParts[3] || '₱0.00'
+    };
+}
+
+function createBankAccountChoices(select) {
+    return new Choices(select, {
+        searchEnabled: false,
+        shouldSort: false,
+        itemSelectText: '',
+        allowHTML: true,
+        removeItemButton: false,
+        position: 'auto',
+        resetScrollPosition: false,
+        callbackOnCreateTemplates: function() {
+            function buildBankAccountRow(config, data, isChoice, itemSelectText, compact) {
+                const classes = [].concat(config.classNames.item);
+                if (isChoice) classes.push(...config.classNames.itemChoice);
+                classes.push(...config.classNames.itemSelectable);
+                if (data.selected) classes.push(...config.classNames.selectedState);
+                if (data.disabled) classes.push(...config.classNames.itemDisabled);
+                if (data.placeholder) classes.push(...config.classNames.placeholder);
+
+                const div = document.createElement('div');
+                div.className = classes.filter(Boolean).join(' ');
+
+                if (isChoice) {
+                    div.id = data.elementId;
+                    div.dataset.choice = '';
+                    div.dataset.selectText = itemSelectText || '';
+                    div.setAttribute('role', data.group ? 'treeitem' : 'option');
+                } else {
+                    div.dataset.item = '';
+                    if (data.active) div.setAttribute('aria-selected', 'true');
+                }
+
+                div.dataset.id = data.id;
+                div.dataset.value = data.value || '';
+                if (data.disabled) div.setAttribute('aria-disabled', 'true');
+
+                if (data.placeholder || !data.value) {
+                    div.innerHTML = `<span class='ba-placeholder'>${escapeHtml(data.label || 'Select Account')}</span>`;
+                    return div;
+                }
+
+                const details = getBankAccountDetails(select, data);
+                const bankName = details.bankName || 'Bank Account';
+                const accountName = details.accountName || 'Unnamed account';
+                const selectedAccountName = accountName.trim().split(/\s+/)[0] || accountName;
+                const accountType = String(details.accountType || 'Account').trim().replace(/[_\s]+/g, '-').toLowerCase();
+                const accountTypeLabel = accountType ? accountType.charAt(0).toUpperCase() + accountType.slice(1) : 'Account';
+                const balance = details.balance || '₱0.00';
+
+                if (compact) {
+                    div.innerHTML = `<div class='ba-selected-row'><span class='ba-selected-name'>${escapeHtml(bankName)}${selectedAccountName ? ` <span class='ba-selected-separator'>—</span> ${escapeHtml(selectedAccountName)}` : ''}</span></div>`;
+                } else {
+                    div.innerHTML = `<div class='ba-account-option'><div class='ba-row ba-row-bank'>${escapeHtml(bankName)}</div><div class='ba-row ba-row-account'>${escapeHtml(accountName)}</div><div class='ba-row ba-row-meta'><span class='ba-row-type'><span class='ba-type-badge'>${escapeHtml(accountTypeLabel)}</span></span><span class='ba-row-separator' aria-hidden='true'>•</span><span class='ba-row-balance'>${escapeHtml(balance)}</span></div></div>`;
+                }
+
+                return div;
+            }
+
+            return {
+                item: function(config, data) {
+                    return buildBankAccountRow(config, data, false, null, true);
+                },
+                choice: function(config, data, itemSelectText) {
+                    return buildBankAccountRow(config, data, true, itemSelectText, false);
+                }
+            };
+        }
+    });
+}
+
+function ensureBankAccountChoices() {
+    const select = document.getElementById('bankAccountSelect');
+    if (!select || typeof Choices === 'undefined') return;
+
+    if (!bankAccountChoices) {
+        bankAccountChoiceData = getBankAccountChoiceData(select);
+        bankAccountChoices = createBankAccountChoices(select);
+    }
+}
+
+function refreshBankAccountChoices(methodType = '') {
+    const select = document.getElementById('bankAccountSelect');
+    if (!select || typeof Choices === 'undefined') return;
+
+    ensureBankAccountChoices();
+    if (!bankAccountChoices) return;
+
+    const availableChoices = bankAccountChoiceData.filter(choice => {
+        if (!choice.value || !methodType) return true;
+        const linkedMethodType = choice.customProperties?.methodType || '';
+        return !linkedMethodType || linkedMethodType === methodType;
+    });
+
+    bankAccountChoices.setChoices(availableChoices, 'value', 'label', true);
+    bankAccountChoices.setChoiceByValue('');
+}
+
+function resetBankAccountChoice() {
+    const select = document.getElementById('bankAccountSelect');
+    if (!select) return;
+
+    if (bankAccountChoices) {
+        bankAccountChoices.setChoiceByValue('');
+    } else {
+        select.value = '';
+    }
+}
+
 let variantChoices = null;
 
 function destroyVariantChoices() {
@@ -1479,7 +1715,74 @@ function refreshVariantChoices() {
         allowHTML: true,
         removeItemButton: false,
         position: 'auto',
-        resetScrollPosition: false
+        resetScrollPosition: false,
+        callbackOnCreateTemplates: function() {
+            function buildVariantTwoRow(config, data, isChoice, itemSelectText, oneRow) {
+                const label = data.label || '';
+                const parts = label.split('\u001F');
+                const name = parts[0] || label;
+                const desc = oneRow ? '' : (parts[1] || '');
+                const descParts = desc.split(' • ');
+                const stockPart = descParts[0] || '';
+                const balancePart = descParts[1] || '';
+
+                const props = data.customProperties || {};
+                const color = props.colorCode || '';
+                const stockColor = props.stockColor || '#6c757d';
+                const swatch = color
+                    ? `<span style="display:inline-block;width:12px;height:12px;background-color:${escapeHtml(color)};border-radius:2px;flex-shrink:0;border:1px solid #ccc;margin-right:6px;"></span>`
+                    : '';
+
+                const classes = [].concat(config.classNames.item);
+                if (isChoice) classes.push(...config.classNames.itemChoice);
+                classes.push(...config.classNames.itemSelectable);
+                if (data.selected) classes.push(...config.classNames.selectedState);
+                if (data.disabled) classes.push(...config.classNames.itemDisabled);
+                if (data.placeholder) classes.push(...config.classNames.placeholder);
+
+                const div = document.createElement('div');
+                div.className = classes.filter(Boolean).join(' ');
+
+                if (isChoice) {
+                    div.id = data.elementId;
+                    div.dataset.choice = '';
+                    div.dataset.selectText = itemSelectText || '';
+                    div.setAttribute('role', data.group ? 'treeitem' : 'option');
+                } else {
+                    div.dataset.item = '';
+                    if (data.active) div.setAttribute('aria-selected', 'true');
+                }
+
+                div.dataset.id = data.id;
+                div.dataset.value = data.value;
+                if (data.disabled) div.setAttribute('aria-disabled', 'true');
+
+                if (oneRow) {
+                    let balance = props.balanceText || '';
+                    if (!balance) {
+                        const rawDesc = parts[1] || '';
+                        const rawDescParts = rawDesc.split(' • ');
+                        balance = rawDescParts[1] || '';
+                    }
+                    const vSeparator = balance ? `<span style='flex:0 0 auto;'>&nbsp;•&nbsp;</span>` : '';
+                    div.innerHTML = `<div style='display:flex;align-items:center;gap:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'><div class='vr-row-name' style='display:flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${swatch}<span style='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;'>${escapeHtml(name)}</span></div>${vSeparator}<div class='vr-row-desc' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#6c757d;font-size:0.75rem;'>${escapeHtml(balance)}</div></div>`;
+                } else {
+                    div.innerHTML = `<div class='vr-row-name' style='display:flex;align-items:center;gap:6px;'>${swatch}<span>${escapeHtml(name)}</span></div>` +
+                        (desc ? `<div class='vr-row-desc' style='font-size:11px;color:#6c757d;margin-top:2px;'><span style='color:${escapeHtml(stockColor)};font-weight:600;'>${escapeHtml(stockPart)}</span><span> • ${escapeHtml(balancePart)}</span></div>` : '');
+                }
+
+                return div;
+            }
+
+            return {
+                item: function(config, data) {
+                    return buildVariantTwoRow(config, data, false, null, true);
+                },
+                choice: function(config, data, itemSelectText) {
+                    return buildVariantTwoRow(config, data, true, itemSelectText, false);
+                }
+            };
+        }
     });
 }
 
@@ -1515,9 +1818,11 @@ function loadTicketVariants() {
 
     const branchId = window.POS_BRANCH_ID || '';
     const variantUrl = `${window.BASE_URL}/api/ticket-variants?provider_id=${encodeURIComponent(providerId)}&branch_id=${encodeURIComponent(branchId)}`;
+    console.log('[POS loadTicketVariants] url:', variantUrl);
     fetch(variantUrl)
         .then(response => response.json())
         .then(data => {
+            console.log('[POS loadTicketVariants] response:', data);
             if (data.success && Array.isArray(data.data) && data.data.length > 0) {
                 const allowNegative = window.POS_SETTINGS && window.POS_SETTINGS.allow_negative_ticket_stock;
                 let optionsHtml = '<option value="">Select Variant (required)</option>';
@@ -1556,11 +1861,10 @@ function loadTicketVariants() {
                         stockColor = available > 0 ? '#28a745' : '#dc3545';
                         balanceText = 'No wallet';
                     }
-                    const swatch = v.color_code
-                        ? `<span style="display:inline-block;width:12px;height:12px;background:${v.color_code};border-radius:2px;flex-shrink:0;border:1px solid #ccc;"></span>`
-                        : '';
-                    const labelHtml = `<div style="display:flex;align-items:center;gap:6px;">${swatch}<span>${v.variant_name}</span></div><div style="font-size:11px;color:#6c757d;margin-top:2px;"><span style="color:${stockColor};font-weight:600;">${stockText}</span> • ${balanceText}</div>`;
-                    optionsHtml += `<option value="${v.variant_id}" data-available="${available}" data-stock-controlled="${v.stock_controlled}" data-variant-name="${escapeHtml(v.variant_name)}" data-variant-code="${escapeHtml(v.variant_code || '')}">${labelHtml}</option>`;
+                    const safeName = escapeHtml(v.variant_name);
+                    const props = escapeHtml(JSON.stringify({ colorCode: v.color_code || '', stockColor: stockColor, balanceText: balanceText }));
+                    const optionText = safeName + '\u001F' + escapeHtml(stockText) + ' • ' + escapeHtml(balanceText);
+                    optionsHtml += `<option value="${v.variant_id}" data-available="${available}" data-stock-controlled="${v.stock_controlled}" data-variant-name="${escapeHtml(v.variant_name)}" data-variant-code="${escapeHtml(v.variant_code || '')}" data-custom-properties="${props}">${optionText}</option>`;
                 });
 
                 variantSelect.innerHTML = optionsHtml;
@@ -2217,16 +2521,6 @@ function switchTransactionType(type) {
         transactionType = type;
         localStorage.setItem('posTransactionType', type);
         updateTransactionTypeUI();
-        
-        // Set date to today if not already set
-        const dateInput = document.getElementById('filterDate');
-        if (dateInput && dateInput._flatpickr) {
-            const currentValue = dateInput.value;
-            if (!currentValue) {
-                const today = new Date();
-                dateInput._flatpickr.setDate([today, today]);
-            }
-        }
         
         // Load transactions on page 1
         loadRecentTransactions(1);
@@ -3074,6 +3368,7 @@ function addTicketToCart() {
     document.getElementById('ticketDiscount').value = '';
     document.getElementById('ticketAccommodation').value = '';
     document.getElementById('ticketMainProvider').value = '';
+    refreshMainProviderChoices();
     document.getElementById('ticketSubProvider').innerHTML = '<option value="">Select Main Provider First</option>';
     document.getElementById('ticketSubProvider').disabled = true;
     document.getElementById('subProviderWrapper').classList.add('d-none');
@@ -3414,34 +3709,23 @@ function selectPaymentMethod(el) {
     document.getElementById('bankAccountRow').style.display = (activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET') ? '' : 'none';
     document.getElementById('referenceNumber').value = '';
 
-    // Adjust column widths for Bank Transfer to fit in one row
-    const hasExtraField = activePaymentMethod.requiresReference || (activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET');
-    const paymentEntryRow = document.querySelector('#paymentEntryRow .row');
-    const cols = paymentEntryRow.querySelectorAll('.col-md-4');
-    cols.forEach(col => {
-        if (hasExtraField) {
-            col.classList.remove('col-md-4');
-            col.classList.add('col-md-3');
-        } else {
-            col.classList.remove('col-md-3');
-            col.classList.add('col-md-4');
-        }
-    });
+    // Adjust payment entry proportions without changing the underlying fields or process.
+    const hasBankAccount = activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET';
+    const paymentEntryRow = document.getElementById('paymentEntryRow');
+    paymentEntryRow.classList.toggle('payment-has-bank-account', hasBankAccount);
+    paymentEntryRow.classList.toggle('payment-has-reference', activePaymentMethod.requiresReference);
 
-    // Filter bank accounts by payment method type
+    // Filter bank accounts by payment method type while keeping the native select in sync.
     const bankSelect = document.getElementById('bankAccountSelect');
+    ensureBankAccountChoices();
     const options = bankSelect.querySelectorAll('option:not([value=""])');
     options.forEach(opt => {
         const methodType = opt.dataset.methodType || '';
-        if (activePaymentMethod.type === 'BANK_TRANSFER') {
-            opt.style.display = (methodType === 'BANK_TRANSFER' || methodType === '' || !methodType) ? '' : 'none';
-        } else if (activePaymentMethod.type === 'E_WALLET') {
-            opt.style.display = (methodType === 'E_WALLET' || methodType === '' || !methodType) ? '' : 'none';
-        } else {
-            opt.style.display = '';
-        }
+        const isAvailable = !methodType || methodType === activePaymentMethod.type;
+        opt.style.display = isAvailable ? '' : 'none';
     });
     bankSelect.value = '';
+    refreshBankAccountChoices(activePaymentMethod.type);
 
     // If method tracks credit/billing, determine passenger
     if (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) {
@@ -3464,6 +3748,7 @@ function cancelPaymentEntry() {
     document.getElementById('paymentEntryRow').style.display = 'none';
     document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active-payment'));
     activePaymentMethod = null;
+    resetBankAccountChoice();
 }
 
 function addPaymentLine() {
@@ -3478,6 +3763,9 @@ function addPaymentLine() {
         showToast('danger', 'Customer Required', 'Please select a customer for this payment method.'); return;
     }
     const bankAccountId = document.getElementById('bankAccountSelect').value || null;
+    if ((activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET') && !bankAccountId) {
+        showToast('danger', 'Bank Account Required', 'Please select a bank account.'); return;
+    }
 
     paymentLines.push({
         methodId: activePaymentMethod.id,
@@ -3495,6 +3783,7 @@ function addPaymentLine() {
     document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active-payment'));
     activePaymentMethod = null;
     selectedCustomerId = null;
+    resetBankAccountChoice();
     renderPaymentLines();
 }
 
@@ -3751,6 +4040,11 @@ async function confirmOrder() {
             loadWallets(null, window.POS_BRANCH_ID);
             // Refresh recent transactions list
             loadRecentTransactions();
+
+            // Auto-reload page after successful payment / confirm & process
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
         } else {
             showToast('danger', 'Transaction Failed', result.error || 'Unknown error.');
         }
@@ -4425,6 +4719,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const savedSearch = localStorage.getItem('pos_filter_search');
                 const savedType = localStorage.getItem('pos_filter_type');
                 let savedStatus = localStorage.getItem('pos_filter_status');
+                const filterStorageVersion = 'all-history-v1';
+                const savedFilterStorageVersion = localStorage.getItem('pos_filter_storage_version');
+                if (savedFilterStorageVersion !== filterStorageVersion) {
+                    localStorage.removeItem('pos_filter_date');
+                    localStorage.setItem('pos_filter_storage_version', filterStorageVersion);
+                }
                 const savedDate = localStorage.getItem('pos_filter_date');
 
                 // Validate status - 'booked' is not valid for orders, clear it
@@ -4437,7 +4737,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (savedType !== null) document.getElementById('filterType').value = savedType;
                 if (savedStatus !== null && savedStatus !== '') document.getElementById('filterStatus').value = savedStatus;
 
-                // Restore date picker value or set default to today
+                // Restore date picker value when a date filter was previously selected
                 if (savedDate) {
                     if (savedDate.includes(' to ')) {
                         const [startDate, endDate] = savedDate.split(' to ');
@@ -4446,10 +4746,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         dateInput._flatpickr.setDate(savedDate);
                     }
                 } else {
-                    // No saved date, set default to today (single day range)
-                    const today = new Date();
-                    dateInput._flatpickr.setDate([today, today]);
-                    localStorage.setItem('pos_filter_date', today.toISOString().split('T')[0] + ' to ' + today.toISOString().split('T')[0]);
+                    dateInput._flatpickr.clear();
+                    localStorage.removeItem('pos_filter_date');
                 }
 
                 // Only load transactions if we're on the transaction tab
@@ -4784,6 +5082,34 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
     }
 }
 
+function hideCancelTicketModalForConfirmation() {
+    const modalElement = document.getElementById('cancelTicketModal');
+    if (!modalElement || !modalElement.classList.contains('show')) {
+        return Promise.resolve();
+    }
+
+    restoreCancelTicketModal = true;
+
+    return new Promise(resolve => {
+        modalElement.addEventListener('hidden.bs.modal', resolve, { once: true });
+        if (cancelTicketModal) {
+            cancelTicketModal.hide();
+        } else {
+            bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+        }
+    });
+}
+
+function reopenCancelTicketModal() {
+    const modalElement = document.getElementById('cancelTicketModal');
+    if (!modalElement) return;
+
+    if (!cancelTicketModal) {
+        cancelTicketModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    }
+    cancelTicketModal.show();
+}
+
 async function confirmCancelTicket() {
     const txnCode = document.getElementById('cancelTicketCode').value.trim();
     const txnType = (document.getElementById('cancelTxnType')?.value || 'TICKET').toUpperCase();
@@ -4805,6 +5131,8 @@ async function confirmCancelTicket() {
         return;
     }
     
+    await hideCancelTicketModalForConfirmation();
+
     // Fetch payment breakdown to calculate cash vs debt reversal
     let paymentBreakdown = [];
     try {
@@ -4988,14 +5316,22 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
     
     modal.show();
     
-    // Cleanup on hide
+    // Cleanup on hide and restore the underlying cancel modal when dismissed
     modalElement.addEventListener('hidden.bs.modal', function() {
+        const shouldRestoreCancelModal = restoreCancelTicketModal;
+        restoreCancelTicketModal = false;
+        modal.dispose();
         modalElement.remove();
+
+        if (shouldRestoreCancelModal) {
+            requestAnimationFrame(() => reopenCancelTicketModal());
+        }
     });
 }
 
 function executeTicketCancellation(txnCode, refundAmount, reason) {
     // Hide the confirmation modal first
+    restoreCancelTicketModal = false;
     const refundConfirmModalEl = document.getElementById('refundConfirmModal');
     if (refundConfirmModalEl) {
         const refundConfirmModalInstance = bootstrap.Modal.getInstance(refundConfirmModalEl);

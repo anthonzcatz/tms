@@ -109,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'max_concurrent_sessions'  => isset($_POST['max_concurrent_sessions']) && $_POST['max_concurrent_sessions'] !== '' ? max(1, min(10, (int)$_POST['max_concurrent_sessions'])) : 1,
             'notification_roles' => trim($_POST['notification_roles'] ?? ''),
             'encrypt_ids' => isset($_POST['encrypt_ids']) ? 1 : 0,
+            'allow_negative_ticket_stock' => isset($_POST['allow_negative_ticket_stock']) ? 1 : 0,
             // Printer Settings
             'receipt_printing_enabled' => isset($_POST['receipt_printing_enabled']) ? 1 : 0,
             'receipt_paper_width' => trim($_POST['receipt_paper_width'] ?? '80mm'),
@@ -173,7 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 csrf_token_lifetime_minutes = :csrf_token_lifetime_minutes,
                 device_approval_required = :device_approval_required,
                 max_concurrent_sessions  = :max_concurrent_sessions,
+                notification_roles = :notification_roles,
                 encrypt_ids = :encrypt_ids,
+                allow_negative_ticket_stock = :allow_negative_ticket_stock,
                 receipt_printing_enabled = :receipt_printing_enabled,
                 receipt_paper_width = :receipt_paper_width,
                 receipt_auto_print = :receipt_auto_print,

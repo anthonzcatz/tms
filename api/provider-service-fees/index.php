@@ -142,24 +142,81 @@ function handleGet() {
     $where = [];
     $params = [];
 
-    global $userRoleCode, $userBranchId;
+    global $user, $userRoleCode, $userBranchId;
+
+    // Build the list of branches this user may access.
+    $allowedBranchIds = [];
+    if ($userRoleCode !== 'SUPER_ADMIN') {
+        if (!empty($userBranchId)) {
+            $allowedBranchIds = array_values(array_filter(array_map('intval', explode(',', $userBranchId))));
+        }
+        if ($userRoleCode === 'CASHIER' && !empty($user['user_id'])) {
+            $activeSession = Database::fetch(
+                "SELECT branch_id FROM cashier_sessions
+                 WHERE cashier_user_id = :user_id
+                   AND status = 'OPEN'
+                   AND ended_at IS NULL
+                 ORDER BY started_at DESC
+                 LIMIT 1",
+                ['user_id' => (int)$user['user_id']]
+            );
+            if (!empty($activeSession['branch_id'])) {
+                $allowedBranchIds[] = (int)$activeSession['branch_id'];
+            }
+        }
+        $allowedBranchIds = array_values(array_unique($allowedBranchIds));
+    }
 
     // SUPER_ADMIN can see all fees, others are restricted to their branch(es)
     $allBranches = isset($_GET['all_branches']) && $_GET['all_branches'] == '1';
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        if ($allBranches) {
-            $userBranchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
-            if (!empty($userBranchIds)) {
-                $branchPlaceholders = [];
-                foreach ($userBranchIds as $i => $branchId) {
-                    $branchPlaceholders[] = ':user_branch_' . $i;
-                    $params['user_branch_' . $i] = $branchId;
-                }
-                $where[] = "psf.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+
+    // Filter by branch_id if provided
+    $branchId = $_GET['branch_id'] ?? null;
+    if ($branchId) {
+        $decodedBranchId = IdEncoder::decode($branchId);
+        if ($decodedBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            return;
+        }
+        if ($userRoleCode !== 'SUPER_ADMIN' && !in_array((int)$decodedBranchId, $allowedBranchIds, true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied: branch not allowed']);
+            return;
+        }
+        $where[] = "psf.branch_id = :branch_id";
+        $params['branch_id'] = (int)$decodedBranchId;
+    } elseif ($allBranches) {
+        if ($userRoleCode !== 'SUPER_ADMIN' && !empty($allowedBranchIds)) {
+            $branchPlaceholders = [];
+            foreach ($allowedBranchIds as $i => $allowedBranchId) {
+                $branchPlaceholders[] = ':user_branch_' . $i;
+                $params['user_branch_' . $i] = $allowedBranchId;
             }
-        } else {
-            $where[] = "psf.branch_id = :user_branch_id";
-            $params['user_branch_id'] = $userBranchId;
+            $where[] = "psf.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
+        }
+    } else {
+        // Default to the active cashier session branch, or the first assigned branch.
+        $effectiveBranchId = null;
+        if ($userRoleCode === 'CASHIER' && !empty($user['user_id'])) {
+            $activeSession = Database::fetch(
+                "SELECT branch_id FROM cashier_sessions
+                 WHERE cashier_user_id = :user_id
+                   AND status = 'OPEN'
+                   AND ended_at IS NULL
+                 ORDER BY started_at DESC
+                 LIMIT 1",
+                ['user_id' => (int)$user['user_id']]
+            );
+            if (!empty($activeSession['branch_id'])) {
+                $effectiveBranchId = (int)$activeSession['branch_id'];
+            }
+        }
+        if (!$effectiveBranchId && !empty($allowedBranchIds)) {
+            $effectiveBranchId = $allowedBranchIds[0];
+        }
+        if ($effectiveBranchId) {
+            $where[] = "psf.branch_id = :effective_branch_id";
+            $params['effective_branch_id'] = $effectiveBranchId;
         }
     }
 
@@ -173,18 +230,6 @@ function handleGet() {
         }
         $where[] = "psf.provider_id = :provider_id";
         $params['provider_id'] = (int)$decodedProviderId;
-    }
-
-    // Filter by branch_id if provided
-    $branchId = $_GET['branch_id'] ?? null;
-    if ($branchId) {
-        $decodedBranchId = IdEncoder::decode($branchId);
-        if ($decodedBranchId === false) {
-            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
-            return;
-        }
-        $where[] = "psf.branch_id = :branch_id";
-        $params['branch_id'] = (int)$decodedBranchId;
     }
 
     // Filter by fee_type if provided

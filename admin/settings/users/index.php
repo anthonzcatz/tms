@@ -47,12 +47,14 @@ $branches = Database::fetchAll(
      ORDER BY branch_name"
 );
 
-// Get all ticket providers for cashier assignments
+// Get all ticket providers for cashier assignments (including wallet owner)
 $providers = Database::fetchAll(
-    "SELECT provider_id, provider_code, provider_name, provider_type 
-     FROM ticket_providers 
-     WHERE status = 'active' 
-     ORDER BY provider_type, provider_name"
+    "SELECT tp.provider_id, tp.provider_code, tp.provider_name, tp.provider_type,
+            tp.parent_provider_id, ptp.provider_name as parent_provider_name
+     FROM ticket_providers tp
+     LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
+     WHERE tp.status = 'active'
+     ORDER BY tp.provider_type, tp.provider_name"
 );
 
 // Get existing cashier transport assignments

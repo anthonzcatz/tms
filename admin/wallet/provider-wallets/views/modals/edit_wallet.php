@@ -22,6 +22,7 @@
               <div>
                 <strong>Provider:</strong> <span id="editProviderName">-</span><br>
                 <strong>Branch:</strong> <span id="editBranchName">-</span><br>
+                <strong>Variant:</strong> <span id="editVariantName">-</span><br>
                 <strong>Current Balance:</strong> ₱<span id="editCurrentBalance">0.00</span>
               </div>
             </div>
@@ -31,7 +32,7 @@
               <label for="editMinBalance" class="form-label fw-bold">Min Balance Threshold</label>
               <div class="input-group">
                 <span class="input-group-text">₱</span>
-                <input type="number" class="form-control" id="editMinBalance" name="min_balance" placeholder="1000.00" step="0.01" min="0">
+                <input type="text" inputmode="decimal" class="form-control number-format" id="editMinBalance" name="min_balance" placeholder="1,000.00" value="0.00">
               </div>
               <small class="text-muted form-text">Alert when balance falls below this amount</small>
             </div>

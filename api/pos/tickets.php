@@ -7,6 +7,7 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BIRHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/TicketStockHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -50,9 +51,14 @@ if (!$branchId)         { echo json_encode(['success' => false, 'error' => 'Bran
 if (empty($tickets))    { echo json_encode(['success' => false, 'error' => 'At least one ticket is required.']); exit; }
 if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No payment provided.']); exit; }
 
-// Verify session is open
+// Verify session is open and belongs to the provided branch
 $session = Database::fetch("SELECT * FROM cashier_sessions WHERE session_id = :id AND status = 'OPEN'", ['id' => $sessionId]);
 if (!$session) { echo json_encode(['success' => false, 'error' => 'No active session found.']); exit; }
+if ((int)$session['cashier_user_id'] !== (int)$user['user_id'] || (int)$session['branch_id'] !== (int)$branchId) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Session/branch mismatch.']);
+    exit;
+}
 
 // Read system settings once — used inside the transaction loop
 $sysSettings = Database::fetch("SELECT pos_allow_insufficient_wallet FROM system_settings WHERE setting_id = 1") ?? [];
@@ -236,13 +242,73 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 echo json_encode(['success' => false, 'error' => 'Provider is required for each ticket.']); exit;
             }
 
-            // Resolve wallet for the operating provider
-            $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$branchId);
+            // Determine selected ticket variant, if any
+            $variantId = !empty($ticket['variant_id']) ? (int) $ticket['variant_id'] : null;
+
+            // Resolve wallet. Prefer the wallet_id already resolved by the POS UI
+            // (it may have fallen back to a parent provider or a different accessible
+            // branch), but validate it is active and matches the selected provider/variant.
+            $resolvedWallet = null;
+            $walletIdFromTicket = !empty($ticket['wallet_id']) ? (int) $ticket['wallet_id'] : null;
+            if ($walletIdFromTicket) {
+                $walletFromTicket = Database::fetch(
+                    "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active'",
+                    ['wid' => $walletIdFromTicket]
+                );
+
+                if ($walletFromTicket) {
+                    // Ensure the wallet branch is one the cashier may access
+                    $allowedBranches = !empty($user['branch_id'])
+                        ? array_filter(array_map('intval', explode(',', $user['branch_id'])))
+                        : [];
+                    $canAccessBranch = ($user['role_code'] === 'SUPER_ADMIN')
+                        || empty($allowedBranches)
+                        || in_array((int)$walletFromTicket['branch_id'], $allowedBranches, true);
+
+                    if ($canAccessBranch) {
+                        // Build the operating provider's ancestor chain so parent wallets are accepted
+                        $allowedProviderIds = [(int)$providerId];
+                        $currentProviderId = (int)$providerId;
+                        while ($currentProviderId > 0) {
+                            $parent = Database::fetch(
+                                "SELECT parent_provider_id FROM ticket_providers WHERE provider_id = :pid",
+                                ['pid' => $currentProviderId]
+                            );
+                            if (!$parent || empty($parent['parent_provider_id'])) {
+                                break;
+                            }
+                            $currentProviderId = (int)$parent['parent_provider_id'];
+                            $allowedProviderIds[] = $currentProviderId;
+                        }
+
+                        $walletVariantId = !empty($walletFromTicket['variant_id']) ? (int)$walletFromTicket['variant_id'] : null;
+                        if (in_array((int)$walletFromTicket['provider_id'], $allowedProviderIds, true) &&
+                            ($walletVariantId === null || $walletVariantId === $variantId)) {
+                            $resolvedWallet = $walletFromTicket;
+                        }
+                    }
+                }
+            }
+
+            // Fall back to WalletResolver if no valid wallet_id was supplied
+            if (!$resolvedWallet) {
+                $resolvedWallet = WalletResolver::resolve((int)$providerId, (int)$branchId, $variantId);
+            }
             if (!$resolvedWallet) {
                 Database::connection()->rollBack();
-                echo json_encode(['success' => false, 'error' => 'No active wallet found for the selected provider and branch.']); exit;
+                echo json_encode(['success' => false, 'error' => 'No active wallet found for the selected provider, branch and variant.']); exit;
             }
             $walletId = $resolvedWallet['wallet_id'];
+            $isVariantWallet = !empty($resolvedWallet['variant_id']);
+
+            // Validate variant belongs to provider and is active
+            if ($variantId) {
+                $variant = TicketStockHelper::getVariant($variantId);
+                if (!$variant || (int) $variant['provider_id'] !== (int) $providerId || !(bool) $variant['is_active']) {
+                    Database::connection()->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Selected ticket variant is invalid, not for this provider, or inactive.']); exit;
+                }
+            }
 
             // Generate per-ticket transaction code: TKT-YYYYMMDD-HHMM-###
             $txnCode = 'TKT-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
@@ -251,11 +317,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             try {
                 Database::execute(
                     "INSERT INTO ticket_transactions
-                        (transaction_code, wallet_id, provider_id, branch_id, passenger_id, accommodation_id, discount_id,
+                        (transaction_code, wallet_id, provider_id, branch_id, passenger_id, accommodation_id, discount_id, variant_id,
                          origin, destination, travel_date, ticket_number,
                          base_amount, service_fee, discount_amount, total_amount, status,
                          cashier_session_id, created_by, created_at)
-                     VALUES (:code, :wallet, :provider, :branch, :passenger, :accommodation_id, :discount_id,
+                     VALUES (:code, :wallet, :provider, :branch, :passenger, :accommodation_id, :discount_id, :variant_id,
                              :origin, :destination, :travel_date, :ticket_number,
                              :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
                              :session, :uid, :created_at)",
@@ -267,6 +333,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'passenger'       => $ticket['passenger_id'] ?? null,
                         'accommodation_id'=> $ticket['accommodation_id'] ?? null,
                         'discount_id'     => $ticket['discount_id'] ?? null,
+                        'variant_id'      => $variantId,
                         'origin'          => $ticket['origin'] ?? null,
                         'destination'     => $ticket['destination'] ?? null,
                         'travel_date'     => $ticket['travel_date'] ?? null,
@@ -289,16 +356,40 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $ticketTxnId = Database::connection()->lastInsertId();
             $ticketTxnIds[] = $ticketTxnId;
 
+            // --- Deduct ticket stock when a variant was selected and is NOT backed by a variant-specific wallet ---
+            if ($variantId && !$isVariantWallet) {
+                $ticketNumber = $ticket['ticket_number'] ?? $txnCode;
+                try {
+                    TicketStockHelper::deductForSale(
+                        (int) $branchId,
+                        (int) $providerId,
+                        $variantId,
+                        1,
+                        (int) $user['user_id'],
+                        [
+                            'reference_type'     => 'TICKET_TRANSACTION',
+                            'reference_id'       => $ticketTxnId,
+                            'ticket_number_from' => $ticketNumber,
+                            'ticket_number_to'   => $ticketNumber,
+                            'remarks'            => 'POS sale',
+                        ]
+                    );
+                } catch (Exception $stockEx) {
+                    Database::connection()->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Stock deduction failed: ' . $stockEx->getMessage()]); exit;
+                }
+            }
+
             // --- Write order item for this ticket ---
             try {
                 Database::execute(
                     "INSERT INTO pos_order_items
                         (order_id, item_type, reference_id, transaction_code, ticket_number,
-                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, description,
+                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, variant_id, description,
                          unit_price, service_fee, discount_amount, total_amount,
                          origin, destination, travel_date, created_at)
                      VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :description,
+                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :variant_id, :description,
                              :unit_price, :service_fee, :discount_amount, :total,
                              :origin, :destination, :travel_date, :created_at)",
                     [
@@ -311,6 +402,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'provider_id'      => (int)$providerId,
                         'wallet_id'        => $walletId,
                         'passenger_id'     => $ticket['passenger_id'] ?? null,
+                        'variant_id'       => $variantId,
                         'description'      => $ticket['description'] ?? null,
                         'unit_price'       => floatval($ticket['base_amount'] ?? 0),
                         'service_fee'      => floatval($ticket['service_fee'] ?? 0),
@@ -336,7 +428,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
 
             if ($walletId && $baseAmount > 0) {
                 $wallet = Database::fetch(
-                    "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active'",
+                    "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active' FOR UPDATE",
                     ['wid' => $walletId]
                 );
                 if (!$wallet) {
@@ -356,11 +448,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     ['new_balance' => $balanceAfter, 'updated_at' => date('Y-m-d H:i:s'), 'wid' => $walletId]
                 );
 
-                $walletTxnCode = 'ADJ-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
+                $walletTxnCode = 'SALE-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
                 Database::execute(
                     "INSERT INTO wallet_transactions
                         (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
-                     VALUES (:wid, :code, 'ADJUSTMENT', 'OUT', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, :created_at)",
+                     VALUES (:wid, :code, 'SALE', 'OUT', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, :created_at)",
                     [
                         'wid'    => $walletId,
                         'code'   => $walletTxnCode,
@@ -392,12 +484,21 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 $methodType    = $methodInfo['method_type'] ?? '';
                 $tracksCredit  = !empty($methodInfo['tracks_credit']);
 
+                if (in_array($methodType, ['BANK_TRANSFER', 'E_WALLET'], true) && !$bankAcctId) {
+                    Database::connection()->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Please select a bank account for ' . ($methodInfo['method_name'] ?? 'this payment method') . '.']); exit;
+                }
+
                 // Auto-resolve passenger_id: use payment passenger_id or fall back to ticket's passenger
                 $resolvedPassengerId = $passengerId ?: ($ticket['passenger_id'] ?? null);
 
                 // Handle credit-tracking payments — post to customer_charges
                 if ($tracksCredit && $resolvedPassengerId) {
-                    $existingCharge = Database::fetch("SELECT * FROM customer_charges WHERE passenger_id = :pid", ['pid' => $resolvedPassengerId]);
+                    // Lock the row because we will update the aggregate in the same transaction.
+                    $existingCharge = Database::fetch(
+                        "SELECT * FROM customer_charges WHERE passenger_id = :pid FOR UPDATE",
+                        ['pid' => $resolvedPassengerId]
+                    );
                     if (!$existingCharge) {
                         Database::execute(
                             "INSERT INTO customer_charges (passenger_id, total_charged, total_paid, balance, status, last_charge_date)

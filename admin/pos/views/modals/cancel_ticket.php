@@ -5,9 +5,9 @@
       <div class="modal-header px-5 position-relative modal-shape-header bg-shape bg-danger">
         <div class="position-relative z-1">
           <h4 class="mb-0 text-white" id="cancelTicketModalLabel">
-            <span class="fas fa-times-circle me-2"></span>Cancel Ticket
+            <span class="fas fa-times-circle me-2"></span>Cancel Transaction
           </h4>
-          <p class="fs-10 mb-0 text-white">Process ticket cancellation with wallet refund</p>
+          <p class="fs-10 mb-0 text-white" id="cancelTicketModalSubtitle">Process cancellation with refund</p>
         </div>
         <div data-bs-theme="dark">
           <button class="btn-close position-absolute top-0 end-0 mt-2 me-2" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -31,7 +31,7 @@
         <div id="pendingCancellationAlert" class="alert alert-warning d-flex align-items-center mb-4 d-none">
           <span class="fas fa-clock me-3 fs-4"></span>
           <div>
-            <strong>Pending Cancellation:</strong> <span id="pendingCancellationText">This ticket has a pending cancellation request awaiting approval.</span>
+            <strong>Pending Cancellation:</strong> <span id="pendingCancellationText">This transaction has a pending cancellation request awaiting approval.</span>
             <div class="mt-1 small text-muted">Requested by: <span id="pendingRequestedBy">-</span> on <span id="pendingRequestedAt">-</span></div>
           </div>
         </div>
@@ -48,18 +48,18 @@
           <div class="col-md-6">
             <div id="cancelTicketDetails" class="card bg-soft-light mb-3" style="display: none;">
               <div class="card-body p-3">
-                <h6 class="card-title mb-3 fw-bold"><span class="fas fa-info-circle me-2"></span>Ticket Details</h6>
+                <h6 class="card-title mb-3 fw-bold"><span class="fas fa-info-circle me-2" id="cancelDetailsIcon"></span><span id="cancelDetailsTitle">Ticket Details</span></h6>
                 <div class="row g-2">
                   <div class="col-6">
-                    <small class="text-muted d-block mb-1 fs-10">Passenger</small>
+                    <small class="text-muted d-block mb-1 fs-10" id="cancelPassengerLabel">Passenger</small>
                     <span id="cancelPassengerName" class="fw-semibold">-</span>
                   </div>
                   <div class="col-6">
-                    <small class="text-muted d-block mb-1 fs-10">Ticket Number</small>
+                    <small class="text-muted d-block mb-1 fs-10" id="cancelTravelDateLabel">Ticket Number</small>
                     <span id="cancelTravelDate" class="fw-semibold">-</span>
                   </div>
                   <div class="col-6">
-                    <small class="text-muted d-block mb-1 fs-10">Route</small>
+                    <small class="text-muted d-block mb-1 fs-10" id="cancelRouteLabel">Route</small>
                     <span id="cancelRoute" class="fw-semibold">-</span>
                   </div>
                   <div class="col-6">
@@ -67,10 +67,10 @@
                     <span id="cancelProvider" class="fw-semibold">-</span>
                   </div>
                   <div class="col-4">
-                    <small class="text-muted d-block mb-1 fs-10">Cost</small>
+                    <small class="text-muted d-block mb-1 fs-10" id="cancelBaseAmountLabel">Base fare</small>
                     <span id="cancelBaseAmount" class="fw-semibold">₱0.00</span>
                   </div>
-                  <div class="col-4">
+                  <div class="col-4" id="cancelServiceFeeContainer">
                     <small class="text-muted d-block mb-1 fs-10">Service Fee</small>
                     <span id="cancelServiceFee" class="fw-semibold">₱0.00</span>
                   </div>
@@ -103,6 +103,8 @@
 
           <!-- Right Column: Input Fields -->
           <div class="col-md-6">
+            <input type="hidden" id="cancelTxnType" value="TICKET">
+
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelTicketCode">Transaction Code</label>
               <input type="text" class="form-control" id="cancelTicketCode" placeholder="Enter transaction code (e.g., TKT-20260515-123456-789-01)">
@@ -121,7 +123,7 @@
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelRefundAmount">Refund Amount (₱)</label>
               <input type="number" class="form-control" id="cancelRefundAmount" placeholder="0.00" min="0" step="0.01">
-              <small class="text-muted">Refund will be given from cashier cash. Service Fee is non-refundable: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>.</small>
+              <small class="text-muted" id="cancelRefundHint">Refund will be given from cashier cash. Service Fee is non-refundable: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>.</small>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelReason">Reason for Cancellation <span class="text-danger">*</span></label>

@@ -25,11 +25,12 @@
           </div>
           <div class="row g-3">
             <div class="col-md-6">
-              <label for="editProviderId" class="form-label fw-bold">Provider <span class="text-danger">*</span></label>
+              <label for="editProviderId" class="form-label fw-bold">Main Provider <span class="text-danger">*</span></label>
               <select class="form-select" id="editProviderId" name="provider_id" required>
-                <option value="">Select Provider</option>
-                <!-- Providers will be loaded dynamically -->
+                <option value="">Select Main Provider</option>
+                <!-- Main providers will be loaded dynamically -->
               </select>
+              <small class="text-muted form-text">Service fees can only be assigned to main (top-level) providers.</small>
             </div>
             <div class="col-md-6">
               <label for="editBranchId" class="form-label fw-bold">Branch <span class="text-danger">*</span></label>
@@ -46,15 +47,17 @@
               </select>
             </div>
             <div class="col-md-6">
-              <label for="editFeeAmount" class="form-label fw-bold">Fee Amount</label>
+              <label for="editFeeAmount" id="editFeeAmountLabel" class="form-label fw-bold">Fee Amount</label>
               <input type="text" class="form-control" id="editFeeAmount" name="fee_value" placeholder="0.00" pattern="[0-9,.]*">
             </div>
             <div class="col-md-6">
-              <label for="editStatus" class="form-label fw-bold">Status</label>
-              <select class="form-select" id="editStatus" name="status" required>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+              <label for="editStatus" class="form-label fw-bold d-block">Status</label>
+              <div class="form-check form-switch ps-0">
+                <input class="form-check-input" type="checkbox" id="editStatus" name="status" checked style="width: 3em; height: 1.5em; float: none; margin: 0;">
+                <label class="form-check-label ms-2" for="editStatus" id="editStatusLabel">
+                  <span class="text-success fw-bold">Active</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>

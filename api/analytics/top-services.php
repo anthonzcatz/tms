@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -18,7 +19,18 @@ try {
 
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
-    $filterBranchId = isset($_GET['branch_id']) && $_GET['branch_id'] !== '' ? $_GET['branch_id'] : null;
+    $filterBranchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
+        ? $_GET['branch_id']
+        : null;
+    $filterBranchId = null;
+
+    if ($filterBranchIdRaw !== null) {
+        $filterBranchId = IdEncoder::decode($filterBranchIdRaw);
+        if ($filterBranchId === false) {
+            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
+            exit;
+        }
+    }
 
     // Build branch restriction (po table + tt table)
     $branchWhere = '';
@@ -27,12 +39,17 @@ try {
 
     if ($filterBranchId) {
         // Validate access for non-SUPER_ADMIN
+        $allowedBranchIds = $userBranchId
+            ? array_map('intval', array_filter(explode(',', $userBranchId), function ($id) {
+                return trim($id) !== '';
+            }))
+            : [];
         $allowed = ($userRoleCode === 'SUPER_ADMIN')
-            || ($userBranchId && in_array($filterBranchId, array_map('trim', explode(',', $userBranchId))));
+            || in_array((int)$filterBranchId, $allowedBranchIds, true);
         if ($allowed) {
             $branchWhere = "AND po.branch_id = :branch_id";
             $ticketBranchWhere = "AND tt.branch_id = :branch_id";
-            $branchParams['branch_id'] = $filterBranchId;
+            $branchParams['branch_id'] = (int)$filterBranchId;
         } elseif ($userBranchId) {
             $branchIds = array_map('trim', explode(',', $userBranchId));
             $namedParams = [];

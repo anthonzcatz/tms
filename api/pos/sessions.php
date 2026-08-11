@@ -191,6 +191,10 @@ function handlePost() {
 
     if (!$branchId) { echo json_encode(['success' => false, 'error' => 'Branch is required.']); return; }
 
+    // Validate branch exists (prevents FK failures later on pos_orders)
+    $branchExists = Database::fetch("SELECT branch_id FROM business_branches WHERE branch_id = :id", ['id' => $branchId]);
+    if (!$branchExists) { echo json_encode(['success' => false, 'error' => 'Invalid branch selected.']); return; }
+
     // Check for already open session for the cashier
     $open = Database::fetch(
         "SELECT session_id FROM cashier_sessions WHERE cashier_user_id = :uid AND status = 'OPEN'",

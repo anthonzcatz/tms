@@ -1138,10 +1138,15 @@ require_once __DIR__ . '/../_guard.php';
     // {range, branchId, startDate, endDate, effectiveRange}
     // - effectiveRange normalizes "custom-*" to a base range so legacy cards
     //   that don't support custom dates can still pick a sensible fallback.
+    let analyticsFilterVersion = 0;
+
     function getGlobalFilters() {
         const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
+        const savedBranch = localStorage.getItem('analyticsBranchId') || '';
         const branchEl = document.getElementById('globalBranchSelector');
-        const branchId = (branchEl ? branchEl.value : localStorage.getItem('analyticsBranchId')) || '';
+        const branchId = branchEl
+            ? (branchEl.value || (branchEl.dataset.populated === 'true' ? '' : savedBranch))
+            : savedBranch;
         const startDate = localStorage.getItem('analyticsCustomStartDate') || '';
         const endDate   = localStorage.getItem('analyticsCustomEndDate')   || '';
 
@@ -1240,9 +1245,11 @@ require_once __DIR__ . '/../_guard.php';
     const filterLabels = { 'today': 'today', '1': 'last hour', '6': 'last 6 hours', '24': 'last 24 hours' };
 
     function fetchLiveSales() {
+        const requestVersion = analyticsFilterVersion;
         const filter = document.getElementById('liveSalesFilter').value;
         const branchFilter = document.getElementById('liveSalesBranchFilter');
-        const branchId = branchFilter ? branchFilter.value : '';
+        const globalFilters = getGlobalFilters();
+        const branchId = (branchFilter && branchFilter.value) || globalFilters.branchId;
 
         // Update subtitle label
         const labelEl = document.getElementById('liveFilterLabel');
@@ -1250,19 +1257,13 @@ require_once __DIR__ . '/../_guard.php';
 
         let apiUrl = LIVE_SALES_API + (filter === 'today' ? '?hours=24&today=true' : '?hours=' + filter);
         if (branchId) {
-            apiUrl += '&branch_id=' + branchId;
-        } else {
-            // If no local branch filter, use global branch selector
-            const globalBranchSelector = document.getElementById('globalBranchSelector');
-            if (globalBranchSelector && globalBranchSelector.value) {
-                apiUrl += '&branch_id=' + globalBranchSelector.value;
-            }
+            apiUrl += '&branch_id=' + encodeURIComponent(branchId);
         }
 
         fetch(apiUrl)
             .then(r => r.json())
             .then(data => {
-                if (!data.success) return;
+                if (!data.success || requestVersion !== analyticsFilterVersion) return;
                 const d = data.data;
 
                 document.getElementById('liveSalesTotal').textContent      = formatCurrency(d.total_sales);
@@ -1347,7 +1348,11 @@ require_once __DIR__ . '/../_guard.php';
                     list.innerHTML = `<p class="fs-11 mb-0 py-1 text-white opacity-50">No transactions yet</p>`;
                 }
             })
-            .catch(e => console.error('Live sales error:', e));
+            .catch(e => {
+                if (requestVersion === analyticsFilterVersion) {
+                    console.error('Live sales error:', e);
+                }
+            });
     }
 
     function initGoalCharts(savedRange = null, savedBranch = null) {
@@ -1358,6 +1363,7 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     async function fetchTMSMetrics(range = 'month', branchId = null) {
+        const requestVersion = analyticsFilterVersion;
         try {
             // Prefer the centralized global filters; fall back to args if needed
             const f = getGlobalFilters();
@@ -1374,6 +1380,8 @@ require_once __DIR__ . '/../_guard.php';
             const response = await fetch(url);
             const result = await response.json();
 
+            if (requestVersion !== analyticsFilterVersion) return;
+
             if (result.success) {
                 const metrics = result.data;
                 
@@ -1388,6 +1396,7 @@ require_once __DIR__ . '/../_guard.php';
                 renderGoalChart3(metrics.avg_trend);
             }
         } catch (e) {
+            if (requestVersion !== analyticsFilterVersion) return;
             console.error('Error fetching TMS metrics:', e);
             // Set default values on error
             document.getElementById('totalOrdersGoal').textContent = '0';
@@ -1397,7 +1406,9 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     function renderGoalChart1(data) {
-        const goalChart1 = echarts.init(document.getElementById('goalChart1'));
+        const goalChart1Dom = document.getElementById('goalChart1');
+        if (!goalChart1Dom) return;
+        const goalChart1 = echarts.getInstanceByDom(goalChart1Dom) || echarts.init(goalChart1Dom);
         goalChart1.setOption({
             tooltip: { show: false },
             grid: { right: '16px', left: '0', bottom: '0', top: '0' },
@@ -1422,7 +1433,9 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     function renderGoalChart2(data) {
-        const goalChart2 = echarts.init(document.getElementById('goalChart2'));
+        const goalChart2Dom = document.getElementById('goalChart2');
+        if (!goalChart2Dom) return;
+        const goalChart2 = echarts.getInstanceByDom(goalChart2Dom) || echarts.init(goalChart2Dom);
         goalChart2.setOption({
             tooltip: { show: false },
             grid: { right: '16px', left: '16px', bottom: '0', top: '0' },
@@ -1447,7 +1460,9 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     function renderGoalChart3(data) {
-        const goalChart3 = echarts.init(document.getElementById('goalChart3'));
+        const goalChart3Dom = document.getElementById('goalChart3');
+        if (!goalChart3Dom) return;
+        const goalChart3 = echarts.getInstanceByDom(goalChart3Dom) || echarts.init(goalChart3Dom);
         goalChart3.setOption({
             tooltip: { show: false },
             grid: { right: '0', left: '16px', bottom: '0', top: '0' },
@@ -1739,6 +1754,7 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     async function fetchTransactionsPerHour() {
+        const requestVersion = analyticsFilterVersion;
         try {
             console.log('fetchTransactionsPerHour called');
             // Use global filter as the source of truth; sync local selectors visually
@@ -1755,6 +1771,8 @@ require_once __DIR__ . '/../_guard.php';
             const response = await fetch(url);
             const result = await response.json();
             console.log('API response:', result);
+
+            if (requestVersion !== analyticsFilterVersion) return;
 
             if (result.success) {
                 console.log('Calling renderTransactionsPerHourChart with:', result.data);
@@ -1913,6 +1931,7 @@ require_once __DIR__ . '/../_guard.php';
 
     // ─── Top Services Table ───────────────────────────────────────────────────────
     async function fetchTopServices() {
+        const requestVersion = analyticsFilterVersion;
         try {
             const f = getGlobalFilters();
             // Sync local selector visually
@@ -1922,8 +1941,8 @@ require_once __DIR__ . '/../_guard.php';
                 local.value = f.effectiveRange;
             }
             
-            // Use local branch filter if set, otherwise use global
-            const branchId = branchFilter ? branchFilter.value : f.branchId;
+            // Use local branch filter if set, otherwise use global/saved filter
+            const branchId = (branchFilter && branchFilter.value) || f.branchId;
             
             let query = 'range=' + (f.effectiveRange || 'today');
             if (branchId) {
@@ -1935,6 +1954,8 @@ require_once __DIR__ . '/../_guard.php';
             
             const response = await fetch(`${window.BASE_URL}/api/analytics/top-services.php?${query}`);
             const result = await response.json();
+
+            if (requestVersion !== analyticsFilterVersion) return;
 
             if (result.success) {
                 renderTopServicesTable(result.data);
@@ -1973,6 +1994,7 @@ require_once __DIR__ . '/../_guard.php';
     let paymentBreakdownChart = null;
 
     async function fetchPaymentBreakdown() {
+        const requestVersion = analyticsFilterVersion;
         try {
             const f = getGlobalFilters();
             const local = document.getElementById('paymentBreakdownFilter');
@@ -1981,8 +2003,8 @@ require_once __DIR__ . '/../_guard.php';
                 local.value = f.effectiveRange;
             }
             
-            // Use local branch filter if set, otherwise use global
-            const branchId = branchFilter ? branchFilter.value : f.branchId;
+            // Use local branch filter if set, otherwise use global/saved filter
+            const branchId = (branchFilter && branchFilter.value) || f.branchId;
             
             let query = 'range=' + (f.effectiveRange || 'today');
             if (branchId) {
@@ -1994,6 +2016,8 @@ require_once __DIR__ . '/../_guard.php';
             
             const response = await fetch(`${window.BASE_URL}/api/analytics/payment-breakdown.php?${query}`);
             const result = await response.json();
+
+            if (requestVersion !== analyticsFilterVersion) return;
 
             if (result.success) {
                 renderPaymentBreakdownChart(result.data);
@@ -2214,13 +2238,16 @@ require_once __DIR__ . '/../_guard.php';
     let cashierPerformanceData = null;
 
     async function fetchCashierPerformance(days = 7, branchId = null) {
+        const requestVersion = analyticsFilterVersion;
         try {
             let url = `${window.BASE_URL}/api/analytics/cashier-performance.php?days=${days}`;
             if (branchId) {
-                url += `&branch_id=${branchId}`;
+                url += `&branch_id=${encodeURIComponent(branchId)}`;
             }
             const res = await fetch(url);
             const result = await res.json();
+
+            if (requestVersion !== analyticsFilterVersion) return null;
 
             if (!result.success) {
                 console.error('Cashier performance error:', result.error);
@@ -2410,7 +2437,7 @@ require_once __DIR__ . '/../_guard.php';
         const branchId = savedBranch || document.getElementById('globalBranchSelector')?.value || '';
         const days = rangeToDays(range);
         const data = await fetchCashierPerformance(days, branchId);
-        renderCashierPerformanceChart(data);
+        if (data) renderCashierPerformanceChart(data);
 
         // Sync date filter with saved range
         const dateFilter = document.getElementById('cashierPerformanceFilter');
@@ -2432,7 +2459,7 @@ require_once __DIR__ . '/../_guard.php';
                     syncTopFilterButtons(range);
                 } else {
                     const newData = await fetchCashierPerformance(days, branchId);
-                    renderCashierPerformanceChart(newData);
+                    if (newData) renderCashierPerformanceChart(newData);
                 }
             });
         }
@@ -2452,7 +2479,7 @@ require_once __DIR__ . '/../_guard.php';
                     globalSelector.dispatchEvent(new Event('change'));
                 } else {
                     const newData = await fetchCashierPerformance(days, branchId);
-                    renderCashierPerformanceChart(newData);
+                    if (newData) renderCashierPerformanceChart(newData);
                 }
             });
         }
@@ -2514,9 +2541,10 @@ require_once __DIR__ . '/../_guard.php';
 
     // Fetch branch analytics data (optimized for new pos_orders structure)
     async function fetchBranchAnalytics() {
-        // Read range directly from localStorage to get the latest value
-        const globalRange = localStorage.getItem('analyticsDateRange') || 'week';
-        const isCustom = globalRange && globalRange.startsWith('custom-');
+        const requestVersion = analyticsFilterVersion;
+        const globalFilters = getGlobalFilters();
+        const globalRange = globalFilters.range || 'today';
+        const isCustom = globalFilters.isCustom;
         
         // For custom ranges, use a base range for the API but pass custom dates
         let range = globalRange;
@@ -2531,11 +2559,14 @@ require_once __DIR__ . '/../_guard.php';
         // Use global branch selector if available, fallback to branchSelector
         const globalBranchSelector = document.getElementById('globalBranchSelector');
         const branchSelector = document.getElementById('branchSelector');
-        // Always send branch_id: empty string = All Branches, value = specific branch
-        const branchId = globalBranchSelector ? (globalBranchSelector.value || '') : (branchSelector ? (branchSelector.value || '') : null);
+        // Always send branch_id: empty string = All Branches, value = specific branch.
+        // getGlobalFilters() falls back to localStorage until the branch options are loaded.
+        const branchId = globalBranchSelector
+            ? globalFilters.branchId
+            : (branchSelector ? (branchSelector.value || '') : '');
 
-        // Sync the branch selectors
-        if (globalBranchSelector && branchSelector) {
+        // Sync the branch selector when it is already populated.
+        if (globalBranchSelector && branchSelector && globalBranchSelector.dataset.populated === 'true') {
             branchSelector.value = globalBranchSelector.value;
         }
 
@@ -2546,8 +2577,10 @@ require_once __DIR__ . '/../_guard.php';
 
         try {
             // Build URL with custom dates if applicable
-            const branchParam = branchSelector !== null ? `&branch_id=${branchId}` : '';
-            let url = `${window.BASE_URL}/api/analytics/branch-sales?range=${range}${branchParam}`;
+            const branchParam = (globalBranchSelector || branchSelector)
+                ? `&branch_id=${encodeURIComponent(branchId || '')}`
+                : '';
+            let url = `${window.BASE_URL}/api/analytics/branch-sales?range=${encodeURIComponent(range)}${branchParam}`;
             
             // Add custom date parameters if custom range is active
             if (isCustom) {
@@ -2566,6 +2599,8 @@ require_once __DIR__ . '/../_guard.php';
             clearTimeout(timeoutId);
             
             const result = await response.json();
+
+            if (requestVersion !== analyticsFilterVersion) return;
 
             if (result.success) {
                 branchAnalyticsData = result.data;
@@ -2590,6 +2625,7 @@ require_once __DIR__ . '/../_guard.php';
                     `<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${result.error || 'Failed to load'}</span>`;
             }
         } catch (error) {
+            if (requestVersion !== analyticsFilterVersion) return;
             console.error('Failed to fetch branch analytics:', error);
             // Show appropriate error message
             if (error.name === 'AbortError') {
@@ -2603,83 +2639,53 @@ require_once __DIR__ . '/../_guard.php';
         }
     }
 
-    // Populate branch selector
+    // Populate all branch selectors and restore the saved branch after options exist.
     function populateBranchSelector(branches) {
+        const availableBranches = Array.isArray(branches) ? branches : [];
         const selector = document.getElementById('branchSelector');
         const globalSelector = document.getElementById('globalBranchSelector');
-        const cashierBranchFilter = document.getElementById('cashierPerformanceBranchFilter');
-        const walletBranchFilter = document.getElementById('walletBranchSelector');
-        const paymentBreakdownBranchFilter = document.getElementById('paymentBreakdownBranchFilter');
-        const liveSalesBranchFilter = document.getElementById('liveSalesBranchFilter');
-        const topServicesBranchFilter = document.getElementById('topServicesBranchFilter');
-        const hourlyBranchFilter = document.getElementById('hourlyBranchFilter');
-        
-        // Build options: All Branches first (only for multi-branch users)
+        const branchSelectors = [
+            globalSelector,
+            selector,
+            document.getElementById('cashierPerformanceBranchFilter'),
+            document.getElementById('walletBranchSelector'),
+            document.getElementById('paymentBreakdownBranchFilter'),
+            document.getElementById('liveSalesBranchFilter'),
+            document.getElementById('topServicesBranchFilter'),
+            document.getElementById('hourlyBranchFilter')
+        ].filter(Boolean);
+
         let html = '';
-        if (branches.length > 1) {
-            html += `<option value="">All Branches</option>`;
+        if (availableBranches.length > 1) {
+            html += '<option value="">All Branches</option>';
         }
-        html += branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-        
-        // Populate global selector (only once)
-        if (globalSelector && globalSelector.dataset.populated !== 'true') {
-            const savedBranch = localStorage.getItem('analyticsBranchId') || '';
-            globalSelector.innerHTML = html;
-            // Restore saved selection if valid
-            if (savedBranch && branches.find(b => b.id === savedBranch)) {
-                globalSelector.value = savedBranch;
+        html += availableBranches.map(branch =>
+            `<option value="${branch.id}">${branch.name}</option>`
+        ).join('');
+
+        const savedBranch = localStorage.getItem('analyticsBranchId') || '';
+        const savedBranchIsValid = savedBranch && availableBranches.some(branch => branch.id === savedBranch);
+        const currentGlobalBranch = globalSelector?.dataset.populated === 'true'
+            ? globalSelector.value
+            : '';
+
+        let selectedBranch = currentGlobalBranch || (savedBranchIsValid ? savedBranch : '');
+        if (!selectedBranch && availableBranches.length === 1) {
+            selectedBranch = availableBranches[0].id;
+        }
+
+        // Do not keep a branch selection that is no longer accessible.
+        if (savedBranch && !savedBranchIsValid) {
+            localStorage.removeItem('analyticsBranchId');
+        }
+
+        branchSelectors.forEach(branchSelector => {
+            if (branchSelector.dataset.populated !== 'true') {
+                branchSelector.innerHTML = html;
+                branchSelector.dataset.populated = 'true';
             }
-            globalSelector.dataset.populated = 'true';
-        }
-        
-        // Populate Cashier Performance branch filter (only once)
-        if (cashierBranchFilter && cashierBranchFilter.dataset.populated !== 'true') {
-            cashierBranchFilter.innerHTML = html;
-            cashierBranchFilter.dataset.populated = 'true';
-        }
-        
-        // Populate Wallet branch selector (only once)
-        if (walletBranchFilter && walletBranchFilter.dataset.populated !== 'true') {
-            walletBranchFilter.innerHTML = html;
-            walletBranchFilter.dataset.populated = 'true';
-        }
-        
-        // Populate Payment Breakdown branch filter (only once)
-        if (paymentBreakdownBranchFilter && paymentBreakdownBranchFilter.dataset.populated !== 'true') {
-            paymentBreakdownBranchFilter.innerHTML = html;
-            paymentBreakdownBranchFilter.dataset.populated = 'true';
-        }
-        
-        // Populate Live Sales branch filter (only once)
-        if (liveSalesBranchFilter && liveSalesBranchFilter.dataset.populated !== 'true') {
-            liveSalesBranchFilter.innerHTML = html;
-            liveSalesBranchFilter.dataset.populated = 'true';
-        }
-        
-        // Populate Top Services branch filter (only once)
-        if (topServicesBranchFilter && topServicesBranchFilter.dataset.populated !== 'true') {
-            topServicesBranchFilter.innerHTML = html;
-            topServicesBranchFilter.dataset.populated = 'true';
-        }
-        
-        // Populate Transactions per Hour branch filter (only once)
-        if (hourlyBranchFilter && hourlyBranchFilter.dataset.populated !== 'true') {
-            hourlyBranchFilter.innerHTML = html;
-            hourlyBranchFilter.dataset.populated = 'true';
-        }
-        
-        // Populate local selector (only once)
-        if (selector && selector.dataset.populated !== 'true') {
-            const currentValue = selector.value;
-            selector.innerHTML = html;
-            // Sync with global selector
-            if (globalSelector) {
-                selector.value = globalSelector.value;
-            } else if (currentValue && branches.find(b => b.id === currentValue)) {
-                selector.value = currentValue;
-            }
-            selector.dataset.populated = 'true';
-        }
+            branchSelector.value = selectedBranch;
+        });
     }
 
     // Update UI with analytics data (optimized for profit data)
@@ -2787,6 +2793,28 @@ require_once __DIR__ . '/../_guard.php';
         });
     }
 
+    function showBranchChartEmptyState(chart, message = 'No data for selected branch') {
+        if (!chart || chart.isDisposed()) return;
+
+        chart.clear();
+        chart.setOption({
+            xAxis: { show: false },
+            yAxis: { show: false },
+            series: [],
+            graphic: [{
+                type: 'text',
+                left: 'center',
+                top: 'middle',
+                style: {
+                    text: message,
+                    fill: '#748194',
+                    fontSize: 12,
+                    fontWeight: 400
+                }
+            }]
+        }, true);
+    }
+
     // Shared base chart config matching Falcon template style
     function baseChartOption(dates) {
         return {
@@ -2876,6 +2904,12 @@ require_once __DIR__ . '/../_guard.php';
         const chart = branchCharts['branchSalesChart'];
         if (!chart || typeof echarts === 'undefined') return;
 
+        const hasData = data.some(item => Number(item.sales) !== 0 || Number(item.refunds) !== 0);
+        if (!hasData) {
+            showBranchChartEmptyState(chart);
+            return;
+        }
+
         // Clear chart to force animation on re-render
         chart.clear();
 
@@ -2923,6 +2957,12 @@ require_once __DIR__ . '/../_guard.php';
         const chart = branchCharts['branchNetChart'];
         if (!chart || typeof echarts === 'undefined') return;
 
+        const hasData = data.some(item => Number(item.net) !== 0);
+        if (!hasData) {
+            showBranchChartEmptyState(chart);
+            return;
+        }
+
         // Clear chart to force animation on re-render
         chart.clear();
 
@@ -2945,6 +2985,12 @@ require_once __DIR__ . '/../_guard.php';
     function renderRefundsChart(dates, data) {
         const chart = branchCharts['branchRefundsChart'];
         if (!chart || typeof echarts === 'undefined') return;
+
+        const hasData = data.some(item => Number(item.refunds) !== 0);
+        if (!hasData) {
+            showBranchChartEmptyState(chart);
+            return;
+        }
 
         // Clear chart to force animation on re-render
         chart.clear();
@@ -2990,14 +3036,15 @@ require_once __DIR__ . '/../_guard.php';
         branchCharts['branchProfitChart'] = chart;
 
         // Validate profit data exists
-        const hasProfitData = data.some(d => (d.profit && d.profit > 0) || (d.cost && d.cost > 0) || (d.revenue && d.revenue > 0));
+        const hasProfitData = data.some(d =>
+            Number(d.profit) !== 0 ||
+            Number(d.cost) !== 0 ||
+            Number(d.revenue) !== 0 ||
+            Number(d.service_fees) !== 0 ||
+            Number(d.add_ons) !== 0
+        );
         if (!hasProfitData) {
-            dom.innerHTML = `
-                <div class="d-flex flex-column justify-content-center align-items-center h-100 text-center py-4">
-                    <span class="fas fa-chart-line text-muted fs-2 mb-2"></span>
-                    <p class="text-muted fs-11 mb-0">No profit data available</p>
-                </div>
-            `;
+            showBranchChartEmptyState(chart, 'No profit data for selected branch');
             return;
         }
 
@@ -3233,6 +3280,7 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     async function fetchTodaySalesTarget(branchId = null) {
+        const requestVersion = analyticsFilterVersion;
         try {
             const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
             const customStartDate = localStorage.getItem('analyticsCustomStartDate');
@@ -3254,13 +3302,15 @@ require_once __DIR__ . '/../_guard.php';
             let url = `${window.BASE_URL}/api/sales-targets/targets.php?start_date=${startDate}&end_date=${endDate}`;
             
             if (branchId) {
-                url += `&branch_id=${branchId}`;
+                url += `&branch_id=${encodeURIComponent(branchId)}`;
             }
             
             console.log('Fetching sales target from:', url);
             
             const res = await fetch(url);
             const result = await res.json();
+
+            if (requestVersion !== analyticsFilterVersion) return;
             
             console.log('Sales target API response:', result);
             
@@ -3382,18 +3432,22 @@ require_once __DIR__ . '/../_guard.php';
                 document.getElementById('todayTargetNotesContainer').style.display = 'none';
             }
         } catch (error) {
+            if (requestVersion !== analyticsFilterVersion) return;
             console.error('Error fetching sales target:', error);
         }
     }
 
     async function fetchProviderWallets(branchId = null) {
+        const requestVersion = analyticsFilterVersion;
         try {
             let url = `${window.BASE_URL}/api/analytics/wallet-summary.php`;
             if (branchId) {
-                url += `?branch_id=${branchId}`;
+                url += `?branch_id=${encodeURIComponent(branchId)}`;
             }
             const res    = await fetch(url);
             const result = await res.json();
+
+            if (requestVersion !== analyticsFilterVersion) return;
 
             if (!result.success) {
                 document.getElementById('walletError').style.display   = 'block';
@@ -3482,6 +3536,7 @@ require_once __DIR__ . '/../_guard.php';
             renderWalletBarChart(branchSet, series, providerSet);
 
         } catch (e) {
+            if (requestVersion !== analyticsFilterVersion) return;
             document.getElementById('walletError').style.display   = 'block';
             document.getElementById('walletErrorMsg').textContent  = 'Connection error';
             console.error('Wallet widget error:', e);
@@ -3700,6 +3755,7 @@ require_once __DIR__ . '/../_guard.php';
     if (globalBranchSelector) {
         globalBranchSelector.addEventListener('change', function() {
             const branchId = this.value;
+            analyticsFilterVersion += 1;
             localStorage.setItem('analyticsBranchId', branchId);
             
             // Sync with Branch Analytics selector
@@ -3745,7 +3801,7 @@ require_once __DIR__ . '/../_guard.php';
             fetchBranchAnalytics();
             fetchTMSMetrics(currentRange || 'month', branchId || null);
             fetchCashierPerformance(rangeToDays(currentRange || 'week'), branchId).then(data => {
-                renderCashierPerformanceChart(data);
+                if (data) renderCashierPerformanceChart(data);
             });
             fetchProviderWallets(branchId || null);
             fetchTodaySalesTarget(branchId || null);
@@ -3845,6 +3901,7 @@ require_once __DIR__ . '/../_guard.php';
     // Refresh analytics based on selected range
     function refreshAnalytics(range, startDate = null, endDate = null) {
         console.log('Refreshing analytics for range:', range);
+        analyticsFilterVersion += 1;
         
         // Save selected range to localStorage
         localStorage.setItem('analyticsDateRange', range);
@@ -3874,19 +3931,19 @@ require_once __DIR__ . '/../_guard.php';
         // Refresh Cashier Performance with new range
         if (['today', 'week', 'last30days', 'year'].includes(range)) {
             const days = rangeToDays(range);
-            const branchId = document.getElementById('globalBranchSelector')?.value || null;
+            const branchId = getGlobalFilters().branchId || null;
             // Sync Cashier Performance dropdown UI
             const cashierFilter = document.getElementById('cashierPerformanceFilter');
             if (cashierFilter) {
                 cashierFilter.value = days;
             }
             fetchCashierPerformance(days, branchId).then(data => {
-                renderCashierPerformanceChart(data);
+                if (data) renderCashierPerformanceChart(data);
             });
         }
         
         // Refresh Provider Wallet Balances with new branch
-        const globalBranchId = document.getElementById('globalBranchSelector')?.value || '';
+        const globalBranchId = getGlobalFilters().branchId || '';
         fetchProviderWallets(globalBranchId);
         
         // Refresh Today's Sales Target
@@ -4029,7 +4086,7 @@ require_once __DIR__ . '/../_guard.php';
             if (['today', 'week', 'month', 'year'].includes(savedRange)) {
                 const days = rangeToDays(savedRange);
                 fetchCashierPerformance(days, savedBranch).then(data => {
-                    renderCashierPerformanceChart(data);
+                    if (data) renderCashierPerformanceChart(data);
                 });
             }
             

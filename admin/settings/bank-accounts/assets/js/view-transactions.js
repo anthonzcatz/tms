@@ -374,11 +374,23 @@ function submitBalanceAdjustment() {
         return;
     }
     
-    // Show confirmation modal instead of alert
-    showAdjustmentConfirmModal(currentBalance, amount, direction, newBalance, () => {
-        // Confirmed - proceed with adjustment
-        performAdjustment(bankAccountId, direction, amount, remarks);
-    });
+    // Hide the Balance Adjustment modal before showing the confirmation modal
+    const balanceModalEl = document.getElementById('balanceAdjustmentModal');
+    const balanceModal = bootstrap.Modal.getInstance(balanceModalEl);
+
+    const showConfirm = () => {
+        window.adjustmentCompleted = false;
+        showAdjustmentConfirmModal(currentBalance, amount, direction, newBalance, () => {
+            performAdjustment(bankAccountId, direction, amount, remarks);
+        });
+    };
+
+    if (balanceModal) {
+        balanceModalEl.addEventListener('hidden.bs.modal', showConfirm, { once: true });
+        balanceModal.hide();
+    } else {
+        showConfirm();
+    }
 }
 
 /**
@@ -430,10 +442,10 @@ function showAdjustmentConfirmModal(currentBalance, amount, direction, newBalanc
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
                             <span class="fas fa-times me-1"></span>Cancel
                         </button>
-                        <button type="button" class="btn btn-primary" id="confirmAdjustmentBtn" disabled onclick="confirmAdjustmentAction()">
+                        <button type="button" class="btn btn-sm btn-primary" id="confirmAdjustmentBtn" disabled onclick="confirmAdjustmentAction()">
                             <span class="fas fa-check me-1"></span>Confirm Adjustment
                         </button>
                     </div>
@@ -466,6 +478,13 @@ function showAdjustmentConfirmModal(currentBalance, amount, direction, newBalanc
     modalElement.addEventListener('hidden.bs.modal', function() {
         modalElement.remove();
         window.onAdjustmentConfirmed = null;
+
+        // If adjustment was not completed, reopen the Balance Adjustment modal
+        if (!window.adjustmentCompleted) {
+            const balanceModalEl = document.getElementById('balanceAdjustmentModal');
+            const balanceModal = bootstrap.Modal.getInstance(balanceModalEl) || new bootstrap.Modal(balanceModalEl);
+            balanceModal.show();
+        }
     });
 }
 
@@ -490,8 +509,15 @@ function performAdjustment(bankAccountId, direction, amount, remarks) {
     .then(data => {
         if (data.success) {
             showToast('success', 'Success', 'Balance adjustment recorded successfully');
-            bootstrap.Modal.getInstance(document.getElementById('adjustmentConfirmModal')).hide();
-            bootstrap.Modal.getInstance(document.getElementById('balanceAdjustmentModal')).hide();
+            window.adjustmentCompleted = true;
+
+            const confirmModalEl = document.getElementById('adjustmentConfirmModal');
+            const balanceModalEl = document.getElementById('balanceAdjustmentModal');
+            const confirmModal = bootstrap.Modal.getInstance(confirmModalEl);
+            const balanceModal = bootstrap.Modal.getInstance(balanceModalEl);
+
+            if (confirmModal) confirmModal.hide();
+            if (balanceModal) balanceModal.hide();
             setTimeout(() => location.reload(), 500);
         } else {
             showToast('error', 'Error', data.error || 'Failed to record adjustment');

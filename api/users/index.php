@@ -274,9 +274,11 @@ function handleGet() {
         // Get transport assignments if user is a cashier
         if ($listedUser['role_code'] === 'CASHIER') {
             $assignments = Database::fetchAll(
-                "SELECT cta.transport_type, tp.provider_name
+                "SELECT cta.transport_type, tp.provider_id, tp.provider_name, tp.provider_type,
+                        ptp.provider_name as parent_provider_name
                  FROM cashier_transport_assignments cta
                  LEFT JOIN ticket_providers tp ON cta.provider_id = tp.provider_id
+                 LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
                  WHERE cta.user_id = :user_id",
                 ['user_id' => $listedUser['user_id']]
             );
