@@ -44,6 +44,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                  </h6>
                 </div>
               </div>
+              <div class="col-auto ms-auto">
+                <small id="bankConfirmationsRealtimeStatus" class="text-muted" title="Bank confirmation data refresh status">Live updates initializing...</small>
+              </div>
             </div>
           </div>
         </div>
@@ -53,7 +56,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         <?php $activeWalletModule = 'bank-confirmations'; include dirname(dirname(__DIR__)) . '/wallet/_partials/wallet_nav.php'; ?>
 
         <!-- Stats Cards -->
-        <div class="row g-3 mb-3">
+        <div class="row g-3 mb-3" id="bankConfirmationsStats">
           <div class="col-sm-6 col-md-3">
             <div class="card h-md-100">
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Pending</h6></div>
@@ -152,7 +155,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         </div>
 
         <!-- Payments Table -->
-        <div class="card">
+        <div class="card" id="bankConfirmationsTable">
           <div class="card-body p-0">
             <?php if (empty($payments)): ?>
               <div class="empty-state">
@@ -202,6 +205,12 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                           <?php endif; ?>
                         </div>
                         <div class="fw-semibold"><?php echo htmlspecialchars($p['payment_code'] ?? $p['service_txn_code'] ?? 'TXN-' . $itemId); ?></div>
+                        <?php if (!empty($p['order_code'])): ?>
+                          <div class="text-primary small">Order: <?php echo htmlspecialchars($p['order_code']); ?></div>
+                        <?php endif; ?>
+                        <?php if (!empty($p['ticket_number'])): ?>
+                          <div class="text-info small"><span class="fas fa-ticket-alt me-1"></span>Ticket: <?php echo htmlspecialchars($p['ticket_number']); ?></div>
+                        <?php endif; ?>
                         <div class="text-muted small"><?php echo htmlspecialchars($p['service_type_name'] ?? ($itemType === 'DEPOSIT' ? 'Cash Deposit' : ($itemType === 'CHARGE' ? 'Charge Collection' : 'Service'))); ?></div>
                         <div class="text-muted" style="font-size:0.75rem;"><?php echo $p['branch_name'] ? htmlspecialchars($p['branch_name']) : '—'; ?></div>
                         <div class="text-muted" style="font-size:0.75rem;"><?php echo Auth::formatTimestamp($p['created_at'], 'M d, Y h:i A'); ?></div>
@@ -295,6 +304,17 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
   <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
+  <script>
+    window.BANK_CONFIRMATIONS_PUSHER_CONFIG = {
+      enabled: <?php echo $pusherConfigured ? 'true' : 'false'; ?>,
+      key: <?php echo json_encode($pusherKey); ?>,
+      cluster: <?php echo json_encode($pusherCluster); ?>,
+      authEndpoint: <?php echo json_encode(BASE_URL . '/api/pusher/auth'); ?>,
+      branchIds: <?php echo json_encode(array_values(array_unique($realtimeBranchIds))); ?>
+    };
+  </script>
+  <?php if ($pusherConfigured): ?><script src="https://js.pusher.com/8.4.0/pusher.min.js"></script><?php endif; ?>
+  <script src="<?php echo BASE_URL; ?>/admin/assets/js/branch-realtime.js?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/js/branch-realtime.js'); ?>"></script>
   <script src="<?php echo BASE_URL; ?>/admin/bank-confirmations/assets/js/bank-confirmations.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/bank-confirmations.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>

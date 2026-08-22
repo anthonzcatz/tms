@@ -105,6 +105,15 @@
           <div class="col-md-6">
             <input type="hidden" id="cancelTxnType" value="TICKET">
 
+            <div class="mb-3" id="cancelOperationTypeRow" style="display: none;">
+              <label class="form-label fw-semibold" for="cancelOperationType">Operation <span class="text-danger">*</span></label>
+              <select class="form-select" id="cancelOperationType" onchange="toggleTicketAdjustmentFields()">
+                <option value="REFUND">Cancellation / Refund</option>
+                <option value="VOID">Void / Cancellation — No Refund</option>
+              </select>
+              <div class="form-text text-muted" id="cancelOperationHint">Refund the eligible amount through the original payment sources.</div>
+            </div>
+
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancelTicketCode">Transaction Code</label>
               <input type="text" class="form-control" id="cancelTicketCode" placeholder="Enter transaction code (e.g., TKT-20260515-123456-789-01)">
@@ -120,13 +129,72 @@
               </div>
             </div>
 
-            <div class="mb-3">
-              <label class="form-label fw-semibold" for="cancelRefundAmount">Refund Amount (₱)</label>
+            <div class="mb-3" id="cancelRefundAmountRow">
+              <label class="form-label fw-semibold" for="cancelRefundAmount">Gross Refund Amount (₱)</label>
               <input type="number" class="form-control" id="cancelRefundAmount" placeholder="0.00" min="0" step="0.01">
               <small class="text-muted" id="cancelRefundHint">Refund will be given from cashier cash. Service Fee is non-refundable: <span id="cancelServiceFeeDisplay" style="display: none;">₱0.00</span>.</small>
             </div>
+
+            <div class="mb-3" id="cancelVoidFeeSection" style="display:none;">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="cancelVoidFeeEnabled" onchange="toggleTicketAdjustmentFields()">
+                <label class="form-check-label fw-semibold" for="cancelVoidFeeEnabled">Add Void Fee</label>
+              </div>
+              <div id="cancelVoidFeeRow" style="display:none;">
+                <label class="form-label fw-semibold" for="cancelVoidFee">Void Fee (₱)</label>
+                <input type="number" class="form-control" id="cancelVoidFee" placeholder="0.00" min="0" step="0.01" value="0.00" oninput="toggleTicketAdjustmentFields()">
+                <small class="text-muted">Optional fee recorded as Void income. This field is not used for refunds.</small>
+              </div>
+            </div>
+
+            <div class="mb-3" id="cancelVoidServiceFeeSection" style="display:none;">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="cancelVoidServiceFeeEnabled" onchange="toggleTicketAdjustmentFields()">
+                <label class="form-check-label fw-semibold" for="cancelVoidServiceFeeEnabled">Add Service Fee</label>
+              </div>
+              <div id="cancelVoidServiceFeeRow" style="display:none;">
+                <label class="form-label fw-semibold" for="cancelVoidServiceFee">Service Fee (₱)</label>
+                <input type="number" class="form-control" id="cancelVoidServiceFee" placeholder="0.00" min="0" step="0.01" value="0.00" oninput="toggleTicketAdjustmentFields()">
+                <small class="text-muted">Optional service fee recorded as income for this Void. It is not returned to the customer.</small>
+              </div>
+            </div>
+
             <div class="mb-3">
-              <label class="form-label fw-semibold" for="cancelReason">Reason for Cancellation <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold" for="cancelReasonCategory">Reason Category <span class="text-danger">*</span></label>
+              <select class="form-select" id="cancelReasonCategory" onchange="syncTicketResponsibilityFromReason(); toggleTicketAdjustmentFields()">
+                <option value="CUSTOMER_REQUEST">Customer requested</option>
+                <option value="CUSTOMER_ERROR">Customer error</option>
+                <option value="CASHIER_ERROR">Cashier error</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="cancelResponsibility">Responsibility <span class="text-danger">*</span></label>
+              <select class="form-select" id="cancelResponsibility" onchange="toggleTicketAdjustmentFields()">
+                <option value="NONE">No responsibility charge</option>
+                <option value="CUSTOMER">Customer</option>
+                <option value="CASHIER">Cashier</option>
+              </select>
+              <small class="text-muted" id="cancelResponsibilityHint">Customer responsibility is deducted from the refund.</small>
+            </div>
+
+            <div class="mb-3" id="cancelResponsibilityAmountRow" style="display:none;">
+              <label class="form-label fw-semibold" for="cancelResponsibilityAmount">Responsibility Amount (₱)</label>
+              <input type="number" class="form-control" id="cancelResponsibilityAmount" placeholder="0.00" min="0" step="0.01" value="0.00">
+              <small class="text-muted" id="cancelResponsibilityAmountHint">Optional amount for this adjustment.</small>
+            </div>
+
+            <div class="mb-3" id="cancelResponsibleCashierRow" style="display:none;">
+              <label class="form-label fw-semibold" for="cancelResponsibleCashier">Responsible Cashier <span class="text-danger">*</span></label>
+              <select class="form-select" id="cancelResponsibleCashier">
+                <option value="">Select responsible cashier</option>
+              </select>
+              <small class="text-muted">All active cashiers assigned to this ticket's branch are available. Manager approval is required; the responsibility charge is recorded against the selected cashier even without an open session.</small>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="cancelReason">Reason Details <span class="text-danger">*</span></label>
               <textarea class="form-control" id="cancelReason" rows="4" placeholder="Enter reason for cancellation" required></textarea>
             </div>
           </div>

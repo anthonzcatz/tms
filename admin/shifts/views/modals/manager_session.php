@@ -72,7 +72,7 @@
             </div>
             <div class="col-md-12">
               <label class="form-label fw-semibold">Starting Cash (₱) <span class="text-danger">*</span></label>
-              <input type="text" class="form-control text-end fw-bold" id="managerOpenStartingCash" placeholder="0.00" oninput="formatNumberInput(this)" autofocus>
+              <input type="text" class="form-control text-end fw-bold" id="managerOpenStartingCash" placeholder="0.00" inputmode="decimal" pattern="[0-9,.]*" onkeypress="return /[0-9.,]/.test(event.key)" oninput="formatNumberInput(this)" required autofocus>
               <div class="form-text small">Physical cash at the start of shift</div>
             </div>
             <div class="col-12">
@@ -225,7 +225,7 @@
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label fw-semibold">Actual Closing Cash (₱) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control form-control-lg text-end fw-bold" id="managerCloseCash" placeholder="0.00" step="0.01" min="0" oninput="computeManagerCloseVariance()">
+                <input type="text" class="form-control form-control-lg text-end fw-bold" id="managerCloseCash" placeholder="0.00" inputmode="decimal" pattern="[0-9,.]*" onkeypress="return /[0-9.,]/.test(event.key)" oninput="formatNumberInput(this); computeManagerCloseVariance()" required>
                 <div class="form-text">Enter physical cash count from drawer</div>
               </div>
               <div class="col-12">

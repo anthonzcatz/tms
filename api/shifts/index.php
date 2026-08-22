@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 
 Auth::requireLogin();
 $user = Auth::user();
@@ -101,6 +102,25 @@ $payments = Database::fetchAll(
     $paymentParams
 );
 
+$voidedCashAmount = (float) (Database::fetch(
+    "SELECT COALESCE(SUM(tp.amount), 0) AS total
+     FROM ticket_cancellations tc
+     JOIN transaction_payments tp
+       ON tp.source_type = 'TICKET_TRANSACTION'
+      AND tp.source_id = tc.transaction_id
+      AND tp.cashier_session_id = :payment_session_id
+     JOIN payment_methods pm ON pm.method_id = tp.payment_method_id
+     WHERE tc.cashier_session_id = :void_session_id
+       AND tc.operation_type = 'VOID'
+       AND tc.status = 'completed'
+       AND pm.include_in_expected_cash = 1
+       AND tp.confirmation_status <> 'REJECTED'",
+    [
+        'payment_session_id' => (int) $session['session_id'],
+        'void_session_id' => (int) $session['session_id'],
+    ]
+)['total'] ?? 0);
+
 // Calculate expected cash based on payment methods with include_in_expected_cash flag
 $expectedCashPayments = 0;
 foreach ($payments as $payment) {
@@ -109,8 +129,20 @@ foreach ($payments as $payment) {
     }
 }
 
+// Total cash change disbursed from the drawer during the session
+$totalCashChange = PosAccess::sessionTotalCashChange(
+    (int) $session['session_id'],
+    $session['started_at'],
+    $session['ended_at'] ?: null
+);
+
 // Add expected cash to session data
-$session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments;
+$totalRefunds = floatval($session['total_refunds'] ?? 0);
+$totalCashAdjustments = floatval($session['total_cash_adjustments'] ?? 0);
+$session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments - $totalCashChange - $totalRefunds - $voidedCashAmount - $totalCashAdjustments;
+$session['total_cash_change'] = $totalCashChange;
+$session['total_cash_adjustments'] = $totalCashAdjustments;
+$session['voided_cash_amount'] = $voidedCashAmount;
 
 // Pagination metadata
 $totalPages = ceil($totalCount / $limit);

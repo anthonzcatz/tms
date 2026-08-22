@@ -4,6 +4,10 @@
 --          then assign them to SUPER_ADMIN, ADMIN, MANAGER, and CASHIER roles.
 -- Run: mysql -u root -p tms_db < database/migrations/add_ticket_inventory_permissions.sql
 
+-- Older exports may not include the active flag used by the permission tree.
+ALTER TABLE `permissions`
+  ADD COLUMN IF NOT EXISTS `is_active` tinyint(1) NOT NULL DEFAULT 1 AFTER `is_menu_item`;
+
 -- ============================================================
 -- TICKET STOCK PARENT MENU
 -- ============================================================

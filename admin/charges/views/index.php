@@ -4,17 +4,19 @@
 require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 ?>
 <link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/charges/assets/css/charges.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/charges.css'); ?>">
+<style>
+  html.charges-fluid-layout [data-layout="container"] {
+    max-width: none;
+  }
+</style>
+<script>
+  if (JSON.parse(localStorage.getItem('isFluid'))) {
+    document.documentElement.classList.add('charges-fluid-layout');
+  }
+</script>
 <body>
   <main class="main" id="top">
-    <div class="container" data-layout="container">
-      <script>
-        var isFluid = JSON.parse(localStorage.getItem('isFluid'));
-        if (isFluid) {
-          var container = document.querySelector('[data-layout]');
-          container.classList.remove('container');
-          container.classList.add('container-fluid');
-        }
-      </script><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php elseif (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
+    <div class="container" data-layout="container"><?php if (NAVBAR_POSITION === 'top' || NAVBAR_POSITION === 'double-top'): ?><?php if (NAVBAR_POSITION === 'top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-top.php'; ?><?php elseif (NAVBAR_POSITION === 'double-top'): ?><?php include dirname(dirname(__DIR__)) . '/includes/navbar-double-top.php'; ?><?php endif; ?><?php elseif (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?><?php include dirname(dirname(__DIR__)) . '/includes/sidebar.php'; ?>
       <div class="content">
         <?php
         switch (NAVBAR_POSITION) {
@@ -48,6 +50,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                  </h6>
                 </div>
               </div>
+              <div class="col-auto ms-auto">
+                <small id="chargesRealtimeStatus" class="text-muted" title="Customer charges data refresh status">Live updates initializing...</small>
+              </div>
             </div>
           </div>
         </div>
@@ -57,7 +62,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         <?php $activeWalletModule = 'charges'; include dirname(dirname(__DIR__)) . '/wallet/_partials/wallet_nav.php'; ?>
 
         <!-- Stats -->
-        <div class="row g-3 mb-3">
+        <div class="row g-3 mb-3" id="chargesStats">
           <div class="col-sm-6 col-md-3">
             <div class="card h-md-100">
               <div class="card-header pb-0"><h6 class="mb-0 mt-2">Total Customers</h6></div>
@@ -114,8 +119,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           </div>
           <div class="card-body" id="howItWorksContent" style="display:none;">
             <ul class="mb-0">
-              <li>When a cashier records a payment as <strong>CHARGE</strong>, the amount is added to the customer's outstanding balance.</li>
-              <li>This page lets you view all customers with balances and collect full or partial payments.</li>
+              <li>When a cashier records a payment as <strong>CHARGE</strong>, the amount is added to the selected charge account's outstanding balance.</li>
+              <li>This page lets you view all charge accounts with balances and collect full or partial payments.</li>
+              <li>Charge history keeps the ticket passenger name separate from the charge account.</li>
               <li>Each collection is recorded and the balance is updated automatically.</li>
               <li>Click <strong>View History</strong> to see all charges and payments for a customer.</li>
             </ul>
@@ -165,7 +171,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
         </div>
 
         <!-- Charges Table -->
-        <div class="card">
+        <div class="card" id="chargesDataTable">
           <div class="card-body p-0">
             <?php if (empty($charges)): ?>
               <div class="empty-state">
@@ -178,10 +184,13 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                 <table class="table table-hover mb-0" id="chargesTable">
                   <thead class="table-light">
                     <tr>
-                      <th class="ps-3">Customer</th>
+                      <th class="ps-3">Charge Account</th>
+                      <th>Base</th>
+                      <th>Service Fee</th>
                       <th>Total Charged</th>
                       <th>Total Paid</th>
                       <th>Balance</th>
+                      <th>Mode</th>
                       <th>Last Activity</th>
                       <th>Status</th>
                       <th class="text-end pe-3">Actions</th>
@@ -210,6 +219,21 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                         </div>
                       </td>
                       <td class="py-3">
+                        <span class="text-muted">₱<?php echo number_format($c['base_balance'] ?? 0, 2); ?></span>
+                      </td>
+                      <td class="py-3">
+                        <?php if (($c['service_fee_mode'] ?? 'CUSTOMER') !== 'CUSTOMER'): ?>
+                          <span class="text-info">₱<?php echo number_format($c['fee_balance'] ?? 0, 2); ?></span>
+                          <?php if ($c['service_fee_mode'] === 'COMPANY' && !empty($c['company_passenger_name'])): ?>
+                            <div class="small text-muted">→ <?php echo htmlspecialchars($c['company_passenger_name']); ?></div>
+                          <?php elseif ($c['service_fee_mode'] === 'WAIVED'): ?>
+                            <div class="small text-muted">Waived</div>
+                          <?php endif; ?>
+                        <?php else: ?>
+                          <span class="text-muted">₱<?php echo number_format($c['fee_balance'] ?? 0, 2); ?></span>
+                        <?php endif; ?>
+                      </td>
+                      <td class="py-3">
                         <span class="text-muted">₱<?php echo number_format($c['total_charged'], 2); ?></span>
                       </td>
                       <td class="py-3">
@@ -217,6 +241,16 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                       </td>
                       <td class="py-3">
                         <span class="<?php echo $balClass; ?> fs-6">₱<?php echo number_format($c['balance'], 2); ?></span>
+                      </td>
+                      <td class="py-3">
+                        <?php
+                        $modeLabels = [
+                            'CUSTOMER' => '<span class="badge bg-soft-secondary text-secondary">Customer</span>',
+                            'WAIVED' => '<span class="badge bg-soft-info text-info">Waived</span>',
+                            'COMPANY' => '<span class="badge bg-soft-primary text-primary">Company</span>'
+                        ];
+                        echo $modeLabels[$c['service_fee_mode'] ?? 'CUSTOMER'] ?? $modeLabels['CUSTOMER'];
+                        ?>
                       </td>
                       <td class="py-3">
                         <span class="text-muted small">
@@ -233,6 +267,23 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                           onclick="viewHistory(<?php echo $c['passenger_id']; ?>, '<?php echo htmlspecialchars($c['passenger_name'], ENT_QUOTES); ?>')">
                           <span class="fas fa-history"></span>
                         </button>
+                        <button class="btn btn-sm btn-outline-primary me-1" title="Print Statement"
+                          onclick="window.open('<?php echo BASE_URL; ?>/admin/charges/views/print/statement.php?passenger_id=<?php echo $c['passenger_id']; ?>', '_blank')">
+                          <span class="fas fa-file-invoice"></span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-dark me-1" title="Print Balance"
+                          onclick="window.open('<?php echo BASE_URL; ?>/admin/charges/views/print/balance.php?passenger_id=<?php echo $c['passenger_id']; ?>', '_blank')">
+                          <span class="fas fa-receipt"></span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary me-1" title="Service Fee Mode"
+                          onclick="openExemptionModal(
+                            <?php echo $c['passenger_id']; ?>,
+                            '<?php echo htmlspecialchars($c['passenger_name'], ENT_QUOTES); ?>',
+                            '<?php echo htmlspecialchars($c['service_fee_mode'] ?? 'CUSTOMER', ENT_QUOTES); ?>',
+                            <?php echo !empty($c['company_passenger_id']) ? $c['company_passenger_id'] : 'null'; ?>
+                          )">
+                          <span class="fas fa-cog"></span>
+                        </button>
                         <?php if ($c['balance'] > 0): ?>
                         <button class="btn btn-sm btn-success" title="Collect Payment"
                           onclick="openCollectModal(
@@ -240,6 +291,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                             '<?php echo htmlspecialchars($c['passenger_name'], ENT_QUOTES); ?>',
                             '<?php echo htmlspecialchars($c['contact_number'] ?? '—', ENT_QUOTES); ?>',
                             <?php echo $c['balance']; ?>,
+                            <?php echo $c['base_balance'] ?? 0; ?>,
+                            <?php echo $c['fee_balance'] ?? 0; ?>,
+                            '<?php echo htmlspecialchars($c['service_fee_mode'] ?? 'CUSTOMER', ENT_QUOTES); ?>',
                             <?php echo $c['charge_branch_id'] ?? 'null'; ?>,
                             '<?php echo htmlspecialchars($c['branch_name'] ?? '', ENT_QUOTES); ?>'
                           )">
@@ -267,16 +321,26 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
 
     <!-- Include Modals -->
     <?php include __DIR__ . '/modals/collect_payment.php'; ?>
+    <?php include __DIR__ . '/modals/exemption.php'; ?>
 
   <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
   </div>
   <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
-  <script src="<?php echo BASE_URL; ?>/admin/charges/assets/js/charges.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/charges.js'); ?>"></script>
   <script>
+    window.CHARGES_PUSHER_CONFIG = {
+      enabled: <?php echo $pusherConfigured ? 'true' : 'false'; ?>,
+      key: <?php echo json_encode($pusherKey); ?>,
+      cluster: <?php echo json_encode($pusherCluster); ?>,
+      authEndpoint: <?php echo json_encode(BASE_URL . '/api/pusher/auth'); ?>,
+      branchIds: <?php echo json_encode(array_values(array_unique($realtimeBranchIds))); ?>
+    };
     window.CHARGE_CONFIRMATION_REQUIRED = <?php echo ($systemSettings['bank_charge_payments_require_confirmation'] ?? 0) ? 'true' : 'false'; ?>;
   </script>
+  <?php if ($pusherConfigured): ?><script src="https://js.pusher.com/8.4.0/pusher.min.js"></script><?php endif; ?>
+  <script src="<?php echo BASE_URL; ?>/admin/assets/js/branch-realtime.js?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/js/branch-realtime.js'); ?>"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/charges/assets/js/charges.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/charges.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>
 </html>

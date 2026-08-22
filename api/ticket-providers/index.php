@@ -10,6 +10,8 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/CashierTransportAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 
 // Helper function for logging activity
 /**
@@ -60,6 +62,37 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
             'created_at' => $now
         ]
     );
+}
+
+function broadcastProviderUpdate(int $providerId, string $action, array $provider = []): void
+{
+    if ($providerId < 1 || !PusherService::isConfigured()) {
+        return;
+    }
+
+    $payload = [
+        'provider_id' => $providerId,
+        'action' => $action,
+        'provider_code' => $provider['provider_code'] ?? null,
+        'provider_name' => $provider['provider_name'] ?? null,
+        'provider_type' => $provider['provider_type'] ?? null,
+        'parent_provider_id' => isset($provider['parent_provider_id']) && $provider['parent_provider_id'] !== null
+            ? (int) $provider['parent_provider_id']
+            : null,
+        'status' => $provider['status'] ?? null,
+        'updated_at' => date(DATE_ATOM),
+    ];
+
+    try {
+        $branches = Database::fetchAll("SELECT branch_id FROM business_branches");
+    } catch (Throwable $e) {
+        error_log('[Pusher] Provider update branch lookup failed: ' . $e->getMessage());
+        return;
+    }
+
+    foreach ($branches as $branch) {
+        PusherService::triggerBranch((int) ($branch['branch_id'] ?? 0), 'provider.updated', $payload);
+    }
 }
 
 // Check authentication
@@ -119,6 +152,7 @@ try {
  * Handle GET requests - list providers or get stats
  */
 function handleGet() {
+    global $user;
     $providerId = $_GET['id'] ?? null;
     $action = $_GET['action'] ?? null;
 
@@ -187,6 +221,7 @@ function handleGet() {
             LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
             ORDER BY tp.provider_name";
     $providers = Database::fetchAll($sql);
+    $providers = CashierTransportAccess::filterProviders($providers, $user);
 
     echo json_encode([
         'success' => true,
@@ -281,6 +316,13 @@ function handlePost() {
             'status' => $status
         ]
     );
+    broadcastProviderUpdate((int) $providerId, 'created', [
+        'provider_code' => $providerCode,
+        'provider_name' => $providerName,
+        'provider_type' => $providerType,
+        'parent_provider_id' => $parentProviderId,
+        'status' => $status,
+    ]);
     
     echo json_encode(['success' => true, 'message' => 'Provider created successfully', 'provider_id' => $providerId]);
 }
@@ -410,6 +452,12 @@ function handlePut() {
         !empty($oldValues) ? $oldValues : null,
         !empty($newValues) ? $newValues : null
     );
+    $updatedProvider = Database::fetch(
+        "SELECT provider_code, provider_name, provider_type, parent_provider_id, status
+         FROM ticket_providers WHERE provider_id = :provider_id",
+        ['provider_id' => (int) $providerId]
+    );
+    broadcastProviderUpdate((int) $providerId, 'updated', $updatedProvider ?: $newValues);
     
     echo json_encode(['success' => true, 'message' => 'Provider updated successfully']);
 }
@@ -530,6 +578,7 @@ function handleDelete() {
         $currentProvider,
         null
     );
+    broadcastProviderUpdate((int) $providerId, 'deleted', $currentProvider);
     
     echo json_encode(['success' => true, 'message' => 'Provider deleted successfully']);
 }

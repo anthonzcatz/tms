@@ -235,7 +235,7 @@ function handleGet($user) {
             $params['search_barangay'] = $searchParam;
         }
         
-        $sql .= " ORDER BY p.created_at DESC";
+        $sql .= " ORDER BY p.created_at DESC LIMIT 50";
         
         $passengers = Database::fetchAll($sql, $params);
         

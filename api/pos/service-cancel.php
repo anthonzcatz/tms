@@ -21,6 +21,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/RefundService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -88,6 +89,13 @@ function reverseCustomerCharge(?int $passengerId, float $chargeAmount): void
 }
 
 Auth::requireLogin();
+http_response_code(410);
+echo json_encode([
+    'success' => false,
+    'error' => 'Service cancellation is disabled. POS cancellation is available for tickets only.'
+]);
+exit;
+
 $user = Auth::user();
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -140,9 +148,18 @@ if ($refundAmount > $totalAmount) {
     echo json_encode(['success' => false, 'error' => 'Refund amount cannot exceed the original Total Amount (₱' . number_format($totalAmount, 2) . ').']); exit;
 }
 
-$chargePaymentsTotal = computeServiceChargePaymentsTotal($serviceTxnId);
-$chargeAmount = min($chargePaymentsTotal, $refundAmount);
-$cashRefundAmount = $refundAmount - $chargeAmount;
+try {
+    $refundPreview = RefundService::previewPaymentAllocations(
+        'SERVICE_TRANSACTION',
+        $serviceTxnId,
+        $refundAmount
+    );
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'error' => 'Refund allocation failed: ' . $e->getMessage()]);
+    exit;
+}
+$chargeAmount = (float) ($refundPreview['charge_amount'] ?? 0);
+$cashRefundAmount = (float) ($refundPreview['cash_amount'] ?? 0);
 
 $cashierSession = Database::fetch(
     "SELECT session_id FROM cashier_sessions
@@ -161,6 +178,24 @@ $orderItem = Database::fetch(
 Database::connection()->beginTransaction();
 
 try {
+    $lockedServiceTxn = Database::fetch(
+        "SELECT * FROM service_transactions WHERE service_txn_id = :service_txn_id FOR UPDATE",
+        ['service_txn_id' => $serviceTxnId]
+    );
+    if (!$lockedServiceTxn || in_array($lockedServiceTxn['status'], ['cancelled', 'refunded'], true)) {
+        throw new RuntimeException('Service transaction is already cancelled/refunded.');
+    }
+    $pendingCheck = Database::fetch(
+        "SELECT service_cancellation_id FROM service_cancellations
+         WHERE service_transaction_id = :service_txn_id AND status = 'pending'
+         LIMIT 1",
+        ['service_txn_id' => $serviceTxnId]
+    );
+    if ($pendingCheck) {
+        throw new RuntimeException('There is already a pending cancellation request for this service.');
+    }
+    $serviceTxn = $lockedServiceTxn;
+
     $cancellationType = ($refundAmount < $totalAmount) ? 'partial' : 'full';
 
     // Insert the cancellation record.
@@ -188,8 +223,10 @@ try {
 
         if ($cashierSessionId && $cashRefundAmount > 0) {
             Database::execute(
-                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-                ['ramount' => $cashRefundAmount, 'csid' => $cashierSessionId]
+                "UPDATE cashier_sessions
+                 SET pending_refunds_cash = COALESCE(pending_refunds_cash, 0) + :amount
+                 WHERE session_id = :session_id",
+                ['amount' => $cashRefundAmount, 'session_id' => $cashierSessionId]
             );
         }
 
@@ -204,7 +241,7 @@ try {
             'charge_amount'          => $chargeAmount,
             'status'                 => 'pending_confirmation',
             'requires_confirmation'  => true,
-            'refund_source'          => 'cashier_cash',
+            'refund_source'          => 'original_payment_sources',
         ]);
         exit;
     }
@@ -236,29 +273,21 @@ try {
 
     $cancellationId = Database::connection()->lastInsertId();
 
-    if ($cashierSessionId && $cashRefundAmount > 0) {
-        Database::execute(
-            "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-            ['ramount' => $cashRefundAmount, 'csid' => $cashierSessionId]
-        );
-    }
-
     // Mark service transaction as cancelled.
     Database::execute(
         "UPDATE service_transactions SET status = 'cancelled' WHERE service_txn_id = :sid",
         ['sid' => $serviceTxnId]
     );
 
-    // Reverse charge portion.
-    if ($chargeAmount > 0 && $passengerId) {
-        reverseCustomerCharge((int) $passengerId, $chargeAmount);
-    }
-
-    // Zero out order item and update order refund total.
+    // Reduce the order item by the entered refund amount and update the
+    // parent order. Source-specific charge/bank/cash effects are handled by
+    // RefundService below.
     if ($orderItem) {
         Database::execute(
-            "UPDATE pos_order_items SET total_amount = 0 WHERE item_id = :iid",
-            ['iid' => $orderItem['item_id']]
+            "UPDATE pos_order_items
+             SET total_amount = GREATEST(0, total_amount - :ramount)
+             WHERE item_id = :iid",
+            ['ramount' => $refundAmount, 'iid' => $orderItem['item_id']]
         );
         Database::execute(
             "UPDATE pos_orders SET total_refunded_amount = COALESCE(total_refunded_amount, 0) + :ramount WHERE order_id = :oid",
@@ -272,10 +301,10 @@ try {
     Database::execute(
         "INSERT INTO service_refunds
             (service_transaction_id, transaction_code, service_cancellation_id, passenger_id, refund_amount,
-             cash_amount, charge_reversal_amount, refund_method, status, requested_by, cashier_session_id,
+             cash_amount, charge_reversal_amount, bank_amount, refund_method, status, requested_by, cashier_session_id,
              requested_at, processed_by, processed_at)
          VALUES (:sid, :code, :cid, :pid, :ramount,
-                 :camount, :cramount, 'cash', :status, :ruid, :rcsid, NOW(), :puid, NOW())",
+                 :camount, :cramount, 0, 'mixed', :status, :ruid, :rcsid, NOW(), :puid, NOW())",
         [
             'sid'     => $serviceTxnId,
             'code'    => $serviceTxn['transaction_code'],
@@ -290,25 +319,58 @@ try {
             'puid'    => $user['user_id'],
         ]
     );
+    $serviceRefundId = (int) Database::lastInsertId();
+
+    $allocationResult = RefundService::processPaymentAllocations(
+        'SERVICE',
+        $serviceRefundId,
+        'SERVICE_TRANSACTION',
+        $serviceTxnId,
+        $refundAmount,
+        (int) $user['user_id'],
+        $cashierSessionId ? (int) $cashierSessionId : null,
+        $passengerId ? (int) $passengerId : null,
+        $reason
+    );
+
+    Database::execute(
+        "UPDATE service_cancellations
+         SET charge_amount = :charge_amount,
+             cash_refund_amount = :cash_refund_amount,
+             status = 'completed',
+             processed_at = NOW()
+         WHERE service_cancellation_id = :cancellation_id",
+        [
+            'charge_amount' => $allocationResult['charge_amount'],
+            'cash_refund_amount' => $allocationResult['cash_amount'],
+            'cancellation_id' => $cancellationId,
+        ]
+    );
 
     logActivity($user['user_id'], 'SERVICE_CANCEL', 'POS', $serviceTxn['transaction_code'], null,
         ['service_cancellation_id' => $cancellationId, 'service_txn_id' => $serviceTxnId,
-         'refund_amount' => $refundAmount, 'charge_amount' => $chargeAmount]);
+         'refund_amount' => $refundAmount, 'charge_amount' => $allocationResult['charge_amount'],
+         'cash_refund_amount' => $allocationResult['cash_amount'],
+         'bank_refund_amount' => $allocationResult['bank_amount']]);
 
     Database::connection()->commit();
 
     echo json_encode([
         'success'              => true,
-        'message'              => 'Service cancelled successfully. Refund to be given from cashier cash.',
+        'message'              => 'Service cancelled successfully and source refund processed.',
         'service_txn_id'       => $serviceTxnId,
         'transaction_code'     => $serviceTxn['transaction_code'],
         'refund_amount'        => $refundAmount,
-        'charge_amount'        => $chargeAmount,
+        'charge_amount'        => $allocationResult['charge_amount'],
+        'cash_refund_amount'   => $allocationResult['cash_amount'],
+        'bank_refund_amount'   => $allocationResult['bank_amount'],
         'refund_status'        => $refundStatus,
         'requires_confirmation'=> false,
     ]);
 
-} catch (Exception $e) {
-    Database::connection()->rollBack();
+} catch (Throwable $e) {
+    if (Database::connection()->inTransaction()) {
+        Database::connection()->rollBack();
+    }
     echo json_encode(['success' => false, 'error' => 'Cancellation failed: ' . $e->getMessage()]);
 }

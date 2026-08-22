@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -17,65 +18,29 @@ try {
         exit;
     }
 
-    // Get date range (default to last 7 days)
-    $days = isset($_GET['days']) ? intval($_GET['days']) : 7;
-    if ($days > 90) $days = 90; // Max 3 months
-    if ($days < 1) $days = 7;
-
-    // Get branch filter and decode it
-    $branchIdRaw = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
-    $branchId = null;
-    
-    if ($branchIdRaw) {
-        $decodedBranchId = IdEncoder::decode($branchIdRaw);
-        if ($decodedBranchId !== false) {
-            $branchId = $decodedBranchId;
-        }
+    $filterQuery = $_GET;
+    if (empty($filterQuery['range']) && isset($filterQuery['days'])) {
+        $legacyDays = (int)$filterQuery['days'];
+        $filterQuery['range'] = $legacyDays <= 1
+            ? 'today'
+            : ($legacyDays <= 7 ? 'week' : ($legacyDays <= 30 ? 'last30days' : 'year'));
     }
-
+    $filter = AnalyticsFilter::parse($filterQuery, $user);
+    $branchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'cashier_branch');
+    $dateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'cashier_date');
+    $branchWhere = 'AND ' . $branchScope['sql'];
+    $branchParams = $branchScope['params'];
+    $dateWhere = 'AND ' . $dateScope['sql'];
+    $dateParams = $dateScope['params'];
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
 
-    // Build branch restriction
-    $branchWhere = '';
-    $branchParams = [];
-
-    // If specific branch selected, use it (respecting user permissions)
-    if ($branchId) {
-        // Check if user has access to this branch
-        if ($userRoleCode === 'SUPER_ADMIN' || ($userBranchId && in_array($branchId, array_map('trim', explode(',', $userBranchId))))) {
-            $branchWhere = "AND po.branch_id = :branch_id";
-            $branchParams = ['branch_id' => $branchId];
-        } else {
-            // User doesn't have access, fall back to their branches
-            $branchIds = array_map('trim', explode(',', $userBranchId));
-            $namedParams = [];
-            foreach ($branchIds as $i => $bid) {
-                $namedParams['bid_' . $i] = $bid;
-            }
-            $placeholders = implode(',', array_keys($namedParams));
-            $branchWhere = "AND po.branch_id IN ($placeholders)";
-            $branchParams = $namedParams;
-        }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        // No specific branch selected, use user's branches
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $namedParams = [];
-        foreach ($branchIds as $i => $bid) {
-            $namedParams['bid_' . $i] = $bid;
-        }
-        $placeholders = implode(',', array_keys($namedParams));
-        $branchWhere = "AND po.branch_id IN ($placeholders)";
-        $branchParams = $namedParams;
-    }
-
-    // Get top performing cashiers
-    $cashierParams = array_merge(['days' => $days], $branchParams);
+    $cashierParams = array_merge($branchParams, $dateParams);
     $topCashiers = Database::fetchAll(
-        "SELECT 
+        "SELECT
             cs.cashier_user_id,
             CONCAT(e.first_name, ' ', COALESCE(e.last_name, '')) as cashier_name,
-            COUNT(po.order_id) as transaction_count,
+            COUNT(DISTINCT po.order_id) as transaction_count,
             COALESCE(SUM(po.grand_total), 0) as total_sales,
             COALESCE(AVG(po.grand_total), 0) as avg_transaction
          FROM pos_orders po
@@ -83,7 +48,7 @@ try {
          INNER JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
          LEFT JOIN employees e ON ua.emp_id = e.emp_id
          WHERE po.status = 'completed'
-           AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+           $dateWhere
            $branchWhere
          GROUP BY cs.cashier_user_id, e.first_name, e.last_name
          ORDER BY total_sales DESC
@@ -91,89 +56,103 @@ try {
         $cashierParams
     );
 
-    // Get sales breakdown by top cashiers for the chart
-    $chartData = [];
+    $isHourly = $filter['granularity'] === 'hourly';
+    $isAnnual = $filter['granularity'] === 'annual';
+    $isMonthly = $filter['granularity'] === 'monthly' || $isAnnual;
+    $periodKeys = [];
     $labels = [];
+    $timezone = new DateTimeZone(date_default_timezone_get() ?: 'Asia/Manila');
 
-    // For "Today" (days=1), show hourly breakdown; otherwise show daily
-    if ($days == 1) {
-        // Hourly breakdown for today
-        for ($i = 0; $i < 24; $i++) {
-            $hour = sprintf('%02d:00', $i);
-            $labels[] = $hour;
-            $chartData[$hour] = [];
+    if ($isHourly) {
+        for ($hour = 0; $hour < 24; $hour++) {
+            $periodKeys[] = sprintf('%02d:00', $hour);
+            $labels[] = sprintf('%02d:00', $hour);
         }
     } else {
-        // Daily breakdown for multiple days
-        for ($i = $days - 1; $i >= 0; $i--) {
-            $date = date('Y-m-d', strtotime("-$i days"));
-            $labels[] = date('M d', strtotime("-$i days"));
-            $chartData[$date] = [];
+        $cursor = new DateTimeImmutable($filter['start_date'], $timezone);
+        $lastDate = new DateTimeImmutable($filter['end_date'], $timezone);
+        if ($isAnnual) {
+            $cursor = $cursor->setDate((int)$cursor->format('Y'), 1, 1);
+            $lastDate = $lastDate->setDate((int)$lastDate->format('Y'), 1, 1);
+        } elseif ($isMonthly) {
+            $cursor = $cursor->modify('first day of this month');
+            $lastDate = $lastDate->modify('first day of this month');
+        }
+
+        while ($cursor <= $lastDate) {
+            if ($isAnnual) {
+                $periodKeys[] = $cursor->format('Y');
+                $labels[] = $cursor->format('Y');
+                $cursor = $cursor->modify('+1 year');
+            } elseif ($isMonthly) {
+                $periodKeys[] = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $cursor = $cursor->modify('+1 month');
+            } else {
+                $periodKeys[] = $cursor->format('Y-m-d');
+                $labels[] = $cursor->format('M d');
+                $cursor = $cursor->modify('+1 day');
+            }
         }
     }
 
-    // Fetch sales for each top cashier
-    $cashierSeries = [];
-    $colors = ['#2c7be5', '#00d27a', '#27bcfd', '#f5803e', '#e63757'];
-
-    foreach ($topCashiers as $idx => $cashier) {
-        $salesData = [];
-
-        foreach (array_keys($chartData) as $key) {
-            $params = array_merge([
-                'cashier_id' => $cashier['cashier_user_id']
-            ], $branchParams);
-
-            if ($days == 1) {
-                // Hourly query for today
-                $hour = intval(explode(':', $key)[0]);
-                $params['hour'] = $hour;
-                $result = Database::fetch(
-                    "SELECT COALESCE(SUM(po.grand_total), 0) as sales
-                     FROM pos_orders po
-                     INNER JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
-                     WHERE po.status = 'completed'
-                       AND DATE(po.created_at) = CURDATE()
-                       AND HOUR(po.created_at) = :hour
-                       AND cs.cashier_user_id = :cashier_id
-                       $branchWhere",
-                    $params
-                );
-            } else {
-                // Daily query for multiple days
-                $params['date'] = $key;
-                $result = Database::fetch(
-                    "SELECT COALESCE(SUM(po.grand_total), 0) as sales
-                     FROM pos_orders po
-                     INNER JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
-                     WHERE po.status = 'completed'
-                       AND DATE(po.created_at) = :date
-                       AND cs.cashier_user_id = :cashier_id
-                       $branchWhere",
-                    $params
-                );
-            }
-
-            $salesData[] = floatval($result['sales'] ?? 0);
+    $cashierIds = array_values(array_filter(array_map(static fn ($cashier): int => (int)$cashier['cashier_user_id'], $topCashiers)));
+    $chartMap = [];
+    if ($cashierIds) {
+        $cashierPlaceholders = [];
+        $chartParams = array_merge($branchParams, $dateParams);
+        foreach ($cashierIds as $index => $cashierId) {
+            $key = 'cashier_' . $index;
+            $cashierPlaceholders[] = ':' . $key;
+            $chartParams[$key] = $cashierId;
         }
 
+        $chartGroup = $isHourly
+            ? "DATE_FORMAT(po.created_at, '%H:00')"
+            : ($isAnnual
+                ? "DATE_FORMAT(po.created_at, '%Y')"
+                : ($isMonthly ? "DATE_FORMAT(po.created_at, '%Y-%m')" : "DATE(po.created_at)"));
+
+        $chartRows = Database::fetchAll(
+            "SELECT cs.cashier_user_id, $chartGroup as period_key,
+                    COALESCE(SUM(po.grand_total), 0) as sales
+             FROM pos_orders po
+             INNER JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
+             WHERE po.status = 'completed'
+               $dateWhere
+               $branchWhere
+               AND cs.cashier_user_id IN (" . implode(', ', $cashierPlaceholders) . ")
+             GROUP BY cs.cashier_user_id, $chartGroup
+             ORDER BY period_key ASC",
+            $chartParams
+        );
+
+        foreach ($chartRows as $row) {
+            $chartMap[(int)$row['cashier_user_id']][(string)$row['period_key']] = (float)$row['sales'];
+        }
+    }
+
+    $cashierSeries = [];
+    $colors = ['#2c7be5', '#00d27a', '#27bcfd', '#f5803e', '#e63757'];
+    foreach ($topCashiers as $idx => $cashier) {
+        $cashierId = (int)$cashier['cashier_user_id'];
+        $cashierData = $chartMap[$cashierId] ?? [];
         $cashierSeries[] = [
             'name' => $cashier['cashier_name'] ?: 'Cashier ' . ($idx + 1),
-            'data' => $salesData,
-            'total_sales' => floatval($cashier['total_sales']),
-            'transaction_count' => intval($cashier['transaction_count']),
-            'avg_transaction' => floatval($cashier['avg_transaction']),
+            'data' => array_map(static fn (string $key): float => (float)($cashierData[$key] ?? 0), $periodKeys),
+            'total_sales' => (float)$cashier['total_sales'],
+            'transaction_count' => (int)$cashier['transaction_count'],
+            'avg_transaction' => (float)$cashier['avg_transaction'],
             'color' => $colors[$idx % count($colors)]
         ];
     }
 
-    // Get total active cashiers count
     $activeCashiers = Database::fetch(
         "SELECT COUNT(DISTINCT cs.cashier_user_id) as count
          FROM cashier_sessions cs
          INNER JOIN pos_orders po ON cs.session_id = po.cashier_session_id
          WHERE po.status = 'completed'
-           AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+           $dateWhere
            $branchWhere",
         $cashierParams
     );
@@ -216,11 +195,15 @@ try {
             'cashiers' => $cashierSeries,
             'active_cashiers' => intval($activeCashiers['count'] ?? 0),
             'total_sales' => array_sum(array_column($cashierSeries, 'total_sales')),
-            'branches' => $branches
+            'branches' => $branches,
+            'filter' => AnalyticsFilter::responseMeta($filter)
         ]
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('Cashier Performance API Error: ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load cashier performance']);
 }

@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -47,37 +48,33 @@ try {
 
     $month = $_GET['month'] ?? null;
     $targetDate = $_GET['target_date'] ?? null;
-    $startDate = $_GET['start_date'] ?? null;
-    $endDate = $_GET['end_date'] ?? null;
-    $branchId = $_GET['branch_id'] ?? null;
+    $filterQuery = $_GET;
+    if (empty($filterQuery['range'])) {
+        if ($filterQuery['start_date'] ?? null) {
+            $filterQuery['range'] = 'custom';
+        } elseif ($targetDate) {
+            $filterQuery['range'] = 'custom';
+            $filterQuery['start_date'] = $targetDate;
+            $filterQuery['end_date'] = $targetDate;
+            $filterQuery['granularity'] = 'daily';
+        } elseif ($month) {
+            $filterQuery['range'] = 'custom';
+            $filterQuery['start_date'] = $month . '-01';
+            $filterQuery['end_date'] = date('Y-m-t', strtotime($month . '-01'));
+            $filterQuery['granularity'] = 'monthly';
+        } else {
+            $filterQuery['range'] = 'today';
+        }
+    }
+    $filter = AnalyticsFilter::parse($filterQuery, $user);
+    $startDate = $filter['start_date'];
+    $endDate = $filter['end_date'];
+    $branchId = $filter['branch_id'];
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
-    
-    // Decode branch_id if it's encoded
-    if ($branchId) {
-        $decodedBranchId = decodeBranchId($branchId);
-        if ($decodedBranchId !== null) {
-            $branchId = $decodedBranchId;
-        }
-    }
-    
-    // Debug logging
-    error_log("Sales Targets API - branchId: " . ($branchId ?? 'NULL') . ", startDate: " . ($startDate ?? 'NULL') . ", endDate: " . ($endDate ?? 'NULL'));
 
-    // Determine date range for actual sales lookup
     $salesStartDate = $startDate;
     $salesEndDate = $endDate;
-    
-    if (!$salesStartDate || !$salesEndDate) {
-        if ($targetDate) {
-            $salesStartDate = $salesEndDate = $targetDate;
-        } elseif ($month) {
-            $salesStartDate = $month . '-01';
-            $salesEndDate = date('Y-m-t', strtotime($salesStartDate));
-        } else {
-            $salesStartDate = $salesEndDate = date('Y-m-d');
-        }
-    }
     
     // Get actual sales from pos_orders (using net sales: total - refunds)
     $actualSalesQuery = "
@@ -91,25 +88,15 @@ try {
         AND DATE(po.created_at) BETWEEN :start_date AND :end_date
     ";
     
-    $salesParams = [
+    $actualBranchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'target_actual_branch');
+    $actualSalesQuery .= " AND {$actualBranchScope['sql']}";
+    $actualSalesQuery .= " GROUP BY DATE(po.created_at)";
+
+    $salesParams = array_merge([
         'start_date' => $salesStartDate,
         'end_date' => $salesEndDate
-    ];
-    
-    // Add branch filter to sales query if specified
-    if ($branchId) {
-        $actualSalesQuery .= " AND po.branch_id = :branch_id";
-        $salesParams['branch_id'] = $branchId;
-    }
-    
-    $actualSalesQuery .= " GROUP BY DATE(po.created_at)";
-    
-    error_log("Sales Targets API - Actual Sales Query: " . $actualSalesQuery);
-    error_log("Sales Targets API - Sales Params: " . json_encode($salesParams));
-    
+    ], $actualBranchScope['params']);
     $actualSalesData = Database::fetchAll($actualSalesQuery, $salesParams);
-    
-    error_log("Sales Targets API - Actual Sales Data: " . json_encode($actualSalesData));
     
     // Create lookup array for actual sales by date
     // If branch is specified, we still use date as key since sales are already filtered by branch
@@ -117,8 +104,6 @@ try {
     foreach ($actualSalesData as $sale) {
         $salesLookup[$sale['sale_date']] = floatval($sale['actual_sales']);
     }
-    
-    error_log("Sales Targets API - Sales Lookup: " . json_encode($salesLookup));
     
     // Build query for sales targets
     $query = "SELECT st.id, st.branch_id, st.target_date, st.target_amount, st.notes, st.created_at,
@@ -146,19 +131,22 @@ try {
         $params['target_date'] = $targetDate;
     }
     
-    // Filter by branch
-    if ($branchId) {
-        // First try to get branch-specific targets
-        $query .= " AND st.branch_id = :branch_id";
-        $params['branch_id'] = $branchId;
+    if ($branchId !== null) {
+        $query .= " AND st.branch_id = :target_branch_id";
+        $params['target_branch_id'] = $branchId;
     }
-    
-    // Apply branch restrictions for non-super admins
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-        $query .= " AND (st.branch_id IS NULL OR st.branch_id IN ($placeholders))";
-        $params = array_merge($params, $branchIds);
+
+    if ($userRoleCode !== 'SUPER_ADMIN') {
+        $allowedBranchIds = $filter['accessible_branch_ids'];
+        $allowedPlaceholders = [];
+        foreach ($allowedBranchIds as $index => $allowedBranchId) {
+            $key = 'target_access_' . $index;
+            $allowedPlaceholders[] = ':' . $key;
+            $params[$key] = $allowedBranchId;
+        }
+        $query .= $allowedPlaceholders
+            ? " AND (st.branch_id IS NULL OR st.branch_id IN (" . implode(', ', $allowedPlaceholders) . "))"
+            : ' AND st.branch_id IS NULL';
     }
     
     $query .= " ORDER BY st.target_date DESC, st.branch_id";
@@ -190,14 +178,6 @@ try {
         
         // Get global targets (branch_id IS NULL)
         $query .= " AND st.branch_id IS NULL";
-        
-        // Apply branch restrictions for non-super admins
-        if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-            $branchIds = array_map('trim', explode(',', $userBranchId));
-            $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-            $query .= " AND (st.branch_id IS NULL OR st.branch_id IN ($placeholders))";
-            $params = array_merge($params, $branchIds);
-        }
         
         $query .= " ORDER BY st.target_date DESC";
         
@@ -233,10 +213,16 @@ try {
         }
     }
     
-    error_log("Sales Targets API - Final targets with actual_sales: " . json_encode($targets));
-    
-    echo json_encode(['success' => true, 'targets' => $targets]);
-    
-} catch (Exception $e) {
+    echo json_encode([
+        'success' => true,
+        'targets' => $targets,
+        'filter' => AnalyticsFilter::responseMeta($filter)
+    ]);
+
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+} catch (Exception $e) {
+    error_log('Sales Targets API Error: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Unable to load sales targets']);
 }

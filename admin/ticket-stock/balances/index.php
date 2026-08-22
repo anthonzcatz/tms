@@ -1,0 +1,48 @@
+<?php
+require_once dirname(dirname(__DIR__)) . '/_guard.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PusherService.php';
+
+$user = Auth::user();
+if (($user['role_code'] ?? '') !== 'SUPER_ADMIN'
+    && !Auth::can('VIEW_TICKET_STOCK_BALANCES')
+    && !Auth::canAccessModule('admin/ticket-stock/balances/')) {
+    $message = 'You do not have permission to access Ticket Stock Balances.';
+    include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
+    exit;
+}
+
+$branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name");
+$providers = Database::fetchAll("SELECT provider_id, provider_code, provider_name FROM ticket_providers WHERE status = 'active' ORDER BY provider_name");
+$variants = Database::fetchAll("SELECT variant_id, provider_id, variant_code, variant_name FROM provider_ticket_variants WHERE is_active = 1 AND deleted_at IS NULL ORDER BY variant_name");
+
+$realtimeBranchIds = [];
+if (($user['role_code'] ?? '') === 'SUPER_ADMIN' || Auth::can('VIEW_ALL_TICKET_STOCK')) {
+    $realtimeBranchIds = array_map(
+        'intval',
+        array_column(Database::fetchAll("SELECT branch_id FROM business_branches"), 'branch_id')
+    );
+} else {
+    $realtimeBranchIds = array_values(array_filter(array_map(
+        'intval',
+        explode(',', (string) Auth::userBranchId())
+    )));
+
+    if (($user['role_code'] ?? '') === 'CASHIER' && !empty($user['user_id'])) {
+        $session = Database::fetch(
+            "SELECT branch_id FROM cashier_sessions
+             WHERE cashier_user_id = :user_id AND status = 'OPEN'
+             ORDER BY started_at DESC LIMIT 1",
+            ['user_id' => (int) $user['user_id']]
+        );
+        if (!empty($session['branch_id'])) {
+            $realtimeBranchIds[] = (int) $session['branch_id'];
+        }
+    }
+}
+$realtimeBranchIds = array_values(array_unique(array_filter($realtimeBranchIds)));
+$pusherConfigured = PusherService::isConfigured();
+$pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';
+$pusherCluster = $pusherConfigured ? env('PUSHER_CLUSTER', 'ap1') : 'ap1';
+
+include __DIR__ . '/views/index.php';

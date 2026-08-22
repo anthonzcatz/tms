@@ -16,8 +16,9 @@ class WalletResolver {
             Database::execute(
                 "INSERT INTO activity_logs
                     (user_id, device_id, action, module_name, reference_code, ip_address, old_value, new_value, created_at)
-                 VALUES (0, NULL, 'WALLET_RESOLVER_FALLBACK', 'WALLET_RESOLVER', NULL, :ip, :old, :new, NOW())",
+                 VALUES (:user_id, NULL, 'WALLET_RESOLVER_FALLBACK', 'WALLET_RESOLVER', NULL, :ip, :old, :new, NOW())",
                 [
+                    'user_id' => $_SESSION['user']['user_id'] ?? null,
                     'ip'  => $_SERVER['REMOTE_ADDR'] ?? 'cli',
                     'old' => json_encode([
                         'requested_provider_id' => $requestedProviderId,

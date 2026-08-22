@@ -95,6 +95,17 @@ $posSettings = Database::fetch(
      FROM system_settings WHERE setting_id = 1"
 );
 
+// Fetch cancellation / refund display settings for close session modal
+$cancellationSettings = Database::fetch(
+    "SELECT cancellation_requires_confirmation,
+            cancellation_refund_processing_days,
+            cancellation_allow_partial,
+            show_pending_refunds_in_close_session
+     FROM system_settings
+     WHERE setting_id = 1"
+) ?: [];
+$cancellationSettings['show_pending_refunds_in_close_session'] = (int) ($cancellationSettings['show_pending_refunds_in_close_session'] ?? 0);
+
 // Fetch bank accounts for deposit modal
 $bankAccounts = Database::fetchAll(
     "SELECT bank_account_id, bank_name, account_name, account_number
@@ -113,6 +124,7 @@ $viewData = [
     'filterStatus' => $filterStatus,
     'userRoleCode' => $userRoleCode,
     'posSettings' => $posSettings,
+    'cancellationSettings' => $cancellationSettings,
     'bankAccounts' => $bankAccounts
 ];
 

@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -17,72 +18,14 @@ try {
         exit;
     }
 
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
-    $filterBranchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== '' ? $_GET['branch_id'] : null;
-
-    // Decode branch_id if provided
-    $filterBranchId = null;
-    if ($filterBranchIdRaw) {
-        $decodedBranchId = IdEncoder::decode($filterBranchIdRaw);
-        if ($decodedBranchId !== false) {
-            $filterBranchId = $decodedBranchId;
-        }
-    }
-
-    // Build branch restriction
-    $branchWhere = '';
-    $branchParams = [];
-
-    if ($filterBranchId) {
-        $allowed = ($userRoleCode === 'SUPER_ADMIN')
-            || ($userBranchId && in_array($filterBranchId, array_map('trim', explode(',', $userBranchId))));
-        if ($allowed) {
-            $branchWhere = "AND po.branch_id = :branch_id";
-            $branchParams['branch_id'] = $filterBranchId;
-        } elseif ($userBranchId) {
-            $branchIds = array_map('trim', explode(',', $userBranchId));
-            $namedParams = [];
-            foreach ($branchIds as $i => $bid) { $namedParams['bid_' . $i] = $bid; }
-            $placeholders = implode(',', array_keys($namedParams));
-            $branchWhere = "AND po.branch_id IN ($placeholders)";
-            $branchParams = $namedParams;
-        }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $namedParams = [];
-        foreach ($branchIds as $i => $bid) { $namedParams['bid_' . $i] = $bid; }
-        $placeholders = implode(',', array_keys($namedParams));
-        $branchWhere = "AND po.branch_id IN ($placeholders)";
-        $branchParams = $namedParams;
-    }
-
-    // Get date range filter
-    $range = isset($_GET['range']) ? $_GET['range'] : 'today';
-    $startDate = isset($_GET['start_date']) && $_GET['start_date'] !== '' ? $_GET['start_date'] : null;
-    $endDate   = isset($_GET['end_date'])   && $_GET['end_date']   !== '' ? $_GET['end_date']   : null;
-
-    // Build date condition
-    $dateWhere = '';
-
-    if ($startDate && $endDate) {
-        $dateWhere = "AND DATE(po.created_at) BETWEEN :sd AND :ed";
-        $branchParams['sd'] = $startDate;
-        $branchParams['ed'] = $endDate;
-    } elseif ($range === 'today') {
-        $dateWhere = "AND DATE(po.created_at) = CURDATE()";
-    } elseif ($range === 'week') {
-        $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-    } elseif ($range === 'last30days') {
-        $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-    } elseif ($range === 'month') {
-        $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
-    } elseif ($range === 'year') {
-        $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')";
-    }
+    $filter = AnalyticsFilter::parse($_GET, $user);
+    $branchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'payments_branch');
+    $dateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'payments_date');
+    $branchWhere = 'AND ' . $branchScope['sql'];
+    $dateWhere = 'AND ' . $dateScope['sql'];
     
     // Get payment breakdown by revenue using actual payment methods
-    $params = array_merge($branchParams);
+    $params = array_merge($branchScope['params'], $dateScope['params']);
     
     $paymentData = Database::fetchAll(
         "SELECT 
@@ -149,11 +92,15 @@ try {
         'success' => true,
         'data' => [
             'breakdown' => $breakdown,
-            'total' => $total
+            'total' => $total,
+            'filter' => AnalyticsFilter::responseMeta($filter)
         ]
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('Payment Breakdown API Error: ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load payment breakdown']);
 }

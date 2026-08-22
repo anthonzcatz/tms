@@ -450,7 +450,12 @@ async function updateFee() {
         if (result.success) {
             showToast('success', 'Success', 'Service fee updated successfully');
             editFeeModal.hide();
-            location.reload();
+            updateFeeCardDisplay(feeId, {
+                fee_type: feeType,
+                fee_value: feeAmount,
+                is_active: status === 'active'
+            });
+            applyFilters();
         } else {
             showToast('error', 'Error', result.message || 'Failed to update service fee');
         }
@@ -526,6 +531,32 @@ function showToast(type, title, message) {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 150);
     }, 4000);
+}
+
+function updateFeeCardDisplay(feeId, fee) {
+    const card = document.querySelector(`.fee-card[data-fee-id="${feeId}"]`);
+    if (!card) return;
+
+    const isActive = Boolean(fee.is_active);
+    const feeType = String(fee.fee_type || '').toUpperCase();
+    const feeValue = parseFloat(fee.fee_value) || 0;
+    const statusBadge = document.getElementById(`feeStatus${feeId}`);
+    const typeEl = document.getElementById(`feeType${feeId}`);
+    const valueEl = document.getElementById(`feeValue${feeId}`);
+
+    card.dataset.status = isActive ? 'active' : 'inactive';
+    card.dataset.feeType = feeType;
+    if (typeEl) typeEl.textContent = feeType || '-';
+    if (statusBadge) {
+        statusBadge.classList.toggle('bg-success', isActive);
+        statusBadge.classList.toggle('bg-danger', !isActive);
+        statusBadge.textContent = isActive ? 'Active' : 'Inactive';
+    }
+    if (valueEl) {
+        valueEl.textContent = feeType === 'PERCENT'
+            ? `${feeValue}%`
+            : `₱${feeValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
 }
 
 // Apply filters

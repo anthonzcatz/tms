@@ -8,6 +8,9 @@
  */
 final class Auth
 {
+    private const REMEMBER_COOKIE = 'tms_remember';
+    private const REMEMBER_DURATION = 2592000; // 30 days
+
     /** Returns true if the current session belongs to a logged-in user. */
     public static function check(): bool
     {
@@ -126,7 +129,7 @@ final class Auth
      * Returns true on success, false if login was blocked (device pending/blocked).
      * On false, $_SESSION['login_error'] is set with the reason.
      */
-    public static function login(array $user, ?float $browserLatitude = null, ?float $browserLongitude = null): bool
+    public static function login(array $user, ?float $browserLatitude = null, ?float $browserLongitude = null, bool $rememberMe = false): bool
     {
         unset($user['password_hash']);
 
@@ -188,6 +191,11 @@ final class Auth
         $_SESSION['fingerprint']   = self::fingerprint();
         $_SESSION['db_session_id'] = $dbSessionId;
         self::logActivity((int) $user['user_id'], 'LOGIN', 'AUTH', null, null, ['session_id' => $dbSessionId]);
+
+        if ($rememberMe) {
+            self::issueRememberToken((int) $user['user_id']);
+        }
+
         return true;
     }
 
@@ -197,13 +205,20 @@ final class Auth
         $dbSessionId = $_SESSION['db_session_id'] ?? null;
         if ($userId) {
             self::logActivity($userId, 'LOGOUT', 'AUTH', null, null, ['session_id' => $dbSessionId]);
+            // Delete remember tokens for this user on explicit logout
+            Database::execute(
+                "DELETE FROM remember_tokens WHERE user_id = :uid",
+                ['uid' => $userId]
+            );
         }
         if ($dbSessionId) {
             self::closeUserSession((int) $dbSessionId);
         }
 
+        self::clearRememberCookie();
+
         $_SESSION = [];
-        if (ini_get('session.use_cookies')) {
+        if (ini_get('session.use_cookies') && !headers_sent()) {
             $p = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000,
                 $p['path'], $p['domain'], $p['secure'], $p['httponly']);
@@ -213,6 +228,10 @@ final class Auth
 
     public static function requireLogin(): void
     {
+        if (!self::check()) {
+            self::attemptRememberMe();
+        }
+
         if (!self::check()) {
             self::redirectToLogin('authentication_required');
         }
@@ -968,5 +987,152 @@ final class Auth
                 'new_value' => $newValue === null ? null : json_encode($newValue),
             ]
         );
+    }
+
+    /* =========================================================
+       SECURE "REMEMBER ME" COOKIES
+       ========================================================= */
+
+    /**
+     * Issue a new remember-me token, store the validator hash in the DB,
+     * and write the HttpOnly/Secure/SameSite cookie.
+     */
+    private static function issueRememberToken(int $userId): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        // Limit one active remember token per user (per browser). Logout clears it.
+        Database::execute(
+            "DELETE FROM remember_tokens WHERE user_id = :uid",
+            ['uid' => $userId]
+        );
+
+        $selector = bin2hex(random_bytes(16));  // 32 hex chars
+        $validator = bin2hex(random_bytes(32)); // 64 hex chars
+        $hashedValidator = hash('sha256', $validator);
+
+        $expiresAt = date('Y-m-d H:i:s', time() + self::REMEMBER_DURATION);
+        Database::execute(
+            "INSERT INTO remember_tokens
+                (user_id, selector, hashed_validator, ip_address, user_agent, expires_at, created_at)
+             VALUES
+                (:uid, :sel, :hash, :ip, :ua, :exp, :created)",
+            [
+                'uid'     => $userId,
+                'sel'     => $selector,
+                'hash'    => $hashedValidator,
+                'ip'      => $_SERVER['REMOTE_ADDR'] ?? null,
+                'ua'      => $_SERVER['HTTP_USER_AGENT'] ?? null,
+                'exp'     => $expiresAt,
+                'created' => date('Y-m-d H:i:s'),
+            ]
+        );
+
+        $cookieValue = $selector . ':' . $validator;
+        $cookieParams = self::rememberCookieParams();
+
+        setcookie(
+            self::REMEMBER_COOKIE,
+            $cookieValue,
+            $cookieParams
+        );
+    }
+
+    /**
+     * Validate a remember-me cookie and, if valid, log the user in and rotate the token.
+     * This is called from requireLogin() when there is no active PHP session.
+     */
+    private static function attemptRememberMe(): void
+    {
+        if (headers_sent() || empty($_COOKIE[self::REMEMBER_COOKIE])) {
+            return;
+        }
+
+        $rawCookie = $_COOKIE[self::REMEMBER_COOKIE];
+        $parts = explode(':', $rawCookie, 2);
+        if (count($parts) !== 2) {
+            self::clearRememberCookie();
+            return;
+        }
+
+        [$selector, $validator] = $parts;
+        if (!ctype_xdigit($selector) || !ctype_xdigit($validator)) {
+            self::clearRememberCookie();
+            return;
+        }
+
+        $token = Database::fetch(
+            "SELECT * FROM remember_tokens
+             WHERE selector = :sel
+               AND expires_at > :now
+             LIMIT 1",
+            ['sel' => $selector, 'now' => date('Y-m-d H:i:s')]
+        );
+
+        if (!$token) {
+            self::clearRememberCookie();
+            return;
+        }
+
+        if (!hash_equals($token['hashed_validator'], hash('sha256', $validator))) {
+            self::clearRememberCookie();
+            return;
+        }
+
+        $user = User::findById((int) $token['user_id']);
+        if (!$user || User::isLocked($user)) {
+            self::clearRememberCookie();
+            return;
+        }
+
+        // Update last-used timestamp and rotate the token on successful use.
+        Database::execute(
+            "UPDATE remember_tokens SET last_used_at = :now WHERE token_id = :tid",
+            ['now' => date('Y-m-d H:i:s'), 'tid' => $token['token_id']]
+        );
+
+        // createUserSession will apply device approval / max concurrent rules.
+        if (self::login($user)) {
+            self::issueRememberToken((int) $user['user_id']);
+            return;
+        }
+
+        // If the device is blocked, the remember token should not be allowed to retry.
+        if (($_SESSION['login_error'] ?? null) === 'device_blocked') {
+            self::clearRememberCookie();
+        }
+    }
+
+    /** Remove the remember-me cookie from the browser. */
+    private static function clearRememberCookie(): void
+    {
+        if (empty($_COOKIE[self::REMEMBER_COOKIE])) {
+            return;
+        }
+
+        $params = self::rememberCookieParams();
+        $params['expires'] = time() - 3600;
+
+        setcookie(self::REMEMBER_COOKIE, '', $params);
+        unset($_COOKIE[self::REMEMBER_COOKIE]);
+    }
+
+    /** Build the cookie params array used for remember-me cookies. */
+    private static function rememberCookieParams(): array
+    {
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+
+        return [
+            'expires'  => time() + self::REMEMBER_DURATION,
+            'path'     => '/',
+            'domain'   => '',
+            'secure'   => $secure,
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ];
     }
 }

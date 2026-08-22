@@ -73,7 +73,21 @@ class NotificationService {
         
         try {
             Database::execute($sql, $params);
-            return (int)Database::lastInsertId();
+            $notificationId = (int) Database::lastInsertId();
+            $eventData = [
+                'notification_id' => $notificationId,
+                'type' => $notification['type'],
+                'priority' => $notification['priority'],
+                'created_at' => date(DATE_ATOM),
+            ];
+            if (class_exists('PusherService')) {
+                if (!empty($notification['user_id'])) {
+                    PusherService::triggerUser((int) $notification['user_id'], 'notification.created', $eventData);
+                } else {
+                    PusherService::triggerGlobalNotification('notification.created', $eventData);
+                }
+            }
+            return $notificationId;
         } catch (Exception $e) {
             error_log("Notification creation failed: " . $e->getMessage());
             return false;
@@ -92,7 +106,7 @@ class NotificationService {
         $params = [];
         
         if ($userId !== null) {
-            $sql .= " AND user_id = ?";
+            $sql .= " AND (user_id = ? OR user_id IS NULL)";
             $params[] = $userId;
         }
         
@@ -157,7 +171,7 @@ class NotificationService {
         $params = [];
         
         if ($userId !== null) {
-            $sql .= " AND user_id = ?";
+            $sql .= " AND (user_id = ? OR user_id IS NULL)";
             $params[] = $userId;
         }
         
@@ -181,9 +195,9 @@ class NotificationService {
         $sql = "UPDATE notifications SET is_read = 1, read_at = NOW() WHERE notification_id = ?";
         $params = [$notificationId];
         
-        // Add user_id check for security (ensure user can only mark their own notifications)
+        // Add user_id check for security while allowing system-wide notifications.
         if ($userId !== null) {
-            $sql .= " AND user_id = ?";
+            $sql .= " AND (user_id = ? OR user_id IS NULL)";
             $params[] = $userId;
         }
         
@@ -207,7 +221,7 @@ class NotificationService {
         $params = [];
         
         if ($userId !== null) {
-            $sql .= " AND user_id = ?";
+            $sql .= " AND (user_id = ? OR user_id IS NULL)";
             $params[] = $userId;
         }
         

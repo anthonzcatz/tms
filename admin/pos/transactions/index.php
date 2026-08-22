@@ -12,7 +12,20 @@ require_once dirname(__DIR__) . '/_guard.php';
 Auth::requireLogin();
 $user         = Auth::user();
 $userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$canManageFinancialReportSignatories = in_array($userRoleCode, ['SUPER_ADMIN', 'MANAGER'], true)
+    || Auth::can('VIEW_SETTINGS');
+
+$currentUserBranchId = null;
+if (!empty($userBranchId) && $userBranchId !== '0' && $userBranchId !== '') {
+    $branchParts = array_values(array_unique(array_filter(
+        array_map('intval', explode(',', (string)$userBranchId)),
+        static fn (int $id): bool => $id > 0
+    )));
+    if (count($branchParts) === 1) {
+        $currentUserBranchId = $branchParts[0];
+    }
+}
 
 // Fetch system settings for view
 $systemSettings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
@@ -24,7 +37,10 @@ $printerSettings = Database::fetch(
     "SELECT receipt_printing_enabled, receipt_paper_width, printer_type, system_logo,
             receipt_auto_print, receipt_show_preview, receipt_copies,
             receipt_show_tin, receipt_show_service_fee, receipt_show_base_amount,
-            receipt_show_discount, receipt_show_cashier, receipt_show_payment_method,
+            receipt_show_discount, receipt_show_item_total, receipt_show_subtotal,
+            receipt_show_tendered, receipt_show_service_fee_total, receipt_total_source,
+            receipt_show_vat,
+            receipt_show_cashier, receipt_show_payment_method,
             receipt_show_branch, receipt_logo_enabled, receipt_qr_code_enabled,
             receipt_qr_format, receipt_footer, receipt_custom_footer, receipt_address_source,
             company_name, company_address, company_contact_number, company_email, company_tin

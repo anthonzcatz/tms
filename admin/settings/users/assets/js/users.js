@@ -704,6 +704,7 @@ function toggleFilters() {
  */
 function openAddUserModal() {
     console.log('Opening add user modal');
+    resetTransportAssignments();
     
     // Reset form
     document.getElementById('userForm').reset();
@@ -948,6 +949,7 @@ function updateWizardUI() {
  * Open edit user modal
  */
 async function openEditUserModal(userId) {
+    resetTransportAssignments();
     try {
         const response = await fetch(`${window.BASE_URL}/api/users/index.php?id=${userId}`, {
             method: 'GET',
@@ -1147,6 +1149,19 @@ async function saveUser() {
         }
 
         const isTimeRestricted = document.getElementById('isTimeRestricted').checked;
+        const roleSelect = document.getElementById('roleId');
+        const roleOption = roleSelect.options[roleSelect.selectedIndex];
+        const roleCode = roleOption ? roleOption.dataset.roleCode : '';
+        const restrictTransport = roleCode === 'CASHIER' && document.getElementById('restrictTransport').checked;
+        const transportTypes = Array.from(document.querySelectorAll('input[name="transport_types[]"]:checked')).map(cb => cb.value);
+        const specificProviders = Array.from(document.querySelectorAll('.provider-checkbox:checked')).map(cb => parseInt(cb.value, 10)).filter(Number.isInteger);
+
+        if (restrictTransport && transportTypes.length === 0 && specificProviders.length === 0) {
+            showToast('warning', 'Validation', 'Select at least one transportation type or provider.');
+            saveBtn.disabled = false;
+            saveBtnText.textContent = originalText;
+            return;
+        }
 
         const data = {
             username: document.getElementById('username').value,
@@ -1155,6 +1170,9 @@ async function saveUser() {
             role_id: document.getElementById('roleId').value,
             branch_id: branchIds.length ? branchIds : null,
             status: document.getElementById('isActive').checked ? 'active' : 'inactive',
+            has_restricted_transport: restrictTransport ? 1 : 0,
+            transport_types: restrictTransport ? transportTypes : [],
+            specific_providers: restrictTransport ? specificProviders : [],
             is_time_restricted: isTimeRestricted ? 1 : 0,
             // Explicitly null these out when restriction is off so no stale values linger in DB
             allowed_login_start: isTimeRestricted ? (document.getElementById('allowedLoginStart').value || null) : null,
@@ -1229,37 +1247,6 @@ async function saveUser() {
         if (saveErrAlert) saveErrAlert.style.display = 'none';
 
         if (result.success) {
-            // Handle transport assignments if user is a cashier
-            const roleIdSelect = document.getElementById('roleId');
-            const selectedOption = roleIdSelect.options[roleIdSelect.selectedIndex];
-            const roleCode = selectedOption ? selectedOption.dataset.roleCode : '';
-            
-            if (roleCode === 'CASHIER') {
-                const restrictTransport = document.getElementById('restrictTransport').checked;
-                const transportTypes = [];
-                const specificProviders = [];
-                
-                // Collect transport types
-                document.querySelectorAll('input[name="transport_types[]"]:checked').forEach(cb => {
-                    transportTypes.push(cb.value);
-                });
-                
-                // Collect specific providers
-                document.querySelectorAll('.provider-checkbox:checked').forEach(cb => {
-                    specificProviders.push(cb.value);
-                });
-                
-                // Save transport assignments
-                if (restrictTransport && (transportTypes.length > 0 || specificProviders.length > 0)) {
-                    const userId = result.user_id || document.getElementById('userId').value;
-                    await saveTransportAssignments(userId, transportTypes, specificProviders);
-                } else if (!restrictTransport) {
-                    // Remove all transport assignments if restriction is disabled
-                    const userId = result.user_id || document.getElementById('userId').value;
-                    await removeTransportAssignments(userId);
-                }
-            }
-            
             showToast('success', 'Success', result.message || (isEdit ? 'User updated successfully' : 'User created successfully'));
             userModal.hide();
             loadUsers();
@@ -1990,6 +1977,16 @@ async function checkUsernameExists(username, excludeUserId = null) {
 /**
  * Toggle transport restriction section
  */
+function resetTransportAssignments() {
+    const restrictCheckbox = document.getElementById('restrictTransport');
+    if (restrictCheckbox) restrictCheckbox.checked = false;
+    document.querySelectorAll('input[name="transport_types[]"], .provider-checkbox').forEach(input => {
+        input.checked = false;
+        input.disabled = false;
+    });
+    toggleTransportRestriction();
+}
+
 function toggleTransportRestriction() {
     const restrictCheckbox = document.getElementById('restrictTransport');
     const section = document.getElementById('transportAssignmentSection');
@@ -2106,25 +2103,41 @@ async function loadTransportAssignments(userId) {
         
         if (response.ok) {
             const result = await response.json();
-            if (result.success && result.data && result.data.assignments) {
-                // Clear current selections
-                document.querySelectorAll('input[name="transport_types[]"]').forEach(cb => cb.checked = false);
+            const assignments = Array.isArray(result.data)
+                ? result.data
+                : (result.data && Array.isArray(result.data.assignments) ? result.data.assignments : []);
+
+            if (result.success) {
+                // Clear current selections before applying the saved values.
+                document.querySelectorAll('input[name="transport_types[]"]').forEach(cb => {
+                    cb.checked = false;
+                    cb.disabled = false;
+                });
                 document.querySelectorAll('.provider-checkbox').forEach(cb => cb.checked = false);
-                
-                // Populate assignments
-                result.data.assignments.forEach(assignment => {
+
+                assignments.forEach(assignment => {
                     if (assignment.provider_id) {
                         const providerCheckbox = document.querySelector(`.provider-checkbox[value="${assignment.provider_id}"]`);
-                        if (providerCheckbox) {
-                            providerCheckbox.checked = true;
-                        }
+                        if (providerCheckbox) providerCheckbox.checked = true;
                     } else if (assignment.transport_type) {
                         const typeCheckbox = document.querySelector(`input[name="transport_types[]"][value="${assignment.transport_type}"]`);
-                        if (typeCheckbox) {
-                            typeCheckbox.checked = true;
-                        }
+                        if (typeCheckbox) typeCheckbox.checked = true;
                     }
                 });
+
+                // Keep type/provider precedence and disabled states consistent with Add User.
+                handleTransportSelection();
+
+                const hasVisibleAssignment = document.querySelector(
+                    'input[name="transport_types[]"]:checked, .provider-checkbox:checked'
+                );
+                if (!hasVisibleAssignment) {
+                    const restrictCheckbox = document.getElementById('restrictTransport');
+                    if (restrictCheckbox) {
+                        restrictCheckbox.checked = false;
+                        toggleTransportRestriction();
+                    }
+                }
             }
         }
     } catch (error) {

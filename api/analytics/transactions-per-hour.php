@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -17,191 +18,91 @@ try {
         exit;
     }
 
-    $range = isset($_GET['range']) ? $_GET['range'] : 'today';
-    $branchIdRaw = isset($_GET['branch_id']) ? $_GET['branch_id'] : null;
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
+    $filter = AnalyticsFilter::parse($_GET, $user);
+    $branchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'hourly_branch');
+    $dateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'hourly_date');
+    $branchWhere = 'AND ' . $branchScope['sql'];
+    $branchParams = $branchScope['params'];
+    $dateWhere = 'AND ' . $dateScope['sql'];
+    $dateParams = $dateScope['params'];
 
-    // Decode branch_id if provided
-    $branchId = null;
-    if ($branchIdRaw) {
-        $decodedBranchId = IdEncoder::decode($branchIdRaw);
-        if ($decodedBranchId !== false) {
-            $branchId = $decodedBranchId;
-        }
-    }
-
-    // Build branch restriction
-    $branchWhere = '';
-    $branchParams = [];
-
-    // If specific branch is selected and user has access
-    if ($branchId && $userRoleCode === 'SUPER_ADMIN') {
-        $branchWhere = "AND po.branch_id = :branch_id";
-        $branchParams['branch_id'] = $branchId;
-    } elseif ($branchId && $userBranchId) {
-        // Check if user has access to the selected branch
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        if (in_array($branchId, $branchIds)) {
-            $branchWhere = "AND po.branch_id = :branch_id";
-            $branchParams['branch_id'] = $branchId;
-        } else {
-            // User doesn't have access, use their assigned branches
-            $namedParams = [];
-            foreach ($branchIds as $i => $bid) {
-                $namedParams['bid_' . $i] = $bid;
-            }
-            $placeholders = implode(',', array_keys($namedParams));
-            $branchWhere = "AND po.branch_id IN ($placeholders)";
-            $branchParams = $namedParams;
-        }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        // No specific branch selected, use user's assigned branches
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $namedParams = [];
-        foreach ($branchIds as $i => $bid) {
-            $namedParams['bid_' . $i] = $bid;
-        }
-        $placeholders = implode(',', array_keys($namedParams));
-        $branchWhere = "AND po.branch_id IN ($placeholders)";
-        $branchParams = $namedParams;
-    }
-
-    // Custom date range params
-    $startDate = isset($_GET['start_date']) && $_GET['start_date'] !== '' ? $_GET['start_date'] : null;
-    $endDate   = isset($_GET['end_date'])   && $_GET['end_date']   !== '' ? $_GET['end_date']   : null;
-
-    // Build date range
-    $dateWhere = '';
-    $dateParams = [];
+    $isHourly = $filter['granularity'] === 'hourly';
+    $isAnnual = $filter['granularity'] === 'annual';
+    $isMonthly = $filter['granularity'] === 'monthly' || $isAnnual;
+    $periodKeys = [];
     $labels = [];
+    $timezone = new DateTimeZone(date_default_timezone_get() ?: 'Asia/Manila');
 
-    if ($startDate && $endDate) {
-        // Custom range — daily breakdown between dates (cap at 90 days)
-        $start = strtotime($startDate);
-        $end   = strtotime($endDate);
-        if ($start > $end) { $tmp = $start; $start = $end; $end = $tmp; }
-        $dayCount = min(90, (int)(($end - $start) / 86400) + 1);
-        $dateWhere = "AND DATE(po.created_at) BETWEEN :sd AND :ed";
-        $dateParams['sd'] = date('Y-m-d', $start);
-        $dateParams['ed'] = date('Y-m-d', $end);
-        for ($i = 0; $i < $dayCount; $i++) {
-            $labels[] = date('M d', strtotime("+$i days", $start));
-        }
-    } elseif ($range === 'today') {
-        $dateWhere = "AND DATE(po.created_at) = CURDATE()";
-        for ($i = 0; $i < 24; $i++) {
-            $labels[] = sprintf('%02d:00', $i);
-        }
-    } elseif ($range === 'week') {
-        $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-        for ($i = 0; $i <= 6; $i++) {
-            $labels[] = date('D', strtotime("-$i days"));
-        }
-    } elseif ($range === 'last30days') {
-        $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-        for ($i = 29; $i >= 0; $i--) {
-            $labels[] = date('M d', strtotime("-$i days"));
-        }
-    } elseif ($range === 'month') {
-        $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
-        $daysInMonth = (int)date('t');
-        $currentDay = (int)date('j');
-        for ($i = 1; $i <= $currentDay; $i++) {
-            $labels[] = date('M d', strtotime(date('Y-m') . "-$i"));
-        }
-    } elseif ($range === 'year') {
-        // For year, show months from start of current year
-        $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')";
-        $currentMonth = (int)date('n');
-        for ($i = 1; $i <= $currentMonth; $i++) {
-            $labels[] = date('M Y', strtotime(date('Y') . "-$i-01"));
-        }
-    }
-
-    // Fetch transaction data
-    $params = array_merge($branchParams, $dateParams);
-    
-    if ($range === 'today' && !($startDate && $endDate)) {
-        // Hourly breakdown
-        $data = [];
-        for ($i = 0; $i < 24; $i++) {
-            $hour = $i;
-            $result = Database::fetch(
-                "SELECT COUNT(DISTINCT po.order_id) as count,
-                        COALESCE(SUM(po.grand_total), 0) as total
-                 FROM pos_orders po
-                 WHERE po.status = 'completed'
-                   AND DATE(po.created_at) = CURDATE()
-                   AND HOUR(po.created_at) = :hour
-                   $branchWhere",
-                array_merge(['hour' => $hour], $branchParams)
-            );
-            $data[] = intval($result['count'] ?? 0);
-        }
-    } elseif ($range === 'year' && !($startDate && $endDate)) {
-        // Monthly breakdown for year
-        $monthlyData = Database::fetchAll(
-            "SELECT DATE_FORMAT(po.created_at, '%Y-%m') as ym,
-                    COUNT(DISTINCT po.order_id) as count
-             FROM pos_orders po
-             WHERE po.status = 'completed'
-               $dateWhere
-               $branchWhere
-             GROUP BY DATE_FORMAT(po.created_at, '%Y-%m')",
-            $params
-        );
-        $dataMap = [];
-        foreach ($monthlyData as $row) { $dataMap[$row['ym']] = intval($row['count']); }
-        $data = [];
-        for ($i = 11; $i >= 0; $i--) {
-            $ym = date('Y-m', strtotime("first day of -$i month"));
-            $data[] = $dataMap[$ym] ?? 0;
+    if ($isHourly) {
+        for ($hour = 0; $hour < 24; $hour++) {
+            $periodKeys[] = sprintf('%02d:00', $hour);
+            $labels[] = sprintf('%02d:00', $hour);
         }
     } else {
-        // Daily breakdown (week, month, custom)
-        $dailyData = Database::fetchAll(
-            "SELECT DATE(po.created_at) as date,
+        $cursor = new DateTimeImmutable($filter['start_date'], $timezone);
+        $lastDate = new DateTimeImmutable($filter['end_date'], $timezone);
+        if ($isAnnual) {
+            $cursor = $cursor->setDate((int)$cursor->format('Y'), 1, 1);
+            $lastDate = $lastDate->setDate((int)$lastDate->format('Y'), 1, 1);
+        } elseif ($isMonthly) {
+            $cursor = $cursor->modify('first day of this month');
+            $lastDate = $lastDate->modify('first day of this month');
+        }
+
+        while ($cursor <= $lastDate) {
+            if ($isAnnual) {
+                $periodKeys[] = $cursor->format('Y');
+                $labels[] = $cursor->format('Y');
+                $cursor = $cursor->modify('+1 year');
+            } elseif ($isMonthly) {
+                $periodKeys[] = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $cursor = $cursor->modify('+1 month');
+            } else {
+                $periodKeys[] = $cursor->format('Y-m-d');
+                $labels[] = $cursor->format('M d');
+                $cursor = $cursor->modify('+1 day');
+            }
+        }
+    }
+
+    $params = array_merge($branchParams, $dateParams);
+    $data = [];
+
+    if ($isHourly) {
+        foreach ($periodKeys as $periodKey) {
+            $result = Database::fetch(
+                "SELECT COUNT(DISTINCT po.order_id) as count
+                 FROM pos_orders po
+                 WHERE po.status = 'completed'
+                   $dateWhere
+                   $branchWhere
+                   AND HOUR(po.created_at) = :hour",
+                array_merge($params, ['hour' => (int)substr($periodKey, 0, 2)])
+            );
+            $data[] = (int)($result['count'] ?? 0);
+        }
+    } else {
+        $groupExpression = $isAnnual
+            ? "DATE_FORMAT(po.created_at, '%Y')"
+            : ($isMonthly ? "DATE_FORMAT(po.created_at, '%Y-%m')" : "DATE(po.created_at)");
+        $rows = Database::fetchAll(
+            "SELECT $groupExpression as period_key,
                     COUNT(DISTINCT po.order_id) as count
              FROM pos_orders po
              WHERE po.status = 'completed'
                $dateWhere
                $branchWhere
-             GROUP BY DATE(po.created_at)
-             ORDER BY date ASC",
+             GROUP BY $groupExpression
+             ORDER BY period_key ASC",
             $params
         );
-
         $dataMap = [];
-        foreach ($dailyData as $day) {
-            $dataMap[$day['date']] = intval($day['count']);
+        foreach ($rows as $row) {
+            $dataMap[(string)$row['period_key']] = (int)$row['count'];
         }
-
-        $data = [];
-        if ($startDate && $endDate) {
-            $start = strtotime($startDate);
-            $end   = strtotime($endDate);
-            if ($start > $end) { $tmp = $start; $start = $end; $end = $tmp; }
-            $dayCount = min(90, (int)(($end - $start) / 86400) + 1);
-            for ($i = 0; $i < $dayCount; $i++) {
-                $date = date('Y-m-d', strtotime("+$i days", $start));
-                $data[] = $dataMap[$date] ?? 0;
-            }
-        } elseif ($range === 'week') {
-            for ($i = 6; $i >= 0; $i--) {
-                $date = date('Y-m-d', strtotime("-$i days"));
-                $data[] = $dataMap[$date] ?? 0;
-            }
-        } elseif ($range === 'last30days') {
-            for ($i = 29; $i >= 0; $i--) {
-                $date = date('Y-m-d', strtotime("-$i days"));
-                $data[] = $dataMap[$date] ?? 0;
-            }
-        } else {
-            for ($i = 29; $i >= 0; $i--) {
-                $date = date('Y-m-d', strtotime("-$i days"));
-                $data[] = $dataMap[$date] ?? 0;
-            }
+        foreach ($periodKeys as $periodKey) {
+            $data[] = $dataMap[$periodKey] ?? 0;
         }
     }
 
@@ -209,11 +110,15 @@ try {
         'success' => true,
         'data' => [
             'labels' => $labels,
-            'data' => $data
+            'data' => $data,
+            'filter' => AnalyticsFilter::responseMeta($filter)
         ]
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('Transactions per Hour API Error: ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load transaction volume']);
 }

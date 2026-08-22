@@ -310,6 +310,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
   <?php endif; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
   <?php include dirname(dirname(__DIR__)) . '/includes/scripts.php'; ?>
+  <script>
+    window.CANCELLATION_SETTINGS = {
+        requires_confirmation: <?php echo ($cancellationSettings['cancellation_requires_confirmation'] ?? 1) ? 'true' : 'false'; ?>,
+        refund_processing_days: <?php echo intval($cancellationSettings['cancellation_refund_processing_days'] ?? 0); ?>,
+        allow_partial: <?php echo ($cancellationSettings['cancellation_allow_partial'] ?? 0) ? 'true' : 'false'; ?>,
+        show_pending_refunds_in_close_session: <?php echo ($cancellationSettings['show_pending_refunds_in_close_session'] ?? 0) ? 'true' : 'false'; ?>
+    };
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/shifts/assets/js/shifts.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/shifts.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>

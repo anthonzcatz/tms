@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -22,167 +23,115 @@ try {
         exit;
     }
 
-    // Get parameters
-    $range = isset($_GET['range']) ? $_GET['range'] : 'week';
-    $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : null;
-    $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : null;
-    // branch_id absent = default to first branch; branch_id = '' = All Branches
-    $branchIdRaw = array_key_exists('branch_id', $_GET) ? $_GET['branch_id'] : 'DEFAULT';
-    $isAllBranches = ($branchIdRaw === '');
-    $branchId = null;
+    $filter = AnalyticsFilter::parse($_GET, $user);
+    $range = $filter['range'];
+    $startDate = $filter['start_date'];
+    $endDate = $filter['end_date'];
+    $days = $filter['days'];
+    $isAllBranches = $filter['is_all_branches'];
+    $branchId = $filter['branch_id'];
+    $accessibleBranches = $filter['accessible_branch_ids'];
+    $isHourly = $filter['granularity'] === 'hourly';
+    $isAnnual = $filter['granularity'] === 'annual';
+    $isMonthly = $filter['granularity'] === 'monthly' || $isAnnual;
 
-    // Decode branch_id if a real value was provided
-    if (!$isAllBranches && $branchIdRaw !== 'DEFAULT' && $branchIdRaw !== '') {
-        $decodedBranchId = IdEncoder::decode($branchIdRaw);
-        if ($decodedBranchId === false) {
-            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
-            exit;
-        }
-        $branchId = $decodedBranchId;
-    }
+    $branchListFilter = $filter;
+    $branchListFilter['branch_id'] = null;
+    $branchListScope = AnalyticsFilter::branchCondition($branchListFilter, 'branch_id', 'branch_list');
+    $branchRows = Database::fetchAll(
+        "SELECT branch_id, branch_name
+         FROM business_branches
+         WHERE status = 'active' AND {$branchListScope['sql']}",
+        $branchListScope['params']
+    );
+    $accessibleBranches = array_values(array_map('intval', array_column($branchRows, 'branch_id')));
+    $branchNames = array_column($branchRows, 'branch_name', 'branch_id');
 
-    // Determine user's accessible branches
-    $accessibleBranches = [];
-    if ($user['role_code'] === 'SUPER_ADMIN') {
-        // Get all active branches
-        $allBranchRows = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE status = 'active'");
-        $accessibleBranches = array_column($allBranchRows, 'branch_id');
-        $branchNames = array_column($allBranchRows, 'branch_name', 'branch_id');
-    } else {
-        $userBranchIds = array_map('trim', explode(',', $user['branch_id'] ?? ''));
-        $accessibleBranches = array_filter($userBranchIds);
-        // Get branch names
-        $branchNames = [];
-        if (!empty($accessibleBranches)) {
-            $placeholders = implode(',', array_fill(0, count($accessibleBranches), '?'));
-            $branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders)", $accessibleBranches);
-            $branchNames = array_column($branches, 'branch_name', 'branch_id');
-        }
-    }
-
-    // If specific branch requested, verify access
-    if (!$isAllBranches && $branchId && !in_array(intval($branchId), array_map('intval', $accessibleBranches))) {
-        echo json_encode(['success' => false, 'error' => 'Access denied for this branch']);
-        exit;
-    }
-
-    // Determine target branch(es)
     if ($isAllBranches) {
         $targetBranchId = null;
         $targetBranchName = 'All Branches';
     } else {
-        $targetBranchId = $branchId ?: ($accessibleBranches[0] ?? null);
+        $targetBranchId = $branchId;
         $targetBranchName = $branchNames[$targetBranchId] ?? 'Unknown Branch';
     }
 
     if (!$isAllBranches && !$targetBranchId) {
-        echo json_encode(['success' => false, 'error' => 'No accessible branch found']);
-        exit;
+        throw new InvalidArgumentException('No accessible branch found');
     }
 
-    // Calculate date range
-    // Use custom dates if provided, otherwise use preset ranges
-    if ($startDate && $endDate) {
-        // Custom date range - calculate days between dates
-        $startTs = strtotime($startDate);
-        $endTs = strtotime($endDate);
-        if ($startTs > $endTs) { $tmp = $startTs; $startTs = $endTs; $endTs = $tmp; }
-        $days = max(1, min(365, (int)(($endTs - $startTs) / 86400) + 1));
-    } else {
-        $endDate = date('Y-m-d');
-        switch ($range) {
-            case 'today':
-                $startDate = date('Y-m-d');
-                $days = 1;
-                break;
-            case 'month':
-                $startDate = date('Y-m-01'); // First day of current month
-                $days = (int)date('t'); // Days in current month
-                break;
-            case 'last30days':
-                $startDate = date('Y-m-d', strtotime('-29 days')); // Last 30 days including today
-                $days = 30;
-                break;
-            case 'year':
-                $startDate = date('Y-01-01'); // January 1st of current year
-                $days = (int)date('z') + 1; // Day of year (1-365/366)
-                break;
-            case 'week':
-            default:
-                $startDate = date('Y-m-d', strtotime('-6 days'));
-                $days = 7;
-                break;
-        }
-    }
-
-    // Get daily sales data from cashier_sessions
-    // For 'today', build hourly buckets instead of daily
-    // For 'year', build monthly buckets instead of daily
-    // For custom date ranges, build daily buckets
     $dailyData = [];
-    if ($range === 'today') {
-        for ($h = 0; $h < 24; $h++) {
-            $key = date('Y-m-d') . sprintf(' %02d:00', $h);
+    $timezone = new DateTimeZone(date_default_timezone_get() ?: 'Asia/Manila');
+    if ($isHourly) {
+        for ($hour = 0; $hour < 24; $hour++) {
+            $key = $startDate . sprintf(' %02d:00', $hour);
             $dailyData[$key] = [
-                'date' => date('Y-m-d'),
-                'display_date' => sprintf('%02d:00', $h),
+                'date' => $startDate,
+                'display_date' => sprintf('%02d:00', $hour),
                 'sales' => 0,
                 'refunds' => 0,
                 'net' => 0,
                 'transactions' => 0
             ];
         }
-    } elseif ($range === 'year' && !($startDate && $endDate)) {
-        // Generate monthly data from January to current month (only for preset year range)
-        $currentMonth = 1;
-        $currentYear = date('Y');
-        $endMonth = (int)date('n');
-        while ($currentMonth <= $endMonth) {
-            $key = sprintf('%d-%02d', $currentYear, $currentMonth);
+    } else {
+        $cursor = new DateTimeImmutable($startDate, $timezone);
+        $lastDate = new DateTimeImmutable($endDate, $timezone);
+        if ($isAnnual) {
+            $cursor = $cursor->setDate((int)$cursor->format('Y'), 1, 1);
+            $lastDate = $lastDate->setDate((int)$lastDate->format('Y'), 1, 1);
+        } elseif ($isMonthly) {
+            $cursor = $cursor->modify('first day of this month');
+            $lastDate = $lastDate->modify('first day of this month');
+        }
+
+        while ($cursor <= $lastDate) {
+            if ($isAnnual) {
+                $key = $cursor->format('Y');
+                $displayDate = $cursor->format('Y');
+                $cursor = $cursor->modify('+1 year');
+            } elseif ($isMonthly) {
+                $key = $cursor->format('Y-m');
+                $displayDate = $cursor->format('M Y');
+                $cursor = $cursor->modify('+1 month');
+            } else {
+                $key = $cursor->format('Y-m-d');
+                $displayDate = $cursor->format('M d');
+                $cursor = $cursor->modify('+1 day');
+            }
             $dailyData[$key] = [
                 'date' => $key,
-                'display_date' => date('M Y', strtotime(sprintf('%d-%02d-01', $currentYear, $currentMonth))),
+                'display_date' => $displayDate,
                 'sales' => 0,
                 'refunds' => 0,
                 'net' => 0,
                 'transactions' => 0
             ];
-            $currentMonth++;
-        }
-    } else {
-        // Generate dates from startDate to endDate in chronological order (for custom ranges and preset week/month)
-        $currentDate = $startDate;
-        while ($currentDate <= $endDate) {
-            $dailyData[$currentDate] = [
-                'date' => $currentDate,
-                'display_date' => date('M d', strtotime($currentDate)),
-                'sales' => 0,
-                'refunds' => 0,
-                'net' => 0,
-                'transactions' => 0
-            ];
-            $currentDate = date('Y-m-d', strtotime($currentDate . ' +1 day'));
         }
     }
 
     // Build positional params for sales and previous-period queries
     if ($isAllBranches) {
-        $branchInPlaceholders = implode(',', array_fill(0, count($accessibleBranches), '?'));
-        $branchWhereCs   = "po.branch_id IN ($branchInPlaceholders)";
-        $branchWhereFlat = "branch_id IN ($branchInPlaceholders)";
+        if ($accessibleBranches) {
+            $branchInPlaceholders = implode(',', array_fill(0, count($accessibleBranches), '?'));
+            $branchWhereCs = "po.branch_id IN ($branchInPlaceholders)";
+            $branchWhereFlat = "branch_id IN ($branchInPlaceholders)";
+        } else {
+            $branchWhereCs = '1 = 0';
+            $branchWhereFlat = '1 = 0';
+        }
 
-        $salesParams    = array_merge([$startDate, $endDate], $accessibleBranches);
+        $salesParams = array_merge([$startDate, $endDate], $accessibleBranches);
         $prevBranchArgs = $accessibleBranches;
     } else {
-        $branchWhereCs   = "po.branch_id = ?";
+        $branchWhereCs = "po.branch_id = ?";
         $branchWhereFlat = "branch_id = ?";
 
-        $salesParams    = [$startDate, $endDate, $targetBranchId];
+        $salesParams = [$startDate, $endDate, $targetBranchId];
         $prevBranchArgs = [$targetBranchId];
     }
 
     // Query sales data from pos_orders (new optimized system)
-    if ($range === 'today') {
+    if ($isHourly) {
         // Hourly grouping for today
         $salesQuery = "
             SELECT
@@ -198,13 +147,13 @@ try {
             ORDER BY sale_date ASC
         ";
         $salesParams = $isAllBranches
-            ? array_merge([date('Y-m-d')], $accessibleBranches)
-            : [date('Y-m-d'), $targetBranchId];
-    } elseif ($range === 'year' && !($startDate && $endDate)) {
-        // Monthly grouping for preset year range only
+            ? array_merge([$startDate], $accessibleBranches)
+            : [$startDate, $targetBranchId];
+    } elseif ($isMonthly || $isAnnual) {
+        $salesGroup = $isAnnual ? '%Y' : '%Y-%m';
         $salesQuery = "
             SELECT
-                DATE_FORMAT(po.created_at, '%Y-%m') as sale_date,
+                DATE_FORMAT(po.created_at, '$salesGroup') as sale_date,
                 COALESCE(SUM(po.grand_total), 0) as total_sales,
                 COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
                 COUNT(*) as transaction_count
@@ -245,29 +194,34 @@ try {
     }
 
     // Get transaction counts from pos_orders (has branch_id directly — most reliable)
-    if ($range === 'today') {
-        $txnGroupBy  = "DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')";
+    if ($isHourly) {
+        $txnGroupBy = "DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')";
         $txnDateWhere = "DATE(po.created_at) = ?";
-        $txnDateArgs  = [date('Y-m-d')];
-    } elseif ($range === 'year' && !($startDate && $endDate)) {
-        $txnGroupBy  = "DATE_FORMAT(po.created_at, '%Y-%m')";
+        $txnDateArgs = [$startDate];
+    } elseif ($isMonthly || $isAnnual) {
+        $txnGroupBy = $isAnnual
+            ? "DATE_FORMAT(po.created_at, '%Y')"
+            : "DATE_FORMAT(po.created_at, '%Y-%m')";
         $txnDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
-        $txnDateArgs  = [$startDate, $endDate];
+        $txnDateArgs = [$startDate, $endDate];
     } else {
-        // Daily grouping for custom ranges and preset week/month
-        $txnGroupBy  = "DATE(po.created_at)";
+        $txnGroupBy = "DATE(po.created_at)";
         $txnDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
-        $txnDateArgs  = [$startDate, $endDate];
+        $txnDateArgs = [$startDate, $endDate];
     }
 
     // Build branch filter for pos_orders
     if ($isAllBranches) {
-        $branchInPo = implode(',', array_fill(0, count($accessibleBranches), '?'));
-        $txnBranchWhere = "po.branch_id IN ($branchInPo)";
-        $txnBranchArgs  = $accessibleBranches;
+        if ($accessibleBranches) {
+            $branchInPo = implode(',', array_fill(0, count($accessibleBranches), '?'));
+            $txnBranchWhere = "po.branch_id IN ($branchInPo)";
+        } else {
+            $txnBranchWhere = '1 = 0';
+        }
+        $txnBranchArgs = $accessibleBranches;
     } else {
         $txnBranchWhere = "po.branch_id = ?";
-        $txnBranchArgs  = [$targetBranchId];
+        $txnBranchArgs = [$targetBranchId];
     }
 
     $txnQuery = "
@@ -293,16 +247,17 @@ try {
 
     // Get profit data from pos_orders with item costs
     // Profit = Revenue (grand_total) - Cost (base_amount from tickets + unit_price from services)
-    if ($range === 'today') {
+    if ($isHourly) {
         $profitGroupBy = "DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')";
         $profitDateWhere = "DATE(po.created_at) = ?";
-        $profitDateArgs = [date('Y-m-d')];
-    } elseif ($range === 'year' && !($startDate && $endDate)) {
-        $profitGroupBy = "DATE_FORMAT(po.created_at, '%Y-%m')";
+        $profitDateArgs = [$startDate];
+    } elseif ($isMonthly || $isAnnual) {
+        $profitGroupBy = $isAnnual
+            ? "DATE_FORMAT(po.created_at, '%Y')"
+            : "DATE_FORMAT(po.created_at, '%Y-%m')";
         $profitDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
         $profitDateArgs = [$startDate, $endDate];
     } else {
-        // Daily grouping for custom ranges and preset week/month
         $profitGroupBy = "DATE(po.created_at)";
         $profitDateWhere = "DATE(po.created_at) BETWEEN ? AND ?";
         $profitDateArgs = [$startDate, $endDate];
@@ -310,7 +265,9 @@ try {
 
     // Build branch filter for profit query
     if ($isAllBranches) {
-        $profitBranchWhere = "po.branch_id IN ($branchInPo)";
+        $profitBranchWhere = $accessibleBranches
+            ? "po.branch_id IN (" . implode(',', array_fill(0, count($accessibleBranches), '?')) . ")"
+            : '1 = 0';
         $profitBranchArgs = $accessibleBranches;
     } else {
         $profitBranchWhere = "po.branch_id = ?";
@@ -434,11 +391,15 @@ try {
                     'id' => IdEncoder::encode($id),
                     'name' => $branchNames[$id] ?? 'Unknown'
                 ];
-            }, $accessibleBranches)
+            }, $accessibleBranches),
+            'filter' => AnalyticsFilter::responseMeta($filter)
         ]
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log("Branch Analytics Error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-    echo json_encode(['success' => false, 'error' => 'Error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load branch analytics']);
 }

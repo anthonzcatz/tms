@@ -24,7 +24,7 @@ $user = Auth::user();
 // SUPER_ADMIN has access to everything
 if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     // Allow access
-} elseif (!Auth::canAccessModule('admin/wallet/ticket-providers/')) {
+} elseif (!Auth::can('VIEW_TICKET_PROVIDERS') && !Auth::canAccessModule('admin/wallet/ticket-providers/')) {
     $message = 'You do not have permission to access the Ticket Providers module.';
     include dirname(dirname(dirname(__DIR__))) . '/admin/includes/access-denied.php';
     exit;
@@ -48,8 +48,16 @@ $sql = "SELECT tp.*, ptp.provider_name as parent_provider_name, ptp.provider_cod
 $providers = Database::fetchAll($sql);
 
 // Build filter dropdown data
-$types = array_unique(array_column($providers, 'provider_type'));
+$types = array_values(array_unique(array_filter(
+    array_column($providers, 'provider_type'),
+    static fn($type) => is_string($type) && $type !== ''
+)));
 sort($types);
+
+$providerTypeOptions = [];
+foreach ($types as $type) {
+    $providerTypeOptions[$type] = ucfirst($type);
+}
 
 $mainProviders = [];
 foreach ($providers as $provider) {

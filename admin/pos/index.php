@@ -68,7 +68,8 @@ $activeBranchId = null;
 if (!empty($activeSession) && !empty($activeSession['branch_id'])) {
     $activeBranchId = (int)$activeSession['branch_id'];
 } elseif ($hasValidBranchId) {
-    $activeBranchId = (int)$userBranchId;
+    $assignedBranchIds = array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
+    $activeBranchId = count($assignedBranchIds) === 1 ? $assignedBranchIds[0] : null;
 }
 
 error_log('[POS Controller] userBranchId: ' . var_export($userBranchId, true));
@@ -100,33 +101,61 @@ $bankAccounts = Database::fetchAll(
      ORDER BY ba.bank_name ASC"
 );
 
-// Fetch passengers for CHARGE payment selection
-$passengers = Database::fetchAll(
-    "SELECT passenger_id, fullname, mobile_number,
-            (SELECT balance FROM customer_charges WHERE passenger_id = pa.passenger_id) AS balance
-     FROM passenger_accounts pa
-     ORDER BY fullname ASC"
-);
+// Passenger records are loaded on demand by the POS search API.
+$passengers = [];
 
-// Fetch cancellation settings
-$cancellationSettings = Database::fetch(
-    "SELECT cancellation_requires_confirmation,
-            cancellation_refund_processing_days,
-            cancellation_allow_partial
-     FROM system_settings
-     WHERE setting_id = 1"
-);
+// Fetch cancellation settings. Older deployments may not yet have the
+// pending-refunds close-session setting.
+try {
+    $cancellationSettings = Database::fetch(
+        "SELECT cancellation_requires_confirmation,
+                void_requires_confirmation,
+                return_requires_confirmation,
+                cancellation_refund_processing_days,
+                cancellation_allow_partial,
+                show_pending_refunds_in_close_session
+         FROM system_settings
+         WHERE setting_id = 1"
+    );
+} catch (Throwable $e) {
+    $cancellationSettings = Database::fetch(
+        "SELECT cancellation_requires_confirmation,
+                cancellation_refund_processing_days,
+                cancellation_allow_partial
+         FROM system_settings
+         WHERE setting_id = 1"
+    ) ?: [];
+    $cancellationSettings['void_requires_confirmation'] = $cancellationSettings['cancellation_requires_confirmation'] ?? 1;
+    $cancellationSettings['return_requires_confirmation'] = $cancellationSettings['cancellation_requires_confirmation'] ?? 1;
+    $cancellationSettings['show_pending_refunds_in_close_session'] = 0;
+}
 
-// Fetch POS settings
-$posSettings = Database::fetch(
-    "SELECT pos_cashier_can_open_session,
-            pos_cashier_can_close_session,
-            pos_manager_can_open_for_cashier,
-            pos_manager_can_close_for_cashier,
-            allow_negative_ticket_stock
-     FROM system_settings
-     WHERE setting_id = 1"
-);
+// Fetch POS settings. Older deployments default to requiring ticket numbers
+// until the optional setting migration has been applied.
+try {
+    $posSettings = Database::fetch(
+        "SELECT pos_cashier_can_open_session,
+                pos_cashier_can_close_session,
+                pos_manager_can_open_for_cashier,
+                pos_manager_can_close_for_cashier,
+                allow_negative_ticket_stock,
+                pos_allow_insufficient_wallet,
+                pos_ticket_number_required
+         FROM system_settings
+         WHERE setting_id = 1"
+    );
+} catch (Throwable $e) {
+    $posSettings = Database::fetch(
+        "SELECT pos_cashier_can_open_session,
+                pos_cashier_can_close_session,
+                pos_manager_can_open_for_cashier,
+                pos_manager_can_close_for_cashier,
+                allow_negative_ticket_stock
+         FROM system_settings
+         WHERE setting_id = 1"
+    ) ?: [];
+    $posSettings['pos_ticket_number_required'] = 1;
+}
 
 // Fetch printer settings
 $printerSettings = Database::fetch(
@@ -144,6 +173,12 @@ $printerSettings = Database::fetch(
             receipt_show_service_fee,
             receipt_show_base_amount,
             receipt_show_discount,
+            receipt_show_item_total,
+            receipt_show_subtotal,
+            receipt_show_tendered,
+            receipt_show_service_fee_total,
+            receipt_total_source,
+            receipt_show_vat,
             receipt_qr_code_enabled,
             receipt_qr_format,
             receipt_logo_enabled,

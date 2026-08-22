@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -17,91 +18,21 @@ try {
         exit;
     }
 
+    $filter = AnalyticsFilter::parse($_GET, $user);
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
-    $filterBranchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
-        ? $_GET['branch_id']
-        : null;
-    $filterBranchId = null;
-
-    if ($filterBranchIdRaw !== null) {
-        $filterBranchId = IdEncoder::decode($filterBranchIdRaw);
-        if ($filterBranchId === false) {
-            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
-            exit;
-        }
-    }
-
-    // Build branch restriction (po table + tt table)
-    $branchWhere = '';
-    $ticketBranchWhere = '';
-    $branchParams = [];
-
-    if ($filterBranchId) {
-        // Validate access for non-SUPER_ADMIN
-        $allowedBranchIds = $userBranchId
-            ? array_map('intval', array_filter(explode(',', $userBranchId), function ($id) {
-                return trim($id) !== '';
-            }))
-            : [];
-        $allowed = ($userRoleCode === 'SUPER_ADMIN')
-            || in_array((int)$filterBranchId, $allowedBranchIds, true);
-        if ($allowed) {
-            $branchWhere = "AND po.branch_id = :branch_id";
-            $ticketBranchWhere = "AND tt.branch_id = :branch_id";
-            $branchParams['branch_id'] = (int)$filterBranchId;
-        } elseif ($userBranchId) {
-            $branchIds = array_map('trim', explode(',', $userBranchId));
-            $namedParams = [];
-            foreach ($branchIds as $i => $bid) { $namedParams['bid_' . $i] = $bid; }
-            $placeholders = implode(',', array_keys($namedParams));
-            $branchWhere = "AND po.branch_id IN ($placeholders)";
-            $ticketBranchWhere = "AND tt.branch_id IN ($placeholders)";
-            $branchParams = $namedParams;
-        }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $namedParams = [];
-        foreach ($branchIds as $i => $bid) { $namedParams['bid_' . $i] = $bid; }
-        $placeholders = implode(',', array_keys($namedParams));
-        $branchWhere = "AND po.branch_id IN ($placeholders)";
-        $ticketBranchWhere = "AND tt.branch_id IN ($placeholders)";
-        $branchParams = $namedParams;
-    }
-
-    // Get date range filter
-    $range = isset($_GET['range']) ? $_GET['range'] : 'today';
-    $startDate = isset($_GET['start_date']) && $_GET['start_date'] !== '' ? $_GET['start_date'] : null;
-    $endDate   = isset($_GET['end_date'])   && $_GET['end_date']   !== '' ? $_GET['end_date']   : null;
-
-    // Build date conditions for each table
-    $posDateWhere = '';
-    $ticketDateWhere = '';
-
-    if ($startDate && $endDate) {
-        $posDateWhere    = "AND DATE(po.created_at) BETWEEN :sd AND :ed";
-        $ticketDateWhere = "AND DATE(tt.created_at) BETWEEN :sd AND :ed";
-        $branchParams['sd'] = $startDate;
-        $branchParams['ed'] = $endDate;
-    } elseif ($range === 'today') {
-        $posDateWhere = "AND DATE(po.created_at) = CURDATE()";
-        $ticketDateWhere = "AND DATE(tt.created_at) = CURDATE()";
-    } elseif ($range === 'week') {
-        $posDateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-        $ticketDateWhere = "AND tt.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-    } elseif ($range === 'last30days') {
-        $posDateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-        $ticketDateWhere = "AND tt.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-    } elseif ($range === 'month') {
-        $posDateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
-        $ticketDateWhere = "AND tt.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
-    } elseif ($range === 'year') {
-        $posDateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')";
-        $ticketDateWhere = "AND tt.created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')";
-    }
+    $poBranchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'services_po_branch');
+    $ticketBranchScope = AnalyticsFilter::branchCondition($filter, 'tt.branch_id', 'services_ticket_branch');
+    $poDateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'services_po_date');
+    $ticketDateScope = AnalyticsFilter::dateCondition($filter, 'tt.created_at', 'services_ticket_date');
+    $branchWhere = 'AND ' . $poBranchScope['sql'];
+    $ticketBranchWhere = 'AND ' . $ticketBranchScope['sql'];
+    $posDateWhere = 'AND ' . $poDateScope['sql'];
+    $ticketDateWhere = 'AND ' . $ticketDateScope['sql'];
     
     // Get top services by revenue for selected range (combine pos_order_items and ticket_transactions)
-    $params = $branchParams;
+    $params = array_merge($poBranchScope['params'], $poDateScope['params']);
+    $ticketParams = array_merge($ticketBranchScope['params'], $ticketDateScope['params']);
     
     // Get services from pos_order_items
     $posServices = Database::fetchAll(
@@ -133,7 +64,7 @@ try {
          WHERE tt.status = 'booked'
            $ticketDateWhere
            $ticketBranchWhere",
-        $params
+        $ticketParams
     );
 
     // Combine results
@@ -173,11 +104,15 @@ try {
         'success' => true,
         'data' => [
             'services' => $topServices,
-            'count' => count($topServices)
+            'count' => count($topServices),
+            'filter' => AnalyticsFilter::responseMeta($filter)
         ]
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('Top Services API Error: ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load top services']);
 }

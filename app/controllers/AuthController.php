@@ -105,7 +105,8 @@ class AuthController
 
         // Success — attempt to establish session
         User::recordSuccessfulLogin((int) $user['user_id']);
-        $loginSuccess = Auth::login($user, $browserLatitude, $browserLongitude);
+        $rememberMe = !empty($_POST['remember_me']) && ($_POST['remember_me'] === '1' || $_POST['remember_me'] === 'on');
+        $loginSuccess = Auth::login($user, $browserLatitude, $browserLongitude, $rememberMe);
 
         if (!$loginSuccess) {
             // Device pending or blocked — Auth::login() already set $_SESSION['login_error']

@@ -158,23 +158,15 @@ The dropdown is sorted so in-stock / wallet-funded variants appear first.
 
 **File:** `api/pos/ticket-cancel.php`
 
-When a ticket is cancelled and approved:
+When a ticket is cancelled, refunded, or voided and approved:
 
-1. Mark `ticket_transactions.status = 'cancelled'`.
-2. Resolve the same wallet using `WalletResolver::resolve($providerId, $branchId, $variantId)`.
-3. Re-fetch the wallet with `FOR UPDATE`.
-4. Calculate the proportional wallet refund:
-   ```php
-   $walletRefundAmount = round($baseAmount * ($refundAmount / $totalAmount), 2);
-   ```
-5. Credit the wallet:
-   ```php
-   $balanceAfter = $currentBalance + $walletRefundAmount;
-   UPDATE provider_wallets SET current_balance = :new_balance WHERE wallet_id = :wid
-   ```
-6. Insert a `wallet_transactions` record with `txn_type = 'REFUND'`, `direction = 'IN'`.
+1. Mark `ticket_transactions.status = 'cancelled'` and preserve the operation type in the adjustment/cancellation audit record.
+2. If `variant_id` is present, treat the ticket as consumed: do not restore branch stock and do not credit the provider wallet.
+3. If `variant_id` is absent and the original sale debited a provider wallet, credit only the eligible provider base amount and insert a linked `wallet_transactions` `REFUND` row.
+4. Reverse the original CHARGE/debt amount through the original `charged_to_passenger_id` account when the operation requires a charge reversal.
+5. For a real Refund, allocate only the net refundable amount against the original payment sources.
 
-> **Note:** Branch stock is **not** restored on cancellation for wallet-backed variants. The refund is recorded purely as a wallet credit. If the project later requires physical stock to be restored, `TicketStockHelper::adjustOnHand` should be called in the cancellation path for non-wallet variants.
+> **Consumed variant rule:** A sold variant ticket is not reusable. Cancellation/refund/void never returns its physical available quantity or provider-wallet monetary balance; only the original customer CHARGE debt may be reversed when applicable.
 
 ---
 

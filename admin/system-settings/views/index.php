@@ -191,11 +191,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
               <li class="nav-item text-nowrap" role="presentation">
                 <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="cancellation-tab" data-bs-toggle="tab" href="#cancellation" role="tab" aria-controls="cancellation" aria-selected="false">
                   <span class="fas fa-ban icon text-600"></span>
-                  <h6 class="mb-0 text-600">Cancellation</h6>
+                  <h6 class="mb-0 text-600">Refund</h6>
                 </a>
               </li>
               <li class="nav-item text-nowrap" role="presentation">
-                <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="pos-tab" data-bs-toggle="tab" href="#pos" role="tab" aria-controls="pos" aria-selected="false">
+                <a class="nav-link mb-0 d-flex align-items-center gap-2 py-3 px-x1" id="pos-tab" data-bs-toggle="tab" href="#pos-settings" role="tab" aria-controls="pos-settings" aria-selected="false">
                   <span class="fas fa-cash-register icon text-600"></span>
                   <h6 class="mb-0 text-600">POS Settings</h6>
                 </a>
@@ -298,7 +298,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                                   <p class="mb-0 text-primary small fw-bold mt-1">Click to upload</p>
                                 </div>
                                 <div id="logoPreviewContainer" class="<?php echo !empty($settings['system_logo']) ? '' : 'd-none'; ?> w-100 h-100 d-flex align-items-center justify-content-center">
-                                  <img id="logoPreview" src="<?php echo !empty($settings['system_logo']) ? (strpos($settings['system_logo'], 'http') === 0 ? htmlspecialchars($settings['system_logo']) : BASE_URL . htmlspecialchars($settings['system_logo'])) : ''; ?>" alt="Logo Preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                                  <img id="logoPreview" src="<?php echo !empty($settings['system_logo']) ? htmlspecialchars(root_url($settings['system_logo'])) : ''; ?>" alt="Logo Preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                                 </div>
                               </div>
                             </div>
@@ -453,8 +453,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                       <div class="col-md-4">
                         <div class="form-check form-switch">
                           <input class="form-check-input" type="checkbox" name="receipt_show_service_fee" id="receiptShowServiceFee" <?php echo ($settings['receipt_show_service_fee'] ?? 1) ? 'checked' : ''; ?>>
-                          <label class="form-check-label fw-semibold" for="receiptShowServiceFee">Service Fee (Separate)</label>
+                          <label class="form-check-label fw-semibold" for="receiptShowServiceFee">Service Fee (per item)</label>
                         </div>
+                        <small class="text-muted">Show service fee under each item.</small>
                       </div>
                       <div class="col-md-4">
                         <div class="form-check form-switch">
@@ -467,6 +468,55 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                           <input class="form-check-input" type="checkbox" name="receipt_show_discount" id="receiptShowDiscount" <?php echo ($settings['receipt_show_discount'] ?? 1) ? 'checked' : ''; ?>>
                           <label class="form-check-label fw-semibold" for="receiptShowDiscount">Discount Details</label>
                         </div>
+                      </div>
+
+                      <div class="col-md-12"><h6 class="fw-bold text-primary my-3"><span class="fas fa-calculator me-2"></span>Amount Display</h6></div>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="receipt_show_item_total" id="receiptShowItemTotal" <?php echo ($settings['receipt_show_item_total'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="receiptShowItemTotal">Item Total</label>
+                        </div>
+                        <small class="text-muted">Show the total amount on each item line.</small>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="receipt_show_subtotal" id="receiptShowSubtotal" <?php echo ($settings['receipt_show_subtotal'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="receiptShowSubtotal">Subtotal</label>
+                        </div>
+                        <small class="text-muted">Show the subtotal before tax/fees.</small>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="receipt_show_tendered" id="receiptShowTendered" <?php echo ($settings['receipt_show_tendered'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="receiptShowTendered">Tendered / Change</label>
+                        </div>
+                        <small class="text-muted">Show cash tendered and change amount.</small>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="receipt_show_service_fee_total" id="receiptShowServiceFeeTotal" <?php echo ($settings['receipt_show_service_fee_total'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="receiptShowServiceFeeTotal">Service Fee (total)</label>
+                        </div>
+                        <small class="text-muted">Show aggregate service fee line before the total.</small>
+                      </div>
+                      <div class="col-md-8">
+                        <label class="form-label fw-semibold" for="receiptTotalSource">Grand Total Display</label>
+                        <select class="form-select" name="receipt_total_source" id="receiptTotalSource">
+                          <option value="grand_total" <?php echo ($settings['receipt_total_source'] ?? 'grand_total') === 'grand_total' ? 'selected' : ''; ?>>Full Grand Total</option>
+                          <option value="service_fee" <?php echo ($settings['receipt_total_source'] ?? 'grand_total') === 'service_fee' ? 'selected' : ''; ?>>Service Fee Only</option>
+                          <option value="base_amount" <?php echo ($settings['receipt_total_source'] ?? 'grand_total') === 'base_amount' ? 'selected' : ''; ?>>Base Amount Only</option>
+                          <option value="subtotal" <?php echo ($settings['receipt_total_source'] ?? 'grand_total') === 'subtotal' ? 'selected' : ''; ?>>Subtotal Only</option>
+                        </select>
+                        <small class="text-muted">Which amount should appear on the TOTAL line of the receipt.</small>
+                      </div>
+
+                      <div class="col-md-12"><h6 class="fw-bold text-primary my-3"><span class="fas fa-file-invoice-dollar me-2"></span>Tax / VAT Breakdown</h6></div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="receipt_show_vat" id="receiptShowVat" <?php echo ($settings['receipt_show_vat'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="receiptShowVat">VAT Breakdown</label>
+                        </div>
+                        <small class="text-muted">Show VAT, Taxable Sales, and Non-Taxable lines.</small>
                       </div>
                       <div class="col-md-12"><hr class="my-2"></div>
                       <!-- Branding -->
@@ -613,7 +663,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
               <div class="tab-pane" id="cancellation" role="tabpanel" aria-labelledby="cancellation-tab">
                 <div class="card border-0">
                   <div class="card-body">
-                    <h5 class="card-title mb-4"><span class="fas fa-ban me-2"></span>Cancellation Settings</h5>
+                    <h5 class="card-title mb-4"><span class="fas fa-ban me-2"></span>Refund Settings</h5>
                     <div class="alert alert-info fs-10 mb-4">
                       <span class="fas fa-info-circle me-2"></span>
                       <strong>Refund Policy:</strong> Ticket cancellations will refund the amount from the cashier's cash drawer directly to the passenger.
@@ -626,6 +676,20 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                         </div>
                         <small class="text-muted">When enabled, ticket cancellations require approval before processing. When disabled, cancellations are auto-approved.</small>
                       </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="void_requires_confirmation" id="voidRequiresConfirmation" <?php echo ($settings['void_requires_confirmation'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="voidRequiresConfirmation">Require Confirmation for Voids</label>
+                        </div>
+                        <small class="text-muted">When enabled, ticket voids require approval before processing. When disabled, voids are auto-approved.</small>
+                      </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="return_requires_confirmation" id="returnRequiresConfirmation" <?php echo ($settings['return_requires_confirmation'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="returnRequiresConfirmation">Require Confirmation for Returns</label>
+                        </div>
+                        <small class="text-muted">When enabled, ticket returns/refunds require approval before processing. When disabled, returns are auto-approved, including cashier responsibility returns.</small>
+                      </div>
                       <div class="col-md-6">
                         <label class="form-label fw-semibold">Refund Processing Days</label>
                         <input type="number" class="form-control" name="cancellation_refund_processing_days" value="<?php echo intval($settings['cancellation_refund_processing_days'] ?? 0); ?>" max="30" step="1">
@@ -634,9 +698,16 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                       <div class="col-md-12">
                         <div class="form-check form-switch">
                           <input class="form-check-input" type="checkbox" name="cancellation_allow_partial" id="cancellationAllowPartial" <?php echo ($settings['cancellation_allow_partial'] ?? 0) ? 'checked' : ''; ?>>
-                          <label class="form-check-label fw-semibold" for="cancellationAllowPartial">Allow Partial Cancellation</label>
+                          <label class="form-check-label fw-semibold" for="cancellationAllowPartial">Allow Partial Refund</label>
                         </div>
-                        <small class="text-muted">When enabled, partial ticket cancellations are allowed.</small>
+                        <small class="text-muted">When enabled, partial ticket refunds are allowed.</small>
+                      </div>
+                      <div class="col-md-12">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="show_pending_refunds_in_close_session" id="showPendingRefundsInCloseSession" <?php echo ($settings['show_pending_refunds_in_close_session'] ?? 0) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="showPendingRefundsInCloseSession">Show Pending Refunds in Close Cashier Session</label>
+                        </div>
+                        <small class="text-muted">When enabled, unapproved refund requests are shown and deducted from the Expected Cash when closing a cashier session.</small>
                       </div>
                     </div>
                   </div>
@@ -644,7 +715,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
               </div>
 
               <!-- POS Settings Tab -->
-              <div class="tab-pane" id="pos" role="tabpanel" aria-labelledby="pos-tab">
+              <div class="tab-pane" id="pos-settings" role="tabpanel" aria-labelledby="pos-tab">
                 <div class="card border-0">
                   <div class="card-body">
                     <h5 class="card-title mb-4"><span class="fas fa-cash-register me-2"></span>POS Settings</h5>
@@ -708,6 +779,19 @@ require_once dirname(dirname(dirname(__DIR__))) . '/admin/includes/head.php';
                           <span class="fas fa-exclamation-triangle me-1"></span>
                           <strong>Warning:</strong> Insufficient wallet override is currently <strong>enabled</strong>. Monitor provider wallet balances regularly to avoid large negative balances.
                         </div>
+                      </div>
+                      <div class="col-md-12"><hr class="my-2"></div>
+                      <div class="col-md-12">
+                        <h6 class="fw-bold text-primary mb-3">Ticket Sale Requirements</h6>
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="pos_ticket_number_required" id="posTicketNumberRequired" <?php echo ($settings['pos_ticket_number_required'] ?? 1) ? 'checked' : ''; ?>>
+                          <label class="form-check-label fw-semibold" for="posTicketNumberRequired">
+                            Require Ticket Number in POS
+                          </label>
+                        </div>
+                        <small class="text-muted">
+                          When enabled, cashiers must enter a ticket number before adding a ticket to the POS cart. When disabled, the ticket number is optional and may be left blank.
+                        </small>
                       </div>
                     </div>
                   </div>

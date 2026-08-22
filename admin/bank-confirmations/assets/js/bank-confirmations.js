@@ -6,9 +6,66 @@ function fmt(n) {
 
 let confirmPaymentModal;
 
+const BANK_CONFIRMATION_REALTIME_EVENTS = [
+    'pos.transaction.completed',
+    'wallet.updated',
+    'charge.updated',
+    'bank.confirmation.updated',
+    'refund.updated'
+];
+
 document.addEventListener('DOMContentLoaded', function () {
     confirmPaymentModal = new bootstrap.Modal(document.getElementById('confirmPaymentModal'));
+    startBankConfirmationsRealtime();
 });
+
+async function refreshBankConfirmationData() {
+    const stats = document.getElementById('bankConfirmationsStats');
+    const table = document.getElementById('bankConfirmationsTable');
+    if (!stats || !table) return;
+
+    const url = new URL(window.location.href);
+    const status = document.getElementById('filterStatus')?.value || 'PENDING';
+    url.searchParams.set('status', status);
+    url.searchParams.set('_realtime', Date.now().toString());
+
+    const response = await fetch(url.toString(), {
+        cache: 'no-store',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!response.ok) throw new Error(`Bank confirmations refresh failed (${response.status})`);
+
+    const html = await response.text();
+    const documentFragment = new DOMParser().parseFromString(html, 'text/html');
+    const nextStats = documentFragment.getElementById('bankConfirmationsStats');
+    const nextTable = documentFragment.getElementById('bankConfirmationsTable');
+    if (!nextStats || !nextTable) throw new Error('Bank confirmations refresh returned invalid markup');
+
+    stats.replaceWith(nextStats);
+    table.replaceWith(nextTable);
+    applyFilters();
+}
+
+function startBankConfirmationsRealtime() {
+    const config = window.BANK_CONFIRMATIONS_PUSHER_CONFIG || {};
+    if (!window.TMSBranchRealtime) return;
+
+    window.bankConfirmationsRealtime = window.TMSBranchRealtime.start({
+        config,
+        branchIds: config.branchIds,
+        events: BANK_CONFIRMATION_REALTIME_EVENTS,
+        statusElement: 'bankConfirmationsRealtimeStatus',
+        onUpdate: meta => {
+            const payload = meta?.payload || {};
+            const currentId = document.getElementById('confirmPaymentId')?.value;
+            if (payload.item_id && currentId && Number(payload.item_id) === Number(currentId) && payload.action) {
+                if (confirmPaymentModal) confirmPaymentModal.hide();
+                showToast('warning', 'Payment Updated', 'This item was already reviewed by another user.');
+            }
+            return refreshBankConfirmationData();
+        }
+    });
+}
 
 function toggleHowItWorks() {
     const c = document.getElementById('howItWorksContent');
@@ -167,7 +224,7 @@ async function performConfirmAction(action, itemId, itemType, notes) {
                 itemTypeLabel = 'Payment';
             }
             showToast('success', itemTypeLabel + ' ' + label.charAt(0).toUpperCase() + label.slice(1), `${itemTypeLabel} has been ${label} successfully.`);
-            setTimeout(() => location.reload(), 1200);
+            setTimeout(() => refreshBankConfirmationData(), 1200);
         } else {
             showToast('danger', 'Error', result.error || 'Failed to update item.');
         }

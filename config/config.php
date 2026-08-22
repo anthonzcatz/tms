@@ -68,6 +68,24 @@ if (!function_exists('url')) {
 }
 
 /**
+ * Build a root-relative URL (path only, no scheme/host).
+ * Useful for assets that should stay flexible across domains.
+ *   root_url('api/images/logo/...') -> /TMS/api/images/logo/...
+ * If the path is already an absolute http(s) URL, return it as-is.
+ */
+if (!function_exists('root_url')) {
+    function root_url(string $path = ''): string {
+        if (preg_match('/^https?:\/\//i', $path)) {
+            return $path;
+        }
+        $basePath = parse_url(BASE_URL, PHP_URL_PATH) ?? '/';
+        $basePath = rtrim($basePath, '/');
+        $path = ltrim($path, '/');
+        return '/' . ltrim($basePath . '/' . $path, '/');
+    }
+}
+
+/**
  * Resolve a named route (extend this map as you add modules).
  *   route('admin.users')  -> .../admin/users
  */

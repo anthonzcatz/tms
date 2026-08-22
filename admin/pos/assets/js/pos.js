@@ -141,6 +141,94 @@ function showPrintConfirmationModal(transactionCode, changeAmount) {
     });
 }
 
+/**
+ * Show a Bootstrap-styled confirmation modal instead of the native alert/confirm.
+ * @param {string} title
+ * @param {string} message - Newlines will be converted to <br>. Pass options.html = true if message already contains HTML.
+ * @param {Object} options
+ * @param {string} [options.icon='question'] - Font Awesome icon class suffix (e.g. 'question', 'exclamation-triangle')
+ * @param {string} [options.iconColor='text-warning']
+ * @param {string} [options.confirmBtnColor='btn-danger']
+ * @param {string} [options.confirmBtnText='Confirm']
+ * @param {string} [options.cancelBtnText='Cancel']
+ * @param {boolean} [options.html=false]
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(title, message, options = {}) {
+    return new Promise((resolve) => {
+        const icon = options.icon || 'question';
+        const iconColor = options.iconColor || 'text-warning';
+        const confirmBtnColor = options.confirmBtnColor || 'btn-primary';
+        const confirmBtnText = options.confirmBtnText || 'Confirm';
+        const cancelBtnText = options.cancelBtnText || 'Cancel';
+        const allowHtml = options.html === true;
+        const modalId = 'customConfirmModal';
+
+        const existing = document.getElementById(modalId);
+        if (existing) {
+            const existingModal = bootstrap.Modal.getInstance(existing);
+            if (existingModal) existingModal.hide();
+            existing.remove();
+        }
+
+        const modalHtml = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header border-bottom-0 pb-0">
+                            <h5 class="modal-title fw-bold">${escapeHtml(title)}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body py-4">
+                            <div class="d-flex align-items-start">
+                                <div class="me-3 flex-shrink-0">
+                                    <span class="fas fa-${icon} ${iconColor} fa-2x"></span>
+                                </div>
+                                <div class="fs-10">${allowHtml ? message.replace(/\n/g, '<br>') : escapeHtml(message).replace(/\n/g, '<br>')}</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-top-0 pt-0">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">${escapeHtml(cancelBtnText)}</button>
+                            <button type="button" class="btn ${confirmBtnColor}" id="customConfirmBtn">
+                                <span class="fas fa-check me-2"></span>${escapeHtml(confirmBtnText)}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const container = document.createElement('div');
+        container.innerHTML = modalHtml;
+        document.body.appendChild(container);
+
+        const modalEl = document.getElementById(modalId);
+        const modal = new bootstrap.Modal(modalEl);
+        let confirmed = false;
+
+        const handleConfirm = () => {
+            confirmed = true;
+            modal.hide();
+        };
+
+        const handleDismiss = () => {
+            if (!confirmed) resolve(false);
+        };
+
+        document.getElementById('customConfirmBtn').addEventListener('click', handleConfirm, { once: true });
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            resolve(confirmed);
+            setTimeout(() => {
+                if (container.parentNode) document.body.removeChild(container);
+            }, 300);
+        }, { once: true });
+
+        modalEl.addEventListener('hide.bs.modal', handleDismiss, { once: true });
+
+        modal.show();
+    });
+}
+
 let cart = [];            // Array of cart items
 let paymentLines = [];    // Array of payment method entries
 let activeServiceType = null;
@@ -148,6 +236,7 @@ let activePaymentMethod = null;
 let openSessionModal, closeSessionModal, selectCustomerModal, addPassengerModal, viewPassengerModal, switchTypeModal, paymentModal, itemEntryModal, clearCartModal, cancelTicketModal, reprintReceiptModal;
 let restoreCancelTicketModal = false;
 let selectedCustomerId = null;
+let selectedCustomerName = null;
 let currentReprintTransaction = null;
 let transactionType = localStorage.getItem('posTransactionType') || 'ticket'; // 'ticket' or 'service'
 let ticketInCart = null; // Store the ticket object if in cart
@@ -193,8 +282,26 @@ function saveCartToStorage() {
 
 document.addEventListener('DOMContentLoaded', function() {
     openSessionModal  = new bootstrap.Modal(document.getElementById('openSessionModal'));
+    openSessionModal._element.addEventListener('shown.bs.modal', loadCashierTransportAccess);
     closeSessionModal = new bootstrap.Modal(document.getElementById('closeSessionModal'));
-    selectCustomerModal = new bootstrap.Modal(document.getElementById('selectCustomerModal'));
+    const selectCustomerModalElement = document.getElementById('selectCustomerModal');
+    selectCustomerModal = new bootstrap.Modal(selectCustomerModalElement);
+    if (selectCustomerModalElement) {
+        selectCustomerModalElement.addEventListener('show.bs.modal', function() {
+            const visibleModalCount = document.querySelectorAll('.modal.show').length;
+            const modalZIndex = 1055 + (visibleModalCount * 20);
+            this.style.zIndex = String(modalZIndex);
+
+            window.requestAnimationFrame(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                const latestBackdrop = backdrops[backdrops.length - 1];
+                if (latestBackdrop) latestBackdrop.style.zIndex = String(modalZIndex - 5);
+            });
+        });
+        selectCustomerModalElement.addEventListener('hidden.bs.modal', function() {
+            this.style.removeProperty('z-index');
+        });
+    }
     addPassengerModal = new bootstrap.Modal(document.getElementById('addPassengerModal'));
     viewPassengerModal = new bootstrap.Modal(document.getElementById('viewPassengerModal'));
     switchTypeModal = new bootstrap.Modal(document.getElementById('switchTypeModal'));
@@ -207,6 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.error('cancelTicketModal element not found');
     }
+    setupPosAdjustmentDropdownPortal();
     reprintReceiptModal = new bootstrap.Modal(document.getElementById('reprintReceiptModal'));
 
     // Reprint reason dropdown handler
@@ -512,6 +620,12 @@ function checkSessionDuration() {
 
 function renderCustomers(searchTerm = '') {
     const tbody = document.getElementById('customersTableBody');
+    updateCustomerSearchClearButton(searchTerm);
+    if (!searchTerm.trim()) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Search by account name or mobile number to load accounts.</td></tr>';
+        document.getElementById('confirmCustomerBtn').disabled = true;
+        return;
+    }
     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
     
     // Build URL with search parameter
@@ -527,34 +641,77 @@ function renderCustomers(searchTerm = '') {
             tbody.innerHTML = '';
             
             if (!data.success || !data.data || data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No customers found. Start typing to search.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No accounts found. Start typing to search.</td></tr>';
+                document.getElementById('confirmCustomerBtn').disabled = true;
                 return;
             }
 
+            let hasSelectedCustomer = false;
             data.data.forEach(p => {
                 const tr = document.createElement('tr');
                 tr.className = 'customer-row';
+                tr.style.cursor = 'pointer';
+                tr.tabIndex = 0;
+                tr.setAttribute('role', 'button');
                 tr.dataset.search = (p.fullname + ' ' + (p.mobile_number || '')).toLowerCase();
                 tr.dataset.passengerId = p.passenger_id;
+                const isSelected = selectedCustomerId && String(p.passenger_id) === String(selectedCustomerId);
+                if (isSelected) hasSelectedCustomer = true;
                 tr.innerHTML = `
                     <td class="fw-semibold">${p.fullname}</td>
                     <td>${p.mobile_number || '—'}</td>
                     <td class="text-end">₱0.00</td>
                     <td class="text-center">
-                        <input type="radio" name="selectedCustomer" value="${p.passenger_id}" onchange="selectCustomerRadio(this)">
+                        <input type="radio" name="selectedCustomer" value="${p.passenger_id}" ${isSelected ? 'checked' : ''} onchange="selectCustomerRadio(this)">
                     </td>
                 `;
+                if (isSelected) tr.classList.add('table-primary');
+                const selectRow = () => {
+                    const radio = tr.querySelector('input[name="selectedCustomer"]');
+                    if (!radio) return;
+                    radio.checked = true;
+                    selectCustomerRadio(radio);
+                };
+                tr.addEventListener('click', selectRow);
+                tr.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        selectRow();
+                    }
+                });
                 tbody.appendChild(tr);
             });
+            document.getElementById('confirmCustomerBtn').disabled = !hasSelectedCustomer;
         })
         .catch(error => {
             console.error('Error fetching passengers:', error);
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">Failed to load customers.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">Failed to load accounts.</td></tr>';
+            document.getElementById('confirmCustomerBtn').disabled = true;
         });
 }
 
+function updateCustomerSearchClearButton(searchTerm = null) {
+    const searchInput = document.getElementById('customerSearch');
+    const clearButton = document.getElementById('clearCustomerSearchBtn');
+    if (!searchInput || !clearButton) return;
+
+    const value = searchTerm === null ? searchInput.value : searchTerm;
+    clearButton.style.display = value.trim() ? '' : 'none';
+}
+
+function clearCustomerSearch() {
+    const searchInput = document.getElementById('customerSearch');
+    if (!searchInput) return;
+
+    clearTimeout(window.customerSearchTimeout);
+    searchInput.value = '';
+    updateCustomerSearchClearButton('');
+    renderCustomers('');
+    searchInput.focus();
+}
+
 function searchCustomers(searchTerm) {
-    // Debounce the search to avoid too many API calls
+    updateCustomerSearchClearButton(searchTerm);
     clearTimeout(window.customerSearchTimeout);
     window.customerSearchTimeout = setTimeout(() => {
         renderCustomers(searchTerm);
@@ -1169,6 +1326,18 @@ function loadAccommodationTypes() {
         });
 }
 
+function getPosProviderSignature(providers) {
+    return JSON.stringify((providers || []).map(provider => [
+        provider.provider_id,
+        provider.provider_code,
+        provider.provider_name,
+        provider.provider_type,
+        provider.parent_provider_id,
+        provider.status,
+        provider.variant_count
+    ]));
+}
+
 function loadProviders() {
     const mainSelect = document.getElementById('ticketMainProvider');
     const subSelect = document.getElementById('ticketSubProvider');
@@ -1176,6 +1345,7 @@ function loadProviders() {
     const walletSelect = document.getElementById('ticketWallet');
 
     destroyMainProviderChoices();
+    destroySubProviderChoices();
 
     const providersPromise = fetch(`${window.BASE_URL}/api/ticket-providers`).then(r => r.json());
     // Load wallets from all branches the user has access to so the provider dropdown
@@ -1186,7 +1356,7 @@ function loadProviders() {
 
     console.log('[POS loadProviders] POS_BRANCH_ID:', window.POS_BRANCH_ID, 'walletsUrl:', walletsUrl);
 
-    Promise.all([providersPromise, walletsPromise])
+    return Promise.all([providersPromise, walletsPromise])
         .then(([providersData, walletsData]) => {
             console.log('[POS loadProviders] walletsData:', walletsData);
             const walletBalances = {};
@@ -1205,6 +1375,7 @@ function loadProviders() {
 
             if (providersData.success && providersData.data && providersData.data.providers) {
                 window.allTicketProviders = providersData.data.providers.filter(p => p.status === 'active');
+                window.posProviderSignature = getPosProviderSignature(window.allTicketProviders);
 
                 mainSelect.innerHTML = '<option value="">Select Main Provider</option>';
                 window.allTicketProviders
@@ -1256,6 +1427,7 @@ function loadProviders() {
             const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
             if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
             refreshMainProviderChoices();
+            destroySubProviderChoices();
         })
         .catch(error => {
             console.error('Error loading providers:', error);
@@ -1266,7 +1438,310 @@ function loadProviders() {
             const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
             if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
             refreshMainProviderChoices();
+            destroySubProviderChoices();
         });
+}
+
+let posWalletRefreshInFlight = null;
+let posProviderRefreshInFlight = null;
+
+function refreshPosSubProviderOptions(mainId, selectedSubId) {
+    const subSelect = document.getElementById('ticketSubProvider');
+    const subWrapper = document.getElementById('subProviderWrapper');
+    const operatingInput = document.getElementById('ticketProvider');
+    if (!subSelect || !subWrapper || !operatingInput) return;
+
+    const subs = (window.allTicketProviders || []).filter(provider => String(provider.parent_provider_id) === String(mainId));
+    if (subs.length > 0) {
+        subWrapper.classList.remove('d-none');
+        subSelect.innerHTML = '<option value="">Select Sub-provider</option>';
+        subs.forEach(provider => {
+            const option = document.createElement('option');
+            option.value = provider.provider_id;
+            option.textContent = provider.provider_name;
+            subSelect.appendChild(option);
+        });
+        subSelect.disabled = false;
+        const nextSubId = subs.some(provider => String(provider.provider_id) === String(selectedSubId))
+            ? String(selectedSubId)
+            : '';
+        subSelect.value = nextSubId;
+        operatingInput.value = nextSubId;
+        refreshSubProviderChoices();
+        if (nextSubId && subProviderChoices) subProviderChoices.setChoiceByValue(nextSubId);
+    } else {
+        subWrapper.classList.add('d-none');
+        subSelect.innerHTML = '<option value="">No sub-providers</option>';
+        subSelect.disabled = true;
+        destroySubProviderChoices();
+        operatingInput.value = mainId || '';
+    }
+}
+
+function refreshPosProviderOptions() {
+    if (posProviderRefreshInFlight) return posProviderRefreshInFlight;
+
+    const mainSelect = document.getElementById('ticketMainProvider');
+    if (!mainSelect) return Promise.resolve();
+
+    const selectedMainId = mainSelect.value || '';
+    const selectedSubId = document.getElementById('ticketSubProvider')?.value || '';
+    const providersUrl = `${window.BASE_URL}/api/ticket-providers?_realtime=${Date.now()}`;
+
+    posProviderRefreshInFlight = fetch(providersUrl, { cache: 'no-store' })
+        .then(response => {
+            if (!response.ok) throw new Error(`Provider refresh failed (${response.status})`);
+            return response.json();
+        })
+        .then(data => {
+            if (!data.success || !data.data || !Array.isArray(data.data.providers)) {
+                throw new Error(data.error || 'Unable to load providers.');
+            }
+
+            const providers = data.data.providers.filter(provider => provider.status === 'active');
+            const providerSignature = getPosProviderSignature(providers);
+            const providerListChanged = providerSignature !== window.posProviderSignature;
+            const selectedMainExists = !selectedMainId
+                || providers.some(provider => String(provider.provider_id) === String(selectedMainId));
+            const nextMainId = selectedMainExists ? selectedMainId : '';
+            window.allTicketProviders = providers;
+            if (!providerListChanged) return;
+            window.posProviderSignature = providerSignature;
+
+            destroyMainProviderChoices();
+            mainSelect.innerHTML = '<option value="">Select Main Provider</option>';
+            providers
+                .filter(provider => !provider.parent_provider_id)
+                .forEach(provider => {
+                    const option = document.createElement('option');
+                    option.value = provider.provider_id;
+                    option.dataset.providerCode = provider.provider_code || '';
+                    option.dataset.providerType = provider.provider_type || '';
+                    option.text = provider.provider_name + '\u001F' + (parseInt(provider.variant_count, 10) > 0 ? 'Variant wallet' : 'No wallet');
+                    mainSelect.appendChild(option);
+                });
+
+            if (nextMainId) mainSelect.value = nextMainId;
+            refreshMainProviderChoices();
+            if (nextMainId && mainProviderChoices) mainProviderChoices.setChoiceByValue(nextMainId);
+
+            if (selectedMainId && !nextMainId) {
+                onMainProviderChanged();
+            } else {
+                refreshPosSubProviderOptions(nextMainId, selectedSubId);
+            }
+        })
+        .finally(() => {
+            posProviderRefreshInFlight = null;
+        });
+
+    return posProviderRefreshInFlight;
+}
+
+function refreshPosProviderAndWallet() {
+    return refreshPosProviderOptions()
+        .catch(error => {
+            console.error('[POS realtime] Provider refresh failed:', error);
+        })
+        .then(() => refreshPosWalletBalances());
+}
+
+function setPosRealtimeStatus(state, message) {
+    const status = document.getElementById('posRealtimeStatus');
+    if (!status) return;
+    status.classList.toggle('text-danger', state === 'error');
+    status.classList.toggle('text-warning', state === 'warning');
+    status.classList.toggle('text-muted', state !== 'error' && state !== 'warning');
+    status.textContent = message;
+}
+
+function updateDisplayedWalletBalances(wallets) {
+    const mainSelect = document.getElementById('ticketMainProvider');
+    const providers = window.allTicketProviders || [];
+    if (!mainSelect || !providers.length) return;
+
+    const balances = {};
+    const stockTotals = {};
+    const branchId = window.POS_BRANCH_ID || '';
+    (wallets || []).forEach(wallet => {
+        const providerId = wallet.ticket_provider_id || wallet.provider_id;
+        if (providerId) {
+            balances[String(providerId)] = (balances[String(providerId)] || 0) + (parseFloat(wallet.current_balance) || 0);
+            if (String(wallet.branch_id) === String(branchId)) {
+                stockTotals[String(providerId)] = (stockTotals[String(providerId)] || 0) + (parseInt(wallet.on_hand_qty, 10) || 0);
+            }
+        }
+    });
+
+    Array.from(mainSelect.options).forEach(option => {
+        if (!option.value) return;
+        const provider = providers.find(item => String(item.provider_id) === String(option.value));
+        if (!provider) return;
+
+        let hasWallet = Object.prototype.hasOwnProperty.call(balances, String(provider.provider_id));
+        let totalBalance = balances[String(provider.provider_id)] || 0;
+        let totalStock = stockTotals[String(provider.provider_id)] || 0;
+        providers.filter(item => String(item.parent_provider_id) === String(provider.provider_id)).forEach(child => {
+            if (Object.prototype.hasOwnProperty.call(balances, String(child.provider_id))) {
+                hasWallet = true;
+                totalBalance += balances[String(child.provider_id)];
+            }
+            if (Object.prototype.hasOwnProperty.call(stockTotals, String(child.provider_id))) {
+                totalStock += stockTotals[String(child.provider_id)];
+            }
+        });
+
+        const balanceText = parseInt(provider.variant_count, 10) > 0
+            ? `${totalStock} tickets`
+            : (hasWallet ? `₱${fmt(totalBalance)}` : 'No wallet');
+        option.text = provider.provider_name + '\u001F' + balanceText;
+    });
+
+    const selectedMain = mainSelect.value;
+    if (mainProviderChoices) {
+        refreshMainProviderChoices();
+        if (selectedMain) mainProviderChoices.setChoiceByValue(selectedMain);
+    }
+}
+
+function refreshPosWalletBalances() {
+    if (posWalletRefreshInFlight) return posWalletRefreshInFlight;
+
+    const url = `${window.BASE_URL}/api/wallets?all_branches=1&_realtime=${Date.now()}`;
+    posWalletRefreshInFlight = fetch(url, { cache: 'no-store' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.data || !Array.isArray(data.data.wallets)) {
+                throw new Error(data.error || 'Unable to load wallet balances.');
+            }
+            window.providerHasVariantWallet = {};
+            data.data.wallets.forEach(wallet => {
+                const providerId = wallet.ticket_provider_id || wallet.provider_id;
+                if (providerId && wallet.status === 'active' && wallet.variant_id) {
+                    window.providerHasVariantWallet[String(providerId)] = true;
+                }
+            });
+            updateDisplayedWalletBalances(data.data.wallets);
+            const providerId = document.getElementById('ticketProvider')?.value;
+            const variantId = document.getElementById('ticketVariant')?.value;
+            if (providerId) return loadWallets(providerId, window.POS_BRANCH_ID, variantId || null);
+        })
+        .then(() => {
+            setPosRealtimeStatus('ok', `Live updates • ${new Date().toLocaleTimeString('en-PH')}`);
+        })
+        .catch(error => {
+            console.error('[POS realtime] Wallet refresh failed:', error);
+            setPosRealtimeStatus('error', 'Live update unavailable; showing last known data');
+        })
+        .finally(() => {
+            posWalletRefreshInFlight = null;
+        });
+
+    return posWalletRefreshInFlight;
+}
+
+function stopPosRealtimePolling() {
+    if (window.posRealtimeTimer) {
+        clearInterval(window.posRealtimeTimer);
+        window.posRealtimeTimer = null;
+    }
+}
+
+function refreshPosRealtimeData(includeProviders = false) {
+    if (document.visibilityState !== 'visible') return;
+    if (includeProviders) {
+        refreshPosProviderAndWallet();
+    } else {
+        refreshPosWalletBalances();
+    }
+    // Also refresh variant balances if a provider is selected so the Ticket
+    // Details wallet display stays current (e.g. after a cancellation is approved).
+    const providerId = document.getElementById('ticketProvider')?.value;
+    if (providerId) loadTicketVariants();
+    if (transactionType === 'transaction') loadRecentTransactions(currentPage, false);
+}
+
+function startPosRealtimeFallbackPolling() {
+    if (!window.POS_HAS_SESSION || window.posRealtimeTimer) return;
+
+    window.posRealtimeTimer = setInterval(() => refreshPosRealtimeData(true), 15000);
+    if (!window.posRealtimeVisibilityHandler) {
+        window.posRealtimeVisibilityHandler = () => {
+            if (document.visibilityState === 'visible') refreshPosRealtimeData(true);
+        };
+        document.addEventListener('visibilitychange', window.posRealtimeVisibilityHandler);
+    }
+    refreshPosRealtimeData(true);
+}
+
+function startPosRealtimeChannels() {
+    if (!window.POS_HAS_SESSION || window.posRealtimeChannel || !window.PUSHER_CONFIG?.enabled || typeof Pusher === 'undefined' || !window.POS_BRANCH_ID) {
+        return;
+    }
+
+    const startFallback = () => {
+        window.posRealtimeChannelConnected = false;
+        setPosRealtimeStatus('error', 'Live updates unavailable; polling fallback active');
+        startPosRealtimeFallbackPolling();
+    };
+
+    try {
+        const pusher = new Pusher(window.PUSHER_CONFIG.key, {
+            cluster: window.PUSHER_CONFIG.cluster,
+            forceTLS: true,
+            authEndpoint: window.PUSHER_CONFIG.authEndpoint,
+            auth: { withCredentials: true }
+        });
+        const channel = pusher.subscribe(`private-pos-branch-${window.POS_BRANCH_ID}`);
+        channel.bind('pusher:subscription_succeeded', () => {
+            window.posRealtimeChannel = channel;
+            window.posRealtimeChannelConnected = true;
+            stopPosRealtimePolling();
+            setPosRealtimeStatus('ok', 'Live updates connected');
+        });
+        channel.bind('pos.transaction.completed', () => {
+            if (!window.posRealtimeChannelConnected) return;
+            refreshPosRealtimeData();
+        });
+        channel.bind('provider.updated', () => {
+            if (!window.posRealtimeChannelConnected) return;
+            refreshPosProviderAndWallet();
+        });
+        channel.bind('pusher:subscription_error', (status) => {
+            console.warn('[POS realtime] Pusher subscription failed:', status);
+            startFallback();
+        });
+        pusher.connection.bind('state_change', (states) => {
+            if (states.current === 'connected') {
+                window.posRealtimeChannelConnected = true;
+                stopPosRealtimePolling();
+                setPosRealtimeStatus('ok', 'Live updates connected');
+            } else if (['disconnected', 'unavailable', 'failed'].includes(states.current)) {
+                startFallback();
+            }
+        });
+        window.posRealtimePusher = pusher;
+    } catch (error) {
+        console.error('[POS realtime] Pusher initialization failed:', error);
+        startFallback();
+    }
+}
+
+function startPosRealtimePolling() {
+    if (!window.POS_HAS_SESSION) {
+        setPosRealtimeStatus('warning', window.POS_CAN_OPEN ? 'Open a cashier session to enable live updates' : 'Live updates paused — no active session');
+        return;
+    }
+
+    const pusherAvailable = window.PUSHER_CONFIG?.enabled && typeof Pusher !== 'undefined';
+    if (pusherAvailable) {
+        setPosRealtimeStatus('ok', 'Live updates connecting...');
+        refreshPosRealtimeData();
+        startPosRealtimeChannels();
+    } else {
+        setPosRealtimeStatus('ok', 'Live updates starting...');
+        startPosRealtimeFallbackPolling();
+    }
 }
 
 function onMainProviderChanged() {
@@ -1277,6 +1752,7 @@ function onMainProviderChanged() {
     const variantWrapper = document.getElementById('ticketVariantWrapper');
     const variantSelect = document.getElementById('ticketVariant');
     const mainId = mainSelect.value;
+    destroySubProviderChoices();
 
     // Reset everything
     const walletWrapper = document.getElementById('walletWrapper');
@@ -1289,6 +1765,7 @@ function onMainProviderChanged() {
         if (variantSelect) variantSelect.value = '';
         if (walletWrapper) walletWrapper.classList.remove('d-none');
         destroyVariantChoices();
+        destroySubProviderChoices();
         onProviderChanged();
         return;
     }
@@ -1308,6 +1785,7 @@ function onMainProviderChanged() {
             subSelect.appendChild(option);
         });
         subSelect.disabled = false;
+        refreshSubProviderChoices();
         operatingInput.value = '';
         if (variantSelect) variantSelect.value = '';
         variantWrapper.classList.add('d-none');
@@ -1324,6 +1802,7 @@ function onMainProviderChanged() {
         subWrapper.classList.add('d-none');
         subSelect.innerHTML = '<option value="">No sub-providers</option>';
         subSelect.disabled = true;
+        destroySubProviderChoices();
         operatingInput.value = mainId;
 
         if (hasVariants) {
@@ -1381,6 +1860,7 @@ function refreshWallets() {
 
 function loadWallets(providerId = null, branchId = null, variantId = null) {
     const select = document.getElementById('ticketWallet');
+    window.selectedResolvedWallet = null;
 
     // Use the currently selected provider/variant if none passed
     if (!providerId) {
@@ -1435,12 +1915,18 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
                 option.dataset.providerId = w.provider_id;
                 option.dataset.branchId = w.branch_id;
                 option.dataset.providerType = w.provider_type || '';
-                option.textContent = `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${fmt(parseFloat(w.current_balance))}`;
+                option.dataset.balance = w.current_balance;
+                option.dataset.onHandQty = w.on_hand_qty || 0;
+                option.textContent = w.variant_id
+                    ? `${w.wallet_name || 'Wallet #' + w.wallet_id} • ${Number(w.on_hand_qty || 0)} tickets`
+                    : `${w.wallet_name || 'Wallet #' + w.wallet_id} • ₱${fmt(parseFloat(w.current_balance))}`;
                 select.appendChild(option);
                 select.disabled = true;
                 window.selectedResolvedWallet = w;
                 if (mainProviderBalanceText) {
-                    mainProviderBalanceText.textContent = `Balance: ₱${fmt(parseFloat(w.current_balance))}`;
+                    mainProviderBalanceText.textContent = w.variant_id
+                        ? `Stock: ${Number(w.on_hand_qty || 0)} tickets`
+                        : `Balance: ₱${fmt(parseFloat(w.current_balance))}`;
                 }
             } else if (data.error) {
                 const branchLabel = userBranchId ? ` (branch ${userBranchId})` : '';
@@ -1474,12 +1960,38 @@ function onProviderChanged() {
 }
 
 let mainProviderChoices = null;
+let subProviderChoices = null;
 
 function destroyMainProviderChoices() {
     if (mainProviderChoices) {
         try { mainProviderChoices.destroy(); } catch(e) {}
         mainProviderChoices = null;
     }
+}
+
+function destroySubProviderChoices() {
+    if (subProviderChoices) {
+        try { subProviderChoices.destroy(); } catch(e) {}
+        subProviderChoices = null;
+    }
+}
+
+function refreshSubProviderChoices() {
+    const select = document.getElementById('ticketSubProvider');
+    if (!select || typeof Choices === 'undefined' || select.disabled) {
+        destroySubProviderChoices();
+        return;
+    }
+    destroySubProviderChoices();
+    subProviderChoices = new Choices(select, {
+        searchEnabled: false,
+        shouldSort: false,
+        itemSelectText: '',
+        allowHTML: false,
+        removeItemButton: false,
+        position: 'auto',
+        resetScrollPosition: false
+    });
 }
 
 function refreshMainProviderChoices() {
@@ -1528,9 +2040,9 @@ function refreshMainProviderChoices() {
 
                 if (oneRow) {
                     const separator = amount ? `<span style='flex:0 0 auto;'>&nbsp;•&nbsp;</span>` : '';
-                    div.innerHTML = `<div style='display:flex;align-items:center;gap:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'><div class='mp-row-name' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeHtml(name)}</div>${separator}<div class='mp-row-amount' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Century Gothic",CenturyGothic,AppleGothic,Arial,sans-serif;font-size:0.65rem !important;font-weight:700 !important;color:#6c757d !important;line-height:1.3 !important;margin-top:2px !important;'>${escapeHtml(amount)}</div></div>`;
+                    div.innerHTML = `<div style='display:flex;align-items:center;gap:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'><div class='mp-row-name' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeHtml(name)}</div>${separator}<div class='mp-row-amount' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"Century Gothic",CenturyGothic,AppleGothic,Arial,sans-serif;font-size:0.65rem !important;font-weight:700 !important;line-height:1.3 !important;margin-top:2px !important;'>${escapeHtml(amount)}</div></div>`;
                 } else {
-                    div.innerHTML = `<div class='mp-row-name'>${escapeHtml(name)}</div>${amount ? `<div class='mp-row-amount' style='font-family:"Century Gothic",CenturyGothic,AppleGothic,Arial,sans-serif;font-size:0.65rem !important;font-weight:700 !important;color:#6c757d !important;line-height:1.3 !important;margin-top:2px !important;'>${escapeHtml(amount)}</div>` : ''}`;
+                    div.innerHTML = `<div class='mp-row-name'>${escapeHtml(name)}</div>${amount ? `<div class='mp-row-amount' style='font-family:"Century Gothic",CenturyGothic,AppleGothic,Arial,sans-serif;font-size:0.65rem !important;font-weight:700 !important;line-height:1.3 !important;margin-top:2px !important;'>${escapeHtml(amount)}</div>` : ''}`;
                 }
 
                 return div;
@@ -1627,12 +2139,11 @@ function createBankAccountChoices(select) {
                 const selectedAccountName = accountName.trim().split(/\s+/)[0] || accountName;
                 const accountType = String(details.accountType || 'Account').trim().replace(/[_\s]+/g, '-').toLowerCase();
                 const accountTypeLabel = accountType ? accountType.charAt(0).toUpperCase() + accountType.slice(1) : 'Account';
-                const balance = details.balance || '₱0.00';
 
                 if (compact) {
                     div.innerHTML = `<div class='ba-selected-row'><span class='ba-selected-name'>${escapeHtml(bankName)}${selectedAccountName ? ` <span class='ba-selected-separator'>—</span> ${escapeHtml(selectedAccountName)}` : ''}</span></div>`;
                 } else {
-                    div.innerHTML = `<div class='ba-account-option'><div class='ba-row ba-row-bank'>${escapeHtml(bankName)}</div><div class='ba-row ba-row-account'>${escapeHtml(accountName)}</div><div class='ba-row ba-row-meta'><span class='ba-row-type'><span class='ba-type-badge'>${escapeHtml(accountTypeLabel)}</span></span><span class='ba-row-separator' aria-hidden='true'>•</span><span class='ba-row-balance'>${escapeHtml(balance)}</span></div></div>`;
+                    div.innerHTML = `<div class='ba-account-option'><div class='ba-row ba-row-bank'>${escapeHtml(bankName)}</div><div class='ba-row ba-row-account'>${escapeHtml(accountName)}</div><div class='ba-row-meta'><span class='ba-row-type'><span class='ba-type-badge'>${escapeHtml(accountTypeLabel)}</span></span></div></div>`;
                 }
 
                 return div;
@@ -1721,16 +2232,16 @@ function refreshVariantChoices() {
                 const label = data.label || '';
                 const parts = label.split('\u001F');
                 const name = parts[0] || label;
-                const desc = oneRow ? '' : (parts[1] || '');
-                const descParts = desc.split(' • ');
-                const stockPart = descParts[0] || '';
-                const balancePart = descParts[1] || '';
-
+                const rawDesc = parts[1] || '';
+                const descParts = rawDesc.split(' • ');
                 const props = data.customProperties || {};
+                const stockPart = props.stockText || descParts[0] || '';
+                const balancePart = props.balanceText || descParts[1] || '';
+
                 const color = props.colorCode || '';
                 const stockColor = props.stockColor || '#6c757d';
                 const swatch = color
-                    ? `<span style="display:inline-block;width:12px;height:12px;background-color:${escapeHtml(color)};border-radius:2px;flex-shrink:0;border:1px solid #ccc;margin-right:6px;"></span>`
+                    ? `<span style="display:inline-block;width:12px;height:12px;background-color:${escapeHtml(color)};border-radius:2px;flex:0 0 auto;border:1px solid #ccc;"></span>`
                     : '';
 
                 const classes = [].concat(config.classNames.item);
@@ -1757,18 +2268,14 @@ function refreshVariantChoices() {
                 div.dataset.value = data.value;
                 if (data.disabled) div.setAttribute('aria-disabled', 'true');
 
+                const isWalletVariant = (props.hasWallet === true) || (balancePart && /₱/.test(balancePart));
+                const secondaryText = (isWalletVariant ? balancePart : stockPart) || '';
+
                 if (oneRow) {
-                    let balance = props.balanceText || '';
-                    if (!balance) {
-                        const rawDesc = parts[1] || '';
-                        const rawDescParts = rawDesc.split(' • ');
-                        balance = rawDescParts[1] || '';
-                    }
-                    const vSeparator = balance ? `<span style='flex:0 0 auto;'>&nbsp;•&nbsp;</span>` : '';
-                    div.innerHTML = `<div style='display:flex;align-items:center;gap:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'><div class='vr-row-name' style='display:flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${swatch}<span style='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;'>${escapeHtml(name)}</span></div>${vSeparator}<div class='vr-row-desc' style='flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#6c757d;font-size:0.75rem;'>${escapeHtml(balance)}</div></div>`;
+                    div.innerHTML = `<div class='vr-selected-row' style='display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${swatch}<span class='vr-row-name' style='flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;'>${escapeHtml(name)}</span>${secondaryText ? `<span class='vr-row-separator' aria-hidden='true' style='flex:0 0 auto;color:#6c757d;'>|</span><span class='vr-row-available' style='flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${escapeHtml(stockColor)};font-weight:600;'>${escapeHtml(secondaryText)}</span>` : ''}</div>`;
                 } else {
-                    div.innerHTML = `<div class='vr-row-name' style='display:flex;align-items:center;gap:6px;'>${swatch}<span>${escapeHtml(name)}</span></div>` +
-                        (desc ? `<div class='vr-row-desc' style='font-size:11px;color:#6c757d;margin-top:2px;'><span style='color:${escapeHtml(stockColor)};font-weight:600;'>${escapeHtml(stockPart)}</span><span> • ${escapeHtml(balancePart)}</span></div>` : '');
+                    div.innerHTML = `<div class='vr-row-name' style='display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${swatch}<span style='flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;'>${escapeHtml(name)}</span></div>` +
+                        (secondaryText ? `<div class='vr-row-desc' style='min-width:0;'><span class='vr-row-available' style='color:${escapeHtml(stockColor)};font-weight:600;'>${escapeHtml(secondaryText)}</span></div>` : '');
                 }
 
                 return div;
@@ -1787,6 +2294,7 @@ function refreshVariantChoices() {
 }
 
 function onTicketVariantChanged() {
+    window.selectedResolvedWallet = null;
     loadWallets().then(() => {
         const wallet = window.selectedResolvedWallet;
         const walletBranchId = wallet ? wallet.branch_id : null;
@@ -1808,8 +2316,11 @@ function loadTicketVariants() {
         variantSelect.innerHTML = '<option value="">Select Provider First</option>';
         variantSelect.disabled = true;
         variantWrapper.classList.add('d-none');
-        return;
+        return Promise.resolve();
     }
+
+    // Remember the currently selected variant so we can restore it after refresh
+    const selectedVariantId = variantSelect ? variantSelect.value : '';
 
     variantWrapper.classList.remove('d-none');
     variantRequiredMarker.classList.add('d-none');
@@ -1819,7 +2330,7 @@ function loadTicketVariants() {
     const branchId = window.POS_BRANCH_ID || '';
     const variantUrl = `${window.BASE_URL}/api/ticket-variants?provider_id=${encodeURIComponent(providerId)}&branch_id=${encodeURIComponent(branchId)}`;
     console.log('[POS loadTicketVariants] url:', variantUrl);
-    fetch(variantUrl)
+    return fetch(variantUrl)
         .then(response => response.json())
         .then(data => {
             console.log('[POS loadTicketVariants] response:', data);
@@ -1831,8 +2342,12 @@ function loadTicketVariants() {
                 const sorted = [...data.data].sort((a, b) => {
                     const aHasWallet = (a.wallet_id && a.wallet_id !== '') || (a.main_wallet_id && a.main_wallet_id !== '');
                     const bHasWallet = (b.wallet_id && b.wallet_id !== '') || (b.main_wallet_id && b.main_wallet_id !== '');
-                    const aBalance = aHasWallet ? parseFloat(a.wallet_balance || a.main_wallet_balance || 0) : 0;
-                    const bBalance = bHasWallet ? parseFloat(b.wallet_balance || b.main_wallet_balance || 0) : 0;
+                    const aBalance = aHasWallet
+                        ? (a.wallet_id && a.wallet_id !== '' ? parseFloat(a.wallet_balance || 0) : parseFloat(a.main_wallet_balance || 0))
+                        : 0;
+                    const bBalance = bHasWallet
+                        ? (b.wallet_id && b.wallet_id !== '' ? parseFloat(b.wallet_balance || 0) : parseFloat(b.main_wallet_balance || 0))
+                        : 0;
                     const aQty = aBalance > 0 ? 1 : (parseInt(a.available_qty, 10) || 0);
                     const bQty = bBalance > 0 ? 1 : (parseInt(b.available_qty, 10) || 0);
                     if (aQty > 0 && bQty <= 0) return -1;
@@ -1843,18 +2358,23 @@ function loadTicketVariants() {
                 sorted.forEach(v => {
                     const hasVariantWallet = v.wallet_id && v.wallet_id !== '';
                     const hasMainWallet = v.main_wallet_id && v.main_wallet_id !== '';
-                    const walletBalance = parseFloat(v.wallet_balance || v.main_wallet_balance || 0);
+                    const walletBalance = hasVariantWallet
+                        ? parseFloat(v.wallet_balance || 0)
+                        : parseFloat(v.main_wallet_balance || 0);
                     let available = parseInt(v.available_qty, 10) || 0;
                     let stockText, stockColor, balanceText;
+                    const isWalletBacked = hasVariantWallet || hasMainWallet;
+                    const walletHasMoney = isWalletBacked && walletBalance > 0;
+
                     if (hasVariantWallet) {
-                        stockText = walletBalance > 0 ? 'Available (variant wallet)' : 'Insufficient variant wallet balance';
-                        stockColor = walletBalance > 0 ? '#28a745' : '#dc3545';
-                        available = walletBalance > 0 ? 1 : 0;
-                        balanceText = `Variant wallet: ₱${fmt(walletBalance)}`;
+                        // Variant wallets track physical stock, not money
+                        stockText = available > 0 ? `${available} available` : (allowNegative ? 'negative stock allowed' : 'out of stock');
+                        stockColor = available > 0 ? '#28a745' : '#dc3545';
+                        balanceText = 'Stock wallet';
                     } else if (hasMainWallet) {
-                        stockText = walletBalance > 0 ? 'Available (main wallet)' : 'Insufficient main wallet balance';
-                        stockColor = walletBalance > 0 ? '#28a745' : '#dc3545';
-                        available = walletBalance > 0 ? 1 : 0;
+                        // For main-wallet-backed variants, stock is primary; show both
+                        stockText = available > 0 ? `${available} available` : (allowNegative ? 'negative stock allowed' : 'out of stock');
+                        stockColor = available > 0 ? '#28a745' : '#dc3545';
                         balanceText = `Main wallet: ₱${fmt(walletBalance)}`;
                     } else {
                         stockText = available > 0 ? `${available} available` : (allowNegative ? 'negative stock allowed' : 'out of stock');
@@ -1862,12 +2382,17 @@ function loadTicketVariants() {
                         balanceText = 'No wallet';
                     }
                     const safeName = escapeHtml(v.variant_name);
-                    const props = escapeHtml(JSON.stringify({ colorCode: v.color_code || '', stockColor: stockColor, balanceText: balanceText }));
+                    const props = escapeHtml(JSON.stringify({ colorCode: v.color_code || '', stockColor: stockColor, stockText: stockText, balanceText: balanceText, hasWallet: walletHasMoney }));
                     const optionText = safeName + '\u001F' + escapeHtml(stockText) + ' • ' + escapeHtml(balanceText);
-                    optionsHtml += `<option value="${v.variant_id}" data-available="${available}" data-stock-controlled="${v.stock_controlled}" data-variant-name="${escapeHtml(v.variant_name)}" data-variant-code="${escapeHtml(v.variant_code || '')}" data-custom-properties="${props}">${optionText}</option>`;
+                    const walletBalanceAttribute = isWalletBacked ? ` data-wallet-balance="${walletBalance}"` : '';
+                    optionsHtml += `<option value="${v.variant_id}" data-available="${available}" data-stock-controlled="${v.stock_controlled}" data-variant-name="${escapeHtml(v.variant_name)}" data-variant-code="${escapeHtml(v.variant_code || '')}"${walletBalanceAttribute} data-custom-properties="${props}">${optionText}</option>`;
                 });
 
                 variantSelect.innerHTML = optionsHtml;
+                // Restore the previously selected variant if it still exists
+                if (selectedVariantId && Array.from(variantSelect.options).some(opt => opt.value === selectedVariantId)) {
+                    variantSelect.value = selectedVariantId;
+                }
                 variantSelect.disabled = false;
                 variantRequiredMarker.classList.remove('d-none');
                 availabilityText.textContent = 'Select a variant (required).';
@@ -2128,23 +2653,63 @@ function filterCustomers() {
     document.getElementById('noCustomersMsg').style.display = visible === 0 ? '' : 'none';
 }
 
+function setChargeAccountSelection(passengerId, passengerName = '') {
+    selectedCustomerId = passengerId ? String(passengerId) : null;
+    selectedCustomerName = passengerName ? passengerName.trim() : null;
+
+    const idInput = document.getElementById('selectedChargeAccountId');
+    const nameInput = document.getElementById('selectedChargeAccountName');
+    if (idInput) idInput.value = selectedCustomerId || '';
+    if (nameInput) nameInput.value = selectedCustomerName || '';
+}
+
+function showChargeAccountSelection() {
+    const row = document.getElementById('chargeAccountRow');
+    if (row) row.style.display = '';
+}
+
+function resetChargeAccountSelection() {
+    setChargeAccountSelection(null, '');
+    const row = document.getElementById('chargeAccountRow');
+    if (row) row.style.display = 'none';
+}
+
+function openChargeAccountPicker() {
+    const ticketItem = cart.find(item => item.type === 'ticket');
+    const defaultName = selectedCustomerName || ticketItem?.passengerName || '';
+    openCustomerModal(selectedCustomerId, defaultName);
+}
+
 function selectCustomerRadio(radio) {
+    document.querySelectorAll('.customer-row').forEach(row => row.classList.remove('table-primary'));
+    radio.closest('.customer-row')?.classList.add('table-primary');
     document.getElementById('confirmCustomerBtn').disabled = false;
 }
 
-function openCustomerModal() {
-    selectedCustomerId = null;
-    document.getElementById('customerSearch').value = '';
+function openCustomerModal(defaultPassengerId = null, defaultPassengerName = '') {
+    selectedCustomerId = defaultPassengerId ? String(defaultPassengerId) : null;
+    selectedCustomerName = defaultPassengerName ? defaultPassengerName.trim() : null;
+    const searchInput = document.getElementById('customerSearch');
+    searchInput.value = defaultPassengerName || '';
+    updateCustomerSearchClearButton();
     document.querySelectorAll('input[name="selectedCustomer"]').forEach(r => r.checked = false);
     document.getElementById('confirmCustomerBtn').disabled = true;
-    filterCustomers();
+    if (defaultPassengerName) {
+        renderCustomers(defaultPassengerName);
+    } else {
+        filterCustomers();
+    }
     selectCustomerModal.show();
 }
 
 function confirmCustomerSelection() {
     const selected = document.querySelector('input[name="selectedCustomer"]:checked');
     if (!selected) return;
-    selectedCustomerId = selected.value;
+
+    const row = selected.closest('.customer-row');
+    const name = row?.querySelector('td')?.textContent?.trim() || '';
+    setChargeAccountSelection(selected.value, name);
+    showChargeAccountSelection();
     selectCustomerModal.hide();
     // Continue with payment entry
     document.getElementById('paymentEntryRow').style.display = '';
@@ -2154,12 +2719,233 @@ function confirmCustomerSelection() {
 // SESSION MANAGEMENT
 // =============================================
 
+let cashierTransportAccessState = null;
+
+function cashierTransportAccessHeaders() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.CSRF_TOKEN || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+    return headers;
+}
+
+function renderTransportAccessBadges(types, labels) {
+    if (!Array.isArray(types) || types.length === 0) return '';
+    return types.map(type => {
+        const label = (labels && labels[type]) || type;
+        return `<span class="badge bg-100 text-600 fs-10 me-1">${label}</span>`;
+    }).join('');
+}
+
+async function loadCashierTransportAccess() {
+    const section = document.getElementById('cashierTransportAccessSection');
+    const form = document.getElementById('cashierTransportTypeForm');
+    const status = document.getElementById('cashierTransportAccessStatus');
+    const mode = document.getElementById('cashierTransportAccessMode');
+    if (!section || !form || !status || !mode) return;
+
+    section.style.display = 'none';
+    form.style.display = 'none';
+    status.textContent = 'Loading your current access...';
+
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/transport-access`, { credentials: 'same-origin' });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            if (response.status === 403) return;
+            throw new Error(result.error || 'Unable to load transportation access.');
+        }
+
+        const access = result.data || {};
+        cashierTransportAccessState = access;
+        renderCashierTransportAccessSection(access, section, form, status, mode, true);
+        renderCashierTransportAccessClose(access);
+    } catch (error) {
+        console.error('Error loading cashier transportation access:', error);
+        section.style.display = '';
+        if (mode) mode.textContent = 'Unavailable';
+        if (status) status.textContent = error.message || 'Unable to load transportation access.';
+    }
+}
+
+function renderCashierTransportAccessSection(access, section, form, status, mode, editable) {
+    const labels = access.labels || {
+        airline: 'Airlines',
+        shipping: 'Shipping',
+        bus: 'Bus Lines',
+        other: 'Other'
+    };
+    const selectedTypes = Array.isArray(access.transport_types) ? access.transport_types : [];
+    const modeLabel = access.mode === 'provider'
+        ? 'Specific Providers'
+        : access.mode === 'transport_type'
+            ? 'By Transportation Type'
+            : 'All Types';
+    if (mode) mode.textContent = modeLabel;
+
+    if (editable && document.querySelectorAll('.cashier-transport-type').length) {
+        document.querySelectorAll('.cashier-transport-type').forEach(input => {
+            input.checked = selectedTypes.includes(input.value);
+            input.disabled = access.mode !== 'transport_type';
+        });
+    }
+
+    if (!access.restricted || access.mode === 'all') {
+        if (status) status.textContent = 'You currently have access to all transportation types. Type restrictions are managed in Users settings.';
+        if (editable && form) form.style.display = 'none';
+    } else if (access.mode === 'provider') {
+        if (status) status.textContent = 'Your access is assigned by specific provider. Ask an administrator to update provider access in Users settings.';
+        if (editable && form) form.style.display = 'none';
+    } else {
+        const currentLabels = selectedTypes.map(type => labels[type] || type).join(', ');
+        if (status) status.textContent = currentLabels
+            ? `Current access: ${currentLabels}`
+            : 'No transportation types are currently selected.';
+        if (editable && form) form.style.display = '';
+    }
+
+    if (section) section.style.display = '';
+}
+
+function renderCashierTransportAccessClose(access) {
+    const section = document.getElementById('closeTransportAccessSection');
+    const status = document.getElementById('closeTransportAccessStatus');
+    const mode = document.getElementById('closeTransportAccessMode');
+    const typesEl = document.getElementById('closeTransportAccessTypes');
+    if (!section || !status || !mode || !typesEl) return;
+
+    const labels = access.labels || {
+        airline: 'Airlines',
+        shipping: 'Shipping',
+        bus: 'Bus Lines',
+        other: 'Other'
+    };
+    const selectedTypes = Array.isArray(access.transport_types) ? access.transport_types : [];
+
+    mode.textContent = access.mode === 'provider'
+        ? 'Specific Providers'
+        : access.mode === 'transport_type'
+            ? 'By Transportation Type'
+            : 'All Types';
+
+    if (!access.restricted || access.mode === 'all') {
+        status.textContent = 'You currently have access to all transportation types.';
+        typesEl.innerHTML = renderTransportAccessBadges(['airline', 'shipping', 'bus', 'other'], labels);
+    } else if (access.mode === 'provider') {
+        status.textContent = 'Your access is assigned by specific provider.';
+        typesEl.innerHTML = '';
+    } else {
+        const currentLabels = selectedTypes.map(type => labels[type] || type).join(', ');
+        status.textContent = currentLabels
+            ? `Current access: ${currentLabels}`
+            : 'No transportation types are currently selected.';
+        typesEl.innerHTML = renderTransportAccessBadges(selectedTypes, labels);
+    }
+
+    section.style.display = '';
+}
+
+async function loadCloseSessionTransportAccess() {
+    const section = document.getElementById('closeTransportAccessSection');
+    const status = document.getElementById('closeTransportAccessStatus');
+    const mode = document.getElementById('closeTransportAccessMode');
+    const typesEl = document.getElementById('closeTransportAccessTypes');
+    if (!section || !status || !mode || !typesEl) return;
+
+    section.style.display = 'none';
+    status.textContent = 'Loading your current access...';
+    mode.textContent = 'Loading...';
+    typesEl.innerHTML = '';
+
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/transport-access`, { credentials: 'same-origin' });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            if (response.status === 403) return;
+            throw new Error(result.error || 'Unable to load transportation access.');
+        }
+
+        const access = result.data || {};
+        cashierTransportAccessState = access;
+        renderCashierTransportAccessSection(access, document.getElementById('cashierTransportAccessSection'), document.getElementById('cashierTransportTypeForm'), document.getElementById('cashierTransportAccessStatus'), document.getElementById('cashierTransportAccessMode'), true);
+        renderCashierTransportAccessClose(access);
+    } catch (error) {
+        console.error('Error loading close session transportation access:', error);
+        section.style.display = '';
+        mode.textContent = 'Unavailable';
+        status.textContent = error.message || 'Unable to load transportation access.';
+    }
+}
+
+async function saveCashierTransportAccess() {
+    const state = cashierTransportAccessState || {};
+    if (state.mode !== 'transport_type') {
+        return { success: true };
+    }
+
+    const transportTypes = Array.from(document.querySelectorAll('.cashier-transport-type:checked'))
+        .map(input => input.value);
+    if (!transportTypes.length) {
+        showToast('warning', 'Select Access', 'Select at least one transportation type.');
+        return { success: false };
+    }
+
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/transport-access`, {
+            method: 'PUT',
+            headers: cashierTransportAccessHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify({ transport_types: transportTypes })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Unable to update transportation access.');
+
+        await loadCashierTransportAccess();
+        if (typeof loadProviders === 'function') await loadProviders();
+        return { success: true, data: result.data };
+    } catch (error) {
+        console.error('Error updating cashier transportation access:', error);
+        showToast('danger', 'Access Update Failed', error.message || 'Unable to update transportation access.');
+        return { success: false, error: error.message };
+    }
+}
+
 async function submitOpenSession() {
     const branchId = document.getElementById('sessionBranchId').value;
-    const openingCash = parseFloat(document.getElementById('sessionOpeningCash').value.replace(/,/g, '')) || 0;
+    const openingCashInput = document.getElementById('sessionOpeningCash');
+    const openingCashRaw = openingCashInput.value.trim();
     const notes = document.getElementById('sessionNotes').value.trim();
 
     if (!branchId) { showToast('danger', 'Error', 'Branch is required.'); return; }
+    if (!openingCashRaw) {
+        openingCashInput.focus();
+        showToast('danger', 'Error', 'Opening cash balance is required.'); return;
+    }
+    const openingCash = parseFloat(openingCashRaw.replace(/,/g, ''));
+    if (isNaN(openingCash) || openingCash < 0) {
+        openingCashInput.focus();
+        showToast('danger', 'Error', 'Enter a valid opening cash amount.'); return;
+    }
+
+    const state = cashierTransportAccessState || {};
+    const selectedTypes = Array.from(document.querySelectorAll('.cashier-transport-type:checked')).map(input => input.value);
+    if (state.mode === 'transport_type') {
+        const originalSelected = Array.isArray(state.transport_types) ? state.transport_types : [];
+        const typesChanged = selectedTypes.length !== originalSelected.length ||
+            selectedTypes.some(type => !originalSelected.includes(type)) ||
+            originalSelected.some(type => !selectedTypes.includes(type));
+        if (typesChanged) {
+            const accessUpdated = await saveCashierTransportAccess();
+            if (!accessUpdated.success) return;
+        }
+    }
+
+    const branchName = document.getElementById('sessionBranchId').selectedOptions[0]?.text?.trim() || 'this branch';
+    const confirmed = await showConfirm(
+        'Open Cashier Session',
+        `Open cashier session for ${branchName} with opening cash ₱${fmt(openingCash)}?\n\nMake sure the amount is correct before proceeding.`,
+        { icon: 'play-circle', iconColor: 'text-success', confirmBtnColor: 'btn-success', confirmBtnText: 'Open Session' }
+    );
+    if (!confirmed) return;
 
     const btn = document.querySelector('#openSessionModal .btn-success');
     const originalText = btn.innerHTML;
@@ -2190,14 +2976,22 @@ async function submitOpenSession() {
 
 async function openCloseSession() {
     console.log('openCloseSession() called');
-    
+
+    // Load transportation type access for close session
+    loadCloseSessionTransportAccess();
+
     // Reset form
     const closingCashEl = document.getElementById('closingCash');
     const closingNotesEl = document.getElementById('closingNotes');
     const varianceDisplayEl = document.getElementById('varianceDisplay');
+    const closeAdjustmentCardsEl = document.getElementById('closeAdjustmentCards');
     const closeSummaryEl = document.getElementById('closeSummary');
     
     if (closingCashEl) closingCashEl.value = '';
+    if (closeAdjustmentCardsEl) {
+        closeAdjustmentCardsEl.innerHTML = '';
+        closeAdjustmentCardsEl.classList.add('d-none');
+    }
     if (closingNotesEl) closingNotesEl.value = '';
     if (varianceDisplayEl) {
         varianceDisplayEl.textContent = '₱0.00';
@@ -2249,15 +3043,63 @@ async function openCloseSession() {
             const s = result.data.session;
             const payments = result.data.payments || [];
             const expected = parseFloat(s.expected_cash || 0);
+            const totalRefunds = parseFloat(s.total_refunds || 0);
+            const refundedSalesAmount = parseFloat(s.refunded_sales_amount || 0);
+            const voidedTicketAmount = parseFloat(s.voided_ticket_amount || 0);
+            const technicalVoidAmount = parseFloat(s.technical_void_amount || 0);
+            const voidedCashAmount = parseFloat(s.voided_cash_amount || 0);
+            const voidFee = parseFloat(s.void_fee || 0);
+            const voidServiceFee = parseFloat(s.void_service_fee || 0);
+            const lostSalesVoidFee = parseFloat(s.lost_sales_void_fee || 0);
+            const voidFeeTotal = voidFee + voidServiceFee;
+            const voidIncome = parseFloat(s.void_income ?? voidFeeTotal);
+            const technicalLostSalesAmount = parseFloat(s.technical_lost_sales_amount ?? lostSalesVoidFee);
+            const regularVoidedTicketAmount = Math.max(0, voidedTicketAmount - technicalVoidAmount);
+            const voidedSalesAmount = parseFloat(s.voided_sales_amount
+                ?? (regularVoidedTicketAmount + technicalLostSalesAmount));
+            const netSales = parseFloat(s.net_sales ?? Math.max(
+                0,
+                parseFloat(s.total_sales || 0)
+                    - refundedSalesAmount
+                    - voidedSalesAmount
+                    + voidIncome
+            ));
             
             const expectedCashEl = document.getElementById('expectedCash');
             const totalSalesEl = document.getElementById('totalSales');
+            const closeAdjustmentCardsEl = document.getElementById('closeAdjustmentCards');
             const closeSummaryEl = document.getElementById('closeSummary');
             
             console.log('Updating elements:', { expectedCash: expected, totalSales: s.total_sales });
             
             if (expectedCashEl) expectedCashEl.textContent = '₱' + fmt(expected);
-            if (totalSalesEl) totalSalesEl.textContent = '₱' + fmt(s.total_sales || 0);
+            if (totalSalesEl) totalSalesEl.textContent = '₱' + fmt(netSales);
+
+            const adjustmentCards = [
+                { label: 'Refunded Sales', amount: refundedSalesAmount, borderClass: 'border-warning', iconClass: 'icon-circle-warning', icon: 'fa-receipt', textClass: 'text-warning' },
+                { label: 'Void Income', amount: voidIncome, borderClass: 'border-success', iconClass: 'icon-circle-success', icon: 'fa-coins', textClass: 'text-success' },
+                { label: 'Technical Lost Sales', amount: technicalLostSalesAmount, borderClass: 'border-danger', iconClass: 'icon-circle-danger', icon: 'fa-exclamation-triangle', textClass: 'text-danger' }
+            ].filter(card => card.amount > 0);
+
+            if (closeAdjustmentCardsEl) {
+                closeAdjustmentCardsEl.innerHTML = adjustmentCards.map(card => `
+                  <div class="col-6">
+                    <div class="card h-100 ${card.borderClass}" style="min-height: 80px;">
+                      <div class="card-body py-3 px-3">
+                        <div class="d-flex align-items-center h-100">
+                          <div class="icon-circle ${card.iconClass} me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.125rem;">
+                            <span class="fas ${card.icon} ${card.textClass}"></span>
+                          </div>
+                          <div class="flex-grow-1 min-width-0">
+                            <div class="text-muted small mb-0">${card.label}</div>
+                            <div class="fw-bold ${card.textClass} fs-6">₱${fmt(card.amount)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>`).join('');
+                closeAdjustmentCardsEl.classList.toggle('d-none', adjustmentCards.length === 0);
+            }
 
             const startedDate = new Date(s.started_at);
             const startedFmt = startedDate.toLocaleString('en-PH', {
@@ -2273,26 +3115,39 @@ async function openCloseSession() {
             if (closeSummaryEl) {
                 closeSummaryEl.innerHTML = `
                 <div class="row g-3 align-items-center">
-                  <div class="col-md-4">
+                  <div class="col-6 col-md-3">
                     <div class="text-muted small mb-1">Started</div>
                     <div class="fw-bold">${startedFmt}</div>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-6 col-md-3">
                     <div class="text-muted small mb-1">Cashier</div>
                     <div class="fw-bold">${s.cashier_name || '—'}</div>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-6 col-md-3">
                     <div class="text-muted small mb-1">Transactions</div>
                     <div class="fw-bold">${s.txn_count || 0}</div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="text-muted small mb-1">Voided Tickets</div>
+                    <div class="fw-bold text-warning">${s.voided_ticket_count || 0}</div>
                   </div>
                 </div>`;
             }
 
             // Payment type breakdown with include_in_expected_cash indicator
-            const totalRefunds = parseFloat(s.total_refunds || 0);
+            const pendingRefundsCash = parseFloat(s.pending_refunds_cash || 0);
+            const showPendingRefunds = Boolean(s.show_pending_refunds_in_close_session) ||
+                Boolean(window.CANCELLATION_SETTINGS?.show_pending_refunds_in_close_session);
+            const displayedPendingRefunds = showPendingRefunds ? pendingRefundsCash : 0;
+            const totalCashChange = parseFloat(s.total_cash_change || 0);
+            const totalCashAdjustments = parseFloat(s.total_cash_adjustments || 0);
+            const voidedTicketCount = parseInt(s.voided_ticket_count || 0, 10);
+            const technicalVoidCount = parseInt(s.technical_void_count || 0, 10);
+            const pendingVoidCount = parseInt(s.pending_void_count || 0, 10);
+            const pendingVoidAmount = parseFloat(s.pending_void_amount || 0);
             const expectedCashFromAPI = parseFloat(s.expected_cash || 0);
 
-            if (payments.length > 0) {
+            if (payments.length > 0 || voidedTicketCount > 0 || technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0) {
                 let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
                 html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0 table-hover">';
 
@@ -2308,7 +3163,9 @@ async function openCloseSession() {
                 // Payment methods from API with include_in_expected_cash indicator
                 payments.forEach((p, index) => {
                     const isLast = index === payments.length - 1;
-                    const borderClass = !isLast || totalRefunds > 0 ? 'border-bottom' : '';
+                    const hasDeductions = totalCashChange > 0 || totalRefunds > 0 || displayedPendingRefunds > 0 || totalCashAdjustments > 0
+                        || voidedTicketCount > 0 || technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0;
+                    const borderClass = !isLast || hasDeductions ? 'border-bottom' : '';
                     const inCashBadge = p.include_in_expected_cash
                         ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
                         : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
@@ -2322,14 +3179,106 @@ async function openCloseSession() {
                       </tr>`;
                 });
 
-                // Show refunds if any
-                if (totalRefunds > 0) {
+                // Show cash change if any
+                if (totalCashChange > 0) {
                     html += `
                       <tr class="border-bottom">
-                        <td class="ps-0"><strong>Refunds (Cash Out)</strong>
-                          <div class="text-400 fw-normal fs-11 text-danger">CASH OUT</div>
+                        <td class="ps-0"><strong>Change (Cash Out)</strong>
+                          <div class="text-400 fw-normal fs-11 text-warning">CASH GIVEN TO CUSTOMERS</div>
+                        </td>
+                        <td class="pe-0 text-end text-warning"><strong>-₱${fmt(totalCashChange)}</strong></td>
+                      </tr>`;
+                }
+
+                // Show refunds if any
+                if (totalRefunds > 0) {
+                    const refundLabel = showPendingRefunds ? 'Approved Refunds' : 'Refunds (Cash Out)';
+                    const refundSubLabel = showPendingRefunds ? 'APPROVED CASH OUT' : 'CASH OUT';
+                    html += `
+                      <tr class="border-bottom">
+                        <td class="ps-0"><strong>${refundLabel}</strong>
+                          <div class="text-400 fw-normal fs-11 text-danger">${refundSubLabel}</div>
                         </td>
                         <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
+                      </tr>`;
+                }
+
+                // Show pending refunds if configured
+                if (displayedPendingRefunds > 0) {
+                    html += `
+                      <tr class="border-bottom">
+                        <td class="ps-0"><strong>Pending Refunds</strong>
+                          <div class="text-400 fw-normal fs-11 text-warning">AWAITING APPROVAL</div>
+                        </td>
+                        <td class="pe-0 text-end text-warning"><strong>-₱${fmt(displayedPendingRefunds)}</strong></td>
+                      </tr>`;
+                }
+
+                if (totalCashAdjustments > 0) {
+                    html += `
+                      <tr class="border-bottom">
+                        <td class="ps-0"><strong>Cashier Responsibility Deductions</strong>
+                          <div class="text-400 fw-normal fs-11 text-danger">IMMEDIATE ACCOUNTABILITY ADJUSTMENT</div>
+                        </td>
+                        <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalCashAdjustments)}</strong></td>
+                      </tr>`;
+                }
+
+                const hasVoidBreakdown = technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0
+                    || lostSalesVoidFee > 0 || pendingVoidCount > 0;
+                if (hasVoidBreakdown) {
+                    const voidBreakdownRows = [];
+                    const voidAmountRows = [];
+
+                    if (technicalVoidCount > 0 && technicalLostSalesAmount > 0) {
+                        voidBreakdownRows.push(`
+                          <div class="d-flex align-items-center gap-2">
+                            <span><span class="fas fa-exclamation-triangle me-1 text-danger"></span>Technical Issue Lost Sales <span class="text-muted">(${technicalVoidCount})</span></span>
+                          </div>`);
+                        voidAmountRows.push(`<div class="text-danger">Void Fee <span class="small">-₱${fmt(technicalLostSalesAmount)}</span> <small class="text-muted">(Lost Sales)</small></div>`);
+                    }
+
+                    if (voidedCashAmount > 0) {
+                        voidBreakdownRows.push(`
+                          <div class="d-flex align-items-center gap-2">
+                            <span><span class="fas fa-money-bill-wave me-1 text-danger"></span>Cash not received</span>
+                          </div>`);
+                        voidAmountRows.push(`<div class="text-danger">-₱${fmt(voidedCashAmount)} cash <small class="text-muted">(deducted)</small></div>`);
+                    }
+
+                    if (voidFeeTotal > 0) {
+                        const feeBreakdownRows = [];
+                        if (voidFee > 0) {
+                            feeBreakdownRows.push(`<span>Void Fee ₱${fmt(voidFee)}</span>`);
+                        }
+                        if (voidServiceFee > 0) {
+                            feeBreakdownRows.push(`<span>Service Fee ₱${fmt(voidServiceFee)}</span>`);
+                        }
+                        voidBreakdownRows.push(`
+                          <div class="d-flex align-items-center gap-2">
+                            <span><span class="fas fa-coins me-1 text-success"></span>Void income</span>
+                          </div>`);
+                        voidAmountRows.push(`
+                          <div class="text-success">+₱${fmt(voidFeeTotal)} fees</div>
+                          <div class="text-muted small">${feeBreakdownRows.join(' <span class="mx-1">+</span> ')}</div>`);
+                    }
+
+                    if (pendingVoidCount > 0) {
+                        voidBreakdownRows.push(`
+                          <div class="d-flex align-items-center gap-2">
+                            <span><span class="fas fa-clock me-1 text-info"></span>Pending ticket voids <span class="text-muted">(${pendingVoidCount})</span></span>
+                          </div>`);
+                        voidAmountRows.push(`<div class="text-info">${pendingVoidCount} pending <span class="small">₱${fmt(pendingVoidAmount)}</span> <small class="text-muted">(no cash effect)</small></div>`);
+                    }
+
+                    html += `
+                      <tr class="border-bottom">
+                        <td class="ps-0 pe-3">
+                          <strong>Voids</strong>
+                          <div class="text-400 fw-normal fs-11 text-secondary">TICKET / CASH / FEE BREAKDOWN</div>
+                          <div class="small mt-2">${voidBreakdownRows.join('')}</div>
+                        </td>
+                        <td class="pe-0 ps-3 text-end align-top border-start" style="min-width: 190px;">${voidAmountRows.join('')}</td>
                       </tr>`;
                 }
 
@@ -2337,20 +3286,38 @@ async function openCloseSession() {
                 const expectedCashCalc = payments
                     .filter(p => p.include_in_expected_cash)
                     .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
-                const netTotal = parseFloat(s.starting_cash || 0) + expectedCashCalc - totalRefunds;
+
+                const expectedCalcFormula = [
+                    'STARTING + IN CASH',
+                    'CHANGE',
+                    'REFUNDS',
+                    voidedCashAmount > 0 ? 'VOIDED CASH' : null,
+                    showPendingRefunds && displayedPendingRefunds > 0 ? 'PENDING REFUNDS' : null,
+                    totalCashAdjustments > 0 ? 'CASHIER DEDUCTIONS' : null
+                ].filter(Boolean).join(' - ');
 
                 html += `
                   <tr class="table-light">
                     <td class="ps-0 pb-0 pt-2"><strong>Expected Cash</strong>
-                      <div class="text-400 fw-normal fs-11 text-success">STARTING + IN CASH - REFUNDS</div>
+                      <div class="text-400 fw-normal fs-11 text-success">${expectedCalcFormula}</div>
                     </td>
-                    <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(netTotal)}</strong></td>
+                    <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(expectedCashFromAPI)}</strong></td>
                   </tr>
                 </table>
               </div>
             </div>`;
 
                 // Add collapsible info note about expected cash calculation
+                const pendingRefundsCalcNote = showPendingRefunds && displayedPendingRefunds > 0
+                    ? ` - Pending Refunds (₱${fmt(displayedPendingRefunds)})`
+                    : '';
+                const cashAdjustmentsCalcNote = totalCashAdjustments > 0
+                    ? ` - Cashier Deductions (₱${fmt(totalCashAdjustments)})`
+                    : '';
+                const voidsCalcNote = voidedCashAmount > 0
+                    ? ` - Voided Cash Not Received (₱${fmt(voidedCashAmount)})`
+                    : '';
+
                 html += `
                 <div class="mb-4">
                   <button class="btn btn-link btn-sm text-decoration-none text-muted fs-10 p-0" type="button" data-bs-toggle="collapse" data-bs-target="#expectedCashCalcInfo" aria-expanded="false">
@@ -2359,17 +3326,66 @@ async function openCloseSession() {
                   <div class="collapse mt-2" id="expectedCashCalcInfo">
                     <div class="alert alert-info fs-10 mb-0">
                       <strong>How Expected Cash is calculated:</strong><br>
-                      <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)}) - Refunds (₱${fmt(totalRefunds)})</small>
+                      <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)}) - Cash Change (₱${fmt(totalCashChange)}) - Refunds (₱${fmt(totalRefunds)})${pendingRefundsCalcNote}${cashAdjustmentsCalcNote}${voidsCalcNote}</small>
                     </div>
                   </div>
                 </div>`;
+
+                // Add change info note if there is cash change
+                if (totalCashChange > 0) {
+                    html += `
+                    <div class="alert alert-warning fs-10 mb-4">
+                      <span class="fas fa-exclamation-triangle me-2"></span>
+                      <strong>Note:</strong> Cash change of ₱${fmt(totalCashChange)} has been given to customers and is deducted from the expected cash.
+                    </div>`;
+                }
 
                 // Add refund info note if there are refunds
                 if (totalRefunds > 0) {
                     html += `
                     <div class="alert alert-warning fs-10 mb-4">
                       <span class="fas fa-exclamation-triangle me-2"></span>
-                      <strong>Note:</strong> Refunds of ₱${fmt(totalRefunds)} have been processed from your cash drawer.
+                      <strong>Note:</strong> Approved refunds of ₱${fmt(totalRefunds)} have been processed from your cash drawer.
+                    </div>`;
+                }
+
+                if (displayedPendingRefunds > 0) {
+                    html += `
+                    <div class="alert alert-info fs-10 mb-4">
+                      <span class="fas fa-info-circle me-2"></span>
+                      <strong>Note:</strong> Pending refunds of ₱${fmt(displayedPendingRefunds)} are reserved and deducted from expected cash.
+                    </div>`;
+                }
+
+                if (totalCashAdjustments > 0) {
+                    html += `
+                    <div class="alert alert-danger fs-10 mb-4">
+                      <span class="fas fa-user-shield me-2"></span>
+                      <strong>Note:</strong> Cashier responsibility deductions of ₱${fmt(totalCashAdjustments)} are included in expected cash.
+                    </div>`;
+                }
+                if (technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0
+                    || lostSalesVoidFee > 0 || pendingVoidCount > 0) {
+                    const voidNotes = [];
+                    if (technicalVoidCount > 0 && technicalLostSalesAmount > 0) {
+                        voidNotes.push(`Technical Issue Lost Sales of ₱${fmt(technicalLostSalesAmount)} are deducted from sales.`);
+                    }
+                    if (voidedCashAmount > 0) {
+                        voidNotes.push(`Completed void cash payments of ₱${fmt(voidedCashAmount)} are deducted from expected cash because the cashier had not received that money.`);
+                    }
+                    if (voidFeeTotal > 0) {
+                        const feeParts = [];
+                        if (voidFee > 0) feeParts.push(`Void Fee ₱${fmt(voidFee)}`);
+                        if (voidServiceFee > 0) feeParts.push(`Service Fee ₱${fmt(voidServiceFee)}`);
+                        voidNotes.push(`Void income is ₱${fmt(voidFeeTotal)} (${feeParts.join(' + ')}).`);
+                    }
+                    if (pendingVoidCount > 0) {
+                        voidNotes.push('Pending voids have no cash effect yet.');
+                    }
+                    html += `
+                    <div class="alert alert-info fs-10 mb-4">
+                      <span class="fas fa-ban me-2"></span>
+                      <strong>Note:</strong> ${voidNotes.join(' ')}
                     </div>`;
                 }
 
@@ -2463,12 +3479,42 @@ async function submitCloseSession() {
         return;
     }
 
-    const closingCash = parseFloat(document.getElementById('closingCash').value.replace(/,/g, '')) || 0;
+    const closingCashInput = document.getElementById('closingCash');
+    const closingCashRaw = closingCashInput.value.trim();
     const notes = document.getElementById('closingNotes').value.trim();
     const bankAccountEl = document.getElementById('depositBankAccountId');
     const bankAccountId = bankAccountEl ? bankAccountEl.value : null;
     const depositNowEl = document.getElementById('depositNow');
     const depositNow = depositNowEl ? depositNowEl.checked : false;
+
+    if (!closingCashRaw) {
+        closingCashInput.focus();
+        showToast('danger', 'Error', 'Actual closing cash is required.'); return;
+    }
+    const closingCash = parseFloat(closingCashRaw.replace(/,/g, ''));
+    if (isNaN(closingCash) || closingCash < 0) {
+        closingCashInput.focus();
+        showToast('danger', 'Error', 'Enter a valid closing cash amount.'); return;
+    }
+
+    const expectedText = document.getElementById('expectedCash').textContent.replace(/[₱,]/g, '');
+    const expectedCash = parseFloat(expectedText) || 0;
+    const variance = closingCash - expectedCash;
+    const varianceText = (variance >= 0 ? '+₱' : '-₱') + fmt(Math.abs(variance));
+    const statusText = Math.abs(variance) < 0.01 ? 'Balanced' : variance < 0 ? 'Short' : 'Over';
+    const varianceColorClass = Math.abs(variance) < 0.01 ? 'text-success' : variance < 0 ? 'text-danger' : 'text-success';
+    const varianceLine = `Variance: <span class="fw-bold ${varianceColorClass}">${varianceText} (${statusText})</span>`;
+
+    const message = `Close session with actual cash ₱${fmt(closingCash)}?\n\n` +
+                    `Expected cash: ₱${fmt(expectedCash)}\n` +
+                    `${varianceLine}\n\n` +
+                    `Make sure the physical cash count is correct before confirming.`;
+    const confirmed = await showConfirm(
+        'Close Cashier Session',
+        message,
+        { icon: 'stop-circle', iconColor: 'text-danger', confirmBtnColor: 'btn-danger', confirmBtnText: 'Close Session', html: true }
+    );
+    if (!confirmed) return;
 
     const btn = document.querySelector('#closeSessionModal .btn-danger');
     const originalText = btn.innerHTML;
@@ -3263,6 +4309,42 @@ function computeTicketTotal() {
     document.getElementById('ticketTotalDisplay').textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function showInsufficientWalletBalance(required, available = null) {
+    const balanceDetails = Number.isFinite(available)
+        ? ` Available: ₱${fmt(available)}. Required: ₱${fmt(required)}.`
+        : ` Required: ₱${fmt(required)}.`;
+    showToast(
+        'danger',
+        'Insufficient Wallet Balance',
+        `The selected wallet balance is insufficient to cover the ticket base fare.${balanceDetails} Please top up the wallet or select another wallet.`
+    );
+}
+
+function toggleTicketSpecialAction() {
+    const wrapper = document.getElementById('ticketSpecialActionWrapper');
+    const toggleRow = document.getElementById('ticketSpecialActionToggleRow');
+    if (wrapper) wrapper.classList.remove('d-none');
+    if (toggleRow) toggleRow.classList.add('d-none');
+}
+
+function clearTicketSpecialAction() {
+    const radios = document.querySelectorAll('input[name="ticketSpecialAction"]');
+    radios.forEach(r => r.checked = false);
+    const wrapper = document.getElementById('ticketSpecialActionWrapper');
+    const toggleRow = document.getElementById('ticketSpecialActionToggleRow');
+    if (wrapper) wrapper.classList.add('d-none');
+    if (toggleRow) toggleRow.classList.remove('d-none');
+}
+
+function getTicketSpecialActionLabel(value) {
+    const map = {
+        REBOOKING: 'Rebooking',
+        REVALIDATE: 'Revalidate',
+        RESCHEDULE: 'Reschedule'
+    };
+    return map[value] || '';
+}
+
 function addTicketToCart() {
     if (!window.POS_HAS_SESSION) {
         showToast('warning', 'No Session', 'Please open a cashier session first.');
@@ -3284,6 +4366,9 @@ function addTicketToCart() {
     const discountPercentage = (!discountSelect.value || discountSelect.value === '0') ? 0 : parseFloat(discountSelect.options[discountSelect.selectedIndex].dataset.discountPercentage) || 0;
     const discountAmount = (baseAmount * discountPercentage) / 100;
     const total = baseAmount + serviceFee - discountAmount;
+    const selectedActionEl = document.querySelector('input[name="ticketSpecialAction"]:checked');
+    const ticketAction = selectedActionEl ? selectedActionEl.value : '';
+    const ticketActionLabel = getTicketSpecialActionLabel(ticketAction);
     const accommodationSelect = document.getElementById('ticketAccommodation');
     const accommodationId = accommodationSelect.value || null;
     const accommodationName = accommodationSelect.selectedOptions[0]?.textContent.trim() || '';
@@ -3304,20 +4389,43 @@ function addTicketToCart() {
     let walletBranchId = walletOption ? walletOption.dataset.branchId : null;
 
     if (!passengerId) { showToast('danger', 'Error', 'Please select a passenger.'); return; }
-    if (!ticketNumber) { showToast('danger', 'Error', 'Please enter ticket number.'); return; }
+    if (window.POS_SETTINGS?.ticket_number_required && !ticketNumber) {
+        showToast('danger', 'Error', 'Please enter ticket number.');
+        return;
+    }
     if (!baseAmount || baseAmount <= 0) { showToast('danger', 'Error', 'Please enter a valid base fare.'); return; }
     if (!discountSelect.value) { showToast('danger', 'Error', 'Please select a discount.'); return; }
     if (!accommodationId) { showToast('danger', 'Error', 'Please select an accommodation.'); return; }
     if (!providerId) { showToast('danger', 'Error', 'Please select a provider.'); return; }
     const variantWrapper = document.getElementById('ticketVariantWrapper');
     if (variantWrapper && !variantWrapper.classList.contains('d-none') && !variantSelect.value) { showToast('danger', 'Error', 'Please select a ticket variant.'); return; }
+
+    const resolvedWallet = window.selectedResolvedWallet;
+    const hasActiveVariant = variantWrapper && !variantWrapper.classList.contains('d-none');
+    if (hasActiveVariant) {
+        walletId = resolvedWallet?.wallet_id || null;
+        walletBranchId = resolvedWallet?.branch_id || null;
+    }
+
+    let walletBalance = resolvedWallet && resolvedWallet.wallet_id
+        ? parseFloat(resolvedWallet.current_balance)
+        : NaN;
+    if (!Number.isFinite(walletBalance)) {
+        const optionBalance = hasActiveVariant ? variantOption?.dataset.walletBalance : walletOption?.dataset.balance;
+        walletBalance = optionBalance === undefined || optionBalance === '' ? NaN : parseFloat(optionBalance);
+    }
+    if (!hasActiveVariant && !window.POS_SETTINGS?.allow_insufficient_wallet && Number.isFinite(walletBalance) && Math.round((baseAmount - walletBalance) * 100) > 0) {
+        showInsufficientWalletBalance(baseAmount, walletBalance);
+        return;
+    }
+
     if (!walletId) {
         // When variants are shown, wallet dropdown is hidden but resolved wallet is stored
-        if (window.selectedResolvedWallet && window.selectedResolvedWallet.wallet_id) {
-            walletId = window.selectedResolvedWallet.wallet_id;
-            walletBranchId = window.selectedResolvedWallet.branch_id || null;
+        if (resolvedWallet && resolvedWallet.wallet_id) {
+            walletId = resolvedWallet.wallet_id;
+            walletBranchId = resolvedWallet.branch_id || null;
         } else {
-            showToast('danger', 'Error', 'Please select/resolve a wallet.');
+            showToast('danger', 'Wallet Required', 'Please select or resolve an active wallet before adding this ticket.');
             return;
         }
     }
@@ -3347,6 +4455,8 @@ function addTicketToCart() {
         total,
         providerId,
         walletId,
+        ticketAction,
+        ticketActionLabel,
         branchId: walletBranchId || window.POS_BRANCH_ID
     };
 
@@ -3363,6 +4473,7 @@ function addTicketToCart() {
 
     // Clear ticket form after adding to cart
     resetPassengerField();
+    clearTicketSpecialAction();
     document.getElementById('ticketNumber').value = '';
     document.getElementById('ticketBaseAmount').value = '';
     document.getElementById('ticketDiscount').value = '';
@@ -3524,7 +4635,6 @@ function renderCart() {
     clearBtn.style.display = '';
     payBtn.disabled = false;
 
-
     let html = '';
     let subtotal = 0;
     cart.forEach((item, idx) => {
@@ -3566,6 +4676,7 @@ function renderCart() {
                 <div><span>Service fee</span><strong>₱${fmt(item.serviceFee)}</strong></div>
                 ${item.discountAmount > 0 ? `<div class="cart-ticket-discount"><span>Discount</span><strong>-₱${fmt(item.discountAmount)}</strong></div>` : ''}
               </div>
+              ${item.ticketAction ? `<div class="cart-ticket-action"><span class="badge bg-soft-info text-info">${escapeHtml(item.ticketActionLabel)}</span></div>` : ''}
             </article>`;
         } else {
             html += `
@@ -3626,7 +4737,57 @@ function confirmClearCart() {
     renderPaymentLines();
     paymentModal.hide();
     clearCartModal.hide();
-    // Cart cleared - no toast to avoid distraction
+}
+
+function resetTicketEntryForm() {
+    resetPassengerField();
+    ['ticketNumber', 'ticketBaseAmount', 'ticketServiceFee', 'ticketProvider'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+
+    ['ticketDiscount', 'ticketAccommodation'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+
+    const mainSelect = document.getElementById('ticketMainProvider');
+    const subSelect = document.getElementById('ticketSubProvider');
+    const variantSelect = document.getElementById('ticketVariant');
+    const walletSelect = document.getElementById('ticketWallet');
+    const subWrapper = document.getElementById('subProviderWrapper');
+    const variantWrapper = document.getElementById('ticketVariantWrapper');
+    const walletWrapper = document.getElementById('walletWrapper');
+
+    if (mainProviderChoices) {
+        mainProviderChoices.setChoiceByValue('');
+    } else if (mainSelect) {
+        mainSelect.value = '';
+    }
+    if (subSelect) {
+        subSelect.innerHTML = '<option value="">Select Main Provider First</option>';
+        subSelect.value = '';
+        subSelect.disabled = true;
+    }
+    if (variantSelect) {
+        variantSelect.innerHTML = '<option value="">Select Provider First</option>';
+        variantSelect.value = '';
+        variantSelect.disabled = true;
+    }
+    if (walletSelect) {
+        walletSelect.innerHTML = '<option value="">Select Provider First</option>';
+        walletSelect.value = '';
+        walletSelect.disabled = true;
+    }
+    if (subWrapper) subWrapper.classList.add('d-none');
+    if (variantWrapper) variantWrapper.classList.add('d-none');
+    if (walletWrapper) walletWrapper.classList.remove('d-none');
+
+    const balanceText = document.getElementById('mainProviderBalanceText');
+    if (balanceText) balanceText.textContent = '';
+    window.selectedResolvedWallet = null;
+    destroyVariantChoices();
+    applyTicketNumberRequirement();
 }
 
 // =============================================
@@ -3637,8 +4798,45 @@ function getCartTotal() {
     return cart.reduce((s, i) => s + i.total, 0);
 }
 
-function proceedToPayment() {
+async function fetchTicketWalletBalance(ticket) {
+    const walletId = parseInt(ticket?.walletId, 10);
+    if (!walletId) throw new Error('No wallet is associated with this ticket.');
+
+    const encodedWalletId = typeof IdEncoder !== 'undefined' ? IdEncoder.encode(walletId) : walletId;
+    const response = await fetch(`${window.BASE_URL}/api/wallets?id=${encodeURIComponent(encodedWalletId)}&_realtime=${Date.now()}`, {
+        cache: 'no-store'
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.data) {
+        throw new Error(data.error || 'Unable to verify the wallet balance.');
+    }
+
+    const balance = parseFloat(data.data.current_balance);
+    if (!Number.isFinite(balance)) throw new Error('Unable to verify the wallet balance.');
+    return balance;
+}
+
+async function proceedToPayment() {
     if (cart.length === 0) { return; }
+
+    const ticket = cart.find(item => item.type === 'ticket');
+    if (ticket && !ticket.variantId && !window.POS_SETTINGS?.allow_insufficient_wallet) {
+        let walletBalance;
+        try {
+            walletBalance = await fetchTicketWalletBalance(ticket);
+        } catch (error) {
+            console.error('[POS] Wallet balance verification failed:', error);
+            showToast('danger', 'Wallet Verification Required', 'Unable to verify the selected wallet balance. Please refresh the wallet and try again.');
+            return;
+        }
+
+        const baseAmount = parseFloat(ticket.baseAmount) || 0;
+        if (Math.round((baseAmount - walletBalance) * 100) > 0) {
+            showInsufficientWalletBalance(baseAmount, walletBalance);
+            return;
+        }
+    }
+
     paymentLines = [];
     renderPaymentLines();
     populatePaymentModalCart();
@@ -3714,6 +4912,7 @@ function selectPaymentMethod(el) {
     const paymentEntryRow = document.getElementById('paymentEntryRow');
     paymentEntryRow.classList.toggle('payment-has-bank-account', hasBankAccount);
     paymentEntryRow.classList.toggle('payment-has-reference', activePaymentMethod.requiresReference);
+    paymentEntryRow.classList.toggle('payment-has-charge-account', activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer);
 
     // Filter bank accounts by payment method type while keeping the native select in sync.
     const bankSelect = document.getElementById('bankAccountSelect');
@@ -3727,18 +4926,22 @@ function selectPaymentMethod(el) {
     bankSelect.value = '';
     refreshBankAccountChoices(activePaymentMethod.type);
 
-    // If method tracks credit/billing, determine passenger
+    // If method tracks credit/billing, default the charge account to the ticket passenger
+    // while allowing the cashier to choose a different account for this payment line.
     if (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) {
-        // If there's a ticket in cart, auto-use that passenger
         const ticketItem = cart.find(i => i.type === 'ticket');
         if (ticketItem && ticketItem.passengerId) {
-            selectedCustomerId = ticketItem.passengerId;
+            setChargeAccountSelection(ticketItem.passengerId, ticketItem.passengerName || '');
+            showChargeAccountSelection();
             document.getElementById('paymentEntryRow').style.display = '';
         } else {
-            // No ticket passenger — open customer selector
+            // Service-only transactions still require the cashier to choose the account.
+            setChargeAccountSelection(null, '');
+            showChargeAccountSelection();
             openCustomerModal();
         }
     } else {
+        resetChargeAccountSelection();
         document.getElementById('paymentEntryRow').style.display = '';
     }
     computeChange();
@@ -3748,6 +4951,7 @@ function cancelPaymentEntry() {
     document.getElementById('paymentEntryRow').style.display = 'none';
     document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active-payment'));
     activePaymentMethod = null;
+    resetChargeAccountSelection();
     resetBankAccountChoice();
 }
 
@@ -3760,7 +4964,7 @@ function addPaymentLine() {
         showToast('danger', 'Reference Required', 'Please enter the reference number.'); return;
     }
     if ((activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) && !selectedCustomerId) {
-        showToast('danger', 'Customer Required', 'Please select a customer for this payment method.'); return;
+        showToast('danger', 'Charge Account Required', 'Please select the account to charge for this payment line.'); return;
     }
     const bankAccountId = document.getElementById('bankAccountSelect').value || null;
     if ((activePaymentMethod.type === 'BANK_TRANSFER' || activePaymentMethod.type === 'E_WALLET') && !bankAccountId) {
@@ -3773,16 +4977,18 @@ function addPaymentLine() {
         methodType: activePaymentMethod.type,
         requiresConfirmation: activePaymentMethod.requiresConfirmation,
         tracksCredit: activePaymentMethod.tracksCredit,
+        requiresCustomer: activePaymentMethod.requiresCustomer,
         amount,
         referenceNumber: refNum || null,
         bankAccountId,
-        passengerId: (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) ? selectedCustomerId : null
+        passengerId: (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) ? selectedCustomerId : null,
+        passengerName: (activePaymentMethod.tracksCredit || activePaymentMethod.requiresCustomer) ? selectedCustomerName : null
     });
 
     document.getElementById('paymentEntryRow').style.display = 'none';
     document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active-payment'));
     activePaymentMethod = null;
-    selectedCustomerId = null;
+    resetChargeAccountSelection();
     resetBankAccountChoice();
     renderPaymentLines();
 }
@@ -3814,7 +5020,7 @@ function renderPaymentLines() {
                     <span class="fw-bold">${p.methodName}</span>
                     ${p.referenceNumber ? `<span class="text-muted small ms-2">Ref: ${p.referenceNumber}</span>` : ''}
                     ${p.requiresConfirmation ? '<span class="badge bg-soft-warning text-warning ms-2 small">Needs Confirm</span>' : ''}
-                    ${p.tracksCredit && p.passengerId ? '<span class="badge bg-soft-danger text-danger ms-2 small"><span class="fas fa-file-invoice-dollar me-1"></span>Billed to Account</span>' : ''}
+                    ${(p.tracksCredit || p.requiresCustomer) && p.passengerId ? `<span class="badge bg-soft-danger text-danger ms-2 small"><span class="fas fa-file-invoice-dollar me-1"></span>Billed to: ${escapeHtml(p.passengerName || 'Selected account')}</span>` : ''}
                 </div>
             </div>
             <div class="d-flex align-items-center gap-3">
@@ -3857,8 +5063,53 @@ function backToCart() {
 }
 
 // =============================================
-// CONFIRM ORDER
+// TICKET STOCK RESERVATION + CONFIRM ORDER
 // =============================================
+
+async function reservePosTicketStock(ticket) {
+    if (!ticket?.variantId || window.selectedResolvedWallet?.variant_id) {
+        return null;
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.CSRF_TOKEN || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+
+    const response = await fetch(`${window.BASE_URL}/api/ticket-stock`, {
+        method: 'POST',
+        headers,
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            action: 'reserve',
+            branch_id: window.POS_BRANCH_ID,
+            provider_id: ticket.providerId,
+            variant_id: ticket.variantId,
+            qty: 1,
+            session_id: String(window.POS_SESSION_ID),
+            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+        })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Unable to reserve ticket stock.');
+    return { branchId: window.POS_BRANCH_ID, providerId: ticket.providerId, variantId: ticket.variantId, qty: 1, sessionId: String(window.POS_SESSION_ID) };
+}
+
+async function releasePosTicketStock(reservation) {
+    if (!reservation) return;
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.CSRF_TOKEN || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+        await fetch(`${window.BASE_URL}/api/ticket-stock`, {
+            method: 'POST',
+            headers,
+            credentials: 'same-origin',
+            body: JSON.stringify({ action: 'release', ...reservation })
+        });
+    } catch (error) {
+        console.error('[POS stock] Failed to release reservation:', error);
+    }
+}
 
 async function confirmOrder() {
     if (!window.POS_HAS_SESSION) {
@@ -3867,18 +5118,40 @@ async function confirmOrder() {
     if (cart.length === 0) {
         showToast('danger', 'Cart Empty', 'Add items first.'); return;
     }
+
+    // Auto-add the pending payment method/amount if the cashier clicked
+    // Confirm & Process without pressing "Add Payment" first.
+    if (activePaymentMethod) {
+        const pendingAmount = parseFloat(document.getElementById('paymentAmount')?.value) || 0;
+        if (pendingAmount > 0) {
+            addPaymentLine();
+            if (activePaymentMethod) return; // addPaymentLine failed validation
+        }
+    }
+
     const total = getCartTotal();
     const paid = paymentLines.reduce((s, p) => s + p.amount, 0);
     if (paid < total) {
         showToast('danger', 'Insufficient Payment', 'Total paid is less than the amount due.'); return;
     }
 
+    // Reserve physical stock before checkout. Wallet-backed variants are
+    // balance-controlled and intentionally skip the physical reservation.
+    const hasTicket = cart.some(item => item.type === 'ticket');
+    let reservedStock = null;
+    if (hasTicket) {
+        try {
+            reservedStock = await reservePosTicketStock(cart.find(item => item.type === 'ticket'));
+        } catch (error) {
+            showToast('danger', 'Stock unavailable', error.message);
+            return;
+        }
+    }
+
     const btn = document.getElementById('confirmOrderBtn');
     btn.disabled = true;
     btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
 
-    // Check if cart has ticket
-    const hasTicket = cart.some(item => item.type === 'ticket');
     const apiUrl = hasTicket ? `${window.BASE_URL}/api/pos/tickets` : `${window.BASE_URL}/api/pos/transactions`;
 
     let payload;
@@ -3901,7 +5174,8 @@ async function confirmOrder() {
                 variant_id: ticket.variantId || null,
                 total_amount: ticket.total,
                 provider_id: ticket.providerId,
-                wallet_id: ticket.walletId
+                wallet_id: ticket.walletId,
+                ticket_action: ticket.ticketAction || null
             }],
             services: services.map(s => ({
                 service_type_id: s.serviceTypeId,
@@ -3952,6 +5226,11 @@ async function confirmOrder() {
             showToast('success', 'Transaction Complete!',
                 `Receipt #${result.transaction_code} processed. Change: ₱${fmt(paid - total)}`);
 
+            const postTransactionRefresh = Promise.allSettled([
+                refreshPosWalletBalances(),
+                Promise.resolve(loadRecentTransactions(1, false))
+            ]);
+
             // Print receipt if enabled
             console.log('[POS] Checking printer settings for receipt print...');
             console.log('[POS] PRINTER_SETTINGS:', window.PRINTER_SETTINGS);
@@ -3959,10 +5238,13 @@ async function confirmOrder() {
 
             if (window.PRINTER_SETTINGS && window.PRINTER_SETTINGS.enabled && window.PosPrinter) {
                 try {
+                    // Reload saved config so terminal overrides (auto print, copies, printer) are current
+                    window.PosPrinter.loadSavedConfig();
+
                     const printerStatus = window.PosPrinter.getStatus();
                     console.log('[POS] Printer status:', printerStatus);
 
-                    if (printerStatus.ready) {
+                    if (printerStatus.printerName) {
                         // Build transaction data for receipt
                         const transactionData = {
                             id: result.transaction_id || result.order_id || result.id,
@@ -4003,15 +5285,15 @@ async function confirmOrder() {
                         };
 
                         // Print based on settings
-                        if (window.PRINTER_SETTINGS.showPreview) {
+                        // autoPrint takes precedence: if enabled, print immediately (no preview)
+                        if (window.PRINTER_SETTINGS.autoPrint) {
+                            await window.PosPrinter.printReceipt(transactionData);
+                        } else if (window.PRINTER_SETTINGS.showPreview) {
                             // Preview mode: show receipt preview with Print / Cancel
                             const shouldPrint = await window.PosPrinter.showPreview(transactionData);
                             if (shouldPrint) {
                                 await window.PosPrinter.printReceipt(transactionData);
                             }
-                        } else if (window.PRINTER_SETTINGS.autoPrint) {
-                            // Auto print: send to printer immediately
-                            await window.PosPrinter.printReceipt(transactionData);
                         } else {
                             // Manual mode: show nice confirmation popup with copies selector
                             const printConfirm = await showPrintConfirmationModal(result.transaction_code, paid - total);
@@ -4020,11 +5302,16 @@ async function confirmOrder() {
                             }
                         }
                     } else {
-                        console.warn('Printer not ready:', printerStatus);
+                        console.warn('[POS] No printer configured:', printerStatus);
+                        if (window.PRINTER_SETTINGS.autoPrint) {
+                            showToast('warning', 'Printer Not Configured', 'Auto-print is enabled but no printer is set up. Please visit Printer Setup.');
+                        }
                     }
                 } catch (printError) {
                     console.error('Receipt printing error:', printError);
-                    // Don't show error toast to avoid blocking transaction
+                    if (window.PRINTER_SETTINGS.autoPrint) {
+                        showToast('warning', 'Auto-Print Failed', 'Could not print receipt automatically. Please check QZ Tray or the printer setup.');
+                    }
                 }
             }
 
@@ -4034,21 +5321,25 @@ async function confirmOrder() {
             saveCartToStorage();
             renderCart();
             renderPaymentLines();
+            resetTicketEntryForm();
             paymentModal.hide();
             itemEntryModal.hide();
-            // Refresh wallet balances to reflect updated balance after payment
-            loadWallets(null, window.POS_BRANCH_ID);
-            // Refresh recent transactions list
-            loadRecentTransactions();
-
-            // Auto-reload page after successful payment / confirm & process
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
+            await postTransactionRefresh;
+            setPosRealtimeStatus('ok', `Updated after transaction • ${new Date().toLocaleTimeString('en-PH')}`);
         } else {
-            showToast('danger', 'Transaction Failed', result.error || 'Unknown error.');
+            await releasePosTicketStock(reservedStock);
+            const errorMessage = result.error || 'Unknown error.';
+            const walletInsufficient = result.code === 'INSUFFICIENT_WALLET_BALANCE' || /insufficient wallet balance/i.test(errorMessage);
+            showToast(
+                'danger',
+                walletInsufficient ? 'Insufficient Wallet Balance' : 'Transaction Failed',
+                walletInsufficient
+                    ? 'The selected wallet balance is insufficient to cover the ticket base fare. Please top up the wallet or select another wallet.'
+                    : errorMessage
+            );
         }
     } catch (e) {
+        await releasePosTicketStock(reservedStock);
         showToast('danger', 'Error', 'An unexpected error occurred.');
     } finally {
         btn.disabled = false;
@@ -4099,16 +5390,123 @@ function toggleSessionBanner() {
 // RECENT TRANSACTIONS
 // =============================================
 
+function positionPosAdjustmentDropdown(toggle, menu) {
+    if (!toggle || !menu || !menu.classList.contains('show')) return;
+
+    menu.style.setProperty('position', 'fixed', 'important');
+    menu.style.setProperty('transform', 'none', 'important');
+    menu.style.setProperty('right', 'auto', 'important');
+    menu.style.setProperty('left', '0px', 'important');
+    menu.style.setProperty('top', '0px', 'important');
+
+    const toggleRect = toggle.getBoundingClientRect();
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+    const edge = 8;
+    let left = toggleRect.right - menuWidth;
+    let top = toggleRect.bottom + 4;
+
+    if (left < edge) left = toggleRect.left;
+    if (left + menuWidth > window.innerWidth - edge) left = window.innerWidth - menuWidth - edge;
+    if (top + menuHeight > window.innerHeight - edge && toggleRect.top > menuHeight + edge) {
+        top = toggleRect.top - menuHeight - 4;
+    }
+
+    menu.style.setProperty('left', `${Math.max(edge, left)}px`, 'important');
+    menu.style.setProperty('top', `${Math.max(edge, top)}px`, 'important');
+}
+
+function restorePosAdjustmentDropdown(menu) {
+    if (!menu || !menu._posAdjustmentPlaceholder) return;
+
+    const placeholder = menu._posAdjustmentPlaceholder;
+    if (placeholder.parentNode) placeholder.parentNode.insertBefore(menu, placeholder);
+    placeholder.remove();
+
+    menu.classList.remove('pos-adjust-dropdown-menu-portal');
+    menu.style.removeProperty('position');
+    menu.style.removeProperty('transform');
+    menu.style.removeProperty('right');
+    menu.style.removeProperty('left');
+    menu.style.removeProperty('top');
+    menu.style.removeProperty('z-index');
+    menu.removeAttribute('data-bs-popper');
+    window.removeEventListener('scroll', menu._posAdjustmentReposition, true);
+    window.removeEventListener('resize', menu._posAdjustmentReposition);
+    delete menu._posAdjustmentPlaceholder;
+    delete menu._posAdjustmentToggle;
+    delete menu._posAdjustmentReposition;
+}
+
+function setupPosAdjustmentDropdownPortal() {
+    if (window.posAdjustmentDropdownPortalReady) return;
+    window.posAdjustmentDropdownPortalReady = true;
+
+    document.addEventListener('show.bs.dropdown', event => {
+        const toggle = event.target.closest?.('.pos-adjust-dropdown-toggle');
+        if (!toggle) return;
+
+        const wrapper = toggle.closest('.pos-adjust-dropdown');
+        const menu = wrapper?.querySelector('.dropdown-menu');
+        if (!menu || menu._posAdjustmentPlaceholder) return;
+
+        menu._posAdjustmentPlaceholder = document.createComment('pos-adjust-dropdown-placeholder');
+        menu._posAdjustmentToggle = toggle;
+        menu._posAdjustmentReposition = () => positionPosAdjustmentDropdown(toggle, menu);
+        menu.parentNode.insertBefore(menu._posAdjustmentPlaceholder, menu);
+        document.body.appendChild(menu);
+        menu.classList.add('pos-adjust-dropdown-menu-portal');
+        window.addEventListener('scroll', menu._posAdjustmentReposition, true);
+        window.addEventListener('resize', menu._posAdjustmentReposition);
+    });
+
+    document.addEventListener('shown.bs.dropdown', event => {
+        const toggle = event.target.closest?.('.pos-adjust-dropdown-toggle');
+        if (!toggle) return;
+        const menu = toggle._posAdjustmentMenu || document.querySelector('.pos-adjust-dropdown-menu-portal.show');
+        if (menu) {
+            toggle._posAdjustmentMenu = menu;
+            positionPosAdjustmentDropdown(toggle, menu);
+        }
+    });
+
+    document.addEventListener('hide.bs.dropdown', event => {
+        const toggle = event.target.closest?.('.pos-adjust-dropdown-toggle');
+        if (toggle?._posAdjustmentMenu) restorePosAdjustmentDropdown(toggle._posAdjustmentMenu);
+    });
+
+    document.addEventListener('hidden.bs.dropdown', event => {
+        const toggle = event.target.closest?.('.pos-adjust-dropdown-toggle');
+        if (toggle?._posAdjustmentMenu) {
+            restorePosAdjustmentDropdown(toggle._posAdjustmentMenu);
+            delete toggle._posAdjustmentMenu;
+        }
+    });
+}
+
 let allTransactions = [];
 let currentPage = 1;
 let itemsPerPage = 10;
 let totalPages = 1;
 let totalItems = 0;
 
-function loadRecentTransactions(page = 1) {
+const isApprovedVoid = txn => txn.adjustment_type === 'VOID' && txn.adjustment_approval_status === 'APPROVED';
+const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && txn.adjustment_reason_category === 'PRINTER_ERROR';
+const getTechnicalLostSalesAmount = txn => Number(txn.lost_sales_void_fee) || 0;
+const isCashierResponsibilityVoid = txn => txn.adjustment_type === 'VOID'
+    && String(txn.adjustment_responsibility || '').toUpperCase() === 'CASHIER';
+const getTransactionDisplayAmount = txn => isCashierResponsibilityVoid(txn)
+    ? (Number(txn.adjustment_amount) || 0)
+    : isApprovedVoid(txn)
+        ? (isTechnicalIssueVoid(txn) ? 0 : (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0))
+        : txn.total_amount;
+
+function loadRecentTransactions(page = 1, showLoading = true) {
     currentPage = page;
     const list = document.getElementById('recentTransactionsList');
-    list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...</td></tr>';
+    if (showLoading) {
+        list.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><span class="fas fa-spinner fa-spin me-2"></span>Loading transactions...</td></tr>';
+    }
     
     // Get filter values
     const search = document.getElementById('filterSearch').value.trim();
@@ -4188,37 +5586,44 @@ function renderTransactionsTable(transactions) {
         const totalItems = parseInt(txn.ticket_count || 0) + parseInt(txn.service_count || 0);
         const allItemsCancelled = hasCancelledItems && (cancelledTicketCount + cancelledServiceCount) >= totalItems;
 
+        // Build a single primary state badge and small extras only when they add info.
+        const isPending = hasPendingCancellation || txn.adjustment_approval_status === 'PENDING';
+        const isVoid = txn.adjustment_type === 'VOID' && txn.adjustment_approval_status === 'APPROVED';
+        const isRefund = (txn.adjustment_type === 'REFUND' && txn.adjustment_approval_status === 'APPROVED') || txn.status === 'refunded';
+
         let statusBadge;
-        if (txn.status === 'booked') {
-            statusBadge = '<span class="badge bg-soft-success text-success">Booked</span>';
+        if (isPending) {
+            statusBadge = '<span class="badge bg-soft-warning text-warning"><i class="fas fa-clock me-1"></i>Pending Cancel</span>';
+        } else if (isVoid) {
+            statusBadge = '<span class="badge bg-soft-warning text-warning"><i class="fas fa-ban me-1"></i>Voided</span>';
+        } else if (isRefund) {
+            statusBadge = '<span class="badge bg-soft-info text-info"><i class="fas fa-hand-holding-usd me-1"></i>Refunded</span>';
+        } else if (txn.status === 'cancelled' || allItemsCancelled) {
+            statusBadge = '<span class="badge bg-soft-danger text-danger"><i class="fas fa-times-circle me-1"></i>Cancelled</span>';
+        } else if (txn.status === 'completed' && hasCancelledItems) {
+            statusBadge = '<span class="badge bg-soft-primary text-primary"><i class="fas fa-check-circle me-1"></i>Completed</span>';
+            statusBadge += ` <span class="badge bg-soft-warning text-warning ms-1" title="${cancelledTicketCount} ticket(s) and ${cancelledServiceCount} service(s) cancelled"><i class="fas fa-exclamation-circle me-1"></i>Partially Cancelled</span>`;
         } else if (txn.status === 'completed') {
-            if (allItemsCancelled) {
-                statusBadge = '<span class="badge bg-soft-danger text-danger">Cancelled</span>';
-            } else if (hasCancelledItems) {
-                statusBadge = '<span class="badge bg-soft-primary text-primary">Completed</span>';
-            } else {
-                statusBadge = '<span class="badge bg-soft-primary text-primary">Completed</span>';
-            }
-        } else if (txn.status === 'cancelled') {
-            statusBadge = '<span class="badge bg-soft-danger text-danger">Cancelled</span>';
-        } else if (txn.status === 'refunded') {
-            statusBadge = '<span class="badge bg-soft-warning text-warning">Refunded</span>';
+            statusBadge = '<span class="badge bg-soft-primary text-primary"><i class="fas fa-check-circle me-1"></i>Completed</span>';
+        } else if (txn.status === 'booked') {
+            statusBadge = '<span class="badge bg-soft-success text-success"><i class="fas fa-check-circle me-1"></i>Booked</span>';
         } else {
             statusBadge = `<span class="badge bg-soft-secondary text-secondary">${txn.status}</span>`;
         }
 
-        // Add pending cancellation indicator
-        if (hasPendingCancellation) {
-            statusBadge += ` <span class="badge bg-soft-warning text-warning ms-1" title="Cancellation requested by ${txn.cancellation_requested_by || 'Unknown'}"><i class="fas fa-clock me-1"></i>Pending Cancel</span>`;
-        }
-
-        // Add cancelled items indicator
-        if (hasCancelledItems && !hasPendingCancellation) {
-            if (allItemsCancelled) {
-                statusBadge += ` <span class="badge bg-soft-danger text-danger ms-1" title="${cancelledTicketCount} ticket(s) and ${cancelledServiceCount} service(s) cancelled"><i class="fas fa-times-circle me-1"></i>All Cancelled</span>`;
-            } else {
-                statusBadge += ` <span class="badge bg-soft-warning text-warning ms-1" title="${cancelledTicketCount} ticket(s) and ${cancelledServiceCount} service(s) cancelled"><i class="fas fa-exclamation-circle me-1"></i>Partially Cancelled</span>`;
-            }
+        const adjustmentResponsibility = String(txn.adjustment_responsibility || '').toLowerCase();
+        const isCashierVoid = Boolean(txn.void_responsible_cashier);
+        const responsibleCashierName = isCashierVoid
+            ? String(txn.void_responsible_cashier)
+            : String(txn.adjustment_responsible_cashier || '');
+        if (isCashierVoid) {
+            statusBadge += ` <span class="badge bg-soft-danger text-danger ms-1"><i class="fas fa-user-shield me-1"></i>Responsible Cashier: ${escapeHtml(responsibleCashierName)}</span>`;
+        } else if (adjustmentResponsibility && adjustmentResponsibility !== 'none' && txn.adjustment_approval_status !== 'PENDING') {
+            const responsibilityLabel = adjustmentResponsibility === 'cashier' ? 'Cashier charge' : 'Customer responsibility';
+            const responsibleCashier = adjustmentResponsibility === 'cashier' && responsibleCashierName
+                ? `: ${escapeHtml(responsibleCashierName)}`
+                : '';
+            statusBadge += ` <span class="badge bg-soft-danger text-danger ms-1"><i class="fas fa-user-shield me-1"></i>${responsibilityLabel}${responsibleCashier}</span>`;
         }
 
         const branchName = txn.branch_name ? `<span class="badge bg-soft-primary text-primary">${txn.branch_name}</span>` : '-';
@@ -4266,6 +5671,9 @@ function renderTransactionsTable(transactions) {
         }
 
         // Build payment method cell — shows each payment line e.g. Cash ₱1,000 + Charge ₱500
+        const paymentTotal = txn.payments && txn.payments.length > 0
+            ? txn.payments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0)
+            : (parseFloat(txn.amount_paid) || 0);
         let paymentCell = '-';
         if (isOrderBased && txn.payments && txn.payments.length > 0) {
             const methodTypeIcon = { CASH: 'fa-money-bill-wave', BANK_TRANSFER: 'fa-university', E_WALLET: 'fa-mobile-alt', CHARGE: 'fa-file-invoice-dollar', OTHER: 'fa-receipt' };
@@ -4273,16 +5681,30 @@ function renderTransactionsTable(transactions) {
             paymentCell = txn.payments.map(p => {
                 const icon  = methodTypeIcon[p.method_type]  || 'fa-credit-card';
                 const color = methodTypeColor[p.method_type] || 'text-secondary';
-                return `<div><i class="fas ${icon} ${color} me-1" style="font-size:0.75rem;"></i><span class="small">${p.method_name}</span> <span class="fw-semibold small">₱${fmt(p.amount)}</span></div>`;
+                const displayedPaymentAmount = isVoid ? 0 : (parseFloat(p.amount) || 0);
+                return `<div><i class="fas ${icon} ${color} me-1" style="font-size:0.75rem;"></i><span class="small">${p.method_name}</span> <span class="fw-semibold small">₱${fmt(displayedPaymentAmount)}</span></div>`;
             }).join('');
         } else if (!isOrderBased && txn.payment_method) {
-            paymentCell = `<span class="small">${txn.payment_method}</span>`;
+            paymentCell = `<span class="small">${txn.payment_method}${isVoid ? ' ₱0.00' : ''}</span>`;
         }
 
         // Items breakdown (collapsible) for order-based
         let itemsBreakdown = '';
         if (isOrderBased && orderItems.length > 0) {
             const rowId = `order-items-${txn.order_id}`;
+            const ticketItems = orderItems.filter(item => item.item_type === 'TICKET');
+            const originalTicketTotal = ticketItems.reduce((sum, item) => sum
+                + (parseFloat(item.ticket_total_amount) || parseFloat(item.total_amount) || 0), 0);
+            const getTransactionItemAmount = item => {
+                if (!isVoid || item.item_type !== 'TICKET') {
+                    return parseFloat(item.total_amount) || 0;
+                }
+                const originalItemAmount = parseFloat(item.ticket_total_amount) || parseFloat(item.total_amount) || 0;
+                if (ticketItems.length === 1) return paymentTotal;
+                return originalTicketTotal > 0
+                    ? paymentTotal * (originalItemAmount / originalTicketTotal)
+                    : 0;
+            };
             let itemRows = '';
             orderItems.forEach(item => {
                 // Check if item is cancelled/refunded
@@ -4301,8 +5723,9 @@ function renderTransactionsTable(transactions) {
                         <td colspan="2">${item.provider_name || item.parent_provider_name || item.variant_name ? buildTransactionProviderWallet(item) : '-'}</td>
                         <td>${td}</td>
                         <td>${item.origin && item.destination ? item.origin + ' → ' + item.destination : '-'}</td>
-                        <td>₱${fmt(item.total_amount)}</td>
-                        <td colspan="3">${item.transaction_code || ''}</td>
+                        <td>₱${fmt(getTransactionItemAmount(item))}</td>
+                        <td>${escapeHtml(item.ticket_number || '-')}</td>
+                        <td colspan="2">${escapeHtml(item.transaction_code || '')}</td>
                     </tr>`;
                 } else {
                     const svcName = item.service_type_name || item.service_name || 'Service';
@@ -4313,7 +5736,8 @@ function renderTransactionsTable(transactions) {
                         <td colspan="2">${svcDesc !== svcName ? svcDesc : '-'}</td>
                         <td>-</td><td>-</td>
                         <td>₱${fmt(item.total_amount)}</td>
-                        <td colspan="3">${item.transaction_code || ''}</td>
+                        <td>-</td>
+                        <td colspan="2">${escapeHtml(item.transaction_code || '')}</td>
                     </tr>`;
                 }
             });
@@ -4322,7 +5746,7 @@ function renderTransactionsTable(transactions) {
                   <table class="table table-sm mb-0 border-top">
                     <thead class="table-secondary"><tr style="font-size:0.75em;">
                       <th colspan="2">Item / Passenger</th><th colspan="2">Provider / Description</th>
-                      <th>Travel Date</th><th>Route</th><th>Amount</th><th colspan="3">Code</th>
+                      <th>Travel Date</th><th>Route</th><th>Amount</th><th>Ticket Number</th><th colspan="2">Code</th>
                     </tr></thead>
                     <tbody>${itemRows}</tbody>
                   </table>
@@ -4377,15 +5801,29 @@ function renderTransactionsTable(transactions) {
                     status: 'booked'
                 } : txn;
 
-                cancelButton = `<button class="btn btn-sm btn-outline-danger"
+                cancelData.branch_id = cancelData.branch_id || txn.branch_id || window.POS_BRANCH_ID || null;
+                cancelData.variant_id = cancelData.variant_id || ticketItem?.variant_id || txn.variant_id || null;
+                const encodedCancelData = encodeURIComponent(JSON.stringify(cancelData));
+                const buildAdjustmentAction = (operationType, label, iconClass, buttonClass) => `<button type="button" class="dropdown-item ${buttonClass}"
                         data-txn-code="${cancelTxnCode}"
                         data-txn-type="TICKET"
-                        data-base-amount="${cancelBaseAmount}"
+                        data-operation-type="${operationType}"
+                        data-base-amount="${operationType === 'VOID' ? 0 : cancelBaseAmount}"
                         data-service-fee="${cancelServiceFee}"
-                        data-txn-data="${encodeURIComponent(JSON.stringify(cancelData))}"
-                        onclick="openCancelTicketModalFromButton(this)">
-                    <span class="fas fa-times me-1"></span>Cancel
+                        data-txn-data="${encodedCancelData}"
+                        onclick="event.stopPropagation(); openCancelTicketModalFromButton(this)">
+                    <span class="fas ${iconClass} me-2"></span>${label}
                 </button>`;
+
+                cancelButton = `<div class="dropdown d-inline-block pos-adjust-dropdown">
+                    <button class="btn btn-sm btn-outline-danger dropdown-toggle pos-adjust-dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                        <span class="fas fa-edit me-1"></span>Adjust
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        ${buildAdjustmentAction('REFUND', 'Refund', 'fa-hand-holding-usd', 'text-danger')}
+                        ${buildAdjustmentAction('VOID', 'Void', 'fa-ban', 'text-warning')}
+                    </div>
+                </div>`;
             }
         }
 
@@ -4410,8 +5848,27 @@ function renderTransactionsTable(transactions) {
         const pendingRefundAmount = parseFloat(txn.pending_refund_amount || 0);
         const pendingChargeAmount = parseFloat(txn.pending_charge_amount || 0);
         const pendingCashRefundAmount = parseFloat(txn.pending_cash_refund_amount || 0);
+        const displayAmount = getTransactionDisplayAmount(txn);
 
-        let amountDisplay;
+        let amountDisplay = `₱${fmt(displayAmount)}`;
+        if (isApprovedVoid(txn)) {
+            if (isTechnicalIssueVoid(txn)) {
+                const lostSalesAmount = getTechnicalLostSalesAmount(txn);
+                if (lostSalesAmount > 0) {
+                    amountDisplay += `<div class="text-danger" style="font-size:.72rem">Lost Sales -₱${fmt(lostSalesAmount)}</div>`;
+                }
+            } else {
+                const voidFee = Number(txn.void_fee) || 0;
+                const voidServiceFee = Number(txn.void_service_fee) || 0;
+                const voidParts = [];
+                if (voidFee > 0) voidParts.push(`Void Fee ₱${fmt(voidFee)}`);
+                if (voidServiceFee > 0) voidParts.push(`service fee ₱${fmt(voidServiceFee)}`);
+                if (voidParts.length > 0) {
+                    amountDisplay += `<div class="text-muted" style="font-size:.72rem">${voidParts.join(' + ')}</div>`;
+                }
+            }
+        }
+
         if (hasPendingCancellation && pendingRefundAmount > 0) {
             // Show detailed refund breakdown using stored values
             let refundBreakdown = '';
@@ -4436,20 +5893,24 @@ function renderTransactionsTable(transactions) {
                     <div class="fw-semibold">• Cash to give: ₱${fmt(pendingCashRefundAmount)}</div>
                 </div>`;
             }
-            amountDisplay = `₱${fmt(txn.total_amount)} ${refundBreakdown}`;
+            amountDisplay += ` ${refundBreakdown}`;
         } else if (txn.total_refunded_amount && parseFloat(txn.total_refunded_amount) > 0) {
-            amountDisplay = `₱${fmt(txn.total_amount)} <span class="text-danger small">(₱${fmt(txn.total_refunded_amount)} refunded)</span>`;
-        } else {
-            amountDisplay = `₱${fmt(txn.total_amount)}`;
+            amountDisplay += ` <span class="text-danger small">(₱${fmt(txn.total_refunded_amount)} refunded)</span>`;
         }
+
+        const cashierDisplay = isCashierVoid && txn.void_responsible_cashier
+            ? `<span class="text-danger small ms-1">Responsible Cashier: ${escapeHtml(txn.void_responsible_cashier)}</span>`
+            : txn.cashier_name
+                ? `<span class="text-muted small ms-1">by ${escapeHtml(txn.cashier_name)}</span>`
+                : '';
 
         html += `
             <tr>
                 <td>
                     <div class="d-flex align-items-center gap-1">
-                        <strong>${txn.transaction_code}</strong>${toggleBtn}
+                        <strong>${escapeHtml(txn.transaction_code)}</strong>${toggleBtn}
                     </div>
-                    <div>${typeBadge} ${txn.cashier_name ? `<span class="text-muted small ms-1">by ${txn.cashier_name}</span>` : ''}</div>
+                    <div>${typeBadge} ${cashierDisplay}</div>
                 </td>
                 <td class="small">${passengerCell}</td>
                 <td class="small">${branchName}</td>
@@ -4684,24 +6145,45 @@ function filterTransactions() {
     loadRecentTransactions(1);
 }
 
+function getPosToday() {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${today.getFullYear()}-${month}-${day}`;
+}
+
 function clearFilters() {
     document.getElementById('filterSearch').value = '';
     document.getElementById('filterType').value = '';
     document.getElementById('filterStatus').value = '';
     const dateInput = document.getElementById('filterDate');
-    if (dateInput._flatpickr) {
-        dateInput._flatpickr.clear();
+    const today = getPosToday();
+    if (dateInput?._flatpickr) {
+        dateInput._flatpickr.setDate(today, false);
+    } else if (dateInput) {
+        dateInput.value = today;
     }
-    // Clear localStorage filters
     localStorage.removeItem('pos_filter_search');
     localStorage.removeItem('pos_filter_type');
     localStorage.removeItem('pos_filter_status');
-    localStorage.removeItem('pos_filter_date');
+    localStorage.setItem('pos_filter_date', today);
     loadRecentTransactions(1);
+}
+
+function applyTicketNumberRequirement() {
+    const input = document.getElementById('ticketNumber');
+    const marker = document.getElementById('ticketNumberRequiredMark');
+    const required = Boolean(window.POS_SETTINGS?.ticket_number_required);
+    if (input) {
+        input.required = required;
+        input.placeholder = required ? 'Enter ticket number for tracking' : 'Optional ticket number';
+    }
+    if (marker) marker.classList.toggle('d-none', !required);
 }
 
 // Load recent transactions on page load
 document.addEventListener('DOMContentLoaded', function() {
+    applyTicketNumberRequirement();
     if (window.POS_HAS_SESSION) {
         // Wait for theme to initialize flatpickr via datetimepicker class
         setTimeout(function() {
@@ -4725,7 +6207,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     localStorage.removeItem('pos_filter_date');
                     localStorage.setItem('pos_filter_storage_version', filterStorageVersion);
                 }
-                const savedDate = localStorage.getItem('pos_filter_date');
+                const savedDate = localStorage.getItem('pos_filter_date') || getPosToday();
+                localStorage.setItem('pos_filter_date', savedDate);
 
                 // Validate status - 'booked' is not valid for orders, clear it
                 if (savedStatus === 'booked') {
@@ -4762,51 +6245,280 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 300); // Wait for theme to initialize flatpickr
     }
+    startPosRealtimePolling();
 });
 
 // =============================================
 // TICKET CANCELLATION
 // =============================================
 
-function displayCancellationPolicy() {
+function displayCancellationPolicy(operationType = null) {
     const settings = window.CANCELLATION_SETTINGS || {};
     console.log('Cancellation settings:', settings);
 
+    const operation = operationType || document.getElementById('cancelOperationType')?.value || 'REFUND';
+    const isVoid = operation === 'VOID';
+    const cancellationRequiresConfirmation = settings.requires_confirmation !== undefined
+        ? Boolean(settings.requires_confirmation)
+        : true;
+    const returnRequiresConfirmation = settings.return_requires_confirmation !== undefined
+        ? Boolean(settings.return_requires_confirmation)
+        : cancellationRequiresConfirmation;
+    const requiresConfirmation = isVoid
+        ? (settings.void_requires_confirmation !== undefined
+            ? Boolean(settings.void_requires_confirmation)
+            : cancellationRequiresConfirmation)
+        : returnRequiresConfirmation;
     const processingEl = document.getElementById('cancelPolicyProcessing');
     const approvalEl = document.getElementById('cancelPolicyApproval');
 
     if (processingEl) {
-        const days = settings.refund_processing_days !== undefined ? settings.refund_processing_days : 0;
-        if (days === 0) {
-            processingEl.textContent = 'Processing: Refund will be processed immediately';
+        if (isVoid) {
+            processingEl.textContent = 'Processing: No cash or bank refund will be issued';
         } else {
-            processingEl.textContent = `Processing: Refund will be processed within ${days} day${days > 1 ? 's' : ''}`;
+            const days = settings.refund_processing_days !== undefined ? settings.refund_processing_days : 0;
+            if (days === 0) {
+                processingEl.textContent = 'Processing: Refund will be processed immediately';
+            } else {
+                processingEl.textContent = `Processing: Refund will be processed within ${days} day${days > 1 ? 's' : ''}`;
+            }
         }
     }
 
     if (approvalEl) {
-        if (settings.requires_confirmation) {
-            approvalEl.textContent = 'Approval: Cancellation requires approval';
-            approvalEl.className = 'text-warning';
-        } else {
-            approvalEl.textContent = 'Approval: Cancellation is auto-approved';
-            approvalEl.className = 'text-success';
-        }
+        const operationLabel = isVoid ? 'Void' : 'Refund';
+        approvalEl.textContent = requiresConfirmation
+            ? `Approval: ${operationLabel} requires approval`
+            : `Approval: ${operationLabel} is auto-approved`;
+        approvalEl.className = requiresConfirmation ? 'text-warning' : 'text-success';
     }
 }
 
+async function loadResponsibleCashiers(branchId, selectedUserId = '') {
+    const select = document.getElementById('cancelResponsibleCashier');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Loading cashiers...</option>';
+    select.disabled = true;
+    if (!branchId) {
+        select.innerHTML = '<option value="">Branch is required</option>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/cashiers?branch_id=${encodeURIComponent(branchId)}`);
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Failed to load cashiers.');
+
+        select.innerHTML = '<option value="">Select responsible cashier</option>';
+        (result.data || []).forEach(cashier => {
+            const option = document.createElement('option');
+            const hasOpenSession = Boolean(cashier.session_id);
+            const displayName = cashier.display_name || cashier.fullname || cashier.username;
+            option.value = cashier.user_id;
+            option.textContent = hasOpenSession ? displayName : `${displayName} — No open session (charge recorded)`;
+            if (hasOpenSession) option.dataset.sessionId = cashier.session_id;
+            select.appendChild(option);
+        });
+        if (selectedUserId) select.value = String(selectedUserId);
+        select.disabled = false;
+        if (!result.data?.length) {
+            select.innerHTML = '<option value="">No cashier accounts found</option>';
+            select.disabled = true;
+        }
+    } catch (error) {
+        console.error('Error loading responsible cashiers:', error);
+        select.innerHTML = '<option value="">Unable to load cashiers</option>';
+    }
+}
+
+function updateCancellationReasonOptions(operationType = null) {
+    const select = document.getElementById('cancelReasonCategory');
+    if (!select) return;
+
+    const operation = operationType || document.getElementById('cancelOperationType')?.value || 'REFUND';
+    const options = operation === 'VOID'
+        ? [
+            ['CUSTOMER_REQUEST', 'Customer Request / Error'],
+            ['CASHIER_ERROR', "Cashier's Negligence"],
+            ['PRINTER_ERROR', 'Technical Issue (System/Printer)']
+        ]
+        : [
+            ['CUSTOMER_REQUEST', 'Customer requested'],
+            ['CUSTOMER_ERROR', 'Customer error'],
+            ['CASHIER_ERROR', 'Cashier error'],
+            ['OTHER', 'Other']
+        ];
+    const currentValue = select.value;
+    const hasCurrentValue = options.some(([value]) => value === currentValue);
+
+    select.innerHTML = options
+        .map(([value, label]) => `<option value="${value}">${label}</option>`)
+        .join('');
+    select.value = hasCurrentValue ? currentValue : 'CUSTOMER_REQUEST';
+}
+
+function syncTicketResponsibilityFromReason() {
+    const reasonCategory = document.getElementById('cancelReasonCategory')?.value || 'OTHER';
+    const responsibilitySelect = document.getElementById('cancelResponsibility');
+    if (!responsibilitySelect) return;
+
+    const reasonResponsibilityMap = {
+        CUSTOMER_REQUEST: 'NONE',
+        CUSTOMER_ERROR:   'CUSTOMER',
+        CASHIER_ERROR:    'CASHIER',
+        PRINTER_ERROR:    'NONE',
+        SYSTEM_ERROR:     'NONE',
+        OTHER:            'NONE'
+    };
+
+    responsibilitySelect.value = reasonResponsibilityMap[reasonCategory] || 'NONE';
+}
+
+function toggleTicketAdjustmentFields() {
+    const operation = document.getElementById('cancelOperationType')?.value || 'REFUND';
+    updateCancellationReasonOptions(operation);
+    const reasonCategory = document.getElementById('cancelReasonCategory')?.value || 'OTHER';
+    const responsibilitySelect = document.getElementById('cancelResponsibility');
+    const responsibility = responsibilitySelect?.value || 'NONE';
+    const refundRow = document.getElementById('cancelRefundAmountRow');
+    const refundInput = document.getElementById('cancelRefundAmount');
+    const refundBreakdown = document.getElementById('cancelRefundBreakdown');
+    const operationHint = document.getElementById('cancelOperationHint');
+    const responsibilityRow = document.getElementById('cancelResponsibilityAmountRow');
+    const responsibilityInput = document.getElementById('cancelResponsibilityAmount');
+    const responsibilityHint = document.getElementById('cancelResponsibilityHint');
+    const responsibilityAmountHint = document.getElementById('cancelResponsibilityAmountHint');
+    const cashierRow = document.getElementById('cancelResponsibleCashierRow');
+    const voidFeeSection = document.getElementById('cancelVoidFeeSection');
+    const voidFeeToggle = document.getElementById('cancelVoidFeeEnabled');
+    const voidFeeRow = document.getElementById('cancelVoidFeeRow');
+    const voidFeeInput = document.getElementById('cancelVoidFee');
+    const voidServiceFeeSection = document.getElementById('cancelVoidServiceFeeSection');
+    const voidServiceFeeToggle = document.getElementById('cancelVoidServiceFeeEnabled');
+    const voidServiceFeeRow = document.getElementById('cancelVoidServiceFeeRow');
+    const voidServiceFeeInput = document.getElementById('cancelVoidServiceFee');
+    const cancellationSettings = window.CANCELLATION_SETTINGS || {};
+
+    const isVoid = operation === 'VOID';
+    const isTechnicalIssueVoid = isVoid && reasonCategory === 'PRINTER_ERROR';
+    displayCancellationPolicy(operation);
+    const voidFeeAvailable = cancellationSettings.void_fee_enabled !== false;
+    const voidServiceFeeAvailable = cancellationSettings.void_service_fee_enabled !== false;
+    if (refundRow) refundRow.style.display = isVoid ? 'none' : '';
+    if (refundBreakdown) refundBreakdown.style.display = isVoid ? 'none' : refundBreakdown.style.display;
+    if (refundInput && isVoid) refundInput.value = '0';
+    if (refundInput && !isVoid) refundInput.dispatchEvent(new Event('input'));
+    if (voidFeeSection) voidFeeSection.style.display = isVoid && voidFeeAvailable ? '' : 'none';
+    if (voidFeeToggle) {
+        const voidFeeBlocked = !isVoid || !voidFeeAvailable;
+        voidFeeToggle.disabled = voidFeeBlocked;
+        if (voidFeeBlocked) {
+            voidFeeToggle.checked = false;
+        } else if (isTechnicalIssueVoid) {
+            voidFeeToggle.checked = true;
+        }
+    }
+    const voidFeeEnabled = isVoid && voidFeeAvailable && Boolean(voidFeeToggle?.checked);
+    if (voidFeeRow) voidFeeRow.style.display = voidFeeEnabled ? '' : 'none';
+    if (voidFeeInput) {
+        if (!voidFeeEnabled) voidFeeInput.value = '0.00';
+        voidFeeInput.required = false;
+    }
+    if (voidServiceFeeSection) voidServiceFeeSection.style.display = isVoid && voidServiceFeeAvailable ? '' : 'none';
+    if (voidServiceFeeToggle) {
+        const serviceFeeBlocked = !isVoid || !voidServiceFeeAvailable || isTechnicalIssueVoid;
+        voidServiceFeeToggle.disabled = serviceFeeBlocked;
+        if (serviceFeeBlocked) voidServiceFeeToggle.checked = false;
+    }
+    const voidServiceFeeEnabled = isVoid && voidServiceFeeAvailable && !isTechnicalIssueVoid && Boolean(voidServiceFeeToggle?.checked);
+    if (voidServiceFeeRow) voidServiceFeeRow.style.display = voidServiceFeeEnabled ? '' : 'none';
+    if (voidServiceFeeInput && !voidServiceFeeEnabled) voidServiceFeeInput.value = '0.00';
+    const voidResponsibilityAmount = (voidFeeEnabled ? (parseFloat(voidFeeInput?.value) || 0) : 0)
+        + (voidServiceFeeEnabled ? (parseFloat(voidServiceFeeInput?.value) || 0) : 0);
+    if (operationHint) {
+        operationHint.textContent = isTechnicalIssueVoid
+            ? 'No cash or bank refund will be issued. The original ticket amount and any entered fees will be recorded separately as Lost Sales.'
+            : isVoid
+                ? 'No cash or bank refund will be issued. Original CHARGE debt will be reversed; configured Void and Service Fees are recorded as income.'
+                : 'Refund the eligible amount through the original payment sources.';
+    }
+
+    const hasResponsibility = responsibility !== 'NONE';
+    if (responsibilityRow) responsibilityRow.style.display = hasResponsibility ? '' : 'none';
+    if (cashierRow) cashierRow.style.display = responsibility === 'CASHIER' ? '' : 'none';
+
+    // Responsibility select is only user-editable when the reason implies a chargeable party.
+    const reasonLockedResponsibility = ['PRINTER_ERROR', 'SYSTEM_ERROR', 'OTHER'];
+    const customerRequestLocked = reasonCategory === 'CUSTOMER_REQUEST' && !isVoid;
+    if (responsibilitySelect) {
+        responsibilitySelect.disabled = customerRequestLocked || reasonLockedResponsibility.includes(reasonCategory);
+    }
+
+    if (responsibilityHint) {
+        responsibilityHint.textContent = responsibility === 'CUSTOMER'
+            ? (isVoid ? 'Customer responsibility is recorded for audit only on a no-refund Void.' : 'Customer responsibility is deducted from the refund.')
+            : responsibility === 'CASHIER'
+                ? 'The amount is assigned to the selected cashier and deducted from an open session when available. Approval follows the configured Return/VOID confirmation settings.'
+                : 'No responsibility charge will be applied.';
+    }
+    if (responsibilityAmountHint) {
+        responsibilityAmountHint.textContent = responsibility === 'CUSTOMER' && !isVoid
+            ? 'This amount will be deducted from the gross refund.'
+            : isVoid && hasResponsibility
+                ? voidResponsibilityAmount > 0
+                    ? `Auto-calculated as Void Fee + Service Fee (₱${voidResponsibilityAmount.toFixed(2)}). This is read-only.`
+                    : 'Auto-calculated as Void Fee + Service Fee. Add a fee to create a responsibility amount.'
+                : responsibility === 'CASHIER'
+                    ? 'Defaults to the eligible refund amount; the approving manager may adjust it.'
+                    : 'Optional amount for this adjustment.';
+    }
+
+    if (responsibility === 'CASHIER' && !isVoid && responsibilityInput && (parseFloat(responsibilityInput.value) || 0) <= 0) {
+        responsibilityInput.value = (parseFloat(refundInput?.value) || 0).toFixed(2);
+    }
+    if (isVoid && hasResponsibility && responsibilityInput) {
+        responsibilityInput.value = voidResponsibilityAmount.toFixed(2);
+        responsibilityInput.dataset.calculatedFromVoidFees = 'true';
+        responsibilityInput.readOnly = true;
+    } else if (responsibilityInput) {
+        responsibilityInput.readOnly = false;
+        delete responsibilityInput.dataset.calculatedFromVoidFees;
+    }
+    if (reasonCategory === 'CASHIER_ERROR' && responsibility === 'NONE') {
+        if (responsibilityHint) responsibilityHint.textContent = 'Select Cashier responsibility and a target cashier.';
+    }
+}
+
+function closePosAdjustmentDropdownFromButton(button) {
+    const menu = button?.closest?.('.dropdown-menu');
+    if (!menu) return;
+
+    const toggle = menu._posAdjustmentToggle
+        || menu.parentElement?.querySelector('.pos-adjust-dropdown-toggle');
+    if (!toggle) return;
+
+    bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
+}
+
 function openCancelTicketModalFromButton(button) {
+    closePosAdjustmentDropdownFromButton(button);
+
     const txnCode = button.dataset.txnCode;
     const txnType = button.dataset.txnType || 'TICKET';
+    const operationType = button.dataset.operationType || 'REFUND';
     const baseAmount = parseFloat(button.dataset.baseAmount);
     const serviceFee = parseFloat(button.dataset.serviceFee);
     const txnData = JSON.parse(decodeURIComponent(button.dataset.txnData));
-    openCancelTicketModal(txnCode, txnType, baseAmount, serviceFee, txnData);
+    openCancelTicketModal(txnCode, txnType, baseAmount, serviceFee, txnData, operationType);
 }
 
-async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmount = 0, serviceFee = 0, txnData = null) {
+async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmount = 0, serviceFee = 0, txnData = null, operationType = 'REFUND') {
     console.log('openCancelTicketModal called with:', { txnCode, baseAmount, serviceFee, txnData });
     console.log('cancelTicketModal:', cancelTicketModal);
+
+    // Keep txn details available for the confirmation/execution flow
+    window.currentCancelTxnData = txnData;
 
     if (!cancelTicketModal) {
         console.error('cancelTicketModal is not initialized');
@@ -4826,7 +6538,7 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
     const pendingAlert = document.getElementById('pendingCancellationAlert');
     const importantAlert = document.getElementById('cancelImportantAlert');
     const confirmBtn = document.getElementById('confirmCancelBtn');
-    const inputs = document.querySelectorAll('#cancelTicketModal input, #cancelTicketModal textarea');
+    const inputs = document.querySelectorAll('#cancelTicketModal input, #cancelTicketModal textarea, #cancelTicketModal select');
 
     if (pendingAlert) { pendingAlert.style.display = 'none'; pendingAlert.classList.add('d-none'); }
     if (importantAlert) { importantAlert.style.display = ''; importantAlert.classList.remove('d-none'); }
@@ -4881,13 +6593,33 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
     cancelTicketModal.show();
 
     const isService = txnType === 'SERVICE';
+    const defaultVoidServiceFee = Number.isFinite(serviceFee) && serviceFee > 0
+        ? serviceFee
+        : (parseFloat(txnData?.service_fee) || 0);
 
     // Set values if provided
     const txnTypeInput = document.getElementById('cancelTxnType');
     if (txnTypeInput) txnTypeInput.value = txnType;
     document.getElementById('cancelTicketCode').value = txnCode;
+    const displayTxnCodeEl = document.getElementById('cancelDisplayTxnCode');
+    if (displayTxnCodeEl) displayTxnCodeEl.textContent = txnCode || '-';
     document.getElementById('cancelRefundAmount').value = baseAmount > 0 ? baseAmount : '';
+    document.getElementById('cancelOperationType').value = operationType === 'VOID' ? 'VOID' : 'REFUND';
+    document.getElementById('cancelReasonCategory').value = 'CUSTOMER_REQUEST';
+    syncTicketResponsibilityFromReason();
+    document.getElementById('cancelResponsibilityAmount').value = '0.00';
+    const voidFeeEnabledInput = document.getElementById('cancelVoidFeeEnabled');
+    const voidFeeInput = document.getElementById('cancelVoidFee');
+    const voidServiceFeeEnabledInput = document.getElementById('cancelVoidServiceFeeEnabled');
+    const voidServiceFeeInput = document.getElementById('cancelVoidServiceFee');
+    if (voidFeeEnabledInput) voidFeeEnabledInput.checked = false;
+    if (voidFeeInput) voidFeeInput.value = '0.00';
+    if (voidServiceFeeEnabledInput) voidServiceFeeEnabledInput.checked = false;
+    if (voidServiceFeeInput) voidServiceFeeInput.value = '0.00';
+    document.getElementById('cancelResponsibleCashier').value = '';
     document.getElementById('cancelReason').value = '';
+    toggleTicketAdjustmentFields();
+    await loadResponsibleCashiers(txnData?.branch_id || window.POS_BRANCH_ID);
 
     // Adjust modal header and helper text for the transaction type
     const modalTitleEl      = document.getElementById('cancelTicketModalLabel');
@@ -4900,8 +6632,23 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
     const routeLabelEl      = document.getElementById('cancelRouteLabel');
     const baseAmountLabelEl = document.getElementById('cancelBaseAmountLabel');
 
-    if (modalTitleEl)     modalTitleEl.innerHTML      = isService ? '<span class="fas fa-times-circle me-2"></span>Cancel Service' : '<span class="fas fa-times-circle me-2"></span>Cancel Ticket';
-    if (modalSubtitleEl)  modalSubtitleEl.textContent = isService ? 'Process service cancellation with refund' : 'Process ticket cancellation with wallet refund';
+    const operationRow = document.getElementById('cancelOperationTypeRow');
+    if (operationRow) operationRow.style.display = 'none';
+
+    if (modalTitleEl) {
+        modalTitleEl.innerHTML = isService
+            ? '<span class="fas fa-times-circle me-2"></span>Cancel Service'
+            : operationType === 'VOID'
+                ? '<span class="fas fa-ban me-2"></span>Void Ticket'
+                : '<span class="fas fa-times-circle me-2"></span>Cancel Ticket';
+    }
+    if (modalSubtitleEl) {
+        modalSubtitleEl.textContent = isService
+            ? 'Process service cancellation with refund'
+            : operationType === 'VOID'
+                ? 'Void ticket without a cash or bank refund'
+                : 'Process ticket cancellation with refund';
+    }
     if (detailsTitleEl)   detailsTitleEl.textContent  = isService ? 'Service Details' : 'Ticket Details';
     if (detailsIconEl)    detailsIconEl.className     = isService ? 'fas fa-concierge-bell me-2' : 'fas fa-info-circle me-2';
     if (travelDateLabelEl) travelDateLabelEl.textContent = isService ? 'Service Name' : 'Ticket Number';
@@ -4924,24 +6671,30 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
     } 
     // Display ticket/service details if provided
     const detailsDiv = document.getElementById('cancelTicketDetails');
-    if (detailsDiv && txnData) {
-        document.getElementById('cancelPassengerName').textContent = txnData.passenger_name || '-';
+    const detailData = txnData && typeof txnData === 'object' ? txnData : {
+        base_amount: baseAmount,
+        service_fee: serviceFee,
+        total_amount: (parseFloat(baseAmount) || 0) + (parseFloat(serviceFee) || 0),
+        status: '-'
+    };
+    if (detailsDiv) {
+        document.getElementById('cancelPassengerName').textContent = detailData.passenger_name || '-';
 
         document.getElementById('cancelTravelDate').textContent = isService
-            ? (txnData.service_name || txnData.description || txnData.service_type_name || '-')
-            : (txnData.ticket_number || '-');
+            ? (detailData.service_name || detailData.description || detailData.service_type_name || '-')
+            : (detailData.ticket_number || '-');
 
         document.getElementById('cancelRoute').textContent = isService
-            ? (txnData.service_name || txnData.description || '-')
-            : ((txnData.origin && txnData.destination) ? `${txnData.origin} → ${txnData.destination}` : '-');
-        document.getElementById('cancelProvider').textContent = txnData.provider_name || '-';
-        document.getElementById('cancelBaseAmount').textContent = `₱${(parseFloat(txnData.base_amount) || 0).toFixed(2)}`;
-        document.getElementById('cancelServiceFee').textContent = `₱${(parseFloat(txnData.service_fee) || 0).toFixed(2)}`;
-        document.getElementById('cancelTotalAmount').textContent = `₱${(parseFloat(txnData.total_amount) || 0).toFixed(2)}`;
-        document.getElementById('cancelStatus').textContent = txnData.status || '-';
+            ? (detailData.service_name || detailData.description || '-')
+            : ((detailData.origin && detailData.destination) ? `${detailData.origin} → ${detailData.destination}` : '-');
+        document.getElementById('cancelProvider').textContent = detailData.provider_name || '-';
+        document.getElementById('cancelBaseAmount').textContent = `₱${(parseFloat(detailData.base_amount) || 0).toFixed(2)}`;
+        document.getElementById('cancelServiceFee').textContent = `₱${defaultVoidServiceFee.toFixed(2)}`;
+        document.getElementById('cancelTotalAmount').textContent = `₱${(parseFloat(detailData.total_amount) || 0).toFixed(2)}`;
+        document.getElementById('cancelStatus').textContent = detailData.status || '-';
 
-        if (txnData.created_at) {
-            const txnDate = new Date(txnData.created_at);
+        if (detailData.created_at) {
+            const txnDate = new Date(detailData.created_at);
             document.getElementById('cancelTxnDate').textContent = txnDate.toLocaleDateString('en-PH', {
                 year: 'numeric',
                 month: 'short',
@@ -4954,8 +6707,6 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
         }
 
         detailsDiv.style.display = 'block';
-    } else if (detailsDiv) {
-        detailsDiv.style.display = 'none';
     }
     
     // Disable transaction code if pre-filled
@@ -4981,8 +6732,11 @@ async function openCancelTicketModal(txnCode = '', txnType = 'TICKET', baseAmoun
                     paymentMethodsDiv.innerHTML = payments.map(p => {
                         const isCharge = parseInt(p.tracks_credit) === 1;
                         const chargeLabel = isCharge ? ' <span class="badge bg-soft-warning text-warning" style="font-size:0.65rem;">DEBT</span>' : '';
+                        const accountLabel = isCharge && p.charged_to_passenger_name
+                            ? ` <span class="text-muted small">(${escapeHtml(p.charged_to_passenger_name)})</span>`
+                            : '';
                         return `<div class="d-flex justify-content-between align-items-center mb-1">
-                            <span><i class="fas fa-credit-card me-1 text-muted"></i>${p.method_name}${chargeLabel}</span>
+                            <span><i class="fas fa-credit-card me-1 text-muted"></i>${p.method_name}${chargeLabel}${accountLabel}</span>
                             <span class="fw-semibold">₱${fmt(p.amount)}</span>
                         </div>`;
                     }).join('');
@@ -5113,80 +6867,138 @@ function reopenCancelTicketModal() {
 async function confirmCancelTicket() {
     const txnCode = document.getElementById('cancelTicketCode').value.trim();
     const txnType = (document.getElementById('cancelTxnType')?.value || 'TICKET').toUpperCase();
-    const refundAmount = parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
+    const operationType = document.getElementById('cancelOperationType')?.value || 'REFUND';
+    const reasonCategory = document.getElementById('cancelReasonCategory')?.value || 'OTHER';
+    const isTechnicalIssueVoid = operationType === 'VOID' && reasonCategory === 'PRINTER_ERROR';
+    const responsibility = document.getElementById('cancelResponsibility')?.value || 'NONE';
+    const grossRefundAmount = operationType === 'VOID'
+        ? 0
+        : parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
+    const voidFeeEnabled = operationType === 'VOID' && Boolean(document.getElementById('cancelVoidFeeEnabled')?.checked);
+    const voidServiceFeeEnabled = operationType === 'VOID'
+        && !isTechnicalIssueVoid
+        && Boolean(document.getElementById('cancelVoidServiceFeeEnabled')?.checked);
+    const rawVoidFee = parseFloat(document.getElementById('cancelVoidFee')?.value);
+    const rawVoidServiceFee = parseFloat(document.getElementById('cancelVoidServiceFee')?.value);
+    const voidFee = voidFeeEnabled && Number.isFinite(rawVoidFee) ? Math.max(0, rawVoidFee) : 0;
+    const voidServiceFee = voidServiceFeeEnabled && Number.isFinite(rawVoidServiceFee) ? Math.max(0, rawVoidServiceFee) : 0;
+    const responsibilityAmount = parseFloat(document.getElementById('cancelResponsibilityAmount')?.value) || 0;
+    const responsibleUserId = document.getElementById('cancelResponsibleCashier')?.value || null;
+    const netRefundAmount = operationType === 'REFUND'
+        ? Math.max(0, grossRefundAmount - (responsibility === 'CUSTOMER' ? responsibilityAmount : 0))
+        : 0;
     const reason = document.getElementById('cancelReason').value.trim();
-    
+
     if (!txnCode) {
         showToast('danger', 'Error', 'Please enter a transaction code.');
         return;
     }
-    
-    if (refundAmount <= 0) {
+    if (operationType === 'REFUND' && grossRefundAmount <= 0) {
         showToast('danger', 'Error', 'Please enter a valid refund amount.');
         return;
     }
-    
+    if (responsibility === 'CUSTOMER' && operationType === 'REFUND' && responsibilityAmount >= grossRefundAmount) {
+        showToast('danger', 'Error', 'Customer responsibility must be less than the refund amount.');
+        return;
+    }
+    if (responsibility === 'CASHIER' && !responsibleUserId) {
+        showToast('danger', 'Error', 'Select the responsible cashier.');
+        return;
+    }
+    if (operationType === 'VOID' && responsibility === 'CASHIER' && responsibilityAmount <= 0) {
+        showToast('danger', 'Error', 'Enter a Responsibility Amount greater than zero for the selected cashier.');
+        return;
+    }
     if (!reason) {
         showToast('danger', 'Error', 'Please enter a reason for cancellation.');
         return;
     }
-    
+
     await hideCancelTicketModalForConfirmation();
 
-    // Fetch payment breakdown to calculate cash vs debt reversal
     let paymentBreakdown = [];
     try {
         const response = await fetch(`${window.BASE_URL}/api/pos/transaction-payments.php?transaction_code=${encodeURIComponent(txnCode)}`);
         const result = await response.json();
         if (result.success && result.data && result.data.payments) {
             const payments = result.data.payments;
-            const totalAmount = parseFloat(result.data.total_amount) || 0;
-            
-            // Calculate refund distribution (same logic as modal display)
-            let remainingRefund = refundAmount;
-            
-            // Process CHARGE payments first
+            let remainingAmount = operationType === 'VOID' ? Number.POSITIVE_INFINITY : netRefundAmount;
+
             const chargePayments = payments.filter(p => parseInt(p.tracks_credit) === 1);
             for (const p of chargePayments) {
                 const originalAmount = parseFloat(p.amount) || 0;
-                const refundForMethod = Math.min(originalAmount, remainingRefund);
-                if (refundForMethod > 0) {
+                const amount = operationType === 'VOID'
+                    ? originalAmount
+                    : Math.min(originalAmount, remainingAmount);
+                if (amount > 0) {
                     paymentBreakdown.push({
                         method_name: p.method_name,
                         tracks_credit: p.tracks_credit,
-                        amount: refundForMethod,
+                        charged_to_passenger_name: p.charged_to_passenger_name,
+                        amount,
                         type: 'charge'
                     });
-                    remainingRefund -= refundForMethod;
+                    if (operationType !== 'VOID') remainingAmount -= amount;
                 }
             }
-            
-            // Then other payments
-            const otherPayments = payments.filter(p => parseInt(p.tracks_credit) !== 1);
-            for (const p of otherPayments) {
-                if (remainingRefund <= 0) break;
-                const originalAmount = parseFloat(p.amount) || 0;
-                const refundForMethod = Math.min(originalAmount, remainingRefund);
-                if (refundForMethod > 0) {
-                    paymentBreakdown.push({
-                        method_name: p.method_name,
-                        tracks_credit: p.tracks_credit,
-                        amount: refundForMethod,
-                        type: 'cash'
-                    });
-                    remainingRefund -= refundForMethod;
+
+            if (operationType !== 'VOID') {
+                const otherPayments = payments.filter(p => parseInt(p.tracks_credit) !== 1);
+                for (const p of otherPayments) {
+                    if (remainingAmount <= 0) break;
+                    const originalAmount = parseFloat(p.amount) || 0;
+                    const amount = Math.min(originalAmount, remainingAmount);
+                    if (amount > 0) {
+                        paymentBreakdown.push({
+                            method_name: p.method_name,
+                            tracks_credit: p.tracks_credit,
+                            amount,
+                            type: 'cash'
+                        });
+                        remainingAmount -= amount;
+                    }
                 }
             }
         }
     } catch (e) {
         console.error('Error fetching payment breakdown for confirmation:', e);
     }
-    
-    // Show refund confirmation modal with breakdown
-    showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentBreakdown);
+
+    const txnData = window.currentCancelTxnData || {};
+    const isConsumedVariant = Boolean(txnData.variant_id || txnData.variantId || txnData.is_consumed_variant);
+    showRefundConfirmModal(
+        txnCode,
+        txnType,
+        grossRefundAmount,
+        reason,
+        paymentBreakdown,
+        isConsumedVariant,
+        {
+            operationType,
+            reasonCategory,
+            responsibility,
+            responsibilityAmount,
+            responsibleUserId,
+            netRefundAmount,
+            voidFee,
+            voidServiceFee
+        }
+    );
 }
 
-function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentBreakdown) {
+function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentBreakdown, isConsumedVariant = false, adjustmentOptions = {}) {
+    const operationType = adjustmentOptions.operationType || 'REFUND';
+    const responsibility = adjustmentOptions.responsibility || 'NONE';
+    const responsibilityAmount = parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0;
+    const responsibleUserId = adjustmentOptions.responsibleUserId || null;
+    const isVoid = operationType === 'VOID';
+    const isTechnicalIssueVoid = isVoid && adjustmentOptions.reasonCategory === 'PRINTER_ERROR';
+    const enteredVoidFee = isVoid ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0) : 0;
+    const enteredVoidServiceFee = isVoid ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0) : 0;
+    const voidFee = isTechnicalIssueVoid ? 0 : enteredVoidFee;
+    const voidServiceFee = isTechnicalIssueVoid ? 0 : enteredVoidServiceFee;
+    const lostSalesVoidFee = isTechnicalIssueVoid ? enteredVoidFee : 0;
+
     // Calculate totals
     const totalCash = paymentBreakdown
         .filter(p => p.type === 'cash')
@@ -5194,35 +7006,102 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
     const totalChargeReversal = paymentBreakdown
         .filter(p => p.type === 'charge')
         .reduce((sum, p) => sum + p.amount, 0);
-    
+
+    const configuredConfirmation = isVoid
+        ? (window.CANCELLATION_SETTINGS?.void_requires_confirmation
+            ?? window.CANCELLATION_SETTINGS?.requires_confirmation
+            ?? true)
+        : (window.CANCELLATION_SETTINGS?.return_requires_confirmation
+            ?? window.CANCELLATION_SETTINGS?.requires_confirmation
+            ?? true);
+    const requiresConfirmation = Boolean(configuredConfirmation);
+
     // Build breakdown HTML
     let breakdownHtml = '';
-    if (paymentBreakdown.length > 0) {
+    if (paymentBreakdown.length > 0 || (isVoid && (responsibilityAmount > 0 || voidFee > 0 || voidServiceFee > 0 || lostSalesVoidFee > 0))) {
+        const breakdownTitle = isVoid
+            ? (requiresConfirmation ? 'VOID Responsibility Breakdown (Pending Approval)' : 'VOID Responsibility Breakdown')
+            : (requiresConfirmation ? 'Estimated Refund Breakdown (Pending Approval)' : 'Refund Breakdown');
+        const cashLabel = requiresConfirmation ? 'Est. Cash to Give (if approved)' : 'Total Cash to Give';
+        const chargeNote = requiresConfirmation
+            ? 'Customer\'s outstanding balance will be reduced by this amount once approved.'
+            : 'Customer\'s outstanding balance will be reduced by this amount.';
+
         breakdownHtml = `<div class="card border-0 bg-soft-info mb-3">
             <div class="card-body p-3">
-                <h6 class="card-title mb-2"><span class="fas fa-list me-2"></span>Refund Breakdown</h6>`;
-        
+                <h6 class="card-title mb-2"><span class="fas fa-list me-2"></span>${breakdownTitle}</h6>`;
+
         if (totalChargeReversal > 0) {
             breakdownHtml += `<div class="d-flex justify-content-between align-items-center mb-1">
                 <span><i class="fas fa-file-invoice-dollar text-warning me-1"></i>Charge Debt Reversal (System)</span>
                 <span class="fw-semibold text-warning">₱${fmt(totalChargeReversal)}</span>
             </div>
-            <div class="small text-muted mb-2">Customer's outstanding balance will be reduced by this amount.</div>`;
+            <div class="small text-muted mb-2">${chargeNote}</div>`;
         }
-        
+
         if (totalCash > 0) {
             breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2">
-                <span><i class="fas fa-hand-holding-usd text-success me-1"></i><strong>Total Cash to Give</strong></span>
+                <span><i class="fas fa-hand-holding-usd text-success me-1"></i><strong>${cashLabel}</strong></span>
                 <span class="fw-bold text-success">₱${fmt(totalCash)}</span>
             </div>`;
         }
-        
+
+        if (responsibility !== 'NONE' && responsibilityAmount > 0) {
+            const responsibilityLabel = responsibility === 'CASHIER'
+                ? 'Cashier responsibility deduction'
+                : isVoid ? 'Customer responsibility (audit only)' : 'Customer responsibility deducted';
+            breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                <span><i class="fas fa-user-shield text-danger me-1"></i>${responsibilityLabel}</span>
+                <span class="fw-bold text-danger">₱${fmt(responsibilityAmount)}</span>
+            </div>`;
+        }
+
+        if (isVoid && voidFee > 0) {
+            breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                <span><i class="fas fa-receipt text-warning me-1"></i>Void fee income</span>
+                <span class="fw-bold text-warning">₱${fmt(voidFee)}</span>
+            </div>`;
+        }
+        if (isVoid && voidServiceFee > 0) {
+            breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                <span><i class="fas fa-concierge-bell text-info me-1"></i>Service fee income</span>
+                <span class="fw-bold text-info">₱${fmt(voidServiceFee)}</span>
+            </div>`;
+        }
+        if (isTechnicalIssueVoid && lostSalesVoidFee > 0) {
+            breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                <span><i class="fas fa-receipt text-danger me-1"></i>Void fee lost sales</span>
+                <span class="fw-bold text-danger">₱${fmt(lostSalesVoidFee)}</span>
+            </div>`;
+        }
         breakdownHtml += `</div></div>`;
     }
     
     // Build confirmation text
     let confirmText = '';
-    if (totalCash > 0 && totalChargeReversal > 0) {
+    const cashierResponsibilityNotice = isVoid && responsibility === 'CASHIER' && responsibilityAmount > 0
+        ? ` A Responsibility Amount of ₱${fmt(responsibilityAmount)} will be recorded against the selected cashier.`
+        : '';
+    const voidFeeNotice = isVoid && voidFee > 0 ? ` A void fee of ₱${fmt(voidFee)} will be recorded as income.` : '';
+    const voidServiceFeeNotice = isVoid && voidServiceFee > 0 ? ` A service fee of ₱${fmt(voidServiceFee)} will be recorded as income.` : '';
+    const lostSalesVoidFeeNotice = isTechnicalIssueVoid && lostSalesVoidFee > 0
+        ? ` A void fee of ₱${fmt(lostSalesVoidFee)} will be recorded as Lost Sales.`
+        : '';
+    if (isVoid) {
+        confirmText = requiresConfirmation
+            ? `I confirm that this Void request should be submitted for manager approval. No cash or bank refund will be issued, and ₱${fmt(totalChargeReversal)} will be reversed from the original charge/debt balance.${cashierResponsibilityNotice}${voidFeeNotice}${voidServiceFeeNotice}${lostSalesVoidFeeNotice}`
+            : `I confirm this Void operation. No cash or bank refund will be issued, and ₱${fmt(totalChargeReversal)} will be reversed from the original charge/debt balance.${cashierResponsibilityNotice}${voidFeeNotice}${voidServiceFeeNotice}${lostSalesVoidFeeNotice}`;
+    } else if (requiresConfirmation) {
+        if (totalCash > 0 && totalChargeReversal > 0) {
+            confirmText = `I confirm that this cancellation request should be submitted for manager approval. If approved, an estimated ₱${fmt(totalCash)} cash will be given and ₱${fmt(totalChargeReversal)} will be reversed from the passenger's charge/debt balance.`;
+        } else if (totalCash > 0) {
+            confirmText = `I confirm that this cancellation request should be submitted for manager approval. If approved, an estimated ₱${fmt(totalCash)} cash will be given to the passenger.`;
+        } else if (totalChargeReversal > 0) {
+            confirmText = `I confirm that this cancellation request should be submitted for manager approval. If approved, ₱${fmt(totalChargeReversal)} will be reversed from the passenger's charge/debt balance.`;
+        } else {
+            confirmText = `I confirm that this cancellation request should be submitted for manager approval.`;
+        }
+    } else if (totalCash > 0 && totalChargeReversal > 0) {
         confirmText = `I confirm that I will give ₱${fmt(totalCash)} cash to the passenger, and the system will reverse ₱${fmt(totalChargeReversal)} from their outstanding charge/debt balance.`;
     } else if (totalCash > 0) {
         confirmText = `I confirm that I will give ₱${fmt(totalCash)} cash to the passenger from the cash drawer.`;
@@ -5232,22 +7111,45 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
         confirmText = `I confirm that I will process this cancellation with refund amount of ₱${fmt(refundAmount)}.`;
     }
     
+    const modalTitle = requiresConfirmation
+        ? '<span class="fas fa-user-clock text-warning me-2"></span>Submit for Manager Approval'
+        : isVoid
+            ? '<span class="fas fa-ban text-warning me-2"></span>Confirm Void'
+            : '<span class="fas fa-money-bill-wave text-warning me-2"></span>Confirm Cancellation & Refund';
+    let modalAlert = requiresConfirmation
+        ? `<div class="alert alert-info"><span class="fas fa-info-circle me-2"></span><strong>Manager approval required:</strong> No financial effect will be finalized until approval.</div>`
+        : isVoid
+            ? `<div class="alert alert-warning"><span class="fas fa-ban me-2"></span><strong>Important:</strong> This will void the ticket without a cash or bank refund.</div>`
+            : `<div class="alert alert-warning"><span class="fas fa-exclamation-triangle me-2"></span><strong>Important:</strong> This action will process the refund and update the customer's charge balance.</div>`;
+    if (isConsumedVariant) {
+        modalAlert += `<div class="alert alert-warning mt-2"><span class="fas fa-ticket-alt me-2"></span>This variant ticket is <strong>consumed</strong>. Physical availability and provider wallet balance will not be restored.</div>`;
+    }
+    if (responsibility === 'CASHIER' && requiresConfirmation) {
+        modalAlert += `<div class="alert alert-danger mt-2"><span class="fas fa-user-shield me-2"></span>The selected cashier responsibility will be finalized after manager approval.</div>`;
+    }
+    const buttonText = requiresConfirmation
+        ? `Submit for Approval`
+        : isVoid
+            ? 'Confirm Void'
+            : `Confirm & Refund ${txnType === 'SERVICE' ? 'Service' : 'Ticket'}`;
+    const operationLabel = isVoid ? 'Operation' : 'Gross Refund Amount';
+    const operationValue = isVoid ? 'VOID — No refund' : `₱${fmt(refundAmount)}`;
+    const responsibilityHtml = responsibility !== 'NONE'
+        ? `<tr><td class="fw-bold">Responsibility:</td><td class="text-end">${responsibility}${responsibilityAmount > 0 ? ` — ₱${fmt(responsibilityAmount)}` : ''}</td></tr>`
+        : '';
+
     const modalHtml = `
         <div class="modal fade" id="refundConfirmModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header bg-light">
                         <h5 class="modal-title">
-                            <span class="fas fa-money-bill-wave text-warning me-2"></span>
-                            Confirm Cancellation & Refund
+                            ${modalTitle}
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="alert alert-warning">
-                            <span class="fas fa-exclamation-triangle me-2"></span>
-                            <strong>Important:</strong> This action will deduct cash from your drawer and update the customer's charge balance.
-                        </div>
+                        ${modalAlert}
                         <div class="card border-0 bg-light mb-3">
                             <div class="card-body">
                                 <table class="table table-sm mb-0">
@@ -5256,9 +7158,14 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
                                         <td class="text-end">${txnCode}</td>
                                     </tr>
                                     <tr>
-                                        <td class="fw-bold">Total Refund Amount:</td>
-                                        <td class="text-end text-danger fw-bold">₱${fmt(refundAmount)}</td>
+                                        <td class="fw-bold">${operationLabel}:</td>
+                                        <td class="text-end text-danger fw-bold">${operationValue}</td>
                                     </tr>
+                                    ${isVoid && voidFee > 0 ? `<tr><td class="fw-bold">Void Fee Income:</td><td class="text-end text-warning fw-bold">₱${fmt(voidFee)}</td></tr>` : ''}
+                                    ${isVoid && voidServiceFee > 0 ? `<tr><td class="fw-bold">Service Fee Income:</td><td class="text-end text-info fw-bold">₱${fmt(voidServiceFee)}</td></tr>` : ''}
+                                    ${isTechnicalIssueVoid && lostSalesVoidFee > 0 ? `<tr><td class="fw-bold">Technical Void Fee Lost Sales:</td><td class="text-end text-danger fw-bold">₱${fmt(lostSalesVoidFee)}</td></tr>` : ''}
+                                    ${!isVoid && responsibility === 'CUSTOMER' ? `<tr><td class="fw-bold">Net Refund Amount:</td><td class="text-end text-success fw-bold">₱${fmt(adjustmentOptions.netRefundAmount || 0)}</td></tr>` : ''}
+                                    ${responsibilityHtml}
                                     <tr>
                                         <td class="fw-bold">Reason:</td>
                                         <td class="text-end">${reason || 'N/A'}</td>
@@ -5281,9 +7188,16 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
                         <button type="button" class="btn btn-danger" id="confirmRefundBtn" disabled
                             data-txn-code="${txnCode.replace(/"/g, '&quot;')}"
                             data-txn-type="${txnType.replace(/"/g, '&quot;')}"
+                            data-operation-type="${operationType}"
+                            data-reason-category="${adjustmentOptions.reasonCategory || 'OTHER'}"
+                            data-responsibility="${responsibility}"
+                            data-responsibility-amount="${responsibilityAmount}"
+                            data-responsible-user-id="${responsibleUserId || ''}"
+                            data-void-fee="${enteredVoidFee}"
+                            data-void-service-fee="${enteredVoidServiceFee}"
                             data-refund-amount="${refundAmount}"
                             data-reason="${reason.replace(/"/g, '&quot;')}">
-                            <span class="fas fa-check me-1"></span>Confirm & Cancel ${txnType === 'SERVICE' ? 'Service' : 'Ticket'}
+                            <span class="fas fa-check me-1"></span>${buttonText}
                         </button>
                     </div>
                 </div>
@@ -5308,10 +7222,18 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
 
     // Attach click handler using data attributes to safely handle special characters in reason
     document.getElementById('confirmRefundBtn').addEventListener('click', function() {
-        const code   = this.dataset.txnCode;
-        const amount = parseFloat(this.dataset.refundAmount);
-        const rsn    = this.dataset.reason;
-        executeTicketCancellation(code, amount, rsn);
+        const code = this.dataset.txnCode;
+        const amount = parseFloat(this.dataset.refundAmount) || 0;
+        const rsn = this.dataset.reason;
+        executeTicketCancellation(code, amount, rsn, {
+            operationType: this.dataset.operationType || 'REFUND',
+            reasonCategory: this.dataset.reasonCategory || 'OTHER',
+            responsibility: this.dataset.responsibility || 'NONE',
+            responsibilityAmount: parseFloat(this.dataset.responsibilityAmount) || 0,
+            responsibleUserId: this.dataset.responsibleUserId || null,
+            voidFee: parseFloat(this.dataset.voidFee) || 0,
+            voidServiceFee: parseFloat(this.dataset.voidServiceFee) || 0
+        });
     });
     
     modal.show();
@@ -5329,7 +7251,7 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
     });
 }
 
-function executeTicketCancellation(txnCode, refundAmount, reason) {
+function executeTicketCancellation(txnCode, refundAmount, reason, adjustmentOptions = {}) {
     // Hide the confirmation modal first
     restoreCancelTicketModal = false;
     const refundConfirmModalEl = document.getElementById('refundConfirmModal');
@@ -5350,6 +7272,17 @@ function executeTicketCancellation(txnCode, refundAmount, reason) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             transaction_code: txnCode,
+            operation_type: adjustmentOptions.operationType || 'REFUND',
+            reason_category: adjustmentOptions.reasonCategory || 'OTHER',
+            responsibility: adjustmentOptions.responsibility || 'NONE',
+            responsibility_amount: parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0,
+            responsible_user_id: adjustmentOptions.responsibleUserId || null,
+            void_fee: adjustmentOptions.operationType === 'VOID'
+                ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0)
+                : 0,
+            void_service_fee: adjustmentOptions.operationType === 'VOID'
+                ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0)
+                : 0,
             refund_amount: refundAmount,
             reason: reason
         })
@@ -5365,7 +7298,13 @@ function executeTicketCancellation(txnCode, refundAmount, reason) {
             showToast('success', 'Success', data.message);
             if (cancelTicketModal) cancelTicketModal.hide();
             loadRecentTransactions();
-            loadWallets(null, window.POS_BRANCH_ID);
+            // Only refresh wallets if the cancellation was processed immediately.
+            // Pending requests do not credit the wallet until a manager approves.
+            if (data.requires_confirmation !== true) {
+                // Refresh Main Provider wallet balances, Variant wallet balances,
+                // and the resolved wallet select in the Ticket Details area.
+                loadTicketVariants().then(() => refreshPosWalletBalances());
+            }
         } else {
             showToast('danger', 'Error', data.error || 'Cancellation failed.');
         }

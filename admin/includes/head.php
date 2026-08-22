@@ -87,7 +87,8 @@
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/theme.css" rel="stylesheet" id="style-default">
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/user-rtl.css" rel="stylesheet" id="user-style-rtl">
     <link href="<?php echo BASE_URL; ?>/resources/assets/css/user.css?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/resources/assets/css/user.css'); ?>" rel="stylesheet" id="user-style-default">
-    
+    <link href="<?php echo BASE_URL; ?>/admin/assets/css/admin-common.css?v=<?php echo filemtime(dirname(__DIR__) . '/assets/css/admin-common.css'); ?>" rel="stylesheet">
+
     <!-- CSS custom properties for navbar height -->
     <style>
       :root {

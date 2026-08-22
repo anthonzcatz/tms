@@ -67,9 +67,9 @@
               <small class="text-muted form-text">Already-created wallets for this branch are disabled here.</small>
             </div>
             <div class="col-md-6">
-              <label for="addInitialBalance" class="form-label fw-bold">Initial Balance</label>
+              <label for="addInitialBalance" id="addInitialBalanceLabel" class="form-label fw-bold">Initial Balance</label>
               <div class="input-group">
-                <span class="input-group-text">₱</span>
+                <span class="input-group-text" id="addInitialBalanceSymbol">₱</span>
                 <input type="text" inputmode="decimal" class="form-control number-format" id="addInitialBalance" name="initial_balance" placeholder="0.00" value="0.00">
               </div>
             </div>

@@ -93,13 +93,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'maintenance_end' => !empty($_POST['maintenance_end']) ? $_POST['maintenance_end'] : null,
             'allow_admin_during_maintenance' => isset($_POST['allow_admin_during_maintenance']) ? 1 : 0,
             'cancellation_requires_confirmation' => isset($_POST['cancellation_requires_confirmation']) ? 1 : 0,
+            'void_requires_confirmation' => isset($_POST['void_requires_confirmation']) ? 1 : 0,
+            'return_requires_confirmation' => isset($_POST['return_requires_confirmation']) ? 1 : 0,
             'cancellation_refund_processing_days' => isset($_POST['cancellation_refund_processing_days']) && $_POST['cancellation_refund_processing_days'] !== '' ? intval($_POST['cancellation_refund_processing_days']) : 0,
             'cancellation_allow_partial' => isset($_POST['cancellation_allow_partial']) ? 1 : 0,
+            'show_pending_refunds_in_close_session' => isset($_POST['show_pending_refunds_in_close_session']) ? 1 : 0,
             'pos_cashier_can_open_session' => isset($_POST['pos_cashier_can_open_session']) ? 1 : 0,
             'pos_cashier_can_close_session' => isset($_POST['pos_cashier_can_close_session']) ? 1 : 0,
             'pos_manager_can_open_for_cashier' => isset($_POST['pos_manager_can_open_for_cashier']) ? 1 : 0,
             'pos_manager_can_close_for_cashier' => isset($_POST['pos_manager_can_close_for_cashier']) ? 1 : 0,
             'pos_allow_insufficient_wallet' => isset($_POST['pos_allow_insufficient_wallet']) ? 1 : 0,
+            'pos_ticket_number_required' => isset($_POST['pos_ticket_number_required']) ? 1 : 0,
             'bank_pos_payments_require_confirmation' => isset($_POST['bank_pos_payments_require_confirmation']) ? 1 : 0,
             'bank_charge_payments_require_confirmation' => isset($_POST['bank_charge_payments_require_confirmation']) ? 1 : 0,
             'bank_deposits_require_confirmation' => isset($_POST['bank_deposits_require_confirmation']) ? 1 : 0,
@@ -130,12 +134,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'receipt_show_service_fee' => isset($_POST['receipt_show_service_fee']) ? 1 : 0,
             'receipt_show_base_amount' => isset($_POST['receipt_show_base_amount']) ? 1 : 0,
             'receipt_show_discount' => isset($_POST['receipt_show_discount']) ? 1 : 0,
+            'receipt_show_item_total' => isset($_POST['receipt_show_item_total']) ? 1 : 0,
+            'receipt_show_subtotal' => isset($_POST['receipt_show_subtotal']) ? 1 : 0,
+            'receipt_show_tendered' => isset($_POST['receipt_show_tendered']) ? 1 : 0,
+            'receipt_show_service_fee_total' => isset($_POST['receipt_show_service_fee_total']) ? 1 : 0,
+            'receipt_total_source' => in_array($_POST['receipt_total_source'] ?? '', ['grand_total','service_fee','base_amount','subtotal']) ? $_POST['receipt_total_source'] : 'grand_total',
+            'receipt_show_vat' => isset($_POST['receipt_show_vat']) ? 1 : 0,
+            'receipt_show_taxable_sales' => isset($_POST['receipt_show_vat']) ? 1 : 0,
             'receipt_custom_footer' => trim($_POST['receipt_custom_footer'] ?? ''),
             'receipt_address_source' => (isset($_POST['receipt_address_source']) && $_POST['receipt_address_source'] === 'branch') ? 'branch' : 'company',
             'printer_type' => trim($_POST['printer_type'] ?? 'THERMAL'),
             'updated_by' => $user['user_id']
         ];
         
+        if (!Database::fetch("SHOW COLUMNS FROM system_settings LIKE 'void_requires_confirmation'")) {
+            throw new RuntimeException('Missing database migration: void_requires_confirmation. Apply database/migrations/add_void_confirmation_setting.sql first.');
+        }
+        if (!Database::fetch("SHOW COLUMNS FROM system_settings LIKE 'return_requires_confirmation'")) {
+            throw new RuntimeException('Missing database migration: return_requires_confirmation. Apply database/migrations/add_return_confirmation_setting.sql first.');
+        }
+
         Database::execute(
             "UPDATE system_settings SET
                 company_name = :company_name,
@@ -160,13 +178,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 maintenance_end = :maintenance_end,
                 allow_admin_during_maintenance = :allow_admin_during_maintenance,
                 cancellation_requires_confirmation = :cancellation_requires_confirmation,
+                void_requires_confirmation = :void_requires_confirmation,
+                return_requires_confirmation = :return_requires_confirmation,
                 cancellation_refund_processing_days = :cancellation_refund_processing_days,
                 cancellation_allow_partial = :cancellation_allow_partial,
+                show_pending_refunds_in_close_session = :show_pending_refunds_in_close_session,
                 pos_cashier_can_open_session = :pos_cashier_can_open_session,
                 pos_cashier_can_close_session = :pos_cashier_can_close_session,
                 pos_manager_can_open_for_cashier = :pos_manager_can_open_for_cashier,
                 pos_manager_can_close_for_cashier = :pos_manager_can_close_for_cashier,
                 pos_allow_insufficient_wallet = :pos_allow_insufficient_wallet,
+                pos_ticket_number_required = :pos_ticket_number_required,
                 bank_pos_payments_require_confirmation = :bank_pos_payments_require_confirmation,
                 bank_charge_payments_require_confirmation = :bank_charge_payments_require_confirmation,
                 bank_deposits_require_confirmation = :bank_deposits_require_confirmation,
@@ -196,6 +218,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 receipt_show_service_fee = :receipt_show_service_fee,
                 receipt_show_base_amount = :receipt_show_base_amount,
                 receipt_show_discount = :receipt_show_discount,
+                receipt_show_item_total = :receipt_show_item_total,
+                receipt_show_subtotal = :receipt_show_subtotal,
+                receipt_show_tendered = :receipt_show_tendered,
+                receipt_show_service_fee_total = :receipt_show_service_fee_total,
+                receipt_total_source = :receipt_total_source,
+                receipt_show_vat = :receipt_show_vat,
+                receipt_show_taxable_sales = :receipt_show_taxable_sales,
                 receipt_custom_footer = :receipt_custom_footer,
                 receipt_address_source = :receipt_address_source,
                 printer_type = :printer_type,

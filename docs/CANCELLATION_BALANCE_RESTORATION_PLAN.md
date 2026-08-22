@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-Review whether the cancellation and refund-approval flows restore wallet balance in the **same way** the POS sale now deducts it, and produce a recommended action plan.
+Review cancellation/refund balance effects and document the current rule: consumed variant tickets are not reusable, so their physical availability and provider wallet balance are never restored; only eligible non-variant financial effects may be reversed.
 
 ## 2. Current sale behavior (after the fix)
 
@@ -13,7 +13,7 @@ Review whether the cancellation and refund-approval flows restore wallet balance
 3. The wallet balance (`provider_wallets.current_balance`) is reduced by the **base amount** only.
 4. A `wallet_transactions` ledger row (`txn_type = 'ADJUSTMENT'`, `direction = 'OUT'`) is inserted.
 
-> Wallet-backed variants are now controlled purely by `provider_wallets` balance. Physical stock is not touched.
+> Sale availability and refund disposition are separate. Once a variant ticket is sold, it is consumed: cancellation/refund/void does not restore physical availability or provider wallet balance, even if the original sale used a variant-specific wallet.
 
 ---
 
@@ -43,7 +43,7 @@ When `cancellation_requires_confirmation = 0` (immediate cancel):
    ```
 6. Inserts a `wallet_transactions` row (`txn_type = 'REFUND'`, `direction = 'IN'`).
 
-**Verdict:** ✅ Already mirrors the sale wallet-deduction logic for variant wallets. No code change needed for wallet restoration.
+**Verdict:** The prior proportional wallet-restoration behavior is superseded for consumed variant tickets. Variant cancellation/refund/void must not credit the provider wallet.
 
 ---
 
@@ -63,7 +63,7 @@ When a pending cancellation is approved:
 4. Computes the **same** proportional refund on `base_amount`.
 5. Credits the wallet and inserts a `wallet_transactions` row (`txn_type = 'REFUND'`, `direction = 'IN'`).
 
-**Verdict:** ✅ Already mirrors the sale wallet-deduction logic. No code change needed for wallet restoration.
+**Verdict:** The existing approval path must follow the consumed-variant rule: no physical-stock or provider-wallet restoration for variant tickets; CHARGE debt reversal remains allowed.
 
 ---
 
@@ -99,17 +99,17 @@ Both files contain nearly identical code blocks for:
 
 ## 5. Recommended action plan
 
-### Phase 1 — Preserve wallet consistency (no implementation needed)
+### Phase 1 — Enforce consumed variant non-restoration
 
-- [ ] **Confirm** that `ticket-cancel.php` and `cancellation-approval.php` correctly restore variant-specific wallet balances.
-- [ ] **Update docs** (`POS_TICKET_SALE_BALANCE_DEDUCTION_FLOW.md`) to explicitly state that both immediate and approval cancellation paths already restore `current_balance` proportionally.
+- [ ] Ensure `CancellationService` skips provider-wallet credit and physical-stock restoration whenever `ticket_transactions.variant_id` is present.
+- [ ] Keep the original CHARGE debt reversal tied to `transaction_payments.charged_to_passenger_id`.
+- [ ] Add a visible audit/report note that the variant ticket was consumed and is not reusable.
 
-### Phase 2 — Fix non-wallet variant stock restoration (optional but important)
+### Phase 2 — Preserve eligible non-variant financial reversal
 
-- [ ] Add a `TicketStockHelper::restoreOnSale($branchId, $providerId, $variantId, $qty, ...)` helper, or reuse `adjustOnHand` with a positive delta.
-- [ ] Call it inside `api/pos/ticket-cancel.php` (immediate path) and `api/pos/cancellation-approval.php` (approve path) when the ticket is a **non-wallet variant**.
-- [ ] Ensure `ticket_stock_movements` row uses a `POS_CANCEL` or `POS_REFUND` movement type.
-- [ ] Gate the restore with `allow_negative_ticket_stock` to match sale behavior.
+- [ ] Restore the applicable provider wallet only for non-variant tickets where the original sale debited that wallet.
+- [ ] Do not create a physical-stock reversal for consumed variant tickets.
+- [ ] Ensure `ticket_stock_movements` never records a cancellation stock return for a consumed variant.
 
 ### Phase 3 — Deduplicate cancellation logic (optional)
 
@@ -120,8 +120,8 @@ Both files contain nearly identical code blocks for:
 
 ### Phase 4 — UI/UX in Refund Confirmations (optional)
 
-- [ ] In `admin/refund-confirmations/assets/js/refund-confirmations.js` and `views/modals/confirm_cancellation.php`, display whether the ticket was wallet-backed so the approver can see that the wallet will be credited.
-- [ ] Add a read-only “Wallet to Credit” field in the modal if a resolved wallet exists.
+- [ ] In `admin/refund-confirmations/assets/js/refund-confirmations.js` and `views/modals/confirm_cancellation.php`, display whether the ticket is a consumed variant and show that no stock/provider-wallet restoration will occur.
+- [ ] Keep the original payment/CHARGE reversal details visible for the approver.
 
 ---
 
@@ -140,4 +140,4 @@ Both files contain nearly identical code blocks for:
 
 ## 7. Suggested next step
 
-If the goal is to keep wallet-backed variant behavior consistent with sales, **no code changes are required** — the existing cancellation and refund-confirmation paths already restore the wallet balance the same way it is deducted. The only recommended next step is to document this confirmation and decide later whether to fix the unrelated branch-stock restoration bug.
+The active business rule is that sold variant tickets are consumed. The next implementation must keep their original CHARGE reversal and customer refund behavior, but must not restore physical stock or provider-wallet balance. Non-variant wallet reversals remain eligible for restoration.

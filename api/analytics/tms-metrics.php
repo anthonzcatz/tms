@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -17,107 +18,13 @@ try {
         exit;
     }
 
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
-
-    // Get filter parameters
-    $range = $_GET['range'] ?? 'month'; // today, week, month, year
-    $branchIdRaw = $_GET['branch_id'] ?? null;
-
-    // Decode branch_id if provided
-    $branchId = null;
-    if ($branchIdRaw) {
-        $decodedBranchId = IdEncoder::decode($branchIdRaw);
-        if ($decodedBranchId !== false) {
-            $branchId = $decodedBranchId;
-        }
-    }
-
-    // Build branch restriction
-    $branchWhere = '';
-    $branchParams = [];
-
-    // Use provided branch_id if available
-    if ($branchId) {
-        // Check if user has access to this branch
-        if ($userRoleCode === 'SUPER_ADMIN') {
-            // SUPER_ADMIN can access any branch
-            $branchWhere = "AND po.branch_id = :branch_id";
-            $branchParams['branch_id'] = $branchId;
-        } elseif ($userBranchId) {
-            // Non-SUPER_ADMIN can only filter within their allowed branches
-            $branchIds = array_map('trim', explode(',', $userBranchId));
-            if (in_array($branchId, $branchIds)) {
-                // User has access to this specific branch
-                $branchWhere = "AND po.branch_id = :branch_id";
-                $branchParams['branch_id'] = $branchId;
-            } else {
-                // User doesn't have access to this branch, use their allowed branches
-                $namedParams = [];
-                foreach ($branchIds as $i => $bid) {
-                    $namedParams['bid_' . $i] = $bid;
-                }
-                $placeholders = implode(',', array_keys($namedParams));
-                $branchWhere = "AND po.branch_id IN ($placeholders)";
-                $branchParams = $namedParams;
-            }
-        }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        // No specific branch selected, use user's branch restrictions
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $namedParams = [];
-        foreach ($branchIds as $i => $bid) {
-            $namedParams['bid_' . $i] = $bid;
-        }
-        $placeholders = implode(',', array_keys($namedParams));
-        $branchWhere = "AND po.branch_id IN ($placeholders)";
-        $branchParams = $namedParams;
-    }
-
-    // Custom date range params
-    $startDate = isset($_GET['start_date']) && $_GET['start_date'] !== '' ? $_GET['start_date'] : null;
-    $endDate   = isset($_GET['end_date'])   && $_GET['end_date']   !== '' ? $_GET['end_date']   : null;
-
-    // Determine date range based on filter
-    $dateWhere = '';
-    $dateParams = [];
-    $trendDays = 30; // Default trend days
-
-    if ($startDate && $endDate) {
-        $dateWhere = "AND DATE(po.created_at) BETWEEN :sd AND :ed";
-        $dateParams['sd'] = $startDate;
-        $dateParams['ed'] = $endDate;
-        $startTs = strtotime($startDate);
-        $endTs   = strtotime($endDate);
-        if ($startTs > $endTs) { $tmp = $startTs; $startTs = $endTs; $endTs = $tmp; }
-        $trendDays = max(1, min(365, (int)(($endTs - $startTs) / 86400) + 1));
-    } else {
-        switch ($range) {
-            case 'today':
-                $dateWhere = "AND DATE(po.created_at) = CURDATE()";
-                $trendDays = 1;
-                break;
-            case 'week':
-                $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-                $trendDays = 7;
-                break;
-            case 'last30days':
-                $dateWhere = "AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-                $trendDays = 30;
-                break;
-            case 'month':
-                $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
-                $trendDays = (int)date('t');
-                break;
-            case 'year':
-                $dateWhere = "AND po.created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')";
-                $trendDays = (int)date('z') + 1;
-                break;
-            default:
-                // Default to current month
-                $dateWhere = "AND MONTH(po.created_at) = MONTH(CURDATE()) AND YEAR(po.created_at) = YEAR(CURDATE())";
-        }
-    }
+    $filter = AnalyticsFilter::parse($_GET, $user);
+    $branchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'metrics_branch');
+    $dateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'metrics_date');
+    $branchWhere = 'AND ' . $branchScope['sql'];
+    $branchParams = $branchScope['params'];
+    $dateWhere = 'AND ' . $dateScope['sql'];
+    $dateParams = $dateScope['params'];
 
     // Get total metrics for selected range
     $metricsParams = array_merge($branchParams, $dateParams);
@@ -134,48 +41,63 @@ try {
         $metricsParams
     );
 
-    // Get daily trend for the selected period
-    $trendLimit = min($trendDays, 30); // Cap at 30 days for chart readability
-    $trendParams = array_merge(['days' => $trendLimit], $branchParams);
-    $dailyTrend = Database::fetchAll(
-        "SELECT 
-            DATE(po.created_at) as date,
+    $trendIsAnnual = $filter['granularity'] === 'annual';
+    $trendIsMonthly = $filter['granularity'] === 'monthly' || $trendIsAnnual;
+    $trendKeyExpression = $trendIsAnnual
+        ? "DATE_FORMAT(po.created_at, '%Y')"
+        : ($trendIsMonthly ? "DATE_FORMAT(po.created_at, '%Y-%m')" : "DATE(po.created_at)");
+
+    $trendParams = array_merge($branchParams, $dateParams);
+    $periodTrend = Database::fetchAll(
+        "SELECT
+            $trendKeyExpression as period_key,
             COUNT(DISTINCT po.order_id) as orders,
-            COALESCE(SUM(po.grand_total), 0) as revenue,
-            COALESCE(AVG(po.grand_total), 0) as avg_value
+            COALESCE(SUM(po.grand_total), 0) as revenue
          FROM pos_orders po
          WHERE po.status = 'completed'
-           AND po.created_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+           $dateWhere
            $branchWhere
-         GROUP BY DATE(po.created_at)
-         ORDER BY date ASC",
+         GROUP BY $trendKeyExpression
+         ORDER BY period_key ASC",
         $trendParams
     );
 
-    // Prepare trend arrays (fill missing days with 0)
+    $trendMap = [];
+    foreach ($periodTrend as $period) {
+        $trendMap[(string)$period['period_key']] = [
+            'orders' => (int)$period['orders'],
+            'revenue' => (float)$period['revenue'],
+        ];
+    }
+
     $ordersTrend = [];
     $revenueTrend = [];
     $avgTrend = [];
-    
-    $startDate = date('Y-m-d', strtotime('-' . ($trendLimit - 1) . ' days'));
-    $currentDate = $startDate;
-    
-    $trendMap = [];
-    foreach ($dailyTrend as $day) {
-        $trendMap[$day['date']] = $day;
+    $timezone = new DateTimeZone(date_default_timezone_get() ?: 'Asia/Manila');
+    $cursor = new DateTimeImmutable($filter['start_date'], $timezone);
+    $lastDate = new DateTimeImmutable($filter['end_date'], $timezone);
+
+    if ($trendIsAnnual) {
+        $cursor = $cursor->setDate((int)$cursor->format('Y'), 1, 1);
+        $lastDate = $lastDate->setDate((int)$lastDate->format('Y'), 1, 1);
+    } elseif ($trendIsMonthly) {
+        $cursor = $cursor->modify('first day of this month');
+        $lastDate = $lastDate->modify('first day of this month');
     }
-    
-    for ($i = 0; $i < $trendLimit; $i++) {
-        $date = date('Y-m-d', strtotime($startDate . " +$i days"));
-        if (isset($trendMap[$date])) {
-            $ordersTrend[] = intval($trendMap[$date]['orders']);
-            $revenueTrend[] = floatval($trendMap[$date]['revenue']);
-            $avgTrend[] = floatval($trendMap[$date]['avg_value']);
-        } else {
-            $ordersTrend[] = 0;
-            $revenueTrend[] = 0;
-            $avgTrend[] = 0;
-        }
+
+    while ($cursor <= $lastDate) {
+        $key = $trendIsAnnual
+            ? $cursor->format('Y')
+            : ($trendIsMonthly ? $cursor->format('Y-m') : $cursor->format('Y-m-d'));
+        $period = $trendMap[$key] ?? ['orders' => 0, 'revenue' => 0];
+        $orders = (int)$period['orders'];
+        $revenue = (float)$period['revenue'];
+        $ordersTrend[] = $orders;
+        $revenueTrend[] = $revenue;
+        $avgTrend[] = $orders > 0 ? $revenue / $orders : 0;
+        $cursor = $trendIsAnnual
+            ? $cursor->modify('+1 year')
+            : ($trendIsMonthly ? $cursor->modify('+1 month') : $cursor->modify('+1 day'));
     }
 
     echo json_encode([
@@ -186,11 +108,15 @@ try {
             'avg_order_value' => floatval($totalMetrics['avg_order_value'] ?? 0),
             'orders_trend' => $ordersTrend,
             'revenue_trend' => $revenueTrend,
-            'avg_trend' => $avgTrend
+            'avg_trend' => $avgTrend,
+            'filter' => AnalyticsFilter::responseMeta($filter)
         ]
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('TMS Metrics API Error: ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load analytics metrics']);
 }

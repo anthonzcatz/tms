@@ -3,7 +3,7 @@
         'name' => '__root__',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '6e06bf7adea7f3955987c39040ccb1aa42ce6bec',
+        'reference' => 'b6d1aba46e8bcf23ccc4c00afe45eb4e854485a2',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         '__root__' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '6e06bf7adea7f3955987c39040ccb1aa42ce6bec',
+            'reference' => 'b6d1aba46e8bcf23ccc4c00afe45eb4e854485a2',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -127,6 +127,24 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
+        'paragonie/random_compat' => array(
+            'pretty_version' => 'v9.99.100',
+            'version' => '9.99.100.0',
+            'reference' => '996434e5492cb4c3edcb9168db6fbb1359ef965a',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../paragonie/random_compat',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'paragonie/sodium_compat' => array(
+            'pretty_version' => 'v1.24.0',
+            'version' => '1.24.0.0',
+            'reference' => '2cb48f26130919f92f30650bdcc30e6f4ebe45ac',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../paragonie/sodium_compat',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'phpmailer/phpmailer' => array(
             'pretty_version' => 'v7.1.0',
             'version' => '7.1.0.0',
@@ -183,6 +201,15 @@
             'provided' => array(
                 0 => '1.0.0',
             ),
+        ),
+        'pusher/pusher-php-server' => array(
+            'pretty_version' => '5.0.3',
+            'version' => '5.0.3.0',
+            'reference' => '1024077ff60beebaf5706b4e0208a1e648d20cf4',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../pusher/pusher-php-server',
+            'aliases' => array(),
+            'dev_requirement' => false,
         ),
         'sabberworm/php-css-parser' => array(
             'pretty_version' => 'v9.3.0',

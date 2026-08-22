@@ -56,7 +56,12 @@ $routes = array_merge($routes, autoDiscoverRoutes(__DIR__, 'settings'));
 
 // Future folders - uncomment to enable auto-discovery
 // $routes = array_merge($routes, autoDiscoverRoutes(__DIR__, 'users'));
-// $routes = array_merge($routes, autoDiscoverRoutes(__DIR__, 'reports'));
+
+// Manual routes for Reports module (nested structure: admin/reports/<report>/index.php)
+$routes['reports'] = 'reports/index.php';
+$routes['reports/'] = 'reports/index.php';
+$routes['reports/financial'] = 'reports/financial/index.php';
+$routes['reports/financial/'] = 'reports/financial/index.php';
 
 // Manual routes (for special cases or files not in standard folders)
 // Add manual routes here if needed for special handling

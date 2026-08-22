@@ -29,6 +29,12 @@
             showServiceFee: true,
             showBaseAmount: true,
             showDiscount: true,
+            showItemTotal: true,
+            showSubtotal: true,
+            showTendered: true,
+            showServiceFeeTotal: true,
+            totalSource: 'grand_total',
+            showVat: true,
             qrEnabled: false,
             qrFormat: 'TRANSACTION_ID',
             footerText: 'Thank you for your business!',
@@ -133,6 +139,12 @@
                 this.config.showServiceFee = window.PRINTER_SETTINGS.showServiceFee;
                 this.config.showBaseAmount = window.PRINTER_SETTINGS.showBaseAmount;
                 this.config.showDiscount = window.PRINTER_SETTINGS.showDiscount;
+                this.config.showItemTotal = window.PRINTER_SETTINGS.showItemTotal;
+                this.config.showSubtotal = window.PRINTER_SETTINGS.showSubtotal;
+                this.config.showTendered = window.PRINTER_SETTINGS.showTendered;
+                this.config.showServiceFeeTotal = window.PRINTER_SETTINGS.showServiceFeeTotal;
+                this.config.totalSource = window.PRINTER_SETTINGS.totalSource || 'grand_total';
+                this.config.showVat = window.PRINTER_SETTINGS.showVat;
                 this.config.headerText = window.PRINTER_SETTINGS.headerText || '';
                 this.config.footerText = window.PRINTER_SETTINGS.footerText || 'Thank you for your business!';
                 this.config.customFooter = window.PRINTER_SETTINGS.customFooter || '';
@@ -178,7 +190,13 @@
                 showTin: this.config.showTin,
                 showServiceFee: this.config.showServiceFee,
                 showBaseAmount: this.config.showBaseAmount,
-                showDiscount: this.config.showDiscount
+                showDiscount: this.config.showDiscount,
+                showItemTotal: this.config.showItemTotal,
+                showSubtotal: this.config.showSubtotal,
+                showTendered: this.config.showTendered,
+                showServiceFeeTotal: this.config.showServiceFeeTotal,
+                totalSource: this.config.totalSource,
+                showVat: this.config.showVat
             });
 
             const savedPrinterType = localStorage.getItem('tms_pos_printer_type');
@@ -503,13 +521,27 @@
                     const discAmt   = parseFloat(item.discount_amount || 0);
                     const itemTotal = parseFloat(item.total || (qty * baseAmt + svcFee - discAmt));
 
-                    // Item name line: name ... amount
-                    const amtStr   = itemTotal.toFixed(2);
-                    const nameMax  = width - amtStr.length - 1;
-                    const dispName = itemName.length > nameMax
-                        ? itemName.substring(0, nameMax)
-                        : itemName.padEnd(nameMax);
-                    data.push(`${dispName} ${amtStr}\n`);
+                    // Determine item line amount based on total source
+                    let lineAmount = itemTotal;
+                    if (this.config.totalSource === 'service_fee') {
+                        lineAmount = svcFee > 0 ? svcFee : itemTotal;
+                    } else if (this.config.totalSource === 'base_amount') {
+                        lineAmount = (qty * baseAmt) > 0 ? (qty * baseAmt) : itemTotal;
+                    } else if (this.config.totalSource === 'subtotal') {
+                        lineAmount = (qty * baseAmt + svcFee) > 0 ? (qty * baseAmt + svcFee) : itemTotal;
+                    }
+
+                    // Item name line: name ... amount (optional)
+                    if (this.config.showItemTotal) {
+                        const amtStr   = lineAmount.toFixed(2);
+                        const nameMax  = width - amtStr.length - 1;
+                        const dispName = itemName.length > nameMax
+                            ? itemName.substring(0, nameMax)
+                            : itemName.padEnd(nameMax);
+                        data.push(`${dispName} ${amtStr}\n`);
+                    } else {
+                        this.wrapText(itemName, width).forEach(line => data.push(`${line}\n`));
+                    }
 
                     (item.details || []).forEach(detail => {
                         this.wrapText(`  ${detail}`, width).forEach(line => data.push(`${line}\n`));
@@ -520,7 +552,9 @@
                         data.push(`  Base fare : ${qty} x ${baseAmt.toFixed(2)}\n`);
                     }
                     // Service fee sub-line (per item)
-                    if (this.config.showServiceFee && svcFee > 0) {
+                    // Hide per-item service fee when the aggregate service fee total is shown
+                    // to avoid redundancy on the receipt.
+                    if (this.config.showServiceFee && svcFee > 0 && !this.config.showServiceFeeTotal) {
                         data.push(`  Service Fee : ${svcFee.toFixed(2)}\n`);
                     }
                     // Per-item discount sub-line
@@ -545,10 +579,20 @@
                 (s, i) => s + parseFloat(i.service_fee || 0), 0
             );
 
-            if (this.config.showBaseAmount) {
+            // Aggregate base amount from items (respecting quantity)
+            const totalBase = (transaction.items || []).reduce(
+                (s, i) => s + ((parseInt(i.quantity) || 1) * parseFloat(i.base_amount || 0)), 0
+            );
+
+            // Aggregate subtotal from items (base * qty + service fee) for display consistency
+            const computedSubtotal = (transaction.items || []).reduce(
+                (s, i) => s + ((parseInt(i.quantity) || 1) * parseFloat(i.base_amount || 0) + parseFloat(i.service_fee || 0)), 0
+            );
+
+            if (this.config.showSubtotal) {
                 data.push(this.formatLine('Subtotal         :', subtotal.toFixed(2), width));
             }
-            if (this.config.showServiceFee && totalSvcFee > 0) {
+            if (this.config.showServiceFeeTotal && totalSvcFee > 0) {
                 data.push(this.formatLine('Service Fee      :', totalSvcFee.toFixed(2), width));
             }
             if (this.config.showDiscount && discountTotal > 0) {
@@ -556,38 +600,50 @@
             }
             
             // BIR: VAT breakdown
-            if (transaction.vat_data) {
+            if (this.config.showVat && transaction.vat_data) {
                 const vatAmount = parseFloat(transaction.vat_data.vat_amount || 0);
                 const vatType = transaction.vat_data.vat_type || '12_percent';
                 const taxableAmount = parseFloat(transaction.vat_data.taxable_amount || 0);
                 const nonTaxableAmount = parseFloat(transaction.vat_data.non_taxable_amount || 0);
-                
+
                 if (vatAmount > 0) {
                     let vatTypeLabel = '12% VAT';
                     if (vatType === 'exempt') vatTypeLabel = 'VAT-Exempt';
                     else if (vatType === 'zero_rated') vatTypeLabel = 'Zero-Rated';
-                    
+
                     data.push(this.formatLine(`${vatTypeLabel}       :`, vatAmount.toFixed(2), width));
                     data.push(this.formatLine('Taxable Sales    :', taxableAmount.toFixed(2), width));
                 }
                 if (nonTaxableAmount > 0) {
                     data.push(this.formatLine('Non-Taxable      :', nonTaxableAmount.toFixed(2), width));
                 }
-            } else if (taxTotal > 0) {
+            } else if (this.config.showVat && taxTotal > 0) {
                 // Fallback to legacy tax field
                 data.push(this.formatLine('VAT/Tax          :', taxTotal.toFixed(2), width));
+            }
+
+            // Determine the grand total amount based on the configured source
+            let totalAmount = grandTotal;
+            if (this.config.totalSource === 'service_fee') {
+                totalAmount = totalSvcFee;
+            } else if (this.config.totalSource === 'base_amount') {
+                totalAmount = totalBase;
+            } else if (this.config.totalSource === 'subtotal') {
+                totalAmount = computedSubtotal || subtotal;
             }
 
             data.push(this.repeatChar('=', width) + '\n');
             data.push(cmd.BOLD_ON);
             data.push(cmd.DOUBLE_HEIGHT);
-            data.push(this.formatLine('TOTAL            :', grandTotal.toFixed(2), width));
+            data.push(this.formatLine('TOTAL            :', totalAmount.toFixed(2), width));
             data.push(cmd.NORMAL_SIZE);
             data.push(cmd.BOLD_OFF);
             data.push(this.repeatChar('-', width) + '\n');
 
-            data.push(this.formatLine('Cash Tendered    :', amountTendered.toFixed(2), width));
-            data.push(this.formatLine('Change           :', changeAmt.toFixed(2), width));
+            if (this.config.showTendered) {
+                data.push(this.formatLine('Cash Tendered    :', amountTendered.toFixed(2), width));
+                data.push(this.formatLine('Change           :', changeAmt.toFixed(2), width));
+            }
 
             // ── QR CODE ────────────────────────────────────────────
             if (this.config.qrEnabled) {

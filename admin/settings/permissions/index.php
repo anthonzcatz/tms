@@ -74,7 +74,13 @@ if (!$user || $user['role_code'] !== 'SUPER_ADMIN') {
 
 // Fetch data directly from database (more efficient than API calls)
 $permissions = Database::fetchAll(
-    "SELECT * FROM permissions ORDER BY menu_order, permission_code"
+    "SELECT * FROM permissions
+     ORDER BY module_name,
+              CASE WHEN parent_permission_id IS NULL THEN 0 ELSE 1 END,
+              COALESCE(parent_permission_id, permission_id),
+              menu_order,
+              permission_name,
+              permission_code"
 );
 
 // Group permissions by module (for backward compatibility)

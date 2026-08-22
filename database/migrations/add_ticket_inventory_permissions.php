@@ -13,6 +13,11 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 echo "<pre>\n";
 echo "=== Ticket Inventory Permissions Migration ===\n\n";
 
+Database::execute(
+    "ALTER TABLE permissions
+     ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER is_menu_item"
+);
+
 try {
     // -------------------------------------------------------
     // Helpers

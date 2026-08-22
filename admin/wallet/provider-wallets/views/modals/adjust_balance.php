@@ -23,7 +23,7 @@
                 <strong>Provider:</strong> <span id="adjustProviderName">-</span><br>
                 <strong>Branch:</strong> <span id="adjustBranchName">-</span><br>
                 <strong>Variant:</strong> <span id="adjustVariantName">-</span><br>
-                <strong>Current Balance:</strong> ₱<span id="adjustCurrentBalance">0.00</span>
+                <strong id="adjustCurrentBalanceLabel">Current Balance:</strong> <span id="adjustCurrentBalance">0.00</span>
               </div>
             </div>
           </div>

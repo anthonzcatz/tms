@@ -20,8 +20,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('BASE_URL:', window.BASE_URL);
         
         initComponents();
-        loadTransactions();
         setupEventListeners();
+        loadTransactions();
+        startTransactionPolling();
         
         console.log('Wallet transactions initialized successfully');
     } catch (error) {
@@ -59,20 +60,21 @@ function setupEventListeners() {
         });
     }
 
-    // Flatpickr date range filter — default to today
+    // Flatpickr date range filter — default to current month
     if (typeof flatpickr !== 'undefined') {
         const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         flatpickr('#dateFilter', {
             mode: 'range',
             dateFormat: 'Y-m-d',
-            defaultDate: [today, today],
+            defaultDate: [startOfMonth, today],
             onChange: function(selectedDates) {
                 filterTransactions();
             }
         });
     } else {
-        const todayStr = new Date().toISOString().split('T')[0];
-        document.getElementById('dateFilter').value = todayStr;
+        // No flatpickr: leave date empty so the list is not filtered to a single day
+        document.getElementById('dateFilter').value = '';
         document.getElementById('dateFilter').addEventListener('change', filterTransactions);
     }
     
@@ -117,15 +119,16 @@ function setupEventListeners() {
 }
 
 // Load transactions from API
-async function loadTransactions() {
+async function loadTransactions(options = {}) {
     try {
-        const response = await fetch(`${window.BASE_URL}/api/wallet-transactions`);
+        const response = await fetch(`${window.BASE_URL}/api/wallet-transactions`, {
+            cache: 'no-store'
+        });
         const result = await response.json();
         
         if (result.success) {
             transactionsData = result.data.transactions || [];
-            updateStats(result.data.stats);
-            filterTransactions();
+            filterTransactions(options.preservePage);
         } else {
             showToast('error', 'Error', result.message || 'Failed to load transactions');
             renderEmptyState();
@@ -137,15 +140,55 @@ async function loadTransactions() {
     }
 }
 
-// Update stats cards
-function updateStats(stats) {
-    if (!stats) return;
-    
-    document.getElementById('totalTransactions').textContent = stats.total || 0;
-    document.getElementById('totalInflow').textContent = formatCurrency(stats.totalInflow || 0);
-    document.getElementById('totalOutflow').textContent = formatCurrency(stats.totalOutflow || 0);
+// Real-time polling for the transaction history table
+function startTransactionPolling() {
+    if (window.transactionPollingInterval) {
+        return;
+    }
+
+    let isRefreshing = false;
+
+    const refresh = async () => {
+        if (document.hidden || isRefreshing) {
+            return;
+        }
+
+        isRefreshing = true;
+        try {
+            await loadTransactions({ preservePage: true });
+            await updateCurrentBalance();
+        } catch (error) {
+            console.warn('[Transaction history polling] Refresh failed:', error);
+        } finally {
+            isRefreshing = false;
+        }
+    };
+
+    window.transactionPollingInterval = setInterval(refresh, 5000);
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            refresh();
+        }
+    });
+}
+
+// Update stats cards from the currently filtered transactions
+function updateStats() {
+    const total = filteredTransactions.length;
+    const totalInflow = filteredTransactions
+        .filter(t => t.direction === 'IN')
+        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    const totalOutflow = filteredTransactions
+        .filter(t => t.direction === 'OUT')
+        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    const netBalance = totalInflow - totalOutflow;
+
+    document.getElementById('totalTransactions').textContent = total;
+    document.getElementById('totalInflow').textContent = formatCurrency(totalInflow);
+    document.getElementById('totalOutflow').textContent = formatCurrency(totalOutflow);
     // netBalance here is sum of filtered transactions, NOT the real wallet balance
-    document.getElementById('netBalance').textContent = formatCurrency(stats.netBalance || 0);
+    document.getElementById('netBalance').textContent = formatCurrency(netBalance);
 }
 
 // Update Current Balance from actual provider_wallets
@@ -153,7 +196,6 @@ async function updateCurrentBalance() {
     const walletId = document.getElementById('walletFilter').value;
     const el = document.getElementById('netBalance');
     if (!walletId) {
-        el.textContent = '—';
         return;
     }
     try {
@@ -235,7 +277,7 @@ async function refreshWalletBalance() {
 }
 
 // Filter transactions
-function filterTransactions() {
+function filterTransactions(preservePage = false) {
     const search = document.getElementById('transactionSearch').value.toLowerCase();
     const walletId = document.getElementById('walletFilter').value;
     const operatingProviderId = document.getElementById('operatingProviderFilter').value;
@@ -291,7 +333,9 @@ function filterTransactions() {
         return matchesSearch && matchesWallet && matchesOperatingProvider && matchesTxnType && matchesDirection && matchesDate;
     });
     
-    currentPage = 1;
+    const totalPages = Math.ceil(filteredTransactions.length / perPage);
+    currentPage = preservePage ? Math.min(currentPage, Math.max(1, totalPages)) : 1;
+    updateStats();
     renderTransactions();
 }
 
@@ -311,22 +355,22 @@ function renderTransactions() {
     tbody.innerHTML = pageData.map(txn => `
         <tr>
             <td>
-                <span class="fw-bold">${txn.txn_code || '-'}</span>
+                <span class="fw-medium small">${txn.txn_code || '-'}</span>
             </td>
             <td>
-                <div class="fw-bold">${txn.operating_provider_name || txn.wallet_provider_name || '-'}</div>
+                <div class="fw-medium">${txn.operating_provider_name || txn.wallet_provider_name || '-'}</div>
             </td>
             <td>
                 ${txn.variant_name ? `
                 <div class="d-flex align-items-center">
                     <span class="d-inline-block rounded me-2" style="width:12px;height:12px;background:${txn.variant_color || '#0d6efd'};border:1px solid #dee2e6;"></span>
-                    <span class="fw-bold small">${txn.variant_name}</span>
+                    <span class="fw-medium small">${txn.variant_name}</span>
                 </div>
                 ${txn.variant_code ? `<small class="text-muted d-block ms-4">${txn.variant_code}</small>` : ''}
                 ` : '<span class="text-muted">-</span>'}
             </td>
             <td>
-                <div class="fw-bold">${txn.wallet_provider_name || '-'}</div>
+                <div class="fw-medium small">${txn.wallet_provider_name || '-'}</div>
                 <small class="text-muted">${txn.wallet_name || '-'}</small>
             </td>
             <td>
@@ -433,14 +477,14 @@ function resetFilters() {
     document.getElementById('txnTypeFilter').value = '';
     document.getElementById('directionFilter').value = '';
     const dateEl = document.getElementById('dateFilter');
-    // Reset date to today instead of clearing to avoid loading all transactions
+    // Reset date to current month instead of a single day
     const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     if (dateEl._flatpickr) {
-        dateEl._flatpickr.setDate([today, today]);
+        dateEl._flatpickr.setDate([startOfMonth, today]);
     } else {
-        dateEl.value = today.toISOString().split('T')[0];
+        dateEl.value = '';
     }
-    document.getElementById('netBalance').textContent = '—';
     filterTransactions();
 }
 
@@ -450,6 +494,28 @@ function openAddTransactionModal() {
     // Hide balance display initially
     document.getElementById('currentBalanceAlert').style.display = 'none';
     addTransactionModal.show();
+}
+
+function getTransactionDirectionMessage(txnType, direction) {
+    const labels = {
+        TOPUP: 'Top-up',
+        SALE: 'Sale',
+        REFUND: 'Refund'
+    };
+
+    if (['SALE', 'REFUND'].includes(txnType)) {
+        return `${labels[txnType]} transactions cannot use IN or OUT directions.`;
+    }
+
+    const expectedDirection = {
+        TOPUP: 'IN'
+    }[txnType];
+
+    if (!expectedDirection || expectedDirection === direction) {
+        return null;
+    }
+
+    return `${labels[txnType]} transactions cannot use the ${direction} direction.`;
 }
 
 // Save transaction
@@ -466,6 +532,12 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
     
     if (!formWalletId || !formTxnType || !formDirection || !formAmount) {
         showToast('warning', 'Warning', 'Please fill in all required fields');
+        return;
+    }
+
+    const directionMessage = getTransactionDirectionMessage(formTxnType, formDirection);
+    if (directionMessage) {
+        showToast('error', 'Not Allowed', directionMessage);
         return;
     }
     
@@ -514,7 +586,11 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
                 loadWallets();
             }
         } else {
-            showToast('error', 'Error', result.message || 'Failed to add transaction');
+            const serverMessage = result.error || result.message || 'Failed to add transaction';
+            const isDirectionNotAllowed = /^(TOPUP|SALE|REFUND) must use the (IN|OUT) direction\.$/i.test(serverMessage);
+            const message = directionMessage || serverMessage;
+            const title = directionMessage || isDirectionNotAllowed ? 'Not Allowed' : 'Error';
+            showToast('error', title, message);
         }
     } catch (error) {
         console.error('Error saving transaction:', error);
@@ -596,30 +672,36 @@ async function viewTransaction(txnId) {
             details.innerHTML = `
                 <div class="card border-0 shadow-sm mb-3">
                     <div class="card-body py-3 px-3">
-                        <!-- Header row -->
-                        <div class="row g-3 align-items-center mb-3 pb-3 border-bottom">
-                            <div class="col-md-8">
-                                <label class="fw-bold text-muted small mb-1">Transaction Code</label>
-                                <div class="fw-bold text-primary text-break" style="font-size: 1.1rem;">${txn.txn_code || '-'}</div>
-                            </div>
-                            <div class="col-md-4 text-md-end">
-                                <label class="fw-bold text-muted small mb-1 d-block">Type / Direction</label>
+                        <!-- Transaction Code -->
+                        <div class="mb-3 pb-3 border-bottom">
+                            <label class="fw-bold text-muted small mb-1 d-block">Transaction Code</label>
+                            <div class="txn-code">${txn.txn_code || '-'}</div>
+                        </div>
+
+                        <!-- Type / Direction / Date -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="fw-bold text-muted small mb-1">Type / Direction</label>
                                 <div>
                                     <span class="badge bg-primary me-1">${txn.txn_type}</span>
                                     <span class="badge ${txn.direction === 'IN' ? 'bg-success' : 'bg-danger'}">${txn.direction === 'IN' ? '↓ IN' : '↑ OUT'}</span>
                                 </div>
                             </div>
+                            <div class="col-md-6 text-md-end">
+                                <label class="fw-bold text-muted small mb-1 d-block">Date / Time</label>
+                                <div class="small"><span class="fas fa-clock me-1 text-muted"></span>${formatDateTime(txn.created_at)}</div>
+                            </div>
                         </div>
 
-                        <!-- Amount and wallet -->
-                        <div class="row g-3 mb-3">
+                        <!-- Wallet and Amount -->
+                        <div class="row g-3 mb-3 align-items-end">
                             <div class="col-md-6">
                                 <label class="fw-bold text-muted small mb-1">Wallet</label>
                                 <div class="fw-semibold">${txn.wallet_name || '-'}</div>
                             </div>
                             <div class="col-md-6 text-md-end">
                                 <label class="fw-bold text-muted small mb-1 d-block">Amount</label>
-                                <div class="fw-bold ${amountClass}" style="font-size: 1.25rem;">
+                                <div class="txn-amount ${amountClass}">
                                     ${amountDisplay}
                                 </div>
                             </div>
@@ -641,15 +723,11 @@ async function viewTransaction(txnId) {
                             </div>
                         </div>
 
-                        <!-- Meta info -->
+                        <!-- Processed By -->
                         <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-12">
                                 <label class="fw-bold text-muted small mb-1">Processed By</label>
                                 <div class="small"><span class="fas fa-user me-1 text-muted"></span>${txn.created_by_full_name || txn.created_by_username || 'System'}</div>
-                            </div>
-                            <div class="col-md-6 text-md-end">
-                                <label class="fw-bold text-muted small mb-1 d-block">Date / Time</label>
-                                <div class="small"><span class="fas fa-clock me-1 text-muted"></span>${formatDateTime(txn.created_at)}</div>
                             </div>
                         </div>
                     </div>

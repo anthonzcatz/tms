@@ -10,7 +10,9 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/NotificationService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 
 // Helper function for logging activity
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
@@ -401,83 +403,56 @@ function handlePost() {
         echo json_encode(['success' => false, 'error' => 'Invalid direction']);
         return;
     }
+    if (in_array($txnType, ['SALE', 'REFUND'], true) && (!$referenceTable || !$referenceId)) {
+        echo json_encode(['success' => false, 'error' => 'SALE and REFUND movements require an original source reference.']);
+        return;
+    }
+    if ($referenceTable !== null && !preg_match('/^[A-Za-z0-9_]{1,100}$/', (string) $referenceTable)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid source reference table.']);
+        return;
+    }
 
-    // Generate transaction code
-    $txnCode = generateTransactionCode($txnType);
+    $walletAccess = Database::fetch(
+        "SELECT wallet_id, branch_id
+         FROM provider_wallets
+         WHERE wallet_id = :wallet_id AND status = 'active'",
+        ['wallet_id' => (int) $walletId]
+    );
 
-    // Start transaction before reading the wallet so we can lock the row.
-    Database::connection()->beginTransaction();
+    if (!$walletAccess) {
+        echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive']);
+        return;
+    }
+
+    if (!canAccessBranch($walletAccess['branch_id'] ?? null)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Access denied: wallet does not belong to your branch']);
+        return;
+    }
 
     try {
-        // Get current wallet balance with FOR UPDATE to prevent concurrent overwrites.
-        $wallet = Database::fetch(
-            "SELECT wallet_id, current_balance, branch_id FROM provider_wallets WHERE wallet_id = :wallet_id AND status = 'active' FOR UPDATE",
-            ['wallet_id' => (int)$walletId]
+        $movement = BalanceLedgerService::walletMovement(
+            (int) $walletId,
+            strtoupper((string) $txnType),
+            strtoupper((string) $direction),
+            (float) $amount,
+            $referenceTable,
+            $referenceId ? (int) $referenceId : null,
+            $remarks,
+            (int) $user['user_id']
         );
 
-        if (!$wallet) {
-            Database::connection()->rollBack();
-            echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive']);
-            return;
-        }
+        $txnCode = $movement['txn_code'];
+        $balanceBefore = $movement['balance_before'];
+        $balanceAfter = $movement['balance_after'];
+        $wallet = $walletAccess;
 
-        if (!canAccessBranch($wallet['branch_id'] ?? null)) {
-            Database::connection()->rollBack();
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Access denied: wallet does not belong to your branch']);
-            return;
-        }
+        PusherService::triggerBranch((int) $wallet['branch_id'], 'wallet.updated', [
+            'wallet_id' => (int) $walletId,
+            'branch_id' => (int) $wallet['branch_id'],
+            'current_balance' => (float) $balanceAfter
+        ]);
 
-        $currentBalance = (float)$wallet['current_balance'];
-        $balanceBefore = $currentBalance;
-
-        // Calculate new balance
-        if ($direction === 'IN') {
-            $balanceAfter = $currentBalance + (float)$amount;
-        } else {
-            // Check if sufficient balance for OUT transactions (unless overdraft is allowed)
-            global $allowWalletOverdraft;
-            if ($currentBalance < (float)$amount && !$allowWalletOverdraft) {
-                Database::connection()->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Enable overdraft in System Settings > POS Settings to allow negative balances.']);
-                return;
-            }
-            $balanceAfter = $currentBalance - (float)$amount;
-        }
-
-        // Insert transaction record
-        $sql = "INSERT INTO wallet_transactions 
-                (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, 
-                 reference_table, reference_id, remarks, created_by, created_at)
-                VALUES 
-                (:wallet_id, :txn_code, :txn_type, :direction, :amount, :balance_before, :balance_after,
-                 :reference_table, :reference_id, :remarks, :created_by, NOW())";
-
-        $params = [
-            'wallet_id' => (int)$walletId,
-            'txn_code' => $txnCode,
-            'txn_type' => $txnType,
-            'direction' => $direction,
-            'amount' => (float)$amount,
-            'balance_before' => $balanceBefore,
-            'balance_after' => $balanceAfter,
-            'reference_table' => $referenceTable,
-            'reference_id' => $referenceId ? (int)$referenceId : null,
-            'remarks' => $remarks,
-            'created_by' => $user['user_id']
-        ];
-
-        Database::execute($sql, $params);
-
-        // Update wallet balance
-        Database::execute(
-            "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = NOW() WHERE wallet_id = :wallet_id",
-            ['new_balance' => $balanceAfter, 'wallet_id' => (int)$walletId]
-        );
-
-        Database::connection()->commit();
-
-        // Log activity
         logActivity(
             $user['user_id'],
             'CREATE_TRANSACTION',
@@ -486,8 +461,8 @@ function handlePost() {
             ['balance_before' => $balanceBefore],
             [
                 'wallet_id' => $walletId,
-                'txn_type' => $txnType,
-                'direction' => $direction,
+                'txn_type' => strtoupper((string) $txnType),
+                'direction' => strtoupper((string) $direction),
                 'amount' => $amount,
                 'balance_after' => $balanceAfter,
                 'remarks' => $remarks
@@ -567,9 +542,25 @@ function handlePost() {
             }
         }
 
-        echo json_encode(['success' => true, 'message' => 'Transaction created successfully', 'csrf_token' => SecurityHelper::generateCSRFToken()]);
-    } catch (Exception $e) {
-        Database::connection()->rollBack();
+        echo json_encode([
+            'success' => true,
+            'message' => 'Transaction created successfully',
+            'data' => [
+                'wallet_id' => (int)$walletId,
+                'current_balance' => (float)$balanceAfter
+            ],
+            'csrf_token' => SecurityHelper::generateCSRFToken()
+        ]);
+    } catch (InvalidArgumentException $e) {
+        if (Database::connection()->inTransaction()) {
+            Database::connection()->rollBack();
+        }
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        if (Database::connection()->inTransaction()) {
+            Database::connection()->rollBack();
+        }
         throw $e;
     }
 }

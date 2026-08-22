@@ -92,6 +92,18 @@
                 </label>
                 <input type="number" class="form-control fw-bold" id="paymentAmount" name="paymentAmount" min="0" step="0.01" placeholder="0.00" oninput="computeChange()">
               </div>
+              <div class="col-md-4 payment-charge-account-field" id="chargeAccountRow" style="display:none;">
+                <label class="form-label fw-semibold" for="selectedChargeAccountName">
+                  <span class="fas fa-user-tie me-1 text-muted"></span>Charge Account <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="text" class="form-control bg-light" id="selectedChargeAccountName" readonly placeholder="Select account">
+                  <button type="button" class="btn btn-outline-primary" onclick="openChargeAccountPicker()" title="Change charge account">
+                    <span class="fas fa-users"></span>
+                  </button>
+                </div>
+                <input type="hidden" id="selectedChargeAccountId">
+              </div>
               <div class="col-md-4 payment-reference-field" id="referenceRow" style="display:none;">
                 <label class="form-label fw-semibold" for="referenceNumber">
                   <span class="fas fa-hashtag me-1 text-muted"></span>Reference # <span class="text-danger">*</span>

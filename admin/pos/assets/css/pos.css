@@ -48,6 +48,18 @@
     gap: 1rem;
 }
 
+.ticket-special-action-group > .btn {
+    display: inline-flex;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.ticket-special-action-group > .ticket-special-action-clear {
+    flex: 0 0 2.5rem;
+    padding: 0;
+}
+
 /* Tablet and below - stack layout */
 @media (max-width: 991px) {
     .pos-layout {
@@ -866,7 +878,38 @@ select.address-choices:disabled {
 #ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted div,
 #ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover div,
 #ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted span,
-#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover span {
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover span,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted *,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover * {
+    color: #fff !important;
+}
+
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .vr-row-name,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover .vr-row-name,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .vr-row-desc,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover .vr-row-desc,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted .vr-row-available,
+#ticketVariant + .choices .choices__list--dropdown .choices__item--selectable:hover .vr-row-available {
+    color: #fff !important;
+}
+
+#ticketSubProvider option:hover,
+#ticketSubProvider option:focus,
+#ticketSubProvider option:checked {
+    background-color: #0d6efd !important;
+    color: #fff !important;
+}
+
+#ticketSubProvider:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+#ticketSubProvider + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted,
+#ticketSubProvider + .choices .choices__list--dropdown .choices__item--selectable:hover,
+#ticketSubProvider + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted *,
+#ticketSubProvider + .choices .choices__list--dropdown .choices__item--selectable:hover * {
+    background-color: #0d6efd !important;
     color: #fff !important;
 }
 
@@ -924,6 +967,11 @@ select.address-choices:disabled {
     color: #fff !important;
 }
 
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item--selectable.is-highlighted *,
+#ticketMainProvider + .choices .choices__list--dropdown .choices__item--selectable:hover * {
+    color: #fff !important;
+}
+
 /* ---- Variant row styling for two-row layout ---- */
 #ticketVariant + .choices .choices__inner {
     min-height: 38px;
@@ -936,12 +984,26 @@ select.address-choices:disabled {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+}
+
+#ticketVariant + .choices .vr-row-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 #ticketVariant + .choices .vr-row-desc {
+    color: #6c757d;
     font-family: 'Century Gothic', CenturyGothic, AppleGothic, Arial, sans-serif;
     font-size: 0.65rem !important;
     font-weight: 700;
+    line-height: 1.3;
+    margin-top: 2px;
+}
+
+#ticketVariant + .choices .vr-row-available {
+    color: inherit;
 }
 
 #ticketVariant + .choices .vr-row-desc span {
@@ -952,6 +1014,11 @@ select.address-choices:disabled {
 #bankAccountRow .choices {
     width: 100%;
     margin-bottom: 0;
+    font-family: 'Century Gothic', CenturyGothic, AppleGothic, Arial, sans-serif;
+}
+
+#bankAccountRow .choices .choices__item {
+    font-family: inherit;
 }
 
 #bankAccountRow .choices .choices__inner {
@@ -1125,6 +1192,7 @@ select.address-choices:disabled {
 @media (min-width: 768px) {
     #paymentEntryRow .payment-method-field,
     #paymentEntryRow .payment-amount-field,
+    #paymentEntryRow .payment-charge-account-field,
     #paymentEntryRow .payment-reference-field,
     #paymentEntryRow .payment-bank-field,
     #paymentEntryRow .payment-actions-field {
@@ -1171,4 +1239,17 @@ select.address-choices:disabled {
         width: 20%;
         max-width: 20%;
     }
+
+    #paymentEntryRow.payment-has-charge-account:not(.payment-has-bank-account):not(.payment-has-reference) .payment-method-field,
+    #paymentEntryRow.payment-has-charge-account:not(.payment-has-bank-account):not(.payment-has-reference) .payment-amount-field,
+    #paymentEntryRow.payment-has-charge-account:not(.payment-has-bank-account):not(.payment-has-reference) .payment-charge-account-field,
+    #paymentEntryRow.payment-has-charge-account:not(.payment-has-bank-account):not(.payment-has-reference) .payment-actions-field {
+        width: 25%;
+        max-width: 25%;
+    }
+}
+
+.pos-adjust-dropdown-menu-portal {
+    z-index: 1090 !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }

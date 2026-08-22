@@ -1,0 +1,34 @@
+.cashier-stat-card {
+    border-top: 3px solid rgba(44, 123, 229, .18);
+}
+
+.cashier-charge-row {
+    transition: background-color .12s ease;
+}
+
+.cashier-charge-row:hover td {
+    background: #f8f9fa;
+}
+
+.cashier-avatar {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+}
+
+.table th {
+    white-space: nowrap;
+    font-size: .75rem;
+    letter-spacing: .02em;
+}
+
+.table td {
+    font-size: .82rem;
+}
+
+@media (max-width: 767.98px) {
+    .cashier-stat-card .card-body {
+        padding-left: .75rem;
+        padding-right: .75rem;
+    }
+}

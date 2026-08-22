@@ -110,7 +110,7 @@ if ($filterDateFrom && $filterDateTo) {
 }
 
 if ($filterSearch) {
-    $where[]           = "(tc.transaction_code LIKE :search OR pa.fullname LIKE :search OR CONCAT_WS(' ', e_request.first_name, e_request.last_name) LIKE :search OR tp.provider_name LIKE :search OR bb.branch_name LIKE :search)";
+    $where[]           = "(tc.transaction_code LIKE :search OR pa.fullname LIKE :search OR CONCAT_WS(' ', e_request.first_name, e_request.last_name) LIKE :search OR CONCAT_WS(' ', e_responsible.first_name, e_responsible.last_name) LIKE :search OR tp.provider_name LIKE :search OR bb.branch_name LIKE :search)";
     $params['search']  = '%' . $filterSearch . '%';
 }
 
@@ -121,6 +121,8 @@ $baseJoins = "FROM ticket_cancellations tc
      LEFT JOIN employees e_request       ON ua_request.emp_id = e_request.emp_id
      LEFT JOIN user_accounts ua_approve  ON tc.approved_by   = ua_approve.user_id
      LEFT JOIN employees e_approve       ON ua_approve.emp_id = e_approve.emp_id
+     LEFT JOIN user_accounts ua_responsible ON tc.responsible_user_id = ua_responsible.user_id
+     LEFT JOIN employees e_responsible ON ua_responsible.emp_id = e_responsible.emp_id
      LEFT JOIN ticket_transactions tt     ON tc.transaction_id = tt.transaction_id
      LEFT JOIN provider_wallets pw        ON tt.wallet_id      = pw.wallet_id
      LEFT JOIN ticket_providers tp        ON pw.provider_id    = tp.provider_id
@@ -140,11 +142,25 @@ $dataSql = "SELECT
         tc.cancellation_id,
         tc.transaction_id,
         tc.transaction_code,
+        tc.operation_type,
+        tc.reason_category,
+        tc.responsibility,
+        tc.responsible_user_id,
+        tc.responsibility_cashier_session_id,
+        tc.gross_refund_amount,
+        tc.responsibility_amount,
+        tc.void_fee,
+        tc.void_service_fee,
+        tc.lost_sales_void_fee,
+        tc.lost_sales_service_fee,
+        tc.adjustment_id,
+        COALESCE(CONCAT_WS(' ', e_responsible.first_name, e_responsible.last_name), ua_responsible.username) AS responsible_cashier_name,
         tt.ticket_number,
         tt.wallet_id,
         tt.variant_id,
         pw.branch_id AS wallet_branch_id,
         pw.variant_id AS wallet_variant_id,
+        CASE WHEN pw.variant_id IS NOT NULL THEN 1 ELSE 0 END AS wallet_is_variant,
         pw.status AS wallet_status,
         tc.cancellation_type,
         tc.refund_amount,
@@ -158,6 +174,7 @@ $dataSql = "SELECT
         tc.remarks,
         COALESCE(CONCAT_WS(' ', e_request.first_name, e_request.last_name), ua_request.username) AS requested_by_name,
         COALESCE(CONCAT_WS(' ', e_approve.first_name, e_approve.last_name), ua_approve.username) AS approved_by_name,
+        bb.branch_id,
         bb.branch_name,
         wallet_bb.branch_name AS wallet_branch_name,
         tp.provider_name,
@@ -176,6 +193,25 @@ $dataParams['limit'] = $limit;
 $dataParams['offset']= $offset;
 
 $rows = Database::fetchAll($dataSql, $dataParams);
+
+foreach ($rows as &$row) {
+    $row['payment_sources'] = Database::fetchAll(
+        "SELECT tp.payment_id, tp.amount, tp.confirmation_status,
+                pm.method_name, pm.method_type, pm.tracks_credit,
+                tp.bank_account_id, tp.charged_to_passenger_id,
+                pa.fullname AS charged_to_passenger_name
+         FROM transaction_payments tp
+         JOIN payment_methods pm ON pm.method_id = tp.payment_method_id
+         LEFT JOIN passenger_accounts pa ON pa.passenger_id = tp.charged_to_passenger_id
+         WHERE tp.source_type = 'TICKET_TRANSACTION'
+           AND tp.source_id = :transaction_id
+           AND tp.confirmation_status <> 'REJECTED'
+         ORDER BY CASE WHEN pm.tracks_credit = 1 THEN 0 ELSE 1 END,
+                  tp.payment_id ASC",
+        ['transaction_id' => (int) $row['transaction_id']]
+    );
+}
+unset($row);
 
 // Stats (scoped to user's branch, NOT current filters)
 $statsWhere  = ['1=1'];

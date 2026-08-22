@@ -4,10 +4,13 @@
  */
 
 header('Content-Type: application/json');
-require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BIRHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/ChargeService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
     $now = date('Y-m-d H:i:s');
@@ -44,12 +47,12 @@ if (!$branchId)         { echo json_encode(['success' => false, 'error' => 'Bran
 if (empty($items))      { echo json_encode(['success' => false, 'error' => 'No items in order.']); exit; }
 if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No payment provided.']); exit; }
 
-// Verify session is open and belongs to the current user/branch
-$session = Database::fetch("SELECT * FROM cashier_sessions WHERE session_id = :id AND status = 'OPEN'", ['id' => $sessionId]);
-if (!$session) { echo json_encode(['success' => false, 'error' => 'No active session found.']); exit; }
-if ((int)$session['cashier_user_id'] !== (int)$user['user_id'] || (int)$session['branch_id'] !== (int)$branchId) {
+// Verify the active session and branch against current server-side access.
+try {
+    $session = PosAccess::assertSessionForTransaction((int) $sessionId, (int) $branchId, $user);
+} catch (Throwable $e) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Session/branch mismatch.']);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     exit;
 }
 
@@ -99,27 +102,8 @@ function generateServiceTxnCode() {
 }
 
 function generateOrderCode() {
-    $today = date('Ymd');
-    $prefix = 'ORD-' . $today;
-
-    // Get the last order code for today
-    $lastOrder = Database::fetch(
-        "SELECT order_code FROM pos_orders WHERE order_code LIKE :prefix ORDER BY order_code DESC LIMIT 1",
-        ['prefix' => $prefix . '%']
-    );
-
-    if ($lastOrder) {
-        // Extract the sequence number from the last order code
-        // Format: ORD-YYYYMMDD-HHMMSS-###
-        $parts = explode('-', $lastOrder['order_code']);
-        $lastSeq = (int)end($parts);
-        $nextSeq = $lastSeq + 1;
-    } else {
-        // First order of the day
-        $nextSeq = 1;
-    }
-
-    return 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', $nextSeq);
+    // Random suffix avoids the check-then-increment race under concurrent cashiers.
+    return 'ORD-' . date('Ymd-His') . '-' . strtoupper(bin2hex(random_bytes(5)));
 }
 
 try {
@@ -303,31 +287,9 @@ try {
             }
 
             // Handle credit-tracking payments — post to customer_charges
+            // Service charges are recorded as base only (service fee handling is ticket-only).
             if ($tracksCredit && $passengerId) {
-                // Ensure customer_charges record exists. Use FOR UPDATE since we will
-                // immediately update the aggregate in the same transaction.
-                $existingCharge = Database::fetch(
-                    "SELECT * FROM customer_charges WHERE passenger_id = :pid FOR UPDATE",
-                    ['pid' => $passengerId]
-                );
-                if (!$existingCharge) {
-                    Database::execute(
-                        "INSERT INTO customer_charges (passenger_id, total_charged, total_paid, balance, status, last_charge_date)
-                         VALUES (:pid, 0, 0, 0, 'CLEAR', :last_charge_date)",
-                        ['pid' => $passengerId, 'last_charge_date' => date('Y-m-d H:i:s')]
-                    );
-                }
-                // Update customer_charges — fixed CASE WHEN END
-                Database::execute(
-                    "UPDATE customer_charges
-                     SET total_charged = total_charged + :amt,
-                         balance = balance + :amt,
-                         status = CASE WHEN (balance + :amt) > 0 THEN 'OUTSTANDING' ELSE 'CLEAR' END,
-                         last_charge_date = :last_charge_date,
-                         updated_at = :updated_at
-                     WHERE passenger_id = :pid",
-                    ['pid' => $passengerId, 'amt' => $amount, 'last_charge_date' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]
-                );
+                ChargeService::addToCustomerCharge($passengerId, $amount, $amount, 0);
             }
 
             Database::execute(
@@ -378,8 +340,16 @@ try {
         logActivity($user['user_id'], 'PROCESS_TRANSACTION', 'POS', $orderCode, null,
             ['order_code' => $orderCode, 'total' => $orderTotal, 'items' => count($createdTxnIds)]);
 
-        // Commit transaction
+        // Commit transaction before notifying other POS clients.
         Database::connection()->commit();
+
+        PusherService::triggerBranch((int) $branchId, 'pos.transaction.completed', [
+            'branch_id' => (int) $branchId,
+            'order_id' => (int) $orderId,
+            'transaction_code' => $orderCode,
+            'wallet_ids' => [],
+            'completed_at' => date(DATE_ATOM),
+        ]);
 
         echo json_encode([
             'success'          => true,

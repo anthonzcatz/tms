@@ -5,6 +5,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 require_once dirname(__DIR__) . '/_guard.php';
@@ -29,6 +30,12 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 
 $userRoleCode = $user['role_code'] ?? '';
 $userBranchId = $user['branch_id'] ?? null;
+$realtimeBranchIds = $userRoleCode === 'SUPER_ADMIN'
+    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches"), 'branch_id'))
+    : array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
+$pusherConfigured = PusherService::isConfigured();
+$pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';
+$pusherCluster = $pusherConfigured ? env('PUSHER_CLUSTER', 'ap1') : 'ap1';
 
 // Fetch all customer charges with passenger details and branch from latest charge
 $charges = Database::fetchAll(
@@ -36,13 +43,20 @@ $charges = Database::fetchAll(
             pa.fullname AS passenger_name,
             pa.mobile_number AS contact_number,
             bb.branch_name,
-            bb.branch_id AS charge_branch_id
+            bb.branch_id AS charge_branch_id,
+            comp.fullname AS company_passenger_name
      FROM customer_charges cc
      JOIN passenger_accounts pa ON cc.passenger_id = pa.passenger_id
-     LEFT JOIN transaction_payments tp ON tp.charged_to_passenger_id = cc.passenger_id
-     LEFT JOIN cashier_sessions cs ON tp.cashier_session_id = cs.session_id
+     LEFT JOIN passenger_accounts comp ON cc.company_passenger_id = comp.passenger_id
+     LEFT JOIN (
+         SELECT tp.charged_to_passenger_id, tp.cashier_session_id,
+                ROW_NUMBER() OVER (PARTITION BY tp.charged_to_passenger_id ORDER BY tp.created_at DESC) AS rn
+         FROM transaction_payments tp
+         JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+         WHERE pm.tracks_credit = 1 AND tp.charged_to_passenger_id IS NOT NULL
+     ) latest ON latest.charged_to_passenger_id = cc.passenger_id AND latest.rn = 1
+     LEFT JOIN cashier_sessions cs ON latest.cashier_session_id = cs.session_id
      LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
-     GROUP BY cc.charge_id
      ORDER BY cc.balance DESC, cc.last_charge_date DESC"
 );
 

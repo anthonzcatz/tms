@@ -195,7 +195,13 @@ async function updateProvider() {
         if (result.success) {
             showToast('success', 'Success', 'Provider updated successfully');
             editProviderModal.hide();
-            location.reload();
+            updateProviderRow(providerId, {
+                provider_code: providerCode,
+                provider_name: providerName,
+                provider_type: providerType,
+                status: status,
+                parent_provider_id: parentProviderId
+            });
         } else {
             showToast('error', 'Error', result.message || 'Failed to update provider');
         }
@@ -203,6 +209,61 @@ async function updateProvider() {
         console.error('Error updating provider:', error);
         showToast('error', 'Error', 'Failed to update provider: ' + error.message);
     }
+}
+
+function updateProviderRow(providerId, provider) {
+    const row = document.querySelector(`#providersTable tbody tr[data-provider-id="${providerId}"]`);
+    if (!row) {
+        location.reload();
+        return;
+    }
+
+    const previousParentId = row.getAttribute('data-main-provider') || '';
+    const nextParentId = provider.parent_provider_id ? String(provider.parent_provider_id) : '';
+
+    if (previousParentId !== nextParentId) {
+        location.reload();
+        return;
+    }
+
+    row.dataset.status = provider.status;
+    row.dataset.providerType = provider.provider_type;
+    row.dataset.search = `${provider.provider_code} ${provider.provider_name} ${provider.provider_type}`.toLowerCase();
+
+    const codeEl = document.getElementById(`providerCode${providerId}`);
+    const nameEl = document.getElementById(`providerName${providerId}`);
+    const typeEl = document.getElementById(`providerType${providerId}`);
+    const statusSwitch = document.getElementById(`providerSwitch${providerId}`);
+
+    if (codeEl) codeEl.textContent = provider.provider_code;
+    if (nameEl) nameEl.textContent = provider.provider_name;
+    if (typeEl) typeEl.textContent = provider.provider_type.charAt(0).toUpperCase() + provider.provider_type.slice(1);
+
+    if (typeEl) {
+        const typeBadge = typeEl.parentElement;
+        typeBadge.classList.remove('bg-primary', 'bg-info', 'bg-warning', 'bg-secondary');
+        typeBadge.classList.add({
+            airline: 'bg-primary',
+            shipping: 'bg-info',
+            bus: 'bg-warning'
+        }[provider.provider_type] || 'bg-secondary');
+    }
+
+    if (statusSwitch) {
+        const isActive = provider.status === 'active';
+        statusSwitch.checked = isActive;
+        const statusLabel = statusSwitch.nextElementSibling;
+        if (statusLabel) statusLabel.textContent = isActive ? 'Active' : 'Inactive';
+    }
+
+    const variantsButton = row.querySelector('button[data-provider-id]');
+    if (variantsButton) {
+        variantsButton.dataset.providerName = provider.provider_name;
+        variantsButton.dataset.providerCode = provider.provider_code;
+    }
+
+    updateStats();
+    applyFilters();
 }
 
 // Toggle provider status in real-time
@@ -253,9 +314,32 @@ async function toggleProviderStatus(providerId, newStatus, switchElement) {
     }
 }
 
+async function confirmDelete(itemType) {
+    if (typeof Swal === 'undefined') {
+        showToast('warning', 'Warning', 'Delete confirmation is unavailable. Please refresh and try again.');
+        return false;
+    }
+
+    const confirmation = await Swal.fire({
+        title: `Delete ${itemType}?`,
+        text: `Are you sure you want to delete this ${itemType}? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        reverseButtons: true,
+        focusCancel: true
+    });
+
+    return confirmation.isConfirmed;
+}
+
 // Delete provider
 async function deleteProvider(providerId) {
-    if (!confirm('Are you sure you want to delete this provider? This action cannot be undone.')) {
+    const confirmed = await confirmDelete('provider');
+    if (!confirmed) {
         return;
     }
     
@@ -282,11 +366,11 @@ async function deleteProvider(providerId) {
             showToast('success', 'Success', 'Provider deleted successfully');
             location.reload();
         } else {
-            showToast('error', 'Error', result.message || 'Failed to delete provider');
+            showToast('warning', 'Warning', result.error || result.message || 'Unable to delete provider');
         }
     } catch (error) {
         console.error('Error deleting provider:', error);
-        showToast('error', 'Error', 'Failed to delete provider: ' + error.message);
+        showToast('warning', 'Warning', 'Unable to delete provider: ' + error.message);
     }
 }
 
@@ -728,7 +812,8 @@ async function saveVariant() {
 }
 
 async function deleteVariant(variantId) {
-    if (!confirm('Are you sure you want to delete this variant? This action cannot be undone.')) {
+    const confirmed = await confirmDelete('variant');
+    if (!confirmed) {
         return;
     }
 

@@ -56,9 +56,15 @@ if (!Auth::check()) {
 $user = Auth::user();
 $userId = $user['user_id'];
 
-// Permission-based access control - check system_settings for allowed roles
-$systemSettings = Database::fetch("SELECT notification_roles FROM system_settings WHERE setting_id = 1");
-$notificationRoles = $systemSettings['notification_roles'] ?? null;
+// Permission-based access control - check system_settings for allowed roles.
+// Keep notifications available on deployments made before this optional column existed.
+$notificationRoles = null;
+try {
+    $systemSettings = Database::fetch("SELECT notification_roles FROM system_settings WHERE setting_id = 1");
+    $notificationRoles = $systemSettings['notification_roles'] ?? null;
+} catch (Throwable $e) {
+    error_log('[Notifications] notification_roles column is unavailable; using VIEW_NOTIFICATIONS permission.');
+}
 $hasAccess = false;
 
 // SUPER_ADMIN always has access

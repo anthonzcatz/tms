@@ -7,6 +7,14 @@ let currentCancellationId = null;
 let currentPage = 1;
 let isLoading = false;
 
+const REFUND_CONFIRMATION_REALTIME_EVENTS = [
+    'pos.transaction.completed',
+    'wallet.updated',
+    'charge.updated',
+    'bank.confirmation.updated',
+    'refund.updated'
+];
+
 // ─── Init ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -41,19 +49,52 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Load initial data
     loadCancellations(1);
+    startRefundConfirmationsRealtime();
 });
+
+function startRefundConfirmationsRealtime() {
+    const config = window.REFUND_CONF_CONFIG || {};
+    const pusherConfig = config.pusher || {};
+    if (!window.TMSBranchRealtime) return;
+
+    window.refundConfirmationsRealtime = window.TMSBranchRealtime.start({
+        config: pusherConfig,
+        branchIds: pusherConfig.branchIds,
+        events: REFUND_CONFIRMATION_REALTIME_EVENTS,
+        statusElement: 'refundConfirmationsRealtimeStatus',
+        onUpdate: meta => {
+            const payload = meta?.payload || {};
+            if (payload.cancellation_id
+                && currentCancellationId
+                && Number(payload.cancellation_id) === Number(currentCancellationId)
+                && payload.status !== 'pending') {
+                invalidateCurrentCancellation('This cancellation was already processed by another user.');
+            }
+            return loadCancellations(currentPage, false);
+        }
+    });
+}
+
+function invalidateCurrentCancellation(message) {
+    if (!currentCancellationId) return;
+    currentCancellationId = null;
+    if (confirmCancellationModal) confirmCancellationModal.hide();
+    showToast('warning', 'Request Updated', message);
+}
 
 // ─── Data Loading ────────────────────────────────────────────────────────────
 
-async function loadCancellations(page) {
+async function loadCancellations(page, showLoading = true) {
     if (isLoading) return;
     isLoading = true;
     currentPage = page || 1;
 
     const tbody = document.getElementById('confirmationsTableBody');
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">
-        <span class="fas fa-spinner fa-spin me-2"></span>Loading...</td></tr>`;
-    document.getElementById('tableInfo').textContent = 'Loading...';
+    if (showLoading) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">
+            <span class="fas fa-spinner fa-spin me-2"></span>Loading...</td></tr>`;
+        document.getElementById('tableInfo').textContent = 'Loading...';
+    }
 
     const params = buildParams(currentPage);
     const url = window.REFUND_CONF_CONFIG.apiUrl + '?' + new URLSearchParams(params).toString();
@@ -78,6 +119,7 @@ async function loadCancellations(page) {
 function buildParams(page) {
     const p = {
         page:      page,
+        _realtime: Date.now(),
         limit:     document.getElementById('perPageSelect')?.value || 15,
         status:    document.getElementById('filterStatus')?.value  || 'pending',
         search:    document.getElementById('filterSearch')?.value  || '',
@@ -102,7 +144,12 @@ function handleReviewClick(btn) {
             data.id, data.code, data.ticketNumber, data.amount, data.type, data.reason,
             data.requestedBy, data.passenger, data.origin, data.destination, data.requestedAt,
             data.cashAmount, data.chargeAmount,
-            data.providerName, data.branchName, data.variantName, data.walletId
+            data.providerName, data.branchName, data.variantName, data.walletId,
+            data.isVariantWallet, data.paymentSources || [],
+            data.operationType, data.reasonCategory, data.responsibility,
+            data.responsibleUserId, data.responsibleCashierName,
+            data.responsibilityAmount, data.grossRefundAmount, data.branchId,
+            data.voidFee, data.voidServiceFee, data.lostSalesVoidFee, data.lostSalesServiceFee
         );
     } catch (e) {
         console.error('Failed to parse cancellation data:', e);
@@ -110,13 +157,70 @@ function handleReviewClick(btn) {
     }
 }
 
+async function loadReviewCashiers(branchId, selectedUserId = null) {
+    const select = document.getElementById('modalResponsibleCashier');
+    const container = document.getElementById('modalResponsibleCashierContainer');
+    if (!select || !container) return;
+
+    select.innerHTML = '<option value="">Loading cashiers...</option>';
+    select.disabled = true;
+    if (!branchId) {
+        select.innerHTML = '<option value="">Branch unavailable</option>';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/pos/cashiers?branch_id=${encodeURIComponent(branchId)}`);
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load cashiers.');
+
+        select.innerHTML = '<option value="">Select responsible cashier</option>';
+        (result.data || []).forEach(cashier => {
+            const option = document.createElement('option');
+            const hasOpenSession = Boolean(cashier.session_id);
+            option.value = cashier.user_id;
+            option.textContent = `${cashier.display_name || cashier.fullname || cashier.username}${hasOpenSession ? ` — Session ${cashier.session_id}` : ' — No open session (charge recorded)'}`;
+            select.appendChild(option);
+        });
+        if (selectedUserId) select.value = String(selectedUserId);
+        select.disabled = false;
+        if (!result.data?.length) {
+            select.innerHTML = '<option value="">No cashier accounts found</option>';
+            select.disabled = true;
+        }
+    } catch (error) {
+        console.error('Failed to load review cashiers:', error);
+        select.innerHTML = '<option value="">Unable to load cashiers</option>';
+    }
+}
+
 // Open confirmation modal
-function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt, cashAmount, chargeAmount, providerName, branchName, variantName, walletId) {
+function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundAmount, cancellationType, reason, requestedBy, passenger, origin, destination, requestedAt, cashAmount, chargeAmount, providerName, branchName, variantName, walletId, isVariantWallet = false, paymentSources = [], operationType = 'REFUND', reasonCategory = 'OTHER', responsibility = 'NONE', responsibleUserId = null, responsibleCashierName = '', responsibilityAmount = 0, grossRefundAmount = refundAmount, branchId = null, voidFee = 0, voidServiceFee = 0, lostSalesVoidFee = 0, lostSalesServiceFee = 0) {
     currentCancellationId = cancellationId;
 
     const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
     const cashAmt = parseFloat(cashAmount || 0);
     const chargeAmt = parseFloat(chargeAmount || 0);
+    const isTechnicalIssueVoid = operationType === 'VOID' && reasonCategory === 'PRINTER_ERROR';
+    const voidFeeAmt = operationType === 'VOID'
+        ? parseFloat((isTechnicalIssueVoid ? lostSalesVoidFee : voidFee) || 0)
+        : 0;
+    const voidServiceFeeAmt = operationType === 'VOID' && !isTechnicalIssueVoid
+        ? parseFloat(voidServiceFee || 0)
+        : 0;
+
+    const modalTitleEl = document.getElementById('confirmCancellationModalLabel');
+    const modalSubtitleEl = modalTitleEl?.parentElement?.querySelector('p');
+    if (modalTitleEl) {
+        modalTitleEl.innerHTML = operationType === 'VOID'
+            ? '<span class="fas fa-ban me-2"></span>Review Void Request'
+            : '<span class="fas fa-money-bill-wave me-2"></span>Review Refund Request';
+    }
+    if (modalSubtitleEl) {
+        modalSubtitleEl.textContent = operationType === 'VOID'
+            ? 'Approve or reject this ticket void request'
+            : 'Approve or reject this ticket refund request';
+    }
 
     document.getElementById('modalTransactionCode').textContent = transactionCode;
     const ticketNumEl = document.getElementById('modalTicketNumber');
@@ -129,8 +233,35 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
         }
     }
     document.getElementById('modalRefundAmount').textContent = '₱' + fmt(refundAmount);
-    document.getElementById('modalRefundAmountInline').textContent = '₱' + fmt(refundAmount);
+    const grossRefundEl = document.getElementById('modalGrossRefundAmount');
+    if (grossRefundEl) grossRefundEl.textContent = '₱' + fmt(grossRefundAmount);
+    const voidFeeEl = document.getElementById('modalVoidFee');
+    const voidServiceFeeEl = document.getElementById('modalVoidServiceFee');
+    const voidFeeContainer = document.getElementById('modalVoidFeeContainer');
+    const voidServiceFeeContainer = document.getElementById('modalVoidServiceFeeContainer');
+    const voidFeeLabel = voidFeeContainer?.querySelector('small');
+    const voidServiceFeeLabel = voidServiceFeeContainer?.querySelector('small');
+    if (voidFeeLabel) voidFeeLabel.textContent = isTechnicalIssueVoid ? 'Void Fee Lost Sales' : 'Void Fee Income';
+    if (voidServiceFeeLabel) voidServiceFeeLabel.textContent = isTechnicalIssueVoid ? 'Service Fee Lost Sales' : 'Service Fee Income';
+    if (voidFeeEl) voidFeeEl.textContent = '₱' + fmt(voidFeeAmt);
+    if (voidServiceFeeEl) voidServiceFeeEl.textContent = '₱' + fmt(voidServiceFeeAmt);
+    if (voidFeeContainer) voidFeeContainer.style.display = operationType === 'VOID' && responsibility === 'NONE' && voidFeeAmt > 0 ? '' : 'none';
+    if (voidServiceFeeContainer) voidServiceFeeContainer.style.display = operationType === 'VOID' && responsibility === 'NONE' && voidServiceFeeAmt > 0 ? '' : 'none';
+    document.getElementById('modalRefundAmountInline').textContent = '₱' + fmt(grossRefundAmount);
     document.getElementById('modalCancellationType').textContent = cancellationType;
+    const operationEl = document.getElementById('modalOperationType');
+    const responsibilityEl = document.getElementById('modalResponsibility');
+    const responsibilityAmountEl = document.getElementById('modalResponsibilityAmount');
+    const responsibilityContainer = document.getElementById('modalResponsibilityContainer');
+    const responsibilityAmountContainer = document.getElementById('modalResponsibilityAmountContainer');
+    const responsibleCashierContainer = document.getElementById('modalResponsibleCashierContainer');
+    if (operationEl) operationEl.textContent = operationType === 'VOID' ? 'VOID — No Refund' : 'Refund';
+    if (responsibilityEl) responsibilityEl.textContent = responsibility || 'NONE';
+    if (responsibilityAmountEl) responsibilityAmountEl.textContent = '₱' + fmt(responsibilityAmount);
+    if (responsibilityContainer) responsibilityContainer.style.display = responsibility === 'NONE' ? 'none' : '';
+    if (responsibilityAmountContainer) responsibilityAmountContainer.style.display = responsibility === 'NONE' ? 'none' : '';
+    if (responsibleCashierContainer) responsibleCashierContainer.style.display = responsibility === 'CASHIER' ? '' : 'none';
+    if (responsibility === 'CASHIER') loadReviewCashiers(branchId, responsibleUserId);
     document.getElementById('modalPassenger').textContent = passenger;
     document.getElementById('modalRoute').textContent = (origin && destination) ? origin + ' → ' + destination : '-';
     document.getElementById('modalRequestedBy').textContent = requestedBy;
@@ -181,52 +312,118 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
         }
     }
 
-    // Reset action and rejection reason
-    document.getElementById('modalAction').value = 'approve';
+    const paymentSourcesEl = document.getElementById('modalPaymentSources');
+    if (paymentSourcesEl) {
+        paymentSourcesEl.innerHTML = paymentSources.length
+            ? paymentSources.map(source => `<div class="d-flex justify-content-between small border-bottom py-1"><span>${esc(source.method_name || source.method_type || 'Payment')}</span><strong>₱${fmt(source.amount)}</strong></div>`).join('')
+            : '<span class="text-muted small">No original payment lines found.</span>';
+    }
+
+    // Show/hide variant-specific wallet note
+    const walletRestoreLine = document.getElementById('modalWalletRestoreLine');
+    const variantNoCreditLine = document.getElementById('modalVariantNoCreditLine');
+    const walletTxnRecordLine = document.getElementById('modalWalletTxnRecordLine');
+    if (walletRestoreLine && variantNoCreditLine && walletTxnRecordLine) {
+        if (isVariantWallet) {
+            walletRestoreLine.classList.add('d-none');
+            variantNoCreditLine.classList.remove('d-none');
+            walletTxnRecordLine.classList.add('d-none');
+        } else {
+            walletRestoreLine.classList.remove('d-none');
+            walletRestoreLine.innerHTML = operationType === 'VOID'
+                ? '<small class="text-muted d-block">Provider wallet cost will be restored; no customer refund will be issued.</small>'
+                : `Total refund amount <span id="modalRefundAmountInline" class="fw-bold text-success">₱${fmt(grossRefundAmount)}</span> will be <strong>restored to the provider wallet</strong>`;
+            variantNoCreditLine.classList.add('d-none');
+            walletTxnRecordLine.classList.remove('d-none');
+        }
+    }
+
+    // Reset action and rejection reason (no default selection)
+    document.getElementById('modalAction').value = '';
     document.getElementById('modalRejectionReason').value = '';
     document.getElementById('modalRemarks').value = '';
     document.getElementById('rejectionReasonDiv').style.display = 'none';
-    document.getElementById('actionInfoAlert').classList.remove('d-none');
+    document.getElementById('actionInfoAlert').classList.add('d-none');
     document.getElementById('rejectInfoAlert').classList.add('d-none');
-
-    // Add event listener to action select
-    document.getElementById('modalAction').onchange = function() {
-        const rejectionDiv = document.getElementById('rejectionReasonDiv');
-        const infoAlert = document.getElementById('actionInfoAlert');
-        const rejectAlert = document.getElementById('rejectInfoAlert');
-
-        if (this.value === 'reject') {
-            rejectionDiv.style.display = 'block';
-            infoAlert.classList.add('d-none');
-            rejectAlert.classList.remove('d-none');
-        } else {
-            rejectionDiv.style.display = 'none';
-            infoAlert.classList.remove('d-none');
-            rejectAlert.classList.add('d-none');
-        }
-    };
+    updateActionButtonStyles(null);
 
     confirmCancellationModal.show();
+}
+
+// Highlight the selected action button/card
+function updateActionButtonStyles(selectedAction) {
+    const btnApprove = document.getElementById('btnApprove');
+    const btnReject = document.getElementById('btnReject');
+    if (!btnApprove || !btnReject) return;
+
+    if (selectedAction === 'approve') {
+        btnApprove.classList.remove('btn-outline-success');
+        btnApprove.classList.add('btn-success');
+        btnReject.classList.remove('btn-danger');
+        btnReject.classList.add('btn-outline-danger');
+    } else if (selectedAction === 'reject') {
+        btnReject.classList.remove('btn-outline-danger');
+        btnReject.classList.add('btn-danger');
+        btnApprove.classList.remove('btn-success');
+        btnApprove.classList.add('btn-outline-success');
+    } else {
+        btnApprove.classList.remove('btn-success');
+        btnApprove.classList.add('btn-outline-success');
+        btnReject.classList.remove('btn-danger');
+        btnReject.classList.add('btn-outline-danger');
+    }
+}
+
+// Handle action button clicks in the refund-confirmations modal
+function selectCancellationAction(action) {
+    document.getElementById('modalAction').value = action;
+    updateActionButtonStyles(action);
+
+    const rejectionDiv = document.getElementById('rejectionReasonDiv');
+    const infoAlert = document.getElementById('actionInfoAlert');
+    const rejectAlert = document.getElementById('rejectInfoAlert');
+
+    if (action === 'reject') {
+        rejectionDiv.style.display = 'block';
+        infoAlert.classList.add('d-none');
+        rejectAlert.classList.remove('d-none');
+    } else {
+        rejectionDiv.style.display = 'none';
+        infoAlert.classList.remove('d-none');
+        rejectAlert.classList.add('d-none');
+    }
 }
 
 // Submit cancellation decision
 function submitCancellationDecision() {
     const action = document.getElementById('modalAction').value;
+    if (!action) {
+        showToast('danger', 'Error', 'Please select an action (Approve or Reject).');
+        return;
+    }
+
     const rejectionReason = document.getElementById('modalRejectionReason').value.trim();
-    
     if (action === 'reject' && !rejectionReason) {
         showToast('danger', 'Error', 'Please provide a rejection reason.');
         return;
     }
-    
+
+    const responsibility = document.getElementById('modalResponsibility')?.textContent?.trim().toUpperCase() || 'NONE';
+    const responsibleUserId = document.getElementById('modalResponsibleCashier')?.value || null;
+    if (action === 'approve' && responsibility === 'CASHIER' && !responsibleUserId) {
+        showToast('danger', 'Error', 'Select the responsible cashier before approving.');
+        return;
+    }
+
     const data = {
         cancellation_id: currentCancellationId,
         action: action,
+        responsible_user_id: action === 'approve' && responsibility === 'CASHIER' ? responsibleUserId : null,
         rejection_reason: rejectionReason || null,
         remarks: document.getElementById('modalRemarks').value.trim() || null
     };
     
-    const submitBtn = document.querySelector('#confirmCancellationModal .btn-success');
+    const submitBtn = document.getElementById('modalSubmitDecision');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="fas fa-spinner fa-spin me-1"></span>Processing...'; }
 
     fetch(window.BASE_URL + '/api/pos/cancellation-approval.php', {
@@ -238,6 +435,7 @@ function submitCancellationDecision() {
     .then(result => {
         if (result.success) {
             showToast('success', 'Success', result.message);
+            currentCancellationId = null;
             confirmCancellationModal.hide();
             loadCancellations(currentPage);
         } else {
@@ -260,7 +458,7 @@ function renderTable(rows) {
     if (!rows || rows.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6"><div class="text-center py-5 text-muted">
             <span class="fas fa-check-double fs-2 d-block mb-2 opacity-50"></span>
-            <div>No cancellation requests found</div>
+            <div>No refund requests found</div>
             <small>Try adjusting your filters</small>
         </div></td></tr>`;
         return;
@@ -307,12 +505,43 @@ function renderTable(rows) {
                    providerName: c.provider_name || '—',
                    branchName: c.wallet_branch_name || c.branch_name || '—',
                    variantName: c.variant_name || '',
-                   walletId: c.wallet_id || null
+                   walletId: c.wallet_id || null,
+                   isVariantWallet: parseInt(c.variant_id, 10) > 0 || parseInt(c.wallet_is_variant, 10) === 1,
+                   paymentSources: c.payment_sources || [],
+                   operationType: c.operation_type || 'REFUND',
+                   reasonCategory: c.reason_category || 'OTHER',
+                   responsibility: c.responsibility || 'NONE',
+                   responsibleUserId: c.responsible_user_id || null,
+                   responsibleCashierName: c.responsible_cashier_name || '',
+                   responsibilityAmount: parseFloat(c.responsibility_amount || 0).toFixed(2),
+                   grossRefundAmount: parseFloat(c.gross_refund_amount || c.refund_amount || 0).toFixed(2),
+                   voidFee: parseFloat(c.void_fee || 0).toFixed(2),
+                   voidServiceFee: parseFloat(c.void_service_fee || 0).toFixed(2),
+                   lostSalesVoidFee: parseFloat(c.lost_sales_void_fee || 0).toFixed(2),
+                   lostSalesServiceFee: parseFloat(c.lost_sales_service_fee || 0).toFixed(2),
+                   branchId: c.branch_id || null
                  })}' onclick="handleReviewClick(this)"><span class="fas fa-check-double me-1"></span>Review</button>`
             : `<span class="text-muted small">Reviewed</span>`;
 
         const ticketNumberDisplay = c.ticket_number ? `<div class="small text-info"><i class="fas fa-ticket-alt me-1"></i>${esc(c.ticket_number)}</div>` : '';
         const amountDisplay = c.refund_amount ? `<div class="fw-semibold text-success">₱${parseFloat(c.refund_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>` : '';
+        const isTechnicalIssueVoid = c.operation_type === 'VOID' && c.reason_category === 'PRINTER_ERROR';
+        const voidFeeAmount = parseFloat((isTechnicalIssueVoid ? c.lost_sales_void_fee : c.void_fee) || 0);
+        const voidServiceFeeAmount = isTechnicalIssueVoid
+            ? 0
+            : parseFloat(c.void_service_fee || 0);
+        const voidFeeLabel = isTechnicalIssueVoid ? 'Void fee lost sales' : 'Void fee income';
+        const voidServiceFeeLabel = 'Service fee income';
+        const voidFeeClass = isTechnicalIssueVoid ? 'text-danger' : 'text-warning';
+        const voidIncomeDisplay = c.operation_type === 'VOID' && c.responsibility === 'NONE' && (voidFeeAmount > 0 || voidServiceFeeAmount > 0)
+            ? `<div class="small ${voidFeeClass} mt-1">${voidFeeAmount > 0 ? `${voidFeeLabel}: ₱${fmt(voidFeeAmount)}` : ''}${voidFeeAmount > 0 && voidServiceFeeAmount > 0 ? '<br>' : ''}${voidServiceFeeAmount > 0 ? `${voidServiceFeeLabel}: ₱${fmt(voidServiceFeeAmount)}` : ''}</div>`
+            : '';
+        const operationDisplay = c.operation_type === 'VOID'
+            ? '<span class="badge bg-soft-warning text-warning">VOID — No Refund</span>'
+            : '<span class="badge bg-soft-primary text-primary">Refund</span>';
+        const responsibilityDisplay = c.responsibility && c.responsibility !== 'NONE'
+            ? `<div class="small text-danger mt-1">${esc(c.responsibility)}${parseFloat(c.responsibility_amount || 0) > 0 ? ` — ₱${fmt(c.responsibility_amount)}` : ''}${c.responsible_cashier_name ? ` (${esc(c.responsible_cashier_name)})` : ''}</div>`
+            : '';
         return `<tr>
             <td class="ps-3 py-3">
                 <div class="fw-semibold">${esc(c.transaction_code)}</div>
@@ -323,6 +552,9 @@ function renderTable(rows) {
             </td>
             <td class="py-3">
                 ${amountDisplay}
+                <div class="small mt-1">${operationDisplay}</div>
+                ${voidIncomeDisplay}
+                ${responsibilityDisplay}
                 <div class="small mt-1"><span class="badge bg-soft-primary text-primary">${esc(c.cancellation_type)}</span></div>
             </td>
             <td class="py-3">

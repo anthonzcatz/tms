@@ -1,6 +1,6 @@
 <!-- Close Cashier Session Modal -->
 <div class="modal fade" id="closeSessionModal" tabindex="-1" aria-labelledby="closeSessionModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header px-5 position-relative modal-shape-header bg-shape">
         <div class="position-relative z-1">
@@ -34,6 +34,26 @@
             </div>
           </div>
         </div>
+
+        <!-- Transportation Type Access (read-only) -->
+        <div class="row g-3 mb-2" id="closeTransportAccessSection" style="display:none;">
+          <div class="col-12">
+            <div class="card border-primary bg-soft-primary mb-0">
+              <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div>
+                    <h6 class="fw-bold mb-0"><span class="fas fa-route me-2 text-primary"></span>Transportation Type Access</h6>
+                    <div id="closeTransportAccessStatus" class="small text-muted">Loading...</div>
+                  </div>
+                  <span class="badge bg-soft-primary text-primary" id="closeTransportAccessMode">Loading...</span>
+                </div>
+                <div id="closeTransportAccessTypes" class="d-flex gap-1 flex-wrap mt-1"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="closeAdjustmentCards" class="row g-2 mb-3 d-none"></div>
 
         <div class="row g-2 mb-3">
           <div class="col-6">
@@ -77,7 +97,7 @@
               <div class="card-body py-3 px-3">
                 <div class="d-flex flex-column h-100">
                   <div class="text-muted small mb-2">Actual Closing Cash (₱) <span class="text-danger">*</span></div>
-                  <input type="text" class="form-control form-control-sm text-end fw-bold" id="closingCash" name="closingCash" placeholder="0.00" oninput="computeVariance()" autofocus>
+                  <input type="text" class="form-control form-control-sm text-end fw-bold" id="closingCash" name="closingCash" placeholder="0.00" inputmode="decimal" pattern="[0-9,.]*" onkeypress="return /[0-9.,]/.test(event.key)" oninput="computeVariance()" required autofocus>
                   <div class="form-text fs-10 mt-1 mb-0">Physical cash count at end of shift.</div>
                 </div>
               </div>

@@ -77,7 +77,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row">
                   <div class="col">
-                    <p class="font-sans-serif lh-1 mb-1 fs-5"><?php echo count($fees); ?></p>
+                    <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium"><?php echo count($fees); ?></p>
                   </div>
                   <div class="col-auto ps-0">
                     <div class="d-flex align-items-center">
@@ -96,7 +96,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
                   <div class="col-auto align-self-end">
-                    <div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($fees, fn($f) => $f['is_active'])); ?></div>
+                    <div class="fs-6 fw-medium font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($fees, fn($f) => $f['is_active'])); ?></div>
                   </div>
                   <div class="col-auto ps-0 mt-n4">
                     <div class="d-flex align-items-center">
@@ -115,7 +115,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
                   <div class="col-auto align-self-end">
-                    <div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($fees, fn($f) => !$f['is_active'])); ?></div>
+                    <div class="fs-6 fw-medium font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($fees, fn($f) => !$f['is_active'])); ?></div>
                   </div>
                   <div class="col-auto ps-0 mt-n4">
                     <div class="d-flex align-items-center">
@@ -131,7 +131,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex align-items-center">
                 <div class="w-100">
                   <h6 class="mb-3 text-800">Fee Types</h6>
-                  <p class="font-sans-serif lh-1 mb-1 fs-5 fw-bold text-primary">
+                  <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium text-primary">
                     <?php
                     $feeTypes = array_unique(array_column($fees, 'fee_type'));
                     echo count($feeTypes);
@@ -260,6 +260,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           <?php else: ?>
             <?php foreach ($fees as $fee): ?>
               <div class="col-sm-6 col-md-4 fee-card" 
+                   data-fee-id="<?php echo (int) $fee['fee_id']; ?>"
                    data-provider="<?php echo htmlspecialchars($fee['provider_name'] ?? ''); ?>"
                    data-branch="<?php echo htmlspecialchars($fee['branch_name'] ?? ''); ?>"
                    data-status="<?php echo $fee['is_active'] ? 'active' : 'inactive'; ?>"
@@ -271,12 +272,12 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                   <!--/.bg-holder-->
                   <div class="card-body position-relative">
                     <div class="d-flex align-items-start justify-content-between mb-2">
-                      <h6 class="mb-0"><?php echo htmlspecialchars($fee['fee_type'] ?? '-'); ?></h6>
-                      <span class="badge <?php echo $fee['is_active'] ? 'bg-success' : 'bg-danger'; ?>">
+                      <h6 class="mb-0" id="feeType<?php echo (int) $fee['fee_id']; ?>"><?php echo htmlspecialchars($fee['fee_type'] ?? '-'); ?></h6>
+                      <span class="badge <?php echo $fee['is_active'] ? 'bg-success' : 'bg-danger'; ?>" id="feeStatus<?php echo (int) $fee['fee_id']; ?>">
                         <?php echo $fee['is_active'] ? 'Active' : 'Inactive'; ?>
                       </span>
                     </div>
-                    <div class="display-4 fs-5 mb-2 fw-normal font-sans-serif text-primary">
+                    <div class="display-4 fs-5 mb-2 fw-normal font-sans-serif text-primary" id="feeValue<?php echo (int) $fee['fee_id']; ?>">
                       <?php echo $fee['fee_type'] === 'PERCENT' ? ($fee['fee_value'] ?? 0) . '%' : '₱' . number_format($fee['fee_value'] ?? 0, 2); ?>
                     </div>
                     <p class="mb-2 text-muted fs-10">

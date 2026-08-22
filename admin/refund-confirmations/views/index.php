@@ -44,6 +44,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                  </h6>
                 </div>
               </div>
+              <div class="col-auto ms-auto">
+                <small id="refundConfirmationsRealtimeStatus" class="text-muted" title="Refund confirmation data refresh status">Live updates initializing...</small>
+              </div>
             </div>
           </div>
         </div>
@@ -110,9 +113,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
           </div>
           <div class="card-body" id="howItWorksContent" style="display:none;">
             <ul class="mb-0">
-              <li>When a cashier cancels a ticket, it is flagged as <span class="badge bg-soft-warning text-warning">Pending</span> confirmation if the setting requires confirmation.</li>
-              <li>A manager or authorized user reviews the cancellation request and approves or rejects it.</li>
-              <li>Once <span class="badge bg-soft-success text-success">Approved</span>, the refund is processed to the wallet balance (if enabled). <span class="badge bg-soft-danger text-danger">Rejected</span> cancellations are not processed.</li>
+              <li>When a cashier requests a refund, it is flagged as <span class="badge bg-soft-warning text-warning">Pending</span> confirmation if the setting requires confirmation.</li>
+              <li>A manager or authorized user reviews the refund request and approves or rejects it.</li>
+              <li>Once <span class="badge bg-soft-success text-success">Approved</span>, the eligible refund is processed. Consumed variant tickets do not restore stock or provider-wallet balance. <span class="badge bg-soft-danger text-danger">Rejected</span> refunds are not processed.</li>
               <li>Pending refunds are tracked in the cashier session but not applied to wallet until approved.</li>
             </ul>
           </div>
@@ -249,9 +252,18 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
   <script>
     window.REFUND_CONF_CONFIG = {
       apiUrl: '<?php echo BASE_URL; ?>/api/refund-confirmations',
-      isSuperAdmin: <?php echo ($userRoleCode === 'SUPER_ADMIN') ? 'true' : 'false'; ?>
+      isSuperAdmin: <?php echo ($userRoleCode === 'SUPER_ADMIN') ? 'true' : 'false'; ?>,
+      pusher: {
+        enabled: <?php echo $pusherConfigured ? 'true' : 'false'; ?>,
+        key: <?php echo json_encode($pusherKey); ?>,
+        cluster: <?php echo json_encode($pusherCluster); ?>,
+        authEndpoint: <?php echo json_encode(BASE_URL . '/api/pusher/auth'); ?>,
+        branchIds: <?php echo json_encode(array_values(array_unique($realtimeBranchIds))); ?>
+      }
     };
   </script>
+  <?php if ($pusherConfigured): ?><script src="https://js.pusher.com/8.4.0/pusher.min.js"></script><?php endif; ?>
+  <script src="<?php echo BASE_URL; ?>/admin/assets/js/branch-realtime.js?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/js/branch-realtime.js'); ?>"></script>
   <script src="<?php echo BASE_URL; ?>/admin/refund-confirmations/assets/js/refund-confirmations.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/refund-confirmations.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>

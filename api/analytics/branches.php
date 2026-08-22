@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 header('Content-Type: application/json');
 
@@ -37,6 +38,13 @@ try {
             $namedParams
         );
     }
+
+    $branches = array_map(static function (array $branch): array {
+        return [
+            'id' => IdEncoder::encode($branch['branch_id']),
+            'name' => $branch['branch_name']
+        ];
+    }, $branches);
 
     echo json_encode([
         'success' => true,

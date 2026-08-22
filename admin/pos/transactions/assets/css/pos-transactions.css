@@ -40,6 +40,12 @@
     transform: translateX(2px);
 }
 
+/* Hide Operating Provider column; Vessel Name (wallet owner) already shows complete provider info */
+#transactionsTable th:nth-child(4),
+#transactionsTable td:nth-child(4) {
+    display: none;
+}
+
 /* Responsive table tweaks */
 @media (max-width: 768px) {
     .table th:nth-child(4),
@@ -93,18 +99,20 @@
 /* Print styles */
 @media print {
     @page {
-        size: portrait;
-        margin: 0.5cm;
+        size: A4 portrait;
     }
 
     /* Hide everything except print container */
-    body > *:not(#print-container) { display: none !important; }
+    body:not(.printing-financial-report) > *:not(#print-container) { display: none !important; }
 
     /* Show print container */
     #print-container { display: block !important; position: static; }
 
     /* Body styling */
     body { background: white; margin: 0; padding: 0; font-size: 10pt; }
+
+    /* Leave page margins to the browser print dialog. */
+    #print-container { padding: 0; }
 
     /* Table styling in print container */
     #print-container table { border-collapse: collapse; width: 100%; font-size: 9pt; }
@@ -139,4 +147,959 @@
 
     /* Hide empty cells content */
     #print-container .table td:empty::after { content: "—"; }
+}
+
+.pos-transactions-tabs {
+    border-bottom-color: #d8e2ef;
+}
+
+.pos-transactions-tabs .nav-link {
+    color: #5e6e82;
+    font-weight: 600;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    padding: 0.7rem 1rem;
+}
+
+.pos-transactions-tabs .nav-link:hover,
+.pos-transactions-tabs .nav-link:focus {
+    color: #2c7be5;
+    border-bottom-color: rgba(44, 123, 229, 0.35);
+}
+
+.pos-transactions-tabs .nav-link.active {
+    color: #2c7be5;
+    background: transparent;
+    border-bottom-color: #2c7be5;
+}
+
+.financial-report-card {
+    overflow: visible;
+}
+
+.financial-report-sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    color: #1f2d3d;
+    background: #fff;
+    border: 1px solid #d8e2ef;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.25rem 1rem rgba(31, 45, 61, 0.06);
+    font-family: "Century Gothic", "Apple Gothic", "URW Gothic", sans-serif;
+}
+
+.financial-report-sheet * {
+    font-weight: normal !important;
+}
+
+.financial-report-sheet .financial-report-company-name,
+.financial-report-sheet .financial-report-title {
+    font-weight: 700 !important;
+}
+
+.financial-report-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+    gap: 1.5rem;
+    align-items: center;
+    padding: 0 0 1.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 2px solid #183b56;
+}
+
+.financial-report-brand {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.financial-report-logo {
+    display: block;
+    flex: 0 0 auto;
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+}
+
+.financial-report-logo[data-error="1"] {
+    display: none;
+}
+
+.financial-report-company {
+    min-width: 0;
+}
+
+.financial-report-company-name {
+    color: #183b56;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.financial-report-company-meta {
+    color: #52606d;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.financial-report-heading-text {
+    min-width: 0;
+    text-align: right;
+}
+
+.financial-report-kicker,
+.financial-report-section-eyebrow {
+    color: #2c7be5;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.financial-report-title {
+    color: #183b56;
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+}
+
+.financial-report-date {
+    color: #334e68;
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-top: 0.35rem;
+}
+
+.financial-report-scope,
+.financial-report-generated {
+    color: #6c7a8c;
+    font-size: 0.72rem;
+    margin-top: 0.25rem;
+}
+
+.financial-report-section,
+.financial-report-deposit {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.35rem;
+    margin-bottom: 1rem;
+    background: #fff;
+    overflow: hidden;
+}
+
+.financial-report-section-title {
+    display: flex;
+    align-items: center;
+    min-height: 2.2rem;
+    padding: 0.5rem 0.75rem;
+    color: #183b56;
+    background: #f1f5f9;
+    border-bottom: 1px solid #cbd5e1;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.financial-report-total-ticket,
+.financial-report-total-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.financial-report-total-ticket {
+    color: #334e68;
+    background: #fbfdff;
+    border-bottom: 1px solid #e5eaf0;
+}
+
+.financial-report-total-ticket strong {
+    color: #2c7be5;
+    font-size: 1.1rem;
+}
+
+.financial-report-table {
+    --bs-table-bg: transparent;
+    width: 100%;
+    margin: 0;
+    border-color: #d8e2ef;
+}
+
+.financial-report-table th,
+.financial-report-table td {
+    padding: 0.55rem 0.65rem;
+    vertical-align: middle;
+    border: 1px solid #d8e2ef;
+    font-size: 0.76rem;
+}
+
+.financial-report-table thead th {
+    color: #52606d;
+    background: #f8fafc;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.financial-report-table tfoot th {
+    color: #183b56;
+    background: #f1f5f9;
+    font-weight: 800;
+}
+
+.financial-report-service-row td {
+    color: #52606d;
+    background: #fbfcfe;
+    font-style: italic;
+}
+
+.financial-report-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.financial-report-columns .financial-report-section {
+    min-width: 0;
+}
+
+.financial-report-deposit .financial-report-total-row {
+    border-bottom: 1px solid #e5eaf0;
+}
+
+.financial-report-deposit .financial-report-total-row:last-of-type {
+    border-bottom: 0;
+}
+
+.financial-report-refund-row strong {
+    color: #b42318;
+}
+
+.financial-report-net-row {
+    color: #146c43;
+    background: #f1fbf5;
+    font-size: 0.86rem;
+}
+
+.financial-report-input-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 0.85rem;
+    border-top: 1px solid #cbd5e1;
+    background: #fbfcfe;
+}
+
+.financial-report-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.financial-report-field > span {
+    color: #52606d;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.financial-report-field input {
+    min-width: 0;
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.3rem;
+    padding: 0.45rem 0.55rem;
+    color: #1f2d3d;
+    background: #fff;
+    font-size: 0.78rem;
+}
+
+.financial-report-field input:focus {
+    border-color: #2c7be5;
+    box-shadow: 0 0 0 0.15rem rgba(44, 123, 229, 0.15);
+    outline: 0;
+}
+
+.financial-report-signatures {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid #cbd5e1;
+}
+
+.financial-signature-row {
+    display: grid;
+    grid-template-columns: minmax(125px, 0.8fr) minmax(130px, 1.3fr) auto minmax(70px, 0.7fr) auto minmax(120px, 1fr);
+    grid-template-areas:
+        "label name date-label date-line sig-label sig-line"
+        "label position . . . .";
+    gap: 0.45rem;
+    font-size: 0.72rem;
+}
+
+.financial-signature-label {
+    grid-area: label;
+    align-self: start;
+    color: #52606d;
+    font-weight: 700;
+    padding-top: 0.25rem;
+}
+
+.financial-signature-name {
+    grid-area: name;
+    min-height: 1.2rem;
+    border-bottom: 1px solid #7b8794;
+    padding: 0 0.2rem;
+}
+
+.financial-signature-position {
+    grid-area: position;
+    min-height: 1rem;
+    padding: 0.1rem 0.2rem;
+    color: #6c7a8c;
+    font-size: 0.65rem;
+}
+
+.financial-signature-position:empty {
+    display: none;
+}
+
+.financial-signature-date-label {
+    align-self: end;
+    color: #6c7a8c;
+    font-size: 0.65rem;
+}
+
+.financial-signature-date-label-text { grid-area: date-label; }
+.financial-signature-sig-label-text { grid-area: sig-label; }
+
+.financial-signature-line {
+    min-height: 1.2rem;
+    border-bottom: 1px solid #7b8794;
+    align-self: end;
+}
+
+.financial-signature-date-line { grid-area: date-line; }
+.financial-signature-sig-line { grid-area: sig-line; }
+
+.financial-report-generated {
+    text-align: right;
+    margin-top: 0.75rem;
+}
+
+@media (max-width: 991.98px) {
+    .financial-report-heading {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .financial-report-heading-text {
+        text-align: left;
+    }
+
+    .financial-report-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .pos-transactions-tabs .nav-link {
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+        font-size: 0.8rem;
+    }
+
+    .financial-report-sheet {
+        padding: 0.75rem;
+    }
+
+    .financial-report-logo {
+        width: 56px;
+        height: 56px;
+    }
+
+    .financial-report-title {
+        font-size: 1.2rem;
+    }
+
+    .financial-report-input-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .financial-report-table th,
+    .financial-report-table td {
+        padding: 0.45rem;
+        font-size: 0.7rem;
+    }
+
+    .financial-signature-row {
+        grid-template-columns: minmax(105px, 0.9fr) minmax(100px, 1.1fr) auto minmax(70px, 0.7fr);
+        grid-template-areas:
+            "label name date-label date-line"
+            "label position position position";
+    }
+
+    .financial-signature-sig-label-text,
+    .financial-signature-sig-line {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .financial-report-input-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.signatory-settings-modal .modal-body {
+    background: #f8fafc;
+}
+
+.signatory-settings-guide {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.7rem 0.8rem;
+    color: #52606d;
+    background: #eef6ff;
+    border: 1px solid #cfe2ff;
+    border-radius: 0.35rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.signatory-list-header,
+.signatory-row {
+    display: grid;
+    grid-template-columns: 40px minmax(170px, 1.05fr) minmax(190px, 1.3fr) minmax(150px, 0.9fr) 70px 96px;
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.signatory-list-header {
+    padding: 0 0.75rem 0.4rem;
+    color: #6c7a8c;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.signatory-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.signatory-row {
+    padding: 0.7rem 0.75rem;
+    background: #fff;
+    border: 1px solid #d8e2ef;
+    border-radius: 0.4rem;
+    box-shadow: 0 1px 2px rgba(31, 45, 61, 0.03);
+}
+
+.signatory-col {
+    min-width: 0;
+}
+
+.signatory-col-order {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.4rem;
+}
+
+.signatory-order-number {
+    display: inline-flex;
+    width: 1.65rem;
+    height: 1.65rem;
+    align-items: center;
+    justify-content: center;
+    color: #2c7be5;
+    background: #eef6ff;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.signatory-col-main,
+.signatory-col-employee,
+.signatory-col-position {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.signatory-col-employee {
+    position: relative;
+}
+
+.signatory-col-main .form-control-sm,
+.signatory-col-employee .form-control-sm,
+.signatory-col-position .form-select-sm {
+    min-height: 2rem;
+    font-size: 0.78rem;
+}
+
+.signatory-employee-search {
+    position: relative;
+    width: 100%;
+}
+
+.signatory-employee-input {
+    padding-right: 1.75rem;
+}
+
+.signatory-employee-results {
+    position: absolute;
+    top: calc(100% + 0.15rem);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 190px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.3rem;
+    box-shadow: 0 8px 18px rgba(31, 45, 61, 0.14);
+    display: none;
+}
+
+.signatory-employee-result {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.45rem 0.6rem;
+    color: #1f2d3d;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.signatory-employee-result small {
+    color: #6c7a8c;
+    font-size: 0.65rem;
+}
+
+.signatory-employee-result:last-child {
+    border-bottom: 0;
+}
+
+.signatory-employee-result:hover,
+.signatory-employee-result:focus,
+.signatory-employee-result.active {
+    color: #fff;
+    background: #2c7be5;
+    outline: 0;
+}
+
+.signatory-employee-result:hover small,
+.signatory-employee-result:focus small,
+.signatory-employee-result.active small {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.signatory-position-display {
+    display: flex;
+    min-height: 2rem;
+    align-items: center;
+    padding: 0.25rem 0.4rem;
+    color: #1f2d3d;
+    background: #f1f5f9;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.signatory-validation-message {
+    font-size: 0.65rem;
+    line-height: 1.25;
+}
+
+.signatory-col-active {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.3rem;
+}
+
+.signatory-active-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    margin: 0;
+    color: #5e6e82;
+    cursor: pointer;
+    font-size: 0.65rem;
+    text-align: center;
+}
+
+.signatory-col-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.1rem;
+    padding-top: 0.15rem;
+}
+
+.signatory-col-actions .btn-sm {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.75rem;
+}
+
+.signatory-col-actions .btn-link:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.signatory-list-message {
+    padding: 1.25rem 0.75rem;
+    color: #6c7a8c;
+    background: #fff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+@media (max-width: 991.98px) {
+    .signatory-list-header,
+    .signatory-row {
+        grid-template-columns: 36px minmax(145px, 1fr) minmax(170px, 1.1fr) minmax(135px, 0.9fr) 64px 88px;
+        gap: 0.45rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .signatory-list-header {
+        display: none;
+    }
+
+    .signatory-row {
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        grid-template-areas:
+            "order main active"
+            "order employee employee"
+            "order position actions";
+        gap: 0.55rem;
+        padding: 0.65rem;
+    }
+
+    .signatory-col-order { grid-area: order; }
+    .signatory-col-main { grid-area: main; }
+    .signatory-col-employee { grid-area: employee; }
+    .signatory-col-position { grid-area: position; }
+    .signatory-col-active { grid-area: active; }
+    .signatory-col-actions { grid-area: actions; }
+
+    .signatory-col-order {
+        padding-top: 0.25rem;
+    }
+
+    .signatory-col-actions {
+        align-self: end;
+        padding-top: 0;
+    }
+}
+
+@media print {
+    @page {
+        size: A4 portrait;
+    }
+
+    body.printing-financial-report {
+        background: #fff !important;
+        color: #000 !important;
+        font-family: "Century Gothic", "Apple Gothic", "URW Gothic", sans-serif;
+        font-size: 8pt;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    body.printing-financial-report > * {
+        display: none !important;
+    }
+
+    body.printing-financial-report > main.main,
+    body.printing-financial-report > main.main > .container,
+    body.printing-financial-report main.main .content,
+    body.printing-financial-report main.main .tab-content,
+    body.printing-financial-report #financialReportTab,
+    body.printing-financial-report #financialReportTab > .financial-report-card,
+    body.printing-financial-report #financialReportTab > .financial-report-card > .card-body {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    body.printing-financial-report .no-print,
+    body.printing-financial-report .pos-transactions-tabs,
+    body.printing-financial-report #transactionsTab,
+    body.printing-financial-report .financial-report-card > .card-header,
+    body.printing-financial-report .navbar,
+    body.printing-financial-report .navbar-vertical,
+    body.printing-financial-report .navbar-top,
+    body.printing-financial-report .navbar-double-top,
+    body.printing-financial-report .sidebar,
+    body.printing-financial-report #navbarVerticalCollapse,
+    body.printing-financial-report .footer,
+    body.printing-financial-report .settings-panel,
+    body.printing-financial-report .setting-toggle,
+    body.printing-financial-report .scroll-to-top,
+    body.printing-financial-report .toast-container,
+    body.printing-financial-report .offcanvas,
+    body.printing-financial-report .modal,
+    body.printing-financial-report .modal-backdrop,
+    body.printing-financial-report .bg-holder,
+    body.printing-financial-report .breadcrumb {
+        display: none !important;
+    }
+
+    body.printing-financial-report .financial-report-sheet {
+        max-width: none !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-heading {
+        grid-template-columns: minmax(0, 1.25fr) minmax(250px, 0.9fr);
+        gap: 1rem;
+        padding-bottom: 0.65rem;
+        margin-bottom: 0.7rem;
+        border-bottom: 1px solid #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-logo {
+        display: block !important;
+        width: 58px;
+        height: 58px;
+    }
+
+    body.printing-financial-report .financial-report-logo[data-error="1"] {
+        display: none !important;
+    }
+
+    body.printing-financial-report .financial-report-company-name,
+    body.printing-financial-report .financial-report-title {
+        color: #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-company-name {
+        font-size: 10pt;
+    }
+
+    body.printing-financial-report .financial-report-company-meta,
+    body.printing-financial-report .financial-report-kicker,
+    body.printing-financial-report .financial-report-date,
+    body.printing-financial-report .financial-report-scope,
+    body.printing-financial-report .financial-report-generated {
+        color: #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-heading-text {
+        text-align: right;
+    }
+
+    body.printing-financial-report .financial-report-title {
+        font-size: 13pt;
+    }
+
+    body.printing-financial-report .financial-report-date {
+        font-size: 8.5pt;
+    }
+
+    body.printing-financial-report .financial-report-section {
+        border: 0 !important;
+        border-radius: 0 !important;
+        break-inside: avoid;
+        margin-bottom: 0.6rem;
+    }
+
+    body.printing-financial-report .financial-report-deposit {
+        border: 1px solid #000 !important;
+        border-radius: 0 !important;
+        break-inside: avoid;
+        margin-bottom: 0.6rem;
+    }
+
+    body.printing-financial-report .financial-report-section-title,
+    body.printing-financial-report .financial-report-table thead th,
+    body.printing-financial-report .financial-report-table tfoot th {
+        color: #000 !important;
+        background: #f0f0f0 !important;
+    }
+
+    body.printing-financial-report .financial-report-section-title {
+        border-bottom: 1px solid #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-section-title {
+        min-height: 1.7rem;
+        padding: 0.35rem 0.5rem;
+        font-size: 7pt;
+    }
+
+    body.printing-financial-report .financial-report-total-ticket,
+    body.printing-financial-report .financial-report-total-row {
+        padding: 0.45rem 0.5rem;
+        border-bottom: 1px solid #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-deposit .financial-report-total-row:last-of-type {
+        border-bottom: 0 !important;
+    }
+
+    body.printing-financial-report .financial-report-total-ticket strong {
+        color: #000 !important;
+        font-size: 9pt;
+    }
+
+    body.printing-financial-report .financial-report-table {
+        border-collapse: collapse !important;
+    }
+
+    body.printing-financial-report .financial-report-table th,
+    body.printing-financial-report .financial-report-table td {
+        color: #000 !important;
+        border: 1px solid #000 !important;
+        padding: 0.28rem 0.35rem;
+        font-size: 7pt;
+    }
+
+    body.printing-financial-report .financial-report-table thead tr:first-of-type th,
+    body.printing-financial-report .financial-report-table thead tr:first-of-type td {
+        border-top: 0 !important;
+    }
+
+    body.printing-financial-report .financial-report-table thead {
+        display: table-header-group;
+    }
+
+    body.printing-financial-report .financial-report-table tr {
+        break-inside: avoid;
+    }
+
+    body.printing-financial-report .financial-report-input-grid {
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-top: 1px solid #000 !important;
+        background: #fff !important;
+    }
+
+    body.printing-financial-report .financial-report-field > span,
+    body.printing-financial-report .financial-report-field input,
+    body.printing-financial-report .financial-signature-label,
+    body.printing-financial-report .financial-signature-position,
+    body.printing-financial-report .financial-signature-date-label {
+        color: #000 !important;
+    }
+
+    body.printing-financial-report .financial-report-field input {
+        border: 0 !important;
+        border-bottom: 1px solid #000 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        padding: 0.15rem 0;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    /* Hide the browser's empty date input placeholder (e.g. mm/dd/yyyy) in print
+       so the Date Deposit field stays blank for handwritten entry. */
+    body.printing-financial-report .financial-report-field input[type="date"][value=""],
+    body.printing-financial-report .financial-report-field input[type="date"][value=""]::-webkit-datetime-edit,
+    body.printing-financial-report .financial-report-field input[type="date"][value=""]::-webkit-datetime-edit-fields-wrapper {
+        color: transparent !important;
+        -webkit-text-fill-color: transparent !important;
+    }
+
+    body.printing-financial-report .financial-report-field input[type="date"]::-webkit-calendar-picker-indicator {
+        display: none !important;
+    }
+
+    body.printing-financial-report .financial-report-columns {
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        gap: 0.6rem;
+    }
+
+    body.printing-financial-report .financial-report-signatures {
+        margin-top: 0.8rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid #000 !important;
+    }
+
+    body.printing-financial-report .financial-signature-row {
+        grid-template-columns: minmax(100px, 0.8fr) minmax(120px, 1.3fr) auto minmax(60px, 0.7fr) auto minmax(110px, 1fr);
+        grid-template-areas:
+            "label name date-label date-line sig-label sig-line"
+            "label position . . . .";
+        column-gap: 0.35rem;
+        row-gap: 0;
+        font-size: 7pt;
+    }
+
+    body.printing-financial-report .financial-signature-name,
+    body.printing-financial-report .financial-signature-line {
+        border-bottom: 1px solid #000 !important;
+        color: #000 !important;
+    }
+
+    body.printing-financial-report .financial-signature-name {
+        min-height: 1rem;
+        line-height: 1rem;
+        padding: 0 0.2rem;
+        white-space: nowrap;
+        text-transform: uppercase;
+        align-self: start;
+    }
+
+    body.printing-financial-report .financial-signature-position {
+        min-height: 0;
+        padding: 0 0.2rem;
+        line-height: 1rem;
+        align-self: start;
+    }
+
+    body.printing-financial-report .financial-signature-date-label,
+    body.printing-financial-report .financial-signature-label {
+        color: #000 !important;
+    }
+
+    body.printing-financial-report .financial-signature-sig-label-text,
+    body.printing-financial-report .financial-signature-sig-line {
+        display: block !important;
+    }
+
+    body.printing-financial-report .financial-report-generated {
+        display: block !important;
+        margin-top: 0.45rem;
+        font-size: 6.5pt;
+    }
 }

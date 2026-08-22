@@ -2,6 +2,13 @@
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../app/helpers/SecurityHelper.php';
 
+// Prevent login page from being cached by browsers or proxies
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
 $csrf_token = SecurityHelper::generateCSRFToken();
 
 // Collect and clear session messages once
@@ -163,20 +170,34 @@ unset($_SESSION['login_username']);
                         </div>
                       <?php endif ?>
 
-                      <form method="POST" action="<?php echo BASE_URL; ?>/auth/login-handler.php" id="loginForm">
+                      <?php
+                      $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                          || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+                          || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+                      ?>
+
+                      <?php if (!$isHttps): ?>
+                      <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        <span class="fas fa-exclamation-triangle me-2"></span>
+                        <strong>Connection not secure:</strong> You are using HTTP. Your username and password will be sent unencrypted over the network. Ask your administrator to enable HTTPS/SSL for this server.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>
+                      <?php endif; ?>
+
+                      <form method="POST" action="<?php echo BASE_URL; ?>/auth/login-handler.php" id="loginForm" autocomplete="off">
                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                         <input type="hidden" name="browser_latitude" id="browser_latitude">
                         <input type="hidden" name="browser_longitude" id="browser_longitude">
                         <div class="mb-3">
                           <label class="form-label" for="card-username">Username</label>
-                          <input class="form-control" id="card-username" name="username" type="text" required value="<?php echo htmlspecialchars($submittedUsername); ?>" />
+                          <input class="form-control" id="card-username" name="username" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" required value="<?php echo htmlspecialchars($submittedUsername); ?>" />
                         </div>
                         <div class="mb-3">
                           <div class="d-flex justify-content-between">
                             <label class="form-label" for="card-password">Password</label>
                           </div>
                           <div class="input-group">
-                            <input class="form-control" id="card-password" name="password" type="password" required />
+                            <input class="form-control" id="card-password" name="password" type="password" autocomplete="current-password" minlength="8" spellcheck="false" required />
                             <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                               <i class="fas fa-eye" id="togglePasswordIcon"></i>
                             </button>
@@ -185,8 +206,11 @@ unset($_SESSION['login_username']);
                         <div class="row flex-between-center">
                           <div class="col-auto">
                             <div class="form-check mb-0">
-                              <input class="form-check-input" type="checkbox" id="card-checkbox" checked="checked" />
-                              <label class="form-check-label mb-0" for="card-checkbox">Remember me</label>
+                              <input class="form-check-input" type="checkbox" id="card-remember-me" name="remember_me" value="1" />
+                              <label class="form-check-label mb-0" for="card-remember-me">Remember me for 30 days</label>
+                            </div>
+                            <div class="form-text fs-10 text-muted mt-1">
+                              <span class="fas fa-shield-alt me-1"></span>Do not use on shared devices.
                             </div>
                           </div>
                           <div class="col-auto"><a class="fs-10" href="<?php echo FORGOT_PASSWORD_URL; ?>">Forgot Password?</a></div>

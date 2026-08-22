@@ -57,6 +57,7 @@ class SidebarHelper {
         
         // Third pass: resolve ID references to actual node arrays (recursive)
         $tree = self::resolveTree($rootIds, $map);
+        self::sortTree($tree);
         
         // Fourth pass: sort tree by module_name for proper grouping
         usort($tree, function($a, $b) {
@@ -85,6 +86,23 @@ class SidebarHelper {
             $result[] = $node;
         }
         return $result;
+    }
+
+    private static function sortTree(array &$tree): void
+    {
+        usort($tree, function ($a, $b) {
+            $orderCompare = (int) ($a['menu_order'] ?? 0) <=> (int) ($b['menu_order'] ?? 0);
+            return $orderCompare !== 0
+                ? $orderCompare
+                : strcmp((string) ($a['permission_name'] ?? ''), (string) ($b['permission_name'] ?? ''));
+        });
+
+        foreach ($tree as &$item) {
+            if (!empty($item['children'])) {
+                self::sortTree($item['children']);
+            }
+        }
+        unset($item);
     }
     
     /**
@@ -176,7 +194,7 @@ class SidebarHelper {
             return false;
         }
         
-        $fullRequestPath = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
+        $fullRequestPath = rtrim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/', '/');
 
         // Strip the BASE_URL path prefix (e.g. /TMS) from the request URI
         $basePath = rtrim(parse_url(BASE_URL, PHP_URL_PATH) ?: '', '/');
@@ -376,6 +394,38 @@ class SidebarHelper {
                         'module_name' => 'TICKET_STOCK',
                         'menu_icon' => 'fas fa-palette',
                         'menu_url' => 'admin/ticket-stock/variants',
+                        'children' => []
+                    ],
+                    [
+                        'permission_code' => 'VIEW_TICKET_STOCK_BALANCES',
+                        'permission_name' => 'Balances',
+                        'module_name' => 'TICKET_STOCK',
+                        'menu_icon' => 'fas fa-warehouse',
+                        'menu_url' => 'admin/ticket-stock/balances',
+                        'children' => []
+                    ],
+                    [
+                        'permission_code' => 'VIEW_TICKET_STOCK_REQUESTS',
+                        'permission_name' => 'Stock Requests',
+                        'module_name' => 'TICKET_STOCK',
+                        'menu_icon' => 'fas fa-file-alt',
+                        'menu_url' => 'admin/ticket-stock/requests',
+                        'children' => []
+                    ],
+                    [
+                        'permission_code' => 'VIEW_TICKET_STOCK_MOVEMENTS',
+                        'permission_name' => 'Movements',
+                        'module_name' => 'TICKET_STOCK',
+                        'menu_icon' => 'fas fa-exchange-alt',
+                        'menu_url' => 'admin/ticket-stock/movements',
+                        'children' => []
+                    ],
+                    [
+                        'permission_code' => 'VIEW_TICKET_STOCK_DISCREPANCIES',
+                        'permission_name' => 'Discrepancies',
+                        'module_name' => 'TICKET_STOCK',
+                        'menu_icon' => 'fas fa-exclamation-triangle',
+                        'menu_url' => 'admin/ticket-stock/discrepancies',
                         'children' => []
                     ]
                 ]

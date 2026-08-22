@@ -4,7 +4,97 @@ document.addEventListener('DOMContentLoaded', function() {
     loadProviders();
     loadBranches();
     initCurrencyInputs();
+    startProviderWalletRealtime();
+    startProviderWalletPolling();
 });
+
+function startProviderWalletRealtime() {
+    const config = window.PROVIDER_WALLET_PUSHER_CONFIG || window.TMS_PUSHER_CONFIG;
+    const branchIds = config?.branchIds || window.PROVIDER_WALLET_PUSHER_CONFIG?.branchIds || [];
+
+    if (!config?.enabled || typeof Pusher === 'undefined' || !branchIds.length || window.providerWalletPusher) {
+        return;
+    }
+
+    try {
+        const pusher = new Pusher(config.key, {
+            cluster: config.cluster,
+            forceTLS: true,
+            authEndpoint: config.authEndpoint,
+            auth: { withCredentials: true }
+        });
+
+        branchIds.forEach(branchId => {
+            const channel = pusher.subscribe(`private-pos-branch-${branchId}`);
+            channel.bind('wallet.updated', wallet => {
+                if (wallet?.wallet_id) {
+                    updateWalletDisplay(wallet.wallet_id, wallet);
+                    updateStats();
+                }
+            });
+            channel.bind('pusher:subscription_error', status => {
+                console.warn('[Provider wallets realtime] Subscription failed:', status);
+            });
+        });
+
+        pusher.connection.bind('state_change', states => {
+            if (['disconnected', 'unavailable', 'failed'].includes(states.current)) {
+                console.warn('[Provider wallets realtime] Connection state:', states.current);
+            }
+        });
+
+        window.providerWalletPusher = pusher;
+    } catch (error) {
+        console.error('[Provider wallets realtime] Pusher initialization failed:', error);
+    }
+}
+
+// Lightweight polling fallback so balances stay current even when Pusher is not configured.
+function startProviderWalletPolling() {
+    if (window.providerWalletBalanceRefreshInterval) {
+        return;
+    }
+
+    let isRefreshing = false;
+
+    const refresh = async () => {
+        if (document.hidden || isRefreshing) {
+            return;
+        }
+
+        isRefreshing = true;
+        try {
+            const response = await fetch(`${window.BASE_URL}/api/wallets?action=balances&_t=${Date.now()}`, {
+                cache: 'no-store'
+            });
+            const result = await response.json();
+
+            if (result.success && Array.isArray(result.data?.wallets)) {
+                result.data.wallets.forEach(wallet => {
+                    updateWalletDisplay(wallet.wallet_id, {
+                        current_balance: wallet.current_balance,
+                        min_balance: wallet.min_balance,
+                        status: wallet.status
+                    });
+                });
+                updateStats();
+            }
+        } catch (error) {
+            console.warn('[Provider wallets polling] Refresh failed:', error);
+        } finally {
+            isRefreshing = false;
+        }
+    };
+
+    window.providerWalletBalanceRefreshInterval = setInterval(refresh, 5000);
+    refresh();
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            refresh();
+        }
+    });
+}
 
 // Initialize Bootstrap modals
 let addWalletModal, editWalletModal, adjustBalanceModal, viewWalletModal, manageProviderWalletsModal;
@@ -77,10 +167,15 @@ function checkExistingWallet() {
 
     const existing = findExistingWallet(branchId, providerId, variantId);
 
+    const isVariant = Boolean(variantId);
+    setAddWalletInitialInputMode(isVariant);
+
     if (existing) {
         if (walletIdInput) walletIdInput.value = existing.wallet_id;
         if (initialBalanceInput) {
-            initialBalanceInput.value = formatNumberValue(existing.current_balance);
+            initialBalanceInput.value = isVariant
+                ? String(Math.max(0, parseInt(existing.current_balance || 0, 10)))
+                : formatNumberValue(existing.current_balance);
             initialBalanceInput.disabled = true;
         }
         if (minBalanceInput) minBalanceInput.value = formatNumberValue(existing.min_balance);
@@ -89,14 +184,17 @@ function checkExistingWallet() {
         setAddWalletKeyFieldsDisabled(true);
 
         if (alertEl && messageEl) {
-            messageEl.textContent = `An existing wallet with a balance of ₱${formatNumberValue(existing.current_balance)} was found. Saving will update its settings.`;
+            const balanceText = isVariant
+                ? `${Math.max(0, parseInt(existing.current_balance || 0, 10))} tickets`
+                : `₱${formatNumberValue(existing.current_balance)}`;
+            messageEl.textContent = `An existing wallet with ${balanceText} was found. Saving will update its settings.`;
             alertEl.classList.remove('d-none');
         }
     } else {
         if (walletIdInput) walletIdInput.value = '';
         if (initialBalanceInput) {
             initialBalanceInput.disabled = false;
-            initialBalanceInput.value = '0.00';
+            initialBalanceInput.value = isVariant ? '0' : '0.00';
         }
         if (minBalanceInput) minBalanceInput.value = '1,000.00';
         if (statusSelect) statusSelect.value = 'active';
@@ -189,6 +287,11 @@ async function handleAddProviderChange() {
             addWalletPrefill = null;
         }
 
+        if (!variantSelect.dataset.variantListener) {
+            variantSelect.dataset.variantListener = '1';
+            variantSelect.addEventListener('change', checkExistingWallet);
+        }
+
         checkExistingWallet();
     } catch (error) {
         console.error('Error loading variants:', error);
@@ -254,12 +357,14 @@ async function openAddWalletModal(prefillProviderId, prefillBranchId, prefillVar
     if (variantSelect) variantSelect.disabled = true;
     if (initialBalanceInput) {
         initialBalanceInput.disabled = false;
-        initialBalanceInput.value = '0.00';
     }
     if (minBalanceInput) minBalanceInput.value = '1,000.00';
     if (statusSelect) statusSelect.value = 'active';
     if (walletIdInput) walletIdInput.value = '';
     if (alertEl) alertEl.classList.add('d-none');
+
+    // Start in provider-level (money) mode
+    setAddWalletInitialInputMode(false);
 
     await loadBranches();
 
@@ -285,6 +390,7 @@ async function saveWallet() {
     const providerId = providerSelect.value;
     const branchId = branchSelect.value;
     const variantId = variantSelect?.value || '';
+    const isVariant = Boolean(variantId);
     const initialBalance = document.getElementById('addInitialBalance').value;
     const minBalance = document.getElementById('addMinBalance').value;
     const status = document.getElementById('addStatus').value;
@@ -296,19 +402,11 @@ async function saveWallet() {
     }
 
     // If a pre-existing wallet is detected, skip duplicate checks and update it
-    if (!existingWalletId) {
-        const providerOption = providerSelect.options[providerSelect.selectedIndex];
-        if (providerOption && providerOption.disabled) {
-            showToast('warning', 'Warning', 'Selected provider has no available wallets for this branch');
+    if (!existingWalletId && variantSelect) {
+        const variantOption = variantSelect.options[variantSelect.selectedIndex];
+        if (variantOption && variantOption.disabled) {
+            showToast('warning', 'Warning', 'Selected variant already has a wallet for this branch');
             return;
-        }
-
-        if (variantSelect) {
-            const variantOption = variantSelect.options[variantSelect.selectedIndex];
-            if (variantOption && variantOption.disabled) {
-                showToast('warning', 'Warning', 'Selected variant already has a wallet for this branch');
-                return;
-            }
         }
     }
 
@@ -336,14 +434,19 @@ async function saveWallet() {
         } else {
             method = 'POST';
             successMessage = 'Wallet created successfully';
-            body = JSON.stringify({
+            const createBody = {
                 provider_id: providerId,
                 branch_id: branchId,
                 variant_id: variantId || null,
-                initial_balance: parseFloat(String(initialBalance).replace(/,/g, '')) || 0,
                 min_balance: parseFloat(String(minBalance).replace(/,/g, '')) || 1000,
                 status: status
-            });
+            };
+            if (isVariant) {
+                createBody.initial_ticket_count = parseInt(String(initialBalance).replace(/,/g, ''), 10) || 0;
+            } else {
+                createBody.initial_balance = parseFloat(String(initialBalance).replace(/,/g, '')) || 0;
+            }
+            body = JSON.stringify(createBody);
         }
 
         const response = await fetch(`${window.BASE_URL}/api/wallets`, {
@@ -357,7 +460,17 @@ async function saveWallet() {
         if (result.success) {
             showToast('success', 'Success', successMessage);
             addWalletModal.hide();
-            location.reload();
+
+            if (existingWalletId) {
+                updateWalletDisplay(existingWalletId, {
+                    status: result.data?.status ?? status,
+                    min_balance: result.data?.min_balance ?? (parseFloat(String(minBalance).replace(/,/g, '')) || 1000),
+                    current_balance: result.data?.current_balance
+                });
+                updateStats();
+            } else {
+                location.reload();
+            }
         } else {
             showToast('error', 'Error', result.message || 'Failed to save wallet');
         }
@@ -383,11 +496,18 @@ async function editWallet(walletId) {
                 ? `${wallet.variant_name}${wallet.variant_code ? ` (${wallet.variant_code})` : ''}`
                 : 'Provider-level (no variant)';
             document.getElementById('editVariantName').textContent = variantLabel;
-            const balance = parseFloat(wallet.current_balance);
-            document.getElementById('editCurrentBalance').textContent = isNaN(balance)
-                ? '0.00'
-                : balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const isVariant = Boolean(wallet.variant_id);
+            const balance = isVariant ? parseInt(wallet.on_hand_qty || 0, 10) : parseFloat(wallet.current_balance);
+            const balanceText = isVariant
+                ? `${balance} tickets`
+                : (isNaN(parseFloat(wallet.current_balance))
+                    ? '0.00'
+                    : parseFloat(wallet.current_balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            document.getElementById('editCurrentBalance').textContent = balanceText;
             document.getElementById('editMinBalance').value = formatNumberValue(wallet.min_balance || 0);
+
+            const editBalanceLabel = document.getElementById('editCurrentBalanceLabel');
+            if (editBalanceLabel) editBalanceLabel.textContent = isVariant ? 'Current Ticket Stock:' : 'Current Balance:';
 
             // Set current status
             document.getElementById('editStatus').checked = wallet.status === 'active';
@@ -439,6 +559,12 @@ async function updateWallet() {
     const statusCheckbox = document.getElementById('editStatus');
     const status = statusCheckbox.checked ? 'active' : 'inactive';
     const minBalance = document.getElementById('editMinBalance').value;
+    const parsedMinBalance = minBalance === '' ? null : parseFloat(String(minBalance).replace(/,/g, ''));
+
+    if (minBalance !== '' && (!Number.isFinite(parsedMinBalance) || parsedMinBalance < 0)) {
+        showToast('warning', 'Warning', 'Please enter a valid non-negative minimum balance');
+        return;
+    }
     
     try {
         // Get CSRF token
@@ -458,8 +584,8 @@ async function updateWallet() {
         };
         
         // Only include min_balance if it has a value
-        if (minBalance !== '') {
-            requestBody.min_balance = parseFloat(String(minBalance).replace(/,/g, ''));
+        if (parsedMinBalance !== null) {
+            requestBody.min_balance = parsedMinBalance;
         }
         
         const response = await fetch(`${window.BASE_URL}/api/wallets`, {
@@ -473,17 +599,15 @@ async function updateWallet() {
         if (result.success) {
             showToast('success', 'Success', 'Wallet updated successfully');
             editWalletModal.hide();
-            
-            // Update the card switch in real-time
-            const cardSwitch = document.getElementById(`walletSwitch${walletId}`);
-            if (cardSwitch) {
-                cardSwitch.checked = statusCheckbox.checked;
-                const cardLabel = cardSwitch.nextElementSibling;
-                if (cardLabel) {
-                    cardLabel.textContent = statusCheckbox.checked ? 'Active' : 'Inactive';
-                }
-            }
-            
+
+            const minBalanceValue = parsedMinBalance === null ? undefined : parsedMinBalance;
+
+            updateWalletDisplay(walletId, {
+                status: result.data?.status ?? status,
+                min_balance: result.data?.min_balance ?? minBalanceValue,
+                current_balance: result.data?.current_balance
+            });
+
             // Update stats cards
             updateStats();
         } else {
@@ -528,14 +652,10 @@ async function toggleWalletStatus(walletId, newStatus, switchElement) {
         
         if (result.success) {
             showToast('success', 'Success', `Wallet ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
-            
-            // Update the label
-            const label = switchElement.nextElementSibling;
-            if (label) {
-                label.textContent = newStatus === 'active' ? 'Active' : 'Inactive';
-            }
-            
-            // Update stats cards
+            updateWalletDisplay(walletId, {
+                status: result.data?.status ?? newStatus,
+                min_balance: result.data?.min_balance
+            });
             updateStats();
         } else {
             showToast('error', 'Error', result.message || 'Failed to update wallet status');
@@ -552,37 +672,143 @@ async function toggleWalletStatus(walletId, newStatus, switchElement) {
 
 // Update stats cards
 async function updateStats() {
+    const wallets = window.providerWalletData?.existingWallets;
+    if (Array.isArray(wallets)) {
+        const totalWallets = wallets.length;
+        const activeWallets = wallets.filter(wallet => wallet.status === 'active').length;
+        const inactiveWallets = wallets.filter(wallet => wallet.status === 'inactive').length;
+        const totalBalance = wallets.reduce((sum, wallet) => {
+            const balance = Number(wallet.current_balance);
+            return sum + (Number.isFinite(balance) ? balance : 0);
+        }, 0);
+
+        renderWalletStats({
+            total_wallets: totalWallets,
+            active_wallets: activeWallets,
+            inactive_wallets: inactiveWallets,
+            total_balance: totalBalance
+        });
+        return;
+    }
+
     try {
-        const response = await fetch(`${window.BASE_URL}/api/wallets/stats`);
+        const response = await fetch(`${window.BASE_URL}/api/wallets?action=stats`, { cache: 'no-store' });
         const result = await response.json();
-        
-        if (result.success) {
-            // Update total wallets
-            const totalEl = document.querySelector('.card-body .fs-5');
-            if (totalEl) {
-                totalEl.textContent = result.data.total_wallets;
-            }
-            
-            // Update active wallets
-            const activeEl = document.querySelectorAll('.card-body .fs-5')[1];
-            if (activeEl) {
-                activeEl.textContent = result.data.active_wallets;
-            }
-            
-            // Update inactive wallets
-            const inactiveEl = document.querySelectorAll('.card-body .fs-5')[2];
-            if (inactiveEl) {
-                inactiveEl.textContent = result.data.inactive_wallets;
-            }
-            
-            // Update total balance
-            const balanceEl = document.querySelectorAll('.card-body .fs-5')[3];
-            if (balanceEl) {
-                balanceEl.textContent = `₱${parseFloat(result.data.total_balance).toFixed(2)}`;
-            }
+        if (result.success && result.data) {
+            renderWalletStats(result.data);
         }
     } catch (error) {
         console.error('Error updating stats:', error);
+    }
+}
+
+function renderWalletStats(stats) {
+    const totalWallets = Number(stats.total_wallets);
+    const activeWallets = Number(stats.active_wallets);
+    const inactiveWallets = Number(stats.inactive_wallets);
+    const totalBalance = Number(stats.total_balance);
+    const safeTotal = Number.isFinite(totalWallets) ? totalWallets : 0;
+    const safeActive = Number.isFinite(activeWallets) ? activeWallets : 0;
+    const safeInactive = Number.isFinite(inactiveWallets) ? inactiveWallets : 0;
+    const safeBalance = Number.isFinite(totalBalance) ? totalBalance : 0;
+    const activePercentage = safeTotal > 0 ? ((safeActive / safeTotal) * 100).toFixed(1) : '0.0';
+    const inactivePercentage = safeTotal > 0 ? ((safeInactive / safeTotal) * 100).toFixed(1) : '0.0';
+    const maxBalance = Math.max(10000, safeBalance);
+    const balancePercentage = maxBalance > 0 ? Math.min(100, (safeBalance / maxBalance) * 100) : 0;
+
+    const values = {
+        walletStatTotal: safeTotal,
+        walletStatActive: safeActive,
+        walletStatInactive: safeInactive,
+        walletStatActivePercentage: activePercentage,
+        walletStatInactivePercentage: inactivePercentage,
+        walletStatTotalBalance: `₱${safeBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    };
+
+    Object.entries(values).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    });
+
+    const progress = document.getElementById('walletStatBalanceProgress');
+    if (progress) {
+        progress.style.width = `${balancePercentage}%`;
+        progress.setAttribute('aria-valuenow', String(balancePercentage));
+    }
+}
+
+function updateWalletDisplay(walletId, changes) {
+    const listRow = document.querySelector(`#walletListTable tr[data-wallet-id="${walletId}"]`);
+
+    if (changes.min_balance !== undefined) {
+        const listMin = document.getElementById(`walletListMinBalance${walletId}`);
+        if (listMin) {
+            listMin.textContent = '₱' + formatNumberValue(changes.min_balance);
+        }
+        const cardMin = document.getElementById(`walletCardMinBalance${walletId}`);
+        if (cardMin) {
+            cardMin.innerHTML = `<span class="fas fa-exclamation-triangle me-1"></span>Min: ₱${formatNumberValue(changes.min_balance)}`;
+        }
+    }
+
+    if (changes.status !== undefined) {
+        const isActive = changes.status === 'active';
+
+        const listSwitch = listRow ? listRow.querySelector('.wallet-status-switch') : null;
+        if (listSwitch) {
+            listSwitch.checked = isActive;
+        }
+
+        const cardSwitch = document.getElementById(`walletSwitch${walletId}`);
+        if (cardSwitch) {
+            cardSwitch.checked = isActive;
+            const cardLabel = cardSwitch.nextElementSibling;
+            if (cardLabel) {
+                cardLabel.textContent = isActive ? 'Active' : 'Inactive';
+            }
+        }
+    }
+
+    if (changes.current_balance !== undefined) {
+        updateWalletBalanceDisplay(walletId, changes.current_balance);
+    }
+
+    if (window.providerWalletData && window.providerWalletData.existingWallets) {
+        const w = window.providerWalletData.existingWallets.find(w => w.wallet_id == walletId);
+        if (w) {
+            if (changes.min_balance !== undefined) w.min_balance = parseFloat(changes.min_balance) || 0;
+            if (changes.current_balance !== undefined) w.current_balance = parseFloat(changes.current_balance) || 0;
+            if (changes.status !== undefined) w.status = changes.status;
+        }
+    }
+}
+
+function isVariantWallet(walletId) {
+    if (!window.providerWalletData?.existingWallets) return false;
+    const w = window.providerWalletData.existingWallets.find(w => w.wallet_id == walletId);
+    return Boolean(w && w.variant_id);
+}
+
+function updateWalletBalanceDisplay(walletId, currentBalance) {
+    if (isVariantWallet(walletId)) return; // variant balance is stock, not money
+
+    const listBalance = document.getElementById(`walletListBalance${walletId}`);
+    if (listBalance) {
+        listBalance.textContent = '₱' + formatNumberValue(currentBalance);
+        listBalance.classList.remove('text-success', 'text-danger');
+        listBalance.classList.add(parseFloat(currentBalance) >= 0 ? 'text-success' : 'text-danger');
+    }
+
+    const cardBalance = document.getElementById(`walletCardBalance${walletId}`);
+    if (cardBalance) {
+        cardBalance.textContent = '₱' + formatNumberValue(currentBalance);
+        cardBalance.classList.remove('text-success', 'text-danger');
+        cardBalance.classList.add(parseFloat(currentBalance) >= 0 ? 'text-success' : 'text-danger');
+    }
+
+    if (window.providerWalletData && window.providerWalletData.existingWallets) {
+        const w = window.providerWalletData.existingWallets.find(w => w.wallet_id == walletId);
+        if (w) w.current_balance = parseFloat(currentBalance) || 0;
     }
 }
 
@@ -607,11 +833,18 @@ async function adjustBalance(walletId) {
                 ? `${wallet.variant_name}${wallet.variant_code ? ` (${wallet.variant_code})` : ''}`
                 : 'Provider-level (no variant)';
             document.getElementById('adjustVariantName').textContent = variantLabel;
-            const balance = parseFloat(wallet.current_balance);
-            document.getElementById('adjustCurrentBalance').textContent = isNaN(balance)
-                ? '0.00'
-                : balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const isAdjustVariant = Boolean(wallet.variant_id);
+            const adjustBalanceValue = isAdjustVariant ? parseInt(wallet.on_hand_qty || 0, 10) : parseFloat(wallet.current_balance);
+            const adjustBalanceText = isAdjustVariant
+                ? `${adjustBalanceValue} tickets`
+                : (isNaN(parseFloat(wallet.current_balance))
+                    ? '0.00'
+                    : parseFloat(wallet.current_balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            document.getElementById('adjustCurrentBalance').textContent = adjustBalanceText;
             adjustBalanceModal.show();
+
+            const adjustBalanceLabel = document.getElementById('adjustCurrentBalanceLabel');
+            if (adjustBalanceLabel) adjustBalanceLabel.textContent = isAdjustVariant ? 'Current Ticket Stock:' : 'Current Balance:';
         } else {
             showToast('error', 'Error', result.error || 'Failed to load wallet details');
         }
@@ -662,7 +895,12 @@ async function saveAdjustment() {
         if (result.success) {
             showToast('success', 'Success', 'Balance adjusted successfully');
             adjustBalanceModal.hide();
-            location.reload();
+            if (result.data && typeof result.data.current_balance !== 'undefined') {
+                updateWalletBalanceDisplay(walletId, result.data.current_balance);
+                updateStats();
+            } else {
+                location.reload();
+            }
         } else {
             showToast('error', 'Error', result.message || 'Failed to adjust balance');
         }
@@ -682,6 +920,12 @@ function formatDate(dateString) {
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return dateString;
     return d.toLocaleString('en-PH', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeWalletHtml(value) {
+    const element = document.createElement('div');
+    element.textContent = value == null ? '' : String(value);
+    return element.innerHTML;
 }
 
 // View wallet
@@ -719,60 +963,71 @@ function viewWallet(walletId) {
 
             let variantHtml = '';
             if (variants.length) {
-                variantHtml = `<div class="table-responsive"><table class="table table-sm table-borderless mb-0"><tbody>` + variants.map(v => `
+                variantHtml = `<div class="table-responsive"><table class="table table-sm table-borderless mb-0"><tbody>` + variants.map(v => {
+                    const variantColor = /^#[0-9a-f]{3,8}$/i.test(String(v.color_code || '')) ? v.color_code : '#0d6efd';
+                    const variantStatus = v.is_active ? 'Active' : 'Inactive';
+                    return `
                     <tr>
-                        <td style="width:30px;"><span class="d-inline-block rounded" style="width:16px;height:16px;background:${v.color_code || '#0d6efd'};border:1px solid #dee2e6;"></span></td>
-                        <td class="fw-semibold">${v.variant_name} <small class="text-muted">(${v.variant_code || '-'})</small></td>
-                        <td class="text-end"><span class="badge ${v.is_active ? 'bg-success' : 'bg-secondary'}">${v.is_active ? 'Active' : 'Inactive'}</span></td>
-                        <td class="text-end small text-muted">On hand: ${v.on_hand_qty || 0}</td>
-                        <td class="text-end small text-muted">Reserved: ${v.reserved_qty || 0}</td>
-                        <td class="text-end small text-muted">Avail: ${v.available_qty || 0}</td>
-                    </tr>
-                `).join('') + `</tbody></table></div>`;
+                        <td style="width:30px;"><span class="d-inline-block rounded" style="width:16px;height:16px;background:${variantColor};border:1px solid #dee2e6;"></span></td>
+                        <td class="fw-semibold">${escapeWalletHtml(v.variant_name || '-')} <small class="text-muted">(${escapeWalletHtml(v.variant_code || '-')})</small></td>
+                        <td class="text-end"><span class="badge ${v.is_active ? 'bg-success' : 'bg-secondary'}">${variantStatus}</span></td>
+                        <td class="text-end small text-muted">On hand: ${Number(v.on_hand_qty || 0)}</td>
+                        <td class="text-end small text-muted">Reserved: ${Number(v.reserved_qty || 0)}</td>
+                        <td class="text-end small text-muted">Avail: ${Number(v.available_qty || 0)}</td>
+                    </tr>`;
+                }).join('') + `</tbody></table></div>`;
             } else {
                 variantHtml = `<span class="text-muted">No variants configured</span>`;
             }
 
-            let childrenHtml = '';
-            if (w.child_provider_names) {
-                childrenHtml = `<div class="d-flex flex-wrap gap-1">` + w.child_provider_names.split(',').map(n => `<span class="badge bg-light text-dark border">${n.trim()}</span>`).join('') + `</div>`;
-            } else {
-                childrenHtml = `<span class="text-muted">No linked sub-providers</span>`;
-            }
-
+            const isSubProvider = Boolean(w.parent_provider_id);
+            const mainProviderName = w.parent_provider_name || w.provider_name || '-';
+            const linkedSubProviders = w.child_provider_names
+                ? w.child_provider_names.split(',').map(name => name.trim()).filter(Boolean)
+                : [];
+            const childrenHtml = linkedSubProviders.length
+                ? `<div class="d-flex flex-wrap gap-1">${linkedSubProviders.map(name => `<span class="badge bg-light text-dark border"><span class="fas fa-sitemap me-1 text-primary"></span>${escapeWalletHtml(name)}</span>`).join('')}</div>`
+                : `<span class="text-muted">No linked sub-providers</span>`;
+            const hierarchyLabel = isSubProvider ? 'Sub-provider' : linkedSubProviders.length ? 'Main provider with sub-providers' : 'Standalone provider';
             const providerType = w.provider_type ? w.provider_type.charAt(0).toUpperCase() + w.provider_type.slice(1) : '-';
+            const walletDisplayName = [w.provider_name, w.variant_name].filter(Boolean).join(' - ') || w.wallet_name || '-';
+            const walletStatus = w.status === 'active' ? 'Active' : w.status === 'inactive' ? 'Inactive' : '-';
 
             body.innerHTML = `
               <div class="row g-3">
                 <div class="col-md-6">
                   <h6 class="text-primary fw-bold mb-3"><span class="fas fa-wallet me-2"></span>Wallet</h6>
                   <div class="row g-2 small">
-                    <div class="col-5 text-muted">Wallet Name</div><div class="col-7 fw-semibold">${w.wallet_name || '-'}</div>
-                    <div class="col-5 text-muted">Branch</div><div class="col-7 fw-semibold">${w.branch_name || '-'}</div>
-                    <div class="col-5 text-muted">Current Balance</div><div class="col-7 fw-bold ${(w.current_balance || 0) >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(w.current_balance)}</div>
-                    <div class="col-5 text-muted">Min. Balance</div><div class="col-7 fw-semibold">${formatCurrency(w.min_balance)}</div>
-                    <div class="col-5 text-muted">Status</div><div class="col-7"><span class="badge ${w.status === 'active' ? 'bg-success' : 'bg-danger'}">${w.status || '-'}</span></div>
-                    <div class="col-5 text-muted">Created</div><div class="col-7 fw-semibold">${formatDate(w.created_at)}</div>
+                    <div class="col-5 text-muted">Wallet Name</div><div class="col-7 fw-semibold">${escapeWalletHtml(walletDisplayName)}</div>
+                    <div class="col-5 text-muted">Branch</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.branch_name || '-')}</div>
+                    <div class="col-5 text-muted">${w.variant_id ? 'Current Ticket Stock' : 'Current Balance'}</div><div class="col-7 fw-bold ${(w.current_balance || 0) >= 0 ? 'text-success' : 'text-danger'}">${w.variant_id ? (Number(w.on_hand_qty || 0) + ' tickets') : formatCurrency(w.current_balance)}</div>
+                    <div class="col-5 text-muted">${w.variant_id ? 'Min. Stock' : 'Min. Balance'}</div><div class="col-7 fw-semibold">${w.variant_id ? (Number(w.min_balance || 0) + ' tickets') : formatCurrency(w.min_balance)}</div>
+                    <div class="col-5 text-muted">Status</div><div class="col-7"><span class="badge ${w.status === 'active' ? 'bg-success' : w.status === 'inactive' ? 'bg-danger' : 'bg-secondary'}">${walletStatus}</span></div>
+                    <div class="col-5 text-muted">Created</div><div class="col-7 fw-semibold">${escapeWalletHtml(formatDate(w.created_at))}</div>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <h6 class="text-primary fw-bold mb-3"><span class="fas fa-building me-2"></span>Provider</h6>
                   <div class="row g-2 small">
-                    <div class="col-5 text-muted">Provider Name</div><div class="col-7 fw-semibold">${w.provider_name || '-'}</div>
-                    <div class="col-5 text-muted">Provider Code</div><div class="col-7 fw-semibold">${w.provider_code || '-'}</div>
-                    <div class="col-5 text-muted">Type</div><div class="col-7 fw-semibold">${providerType}</div>
-                    <div class="col-5 text-muted">Contact Person</div><div class="col-7 fw-semibold">${w.contact_person || '-'}</div>
-                    <div class="col-5 text-muted">Email</div><div class="col-7 fw-semibold">${w.email || '-'}</div>
-                    <div class="col-5 text-muted">Phone</div><div class="col-7 fw-semibold">${w.phone || '-'}</div>
-                    <div class="col-5 text-muted">Address</div><div class="col-7 fw-semibold">${w.address || '-'}</div>
+                    <div class="col-5 text-muted">Provider Name</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.provider_name || '-')}</div>
+                    <div class="col-5 text-muted">Provider Code</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.provider_code || '-')}</div>
+                    <div class="col-5 text-muted">Type</div><div class="col-7 fw-semibold">${escapeWalletHtml(providerType)}</div>
+                    <div class="col-5 text-muted">Contact Person</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.contact_person || '-')}</div>
+                    <div class="col-5 text-muted">Email</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.email || '-')}</div>
+                    <div class="col-5 text-muted">Phone</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.phone || '-')}</div>
+                    <div class="col-5 text-muted">Address</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.address || '-')}</div>
                   </div>
                 </div>
                 <div class="col-12"><hr class="my-2"></div>
                 <div class="col-md-6">
                   <h6 class="text-primary fw-bold mb-2"><span class="fas fa-sitemap me-2"></span>Main / Sub-providers</h6>
-                  ${w.parent_provider_id ? `<p class="mb-1 small"><span class="text-muted">Main Provider:</span> <span class="fw-semibold">${w.parent_provider_name || 'Main Provider'}</span></p>` : ''}
-                  <p class="mb-0 small"><span class="text-muted">Linked Sub-providers:</span></p>
-                  ${childrenHtml}
+                  <div class="border rounded-3 bg-light-subtle p-3">
+                    <p class="mb-2 small"><span class="text-muted">Relationship:</span> <span class="badge ${isSubProvider ? 'bg-success' : linkedSubProviders.length ? 'bg-primary' : 'bg-secondary'}">${hierarchyLabel}</span></p>
+                    <p class="mb-2 small"><span class="text-muted">Main Provider:</span> <span class="fw-semibold">${escapeWalletHtml(mainProviderName)}</span></p>
+                    ${isSubProvider ? `<p class="mb-2 small"><span class="text-muted">Current Provider:</span> <span class="fw-semibold">${escapeWalletHtml(w.provider_name || '-')}</span></p>` : ''}
+                    <p class="mb-1 small"><span class="text-muted">Linked Sub-providers:</span></p>
+                    ${childrenHtml}
+                  </div>
                 </div>
                 <div class="col-md-6">
                   <h6 class="text-primary fw-bold mb-2"><span class="fas fa-palette me-2"></span>Ticket Variants (${w.variant_count || 0})</h6>
@@ -870,15 +1125,20 @@ function renderManageWalletRow(providerId, branchId, variantId, variantLabel, co
     const statusBadge = hasWallet
         ? (wallet.status === 'active' ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>')
         : '<span class="badge bg-light text-muted border">No wallet</span>';
-    const balanceHtml = hasWallet ? formatCurrency(wallet.current_balance) : '<span class="text-muted">-</span>';
-    const minBalanceHtml = hasWallet ? formatCurrency(wallet.min_balance) : '<span class="text-muted">-</span>';
+    const isRowVariant = hasWallet && wallet.variant_id;
+    const balanceHtml = hasWallet
+        ? (isRowVariant ? `${Number(wallet.on_hand_qty || 0)} tickets` : formatCurrency(wallet.current_balance))
+        : '<span class="text-muted">-</span>';
+    const minBalanceHtml = hasWallet
+        ? (isRowVariant ? `${Number(wallet.min_balance || 0)}` : formatCurrency(wallet.min_balance))
+        : '<span class="text-muted">-</span>';
     const colorStyle = variantCode ? `style="background:${color};color:#fff;"` : '';
     const variantBadge = variantCode ? `<span class="badge rounded-pill me-1" ${colorStyle}>${variantCode}</span>` : '';
 
     let actions = '';
     if (hasWallet) {
         actions = `
-            <button type="button" class="btn btn-sm btn-outline-info" onclick="adjustWalletFromManage(${wallet.wallet_id})" title="Adjust Balance"><span class="fas fa-exchange-alt"></span></button>
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="adjustWalletFromManage(${wallet.wallet_id})" title="${isRowVariant ? 'Adjust Stock' : 'Adjust Balance'}"><span class="fas fa-exchange-alt"></span></button>
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="viewWalletFromManage(${wallet.wallet_id})" title="View Wallet"><span class="fas fa-eye"></span></button>
         `;
     } else {
@@ -954,7 +1214,9 @@ function printWallets() {
         visibleCount++;
         const walletName = card.querySelector('h6')?.textContent?.trim() || '';
         const balance = card.querySelector('.display-4.fs-5')?.textContent?.trim() || '₱0.00';
-        const branch = card.querySelector('.fa-building')?.parentElement?.textContent?.trim() || '';
+        const branch = card.querySelector('.wallet-card-branch')?.dataset.branchName
+            || card.querySelector('.wallet-card-branch')?.textContent?.trim()
+            || '';
         const statusSwitch = card.querySelector('.wallet-status-switch');
         const statusLabel = statusSwitch?.nextElementSibling?.textContent?.trim() || 'Active';
         const statusBadge = statusSwitch?.checked 
@@ -1239,6 +1501,43 @@ function formatCurrencyInput(input) {
     });
 
     formatValue(input.value.length);
+}
+
+function formatIntegerInput(input) {
+    if (!input) return;
+    input.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+}
+
+function setAddWalletInitialInputMode(isVariant) {
+    const input = document.getElementById('addInitialBalance');
+    const label = document.getElementById('addInitialBalanceLabel');
+    const symbol = document.getElementById('addInitialBalanceSymbol');
+    if (!input || !label || !symbol) return;
+
+    // Replace the input to strip old currency listeners
+    const parent = input.parentElement;
+    const newInput = document.createElement('input');
+    newInput.id = 'addInitialBalance';
+    newInput.name = isVariant ? 'initial_ticket_count' : 'initial_balance';
+    newInput.type = 'text';
+    newInput.className = 'form-control ' + (isVariant ? '' : 'number-format');
+    newInput.inputMode = isVariant ? 'numeric' : 'decimal';
+    newInput.placeholder = isVariant ? '0' : '0.00';
+    newInput.value = isVariant ? '0' : '0.00';
+    newInput.autocomplete = 'off';
+    parent.replaceChild(newInput, input);
+
+    if (isVariant) {
+        label.textContent = 'Initial Ticket Count';
+        symbol.textContent = '';
+        formatIntegerInput(newInput);
+    } else {
+        label.textContent = 'Initial Balance';
+        symbol.textContent = '₱';
+        formatCurrencyInput(newInput);
+    }
 }
 
 function initCurrencyInputs() {

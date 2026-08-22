@@ -7,7 +7,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     <!-- ===============================================-->
     <!--    Main Content-->
     <!-- ===============================================-->
-    <main class="main" id="top">
+    <main class="main wallet-transactions-page" id="top">
       <div class="container" data-layout="container">
         <script>
           var isFluid = JSON.parse(localStorage.getItem('isFluid'));
@@ -89,7 +89,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </div>
                     <div class="d-flex">
                       <div class="d-flex">
-                        <p class="font-sans-serif lh-1 mb-1 fs-5 pe-2" id="totalTransactions">0</p>
+                        <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium pe-2" id="totalTransactions">0</p>
                         <div class="d-flex flex-column">
                           <span class="me-1 text-success fas fa-caret-up text-primary"></span>
                           <p class="fs-11 mb-0 text-nowrap">This Month</p>
@@ -112,7 +112,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </div>
                     <div class="d-flex">
                       <div class="d-flex">
-                        <p class="font-sans-serif lh-1 mb-1 fs-5 pe-2" id="totalInflow">₱0.00</p>
+                        <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium pe-2" id="totalInflow">₱0.00</p>
                         <div class="d-flex flex-column">
                           <span class="me-1 text-success fas fa-caret-up text-success"></span>
                           <p class="fs-11 mb-0 text-nowrap">Total Amount</p>
@@ -135,7 +135,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </div>
                     <div class="d-flex">
                       <div class="d-flex">
-                        <p class="font-sans-serif lh-1 mb-1 fs-5 pe-2" id="totalOutflow">₱0.00</p>
+                        <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium pe-2" id="totalOutflow">₱0.00</p>
                         <div class="d-flex flex-column">
                           <span class="me-1 text-danger fas fa-caret-down text-danger"></span>
                           <p class="fs-11 mb-0 text-nowrap">Total Amount</p>
@@ -158,7 +158,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </div>
                     <div class="d-flex">
                       <div class="d-flex">
-                        <p class="font-sans-serif lh-1 mb-1 fs-5 pe-2" id="netBalance">₱0.00</p>
+                        <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium pe-2" id="netBalance">₱0.00</p>
                         <div class="d-flex flex-column">
                           <span class="me-1 text-info fas fa-minus text-info"></span>
                           <p class="fs-11 mb-0 text-nowrap">Current Balance</p>

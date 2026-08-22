@@ -58,9 +58,12 @@ $payments = Database::fetchAll(
             pm.method_type,
             pm.method_code,
             pm.tracks_credit,
-            tp.amount
+            tp.amount,
+            tp.charged_to_passenger_id,
+            pa.fullname AS charged_to_passenger_name
      FROM transaction_payments tp
      JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+     LEFT JOIN passenger_accounts pa ON pa.passenger_id = tp.charged_to_passenger_id
      WHERE tp.source_type = :stype AND tp.source_id = :sid
      ORDER BY pm.sort_order ASC, pm.method_name ASC",
     ['stype' => $sourceType, 'sid' => $txnId]

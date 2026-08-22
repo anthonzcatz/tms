@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/CashierTransportAccess.php';
 
 Auth::requireLogin();
 $user = Auth::user();
@@ -91,7 +92,25 @@ if ($method === 'POST') {
         echo json_encode(['success' => false, 'error' => 'User must be a cashier to have transport assignments']);
         return;
     }
-    
+
+    if ($providerId) {
+        $provider = Database::fetch(
+            "SELECT provider_id FROM ticket_providers
+             WHERE provider_id = :provider_id
+               AND status = 'active'
+               AND provider_type IN ('airline', 'shipping')",
+            ['provider_id' => (int) $providerId]
+        );
+        if (!$provider) {
+            echo json_encode(['success' => false, 'error' => 'Provider not found or inactive']);
+            return;
+        }
+    }
+    if ($transportType && !in_array($transportType, CashierTransportAccess::SUPPORTED_TRANSPORT_TYPES, true)) {
+        echo json_encode(['success' => false, 'error' => 'Bus Lines and Other transportation access are inactive']);
+        return;
+    }
+
     try {
         Database::connection()->beginTransaction();
         
@@ -108,7 +127,7 @@ if ($method === 'POST') {
                 'user_id' => $userId,
                 'provider_id' => $providerId,
                 'transport_type' => $transportType,
-                'created_by' => $user['user_id'],
+                'created_by' => Auth::id(),
                 'created_at' => date('Y-m-d H:i:s')
             ]
         );
@@ -144,16 +163,28 @@ if ($method === 'DELETE') {
         Database::connection()->beginTransaction();
         
         if ($assignmentId) {
-            Database::execute("DELETE FROM cashier_transport_assignments WHERE assignment_id = :id", ['id' => $assignmentId]);
-        } else if ($userId) {
-            Database::execute("DELETE FROM cashier_transport_assignments WHERE user_id = :user_id", ['user_id' => $userId]);
-            
-            // Update user_accounts to mark as not having restricted transport types
-            Database::execute(
-                "UPDATE user_accounts SET has_restricted_transport = 0 WHERE user_id = :user_id",
-                ['user_id' => $userId]
+            $assignment = Database::fetch(
+                "SELECT user_id FROM cashier_transport_assignments WHERE assignment_id = :id FOR UPDATE",
+                ['id' => $assignmentId]
             );
+            if (!$assignment) {
+                throw new RuntimeException('Assignment not found.');
+            }
+            $userId = (int) $assignment['user_id'];
+            Database::execute("DELETE FROM cashier_transport_assignments WHERE assignment_id = :id", ['id' => $assignmentId]);
+        } else {
+            Database::execute("DELETE FROM cashier_transport_assignments WHERE user_id = :user_id", ['user_id' => $userId]);
         }
+
+        $remaining = Database::fetch(
+            "SELECT COUNT(*) AS assignment_count FROM cashier_transport_assignments WHERE user_id = :user_id",
+            ['user_id' => $userId]
+        );
+        Database::execute(
+            "UPDATE user_accounts SET has_restricted_transport = :restricted WHERE user_id = :user_id",
+            ['restricted' => ((int) ($remaining['assignment_count'] ?? 0) > 0) ? 1 : 0, 'user_id' => $userId]
+        );
+        CashierTransportAccess::invalidate((int) $userId);
         
         Database::connection()->commit();
         

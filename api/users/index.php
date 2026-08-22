@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/CashierTransportAccess.php';
 
 // Check authentication
 if (!Auth::check()) {
@@ -31,6 +32,72 @@ if (!$canManageUsers) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Permission denied. You need MANAGE_USERS permission to access this resource.']);
     exit;
+}
+
+function syncCashierTransportAssignments(int $userId, bool $restricted, array $transportTypes, array $specificProviders): void
+{
+    Database::execute(
+        "DELETE FROM cashier_transport_assignments WHERE user_id = :user_id",
+        ['user_id' => $userId]
+    );
+
+    if (!$restricted) {
+        Database::execute(
+            "UPDATE user_accounts SET has_restricted_transport = 0 WHERE user_id = :user_id",
+            ['user_id' => $userId]
+        );
+        CashierTransportAccess::invalidate($userId);
+        return;
+    }
+
+    if (!$transportTypes && !$specificProviders) {
+        throw new InvalidArgumentException('Select at least one transportation type or provider.');
+    }
+
+    foreach ($specificProviders as $providerId) {
+        $provider = Database::fetch(
+            "SELECT provider_id FROM ticket_providers
+             WHERE provider_id = :provider_id
+               AND status = 'active'
+               AND provider_type IN ('airline', 'shipping')",
+            ['provider_id' => $providerId]
+        );
+        if (!$provider) {
+            throw new InvalidArgumentException('One or more selected providers are invalid or inactive.');
+        }
+        Database::execute(
+            "INSERT INTO cashier_transport_assignments (user_id, provider_id, transport_type, created_by, created_at)
+             VALUES (:user_id, :provider_id, NULL, :created_by, :created_at)",
+            [
+                'user_id' => $userId,
+                'provider_id' => $providerId,
+                'created_by' => Auth::id(),
+                'created_at' => date('Y-m-d H:i:s'),
+            ]
+        );
+    }
+
+    foreach ($transportTypes as $transportType) {
+        if (!in_array($transportType, CashierTransportAccess::SUPPORTED_TRANSPORT_TYPES, true)) {
+            throw new InvalidArgumentException('Bus Lines and Other transportation access are inactive.');
+        }
+        Database::execute(
+            "INSERT INTO cashier_transport_assignments (user_id, provider_id, transport_type, created_by, created_at)
+             VALUES (:user_id, NULL, :transport_type, :created_by, :created_at)",
+            [
+                'user_id' => $userId,
+                'transport_type' => $transportType,
+                'created_by' => Auth::id(),
+                'created_at' => date('Y-m-d H:i:s'),
+            ]
+        );
+    }
+
+    Database::execute(
+        "UPDATE user_accounts SET has_restricted_transport = 1 WHERE user_id = :user_id",
+        ['user_id' => $userId]
+    );
+    CashierTransportAccess::invalidate($userId);
 }
 
 // CSRF protection for POST/PUT/DELETE requests
@@ -66,6 +133,14 @@ try {
             break;
     }
 } catch (Exception $e) {
+    if (Database::connection()->inTransaction()) {
+        Database::connection()->rollBack();
+    }
+    if ($e instanceof InvalidArgumentException) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        return;
+    }
     error_log("Users API Error: " . $e->getMessage());
     error_log("Users API Trace: " . $e->getTraceAsString());
     error_log("Users API File: " . $e->getFile() . " Line: " . $e->getLine());
@@ -383,11 +458,23 @@ function handlePost() {
         $profileImagePath = saveProfileImage($data['profile_image'], $userCode);
     }
 
+    $role = Database::fetch("SELECT role_code FROM user_roles WHERE role_id = :role_id", ['role_id' => (int) $data['role_id']]);
+    $isCashier = ($role['role_code'] ?? '') === 'CASHIER';
+    $hasRestrictedTransport = $isCashier && !empty($data['has_restricted_transport']);
+    $transportTypes = array_values(array_unique(array_filter((array) ($data['transport_types'] ?? []))));
+    $specificProviders = array_values(array_unique(array_map('intval', array_filter((array) ($data['specific_providers'] ?? [])))));
+    if ($hasRestrictedTransport && !$transportTypes && !$specificProviders) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Select at least one transportation type or provider.']);
+        return;
+    }
+
     // Insert user
+    Database::connection()->beginTransaction();
     Database::execute(
         "INSERT INTO user_accounts
-         (user_code, username, password_hash, email, emp_id, role_id, branch_id, profile_image, status, is_time_restricted, allowed_login_start, allowed_login_end, allowed_days, created_at, updated_at)
-         VALUES (:user_code, :username, :password_hash, :email, :emp_id, :role_id, :branch_id, :profile_image, :status, :is_time_restricted, :allowed_login_start, :allowed_login_end, :allowed_days, :created_at, :updated_at)",
+         (user_code, username, password_hash, email, emp_id, role_id, branch_id, profile_image, status, has_restricted_transport, is_time_restricted, allowed_login_start, allowed_login_end, allowed_days, created_at, updated_at)
+         VALUES (:user_code, :username, :password_hash, :email, :emp_id, :role_id, :branch_id, :profile_image, :status, :has_restricted_transport, :is_time_restricted, :allowed_login_start, :allowed_login_end, :allowed_days, :created_at, :updated_at)",
         [
             'user_code' => $userCode,
             'username' => $data['username'],
@@ -398,6 +485,7 @@ function handlePost() {
             'branch_id' => isset($data['branch_id']) ? (is_array($data['branch_id']) ? (count($data['branch_id']) ? implode(',', array_map('intval', $data['branch_id'])) : null) : ($data['branch_id'] ? $data['branch_id'] : null)) : null,
             'profile_image' => $profileImagePath,
             'status' => isset($data['status']) ? $data['status'] : 'active',
+            'has_restricted_transport' => $hasRestrictedTransport ? 1 : 0,
             'is_time_restricted' => isset($data['is_time_restricted']) ? (int)$data['is_time_restricted'] : 0,
             'allowed_login_start' => isset($data['allowed_login_start']) ? $data['allowed_login_start'] : null,
             'allowed_login_end' => isset($data['allowed_login_end']) ? $data['allowed_login_end'] : null,
@@ -407,7 +495,11 @@ function handlePost() {
         ]
     );
     
-    $userId = Database::lastInsertId();
+    $userId = (int) Database::lastInsertId();
+    if ($isCashier) {
+        syncCashierTransportAssignments($userId, $hasRestrictedTransport, $transportTypes, $specificProviders);
+    }
+    Database::connection()->commit();
     
     // Log activity
     logActivity($userId, 'CREATE', "Created user: {$data['username']}");
@@ -492,6 +584,20 @@ function handlePut() {
         }
     }
     
+    $targetRoleId = isset($data['role_id']) ? (int) $data['role_id'] : (int) $existing['role_id'];
+    $targetRole = Database::fetch("SELECT role_code FROM user_roles WHERE role_id = :role_id", ['role_id' => $targetRoleId]);
+    $targetIsCashier = ($targetRole['role_code'] ?? $existing['role_code']) === 'CASHIER';
+    $hasRestrictedTransport = $targetIsCashier && (array_key_exists('has_restricted_transport', $data)
+        ? !empty($data['has_restricted_transport'])
+        : (int) ($existing['has_restricted_transport'] ?? 0) === 1);
+    $transportTypes = array_values(array_unique(array_filter((array) ($data['transport_types'] ?? []))));
+    $specificProviders = array_values(array_unique(array_map('intval', array_filter((array) ($data['specific_providers'] ?? [])))));
+    if ($hasRestrictedTransport && !$transportTypes && !$specificProviders) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Select at least one transportation type or provider.']);
+        return;
+    }
+
     // Build update query
     $updateFields = [];
     $params = ['user_id' => (int)$userId];
@@ -548,6 +654,11 @@ function handlePut() {
     if (isset($data['is_time_restricted'])) {
         $updateFields[] = "is_time_restricted = :is_time_restricted";
         $params['is_time_restricted'] = (int)$data['is_time_restricted'];
+    }
+
+    if (array_key_exists('has_restricted_transport', $data) || $targetRoleId !== (int) $existing['role_id']) {
+        $updateFields[] = "has_restricted_transport = :has_restricted_transport";
+        $params['has_restricted_transport'] = $hasRestrictedTransport ? 1 : 0;
     }
     
     if (isset($data['allowed_login_start'])) {
@@ -613,7 +724,10 @@ function handlePut() {
     
     $sql = "UPDATE user_accounts SET " . implode(", ", $updateFields) . " WHERE user_id = :user_id";
     
+    Database::connection()->beginTransaction();
     Database::execute($sql, $params);
+    syncCashierTransportAssignments((int) $userId, $hasRestrictedTransport, $transportTypes, $specificProviders);
+    Database::connection()->commit();
     
     // Log activity
     $currentUser = Auth::user();

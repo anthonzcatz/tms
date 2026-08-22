@@ -1,5 +1,30 @@
 /* Provider Wallets Module Styles */
 
+.provider-wallets-page .card-body,
+.provider-wallets-page .card-header,
+.provider-wallets-page .btn,
+.provider-wallets-page .form-control,
+.provider-wallets-page .form-select,
+.provider-wallets-page .dropdown-item,
+.provider-wallets-page .dropdown-header {
+    font-size: 0.75rem;
+}
+
+.provider-wallets-page h5,
+.provider-wallets-page h6 {
+    font-size: 0.75rem !important;
+}
+
+.provider-wallets-page .small,
+.provider-wallets-page small {
+    font-size: inherit;
+}
+
+.provider-wallets-page #walletListTable th,
+.provider-wallets-page #walletListTable td {
+    font-size: 0.75rem;
+}
+
 .balance-positive {
     color: #198754;
 }
@@ -54,4 +79,40 @@
 .form-check.form-switch .form-check-label {
     margin-left: 0.5rem;
     line-height: 1.5;
+}
+
+/* Keep every list-view wallet action button the same size, including variant actions. */
+.wallet-list-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.wallet-list-actions .btn {
+    width: 2.25rem;
+    height: 2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+#walletListTable th:last-child,
+#walletListTable td:last-child {
+    min-width: 10rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+    .wallet-list-actions .btn {
+        width: 2rem;
+        height: 1.875rem;
+    }
+
+    #walletListTable th:last-child,
+    #walletListTable td:last-child {
+        min-width: 9rem;
+    }
 }

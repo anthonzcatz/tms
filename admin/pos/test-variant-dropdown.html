@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket Variant Dropdown Test</title>
+  <base href="/TMS/">
+  <link rel="stylesheet" href="resources/vendors/choices/choices.min.css">
+  <link rel="stylesheet" href="admin/pos/assets/css/pos.css">
+  <style>
+    body { padding: 2rem; font-family: system-ui, sans-serif; background: #f8f9fa; }
+    .test-wrap { max-width: 380px; margin: 0 auto; background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    label { display: block; margin-bottom: .5rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="test-wrap">
+    <label for="ticketVariant">Ticket Variant (Choices.js test)</label>
+    <select id="ticketVariant" name="ticketVariant" class="form-select">
+      <option value="">Select Variant</option>
+      <option value="1"
+        data-available="1"
+        data-stock-controlled="1"
+        data-variant-name="Super Deluxe Long Name That Should Truncate With Ellipsis"
+        data-variant-code="SDL"
+        data-custom-properties='{"colorCode":"#e11d48","stockColor":"#28a745","stockText":"15 available","balanceText":"No wallet","hasWallet":false}'>
+        Super Deluxe Long Name That Should Truncate With Ellipsis&#x001F;15 available &#x2022; No wallet
+      </option>
+      <option value="2"
+        data-available="0"
+        data-stock-controlled="1"
+        data-variant-name="Economy Regular"
+        data-variant-code="ECO"
+        data-custom-properties='{"colorCode":"#2563eb","stockColor":"#dc3545","stockText":"out of stock","balanceText":"No wallet","hasWallet":false}'>
+        Economy Regular&#x001F;out of stock &#x2022; No wallet
+      </option>
+      <option value="3"
+        data-available="1"
+        data-stock-controlled="0"
+        data-variant-name="VIP Express With Wallet"
+        data-variant-code="VIP"
+        data-custom-properties='{"colorCode":"#059669","stockColor":"#28a745","stockText":"Available","balanceText":"Main wallet: &#x20B1;12,500.00","hasWallet":true}'>
+        VIP Express With Wallet&#x001F;Available &#x2022; Main wallet: &#x20B1;12,500.00
+      </option>
+    </select>
+  </div>
+
+  <script src="resources/vendors/choices/choices.min.js"></script>
+  <script src="admin/pos/assets/js/pos.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        refreshVariantChoices();
+        console.log('[Test] refreshVariantChoices called');
+      } catch (err) {
+        console.error('[Test] refreshVariantChoices failed:', err);
+      }
+    });
+  </script>
+</body>
+</html>

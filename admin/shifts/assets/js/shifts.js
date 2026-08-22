@@ -4,6 +4,94 @@ function fmt(n) {
     return parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function escapeHtml(value) {
+    const element = document.createElement('div');
+    element.textContent = value == null ? '' : String(value);
+    return element.innerHTML;
+}
+
+/**
+ * Show a Bootstrap-styled confirmation modal instead of the native alert/confirm.
+ * @param {string} title
+ * @param {string} message - Newlines will be converted to <br>. Pass options.html = true if message already contains HTML.
+ * @param {Object} options
+ * @param {string} [options.icon='question'] - Font Awesome icon class suffix
+ * @param {string} [options.iconColor='text-warning']
+ * @param {string} [options.confirmBtnColor='btn-danger']
+ * @param {string} [options.confirmBtnText='Confirm']
+ * @param {string} [options.cancelBtnText='Cancel']
+ * @param {boolean} [options.html=false]
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(title, message, options = {}) {
+    return new Promise((resolve) => {
+        const icon = options.icon || 'question';
+        const iconColor = options.iconColor || 'text-warning';
+        const confirmBtnColor = options.confirmBtnColor || 'btn-primary';
+        const confirmBtnText = options.confirmBtnText || 'Confirm';
+        const cancelBtnText = options.cancelBtnText || 'Cancel';
+        const allowHtml = options.html === true;
+        const modalId = 'customConfirmModal';
+
+        const existing = document.getElementById(modalId);
+        if (existing) {
+            const existingModal = bootstrap.Modal.getInstance(existing);
+            if (existingModal) existingModal.hide();
+            existing.remove();
+        }
+
+        const modalHtml = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header border-bottom-0 pb-0">
+                            <h5 class="modal-title fw-bold">${escapeHtml(title)}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body py-4">
+                            <div class="d-flex align-items-start">
+                                <div class="me-3 flex-shrink-0">
+                                    <span class="fas fa-${icon} ${iconColor} fa-2x"></span>
+                                </div>
+                                <div class="fs-10">${allowHtml ? message.replace(/\n/g, '<br>') : escapeHtml(message).replace(/\n/g, '<br>')}</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-top-0 pt-0">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">${escapeHtml(cancelBtnText)}</button>
+                            <button type="button" class="btn ${confirmBtnColor}" id="customConfirmBtn">
+                                <span class="fas fa-check me-2"></span>${escapeHtml(confirmBtnText)}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const container = document.createElement('div');
+        container.innerHTML = modalHtml;
+        document.body.appendChild(container);
+
+        const modalEl = document.getElementById(modalId);
+        const modal = new bootstrap.Modal(modalEl);
+        let confirmed = false;
+
+        const handleConfirm = () => {
+            confirmed = true;
+            modal.hide();
+        };
+
+        document.getElementById('customConfirmBtn').addEventListener('click', handleConfirm, { once: true });
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            resolve(confirmed);
+            setTimeout(() => {
+                if (container.parentNode) document.body.removeChild(container);
+            }, 300);
+        }, { once: true });
+
+        modal.show();
+    });
+}
+
 let sessionDetailModal;
 let recordDepositModal;
 let currentSessionId = null;
@@ -178,12 +266,14 @@ async function loadSessionDetails() {
                 <td class="pe-0 text-end pt-0"><strong>₱${fmt(s.starting_cash)}</strong></td>
               </tr>`;
 
-            // Calculate refunds first for use in loop
+            // Calculate refunds and cash change first for use in loop
             const totalRefunds = parseFloat(s.total_refunds || 0);
+            const totalCashChange = parseFloat(s.total_cash_change || 0);
+            const totalCashAdjustments = parseFloat(s.total_cash_adjustments || 0);
 
             // Payment methods from API with include_in_expected_cash indicator
             payments.forEach((p, index) => {
-                const isLast = index === payments.length - 1 && totalRefunds <= 0;
+                const isLast = index === payments.length - 1 && totalRefunds <= 0 && totalCashChange <= 0 && totalCashAdjustments <= 0;
                 const borderClass = !isLast ? 'border-bottom' : '';
                 const inCashBadge = p.include_in_expected_cash
                     ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
@@ -198,6 +288,17 @@ async function loadSessionDetails() {
                   </tr>`;
             });
 
+            // Show cash change row if any
+            if (totalCashChange > 0) {
+                html += `
+                  <tr class="border-bottom">
+                    <td class="ps-0"><strong>Change (Cash Out)</strong>
+                      <div class="text-400 fw-normal fs-11 text-warning">CASH GIVEN TO CUSTOMERS</div>
+                    </td>
+                    <td class="pe-0 text-end text-warning"><strong>-₱${fmt(totalCashChange)}</strong></td>
+                  </tr>`;
+            }
+
             // Show refunds row if there are refunds
             if (totalRefunds > 0) {
                 html += `
@@ -208,25 +309,36 @@ async function loadSessionDetails() {
                     <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
                   </tr>`;
             }
+            if (totalCashAdjustments > 0) {
+                html += `
+                  <tr class="border-bottom">
+                    <td class="ps-0"><strong>Cashier Responsibility Deductions</strong>
+                      <div class="text-400 fw-normal fs-11 text-danger">ACCOUNTABILITY ADJUSTMENT</div>
+                    </td>
+                    <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalCashAdjustments)}</strong></td>
+                  </tr>`;
+            }
 
             // Show expected cash calculation
             const expectedCashCalc = payments
                 .filter(p => p.include_in_expected_cash)
                 .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
-            const netTotal = parseFloat(s.starting_cash || 0) + expectedCashCalc - totalRefunds;
 
             html += `
               <tr class="table-light">
                 <td class="ps-0 pb-0 pt-2"><strong>Expected Cash</strong>
-                  <div class="text-400 fw-normal fs-11 text-success">STARTING + IN CASH - REFUNDS</div>
+                  <div class="text-400 fw-normal fs-11 text-success">STARTING + IN CASH - CHANGE - REFUNDS - CASHIER DEDUCTIONS</div>
                 </td>
-                <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(netTotal)}</strong></td>
+                <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(s.expected_cash || 0)}</strong></td>
               </tr>
             </table>
           </div>
         </div>`;
 
             // Add collapsible info note about expected cash calculation
+            const changeText = totalCashChange > 0 ? ' - Cash Change (₱' + fmt(totalCashChange) + ')' : '';
+            const refundText = totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : '';
+            const adjustmentText = totalCashAdjustments > 0 ? ' - Cashier Deductions (₱' + fmt(totalCashAdjustments) + ')' : '';
             html += `
             <div class="alert alert-info fs-10 mb-4">
               <div class="d-flex justify-content-between align-items-center">
@@ -237,7 +349,7 @@ async function loadSessionDetails() {
                 </button>
               </div>
               <div class="collapse mt-2" id="expectedCashInfo${s.session_id}">
-                <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : ''}</small>
+                <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${changeText}${refundText}${adjustmentText}</small>
               </div>
             </div>`;
         } else {
@@ -688,10 +800,15 @@ function renderPaymentBreakdown(payments, session) {
     }
     
     const totalRefunds = parseFloat(session.total_refunds || 0);
+    const pendingRefundsCash = parseFloat(session.pending_refunds_cash || 0);
+    const showPendingRefunds = Boolean(session.show_pending_refunds_in_close_session) ||
+        Boolean(window.CANCELLATION_SETTINGS?.show_pending_refunds_in_close_session);
+    const displayedPendingRefunds = showPendingRefunds ? pendingRefundsCash : 0;
+    const totalCashChange = parseFloat(session.total_cash_change || 0);
+    const totalCashAdjustments = parseFloat(session.total_cash_adjustments || 0);
     const expectedCashCalc = payments
         .filter(p => p.include_in_expected_cash)
         .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
-    const netTotal = parseFloat(session.starting_cash || 0) + expectedCashCalc - totalRefunds;
     
     let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
     html += '<div class="card mb-3"><div class="card-body py-3"><table class="table table-hover table-borderless fs-10 mb-0">';
@@ -707,8 +824,9 @@ function renderPaymentBreakdown(payments, session) {
     
     // Payment methods
     payments.forEach((p, index) => {
-        const isLast = index === payments.length - 1 && totalRefunds <= 0;
-        const borderClass = !isLast ? 'border-bottom' : '';
+        const hasDeductions = totalCashChange > 0 || totalRefunds > 0 || displayedPendingRefunds > 0 || totalCashAdjustments > 0;
+        const isLast = index === payments.length - 1 && !hasDeductions;
+        const borderClass = !isLast || hasDeductions ? 'border-bottom' : '';
         const inCashBadge = p.include_in_expected_cash
             ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
             : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
@@ -722,28 +840,77 @@ function renderPaymentBreakdown(payments, session) {
           </tr>`;
     });
     
-    // Refunds if any
-    if (totalRefunds > 0) {
+    // Cash change if any
+    if (totalCashChange > 0) {
         html += `
           <tr class="border-bottom">
-            <td class="ps-0"><strong>Refunds (Cash Out)</strong>
-              <div class="text-400 fw-normal fs-11 text-danger">CASH OUT</div>
+            <td class="ps-0"><strong>Change (Cash Out)</strong>
+              <div class="text-400 fw-normal fs-11 text-warning">CASH GIVEN TO CUSTOMERS</div>
+            </td>
+            <td class="pe-0 text-end text-warning"><strong>-₱${fmt(totalCashChange)}</strong></td>
+          </tr>`;
+    }
+
+    // Refunds if any
+    if (totalRefunds > 0) {
+        const refundLabel = showPendingRefunds ? 'Approved Refunds' : 'Refunds (Cash Out)';
+        const refundSubLabel = showPendingRefunds ? 'APPROVED CASH OUT' : 'CASH OUT';
+        html += `
+          <tr class="border-bottom">
+            <td class="ps-0"><strong>${refundLabel}</strong>
+              <div class="text-400 fw-normal fs-11 text-danger">${refundSubLabel}</div>
             </td>
             <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
           </tr>`;
     }
-    
+
+    // Pending refunds if configured
+    if (displayedPendingRefunds > 0) {
+        html += `
+          <tr class="border-bottom">
+            <td class="ps-0"><strong>Pending Refunds</strong>
+              <div class="text-400 fw-normal fs-11 text-warning">AWAITING APPROVAL</div>
+            </td>
+            <td class="pe-0 text-end text-warning"><strong>-₱${fmt(displayedPendingRefunds)}</strong></td>
+          </tr>`;
+    }
+    if (totalCashAdjustments > 0) {
+        html += `
+          <tr class="border-bottom">
+            <td class="ps-0"><strong>Cashier Responsibility Deductions</strong>
+              <div class="text-400 fw-normal fs-11 text-danger">ACCOUNTABILITY ADJUSTMENT</div>
+            </td>
+            <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalCashAdjustments)}</strong></td>
+          </tr>`;
+    }
+
     // Expected cash row
+    const expectedCalcFormula = [
+        'STARTING + IN CASH',
+        'CHANGE',
+        'REFUNDS',
+        showPendingRefunds && displayedPendingRefunds > 0 ? 'PENDING REFUNDS' : null,
+        totalCashAdjustments > 0 ? 'CASHIER DEDUCTIONS' : null
+    ].filter(Boolean).join(' - ');
+
     html += `
       <tr class="table-light">
         <td class="ps-0 pb-0 pt-2"><strong>Expected Cash</strong>
-          <div class="text-400 fw-normal fs-11 text-success">STARTING + IN CASH - REFUNDS</div>
+          <div class="text-400 fw-normal fs-11 text-success">${expectedCalcFormula}</div>
         </td>
-        <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(netTotal)}</strong></td>
+        <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(session.expected_cash || 0)}</strong></td>
       </tr>
     </table></div></div>`;
-    
+
     // Collapsible info note
+    const changeText = totalCashChange > 0 ? ' - Cash Change (₱' + fmt(totalCashChange) + ')' : '';
+    const refundText = totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : '';
+    const pendingRefundsCalcNote = showPendingRefunds && displayedPendingRefunds > 0
+        ? ' - Pending Refunds (₱' + fmt(displayedPendingRefunds) + ')'
+        : '';
+    const adjustmentCalcNote = totalCashAdjustments > 0
+        ? ' - Cashier Deductions (₱' + fmt(totalCashAdjustments) + ')'
+        : '';
     html += `
     <div class="alert alert-info fs-10 mb-3">
       <div class="d-flex justify-content-between align-items-center">
@@ -754,7 +921,7 @@ function renderPaymentBreakdown(payments, session) {
         </button>
       </div>
       <div class="collapse mt-2" id="expectedCashInfoMgr${session.session_id}">
-        <small>Starting Cash (₱${fmt(session.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : ''}</small>
+        <small>Starting Cash (₱${fmt(session.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${changeText}${refundText}${pendingRefundsCalcNote}${adjustmentCalcNote}</small>
       </div>
     </div>`;
     
@@ -780,7 +947,7 @@ function computeManagerCloseVariance() {
     if (!currentSessionDetails) return;
     
     const closingCashInput = document.getElementById('managerCloseCash');
-    const closingCash = parseFloat(closingCashInput.value) || 0;
+    const closingCash = parseFloat(closingCashInput.value.replace(/,/g, '')) || 0;
     const expectedCash = parseFloat(currentSessionDetails.session.expected_cash || 0);
     const variance = closingCash - expectedCash;
     
@@ -876,11 +1043,24 @@ function onCashierSelect(select) {
 async function submitManagerOpenSession() {
     const cashierId = document.getElementById('managerSessionCashierId').value;
     const branchId = document.getElementById('managerOpenBranch').value;
-    const startingCash = parseFloat(document.getElementById('managerOpenStartingCash').value.replace(/,/g, '')) || 0;
+    const startingCashInput = document.getElementById('managerOpenStartingCash');
+    const startingCashRaw = startingCashInput.value.trim();
     const notes = document.getElementById('managerOpenNotes').value;
 
     if (!cashierId) {
         showToast('warning', 'Validation', 'Please select a cashier.');
+        return;
+    }
+
+    if (!startingCashRaw) {
+        startingCashInput.focus();
+        showToast('warning', 'Validation', 'Starting cash is required.');
+        return;
+    }
+    const startingCash = parseFloat(startingCashRaw.replace(/,/g, ''));
+    if (isNaN(startingCash) || startingCash < 0) {
+        startingCashInput.focus();
+        showToast('warning', 'Validation', 'Please enter a valid starting cash amount.');
         return;
     }
 
@@ -901,10 +1081,14 @@ async function submitManagerOpenSession() {
         return;
     }
 
-    if (!startingCash || parseFloat(startingCash) < 0) {
-        showToast('warning', 'Validation', 'Please enter a valid starting cash amount.');
-        return;
-    }
+    const branchName = document.getElementById('managerOpenBranch').selectedOptions[0]?.text?.trim() || 'this branch';
+    const cashierName = document.getElementById('managerSessionCashierName')?.value || 'this cashier';
+    const openConfirmed = await showConfirm(
+        'Open Cashier Session',
+        `Open session for ${cashierName} at ${branchName} with starting cash ₱${fmt(startingCash)}?\n\nMake sure the amount is correct before proceeding.`,
+        { icon: 'play-circle', iconColor: 'text-success', confirmBtnColor: 'btn-success', confirmBtnText: 'Open Session' }
+    );
+    if (!openConfirmed) return;
 
     try {
         const res = await fetch(`${window.BASE_URL}/api/pos/sessions`, {
@@ -933,7 +1117,8 @@ async function submitManagerOpenSession() {
 
 async function submitManagerCloseSession() {
     const sessionId = document.getElementById('managerCloseSessionId').value;
-    const closingCash = document.getElementById('managerCloseCash').value;
+    const closingCashInput = document.getElementById('managerCloseCash');
+    const closingCashRaw = closingCashInput.value.trim();
     const notes = document.getElementById('managerCloseNotes').value;
 
     if (!sessionId) {
@@ -941,10 +1126,35 @@ async function submitManagerCloseSession() {
         return;
     }
 
-    if (!closingCash || closingCash === '' || isNaN(parseFloat(closingCash)) || parseFloat(closingCash) < 0) {
+    if (!closingCashRaw) {
+        closingCashInput.focus();
+        showToast('warning', 'Validation', 'Actual closing cash is required.');
+        return;
+    }
+    const closingCash = parseFloat(closingCashRaw.replace(/,/g, ''));
+    if (isNaN(closingCash) || closingCash < 0) {
+        closingCashInput.focus();
         showToast('warning', 'Validation', 'Please enter a valid closing cash amount.');
         return;
     }
+
+    const expectedCash = parseFloat(currentSessionDetails?.session?.expected_cash || 0);
+    const variance = closingCash - expectedCash;
+    const varianceText = (variance >= 0 ? '+₱' : '-₱') + fmt(Math.abs(variance));
+    const statusText = Math.abs(variance) < 0.01 ? 'Balanced' : variance < 0 ? 'Short' : 'Over';
+    const varianceColorClass = Math.abs(variance) < 0.01 ? 'text-success' : variance < 0 ? 'text-danger' : 'text-success';
+    const varianceLine = `Variance: <span class="fw-bold ${varianceColorClass}">${varianceText} (${statusText})</span>`;
+
+    const message = `Close session with actual cash ₱${fmt(closingCash)}?\n\n` +
+                    `Expected cash: ₱${fmt(expectedCash)}\n` +
+                    `${varianceLine}\n\n` +
+                    `Make sure the physical cash count is correct before confirming.`;
+    const closeConfirmed = await showConfirm(
+        'Close Cashier Session',
+        message,
+        { icon: 'stop-circle', iconColor: 'text-danger', confirmBtnColor: 'btn-danger', confirmBtnText: 'Close Session', html: true }
+    );
+    if (!closeConfirmed) return;
 
     const btn = document.querySelector('#closeSessionSection .btn-danger');
     const originalText = btn ? btn.innerHTML : '<span class="fas fa-stop-circle me-1"></span>Close Session';

@@ -1,7 +1,7 @@
 <?php
 $activeWalletModule = $activeWalletModule ?? '';
 $walletGroup = ['ticket-providers', 'provider-wallets', 'wallet-transactions', 'provider-service-fees'];
-$paymentGroup = ['charges', 'bank-confirmations', 'refund-confirmations'];
+$paymentGroup = ['charges', 'cashier-charges', 'bank-confirmations', 'refund-confirmations'];
 $settingsGroup = ['service-types', 'payment-methods', 'bank-accounts', 'discount-types'];
 $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_array($activeWalletModule, $paymentGroup) ? 'payments' : (in_array($activeWalletModule, $settingsGroup) ? 'settings' : 'wallet'));
 ?>
@@ -19,6 +19,7 @@ $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_arra
       <?php elseif ($activeGroup === 'payments'): ?>
       <!-- Payment Operations Group -->
       <a href="<?php echo BASE_URL; ?>/admin/charges" class="btn btn-sm btn-<?php echo $activeWalletModule === 'charges' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-file-invoice-dollar me-1"></span>Charges</a>
+      <a href="<?php echo BASE_URL; ?>/admin/charges/cashiers" class="btn btn-sm btn-<?php echo $activeWalletModule === 'cashier-charges' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-user-tag me-1"></span>Cashier Charges</a>
       <a href="<?php echo BASE_URL; ?>/admin/bank-confirmations" class="btn btn-sm btn-<?php echo $activeWalletModule === 'bank-confirmations' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-university me-1"></span>Bank</a>
       <a href="<?php echo BASE_URL; ?>/admin/refund-confirmations" class="btn btn-sm btn-<?php echo $activeWalletModule === 'refund-confirmations' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-undo me-1"></span>Refunds</a>
       <?php elseif ($activeGroup === 'settings'): ?>
@@ -43,6 +44,7 @@ $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_arra
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Payments</h6></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/charges">Charges</a></li>
+          <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/charges/cashiers">Cashier Charges</a></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/bank-confirmations">Bank</a></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/refund-confirmations">Refunds</a></li>
           <li><hr class="dropdown-divider"></li>

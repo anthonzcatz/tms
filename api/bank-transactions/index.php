@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
 // Authenticate user
@@ -86,7 +87,7 @@ function handleGet() {
     }
     
     // Filter by transaction type
-    if ($txnType && in_array($txnType, ['RECEIPT', 'DISBURSEMENT', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT', 'REFUND'])) {
+    if ($txnType && in_array($txnType, ['RECEIPT', 'DEPOSIT', 'DISBURSEMENT', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT', 'REFUND'])) {
         $where[] = "bt.txn_type = :txn_type";
         $params['txn_type'] = $txnType;
     }
@@ -200,115 +201,48 @@ function handlePost() {
     $direction = $data['direction'];
     $remarks = $data['remarks'] ?? null;
     
-    // Get current balance
-    $bankAccount = Database::fetch(
-        "SELECT current_balance, account_name, bank_name 
-         FROM bank_accounts 
-         WHERE bank_account_id = :bank_account_id",
-        ['bank_account_id' => $bankAccountId]
-    );
-    
-    if (!$bankAccount) {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'error' => 'Bank account not found']);
-        return;
-    }
-    
-    $balanceBefore = (float)$bankAccount['current_balance'];
-    
-    // Calculate new balance
-    $balanceAfter = $direction === 'IN' 
-        ? $balanceBefore + $amount 
-        : $balanceBefore - $amount;
-    
-    if ($balanceAfter < 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Insufficient balance for OUT adjustment']);
-        return;
-    }
-    
-    // Generate transaction code
-    $txnCode = 'ADJ-' . date('YmdHis') . '-' . strtoupper(substr(md5(uniqid()), 0, 6));
-    
     try {
-        // Begin transaction
-        Database::execute("START TRANSACTION");
-        
-        // Insert bank transaction
-        Database::execute(
-            "INSERT INTO bank_transactions (
-                bank_account_id, txn_code, txn_type, direction, amount,
-                balance_before, balance_after, remarks, created_by
-            ) VALUES (
-                :bank_account_id, :txn_code, 'ADJUSTMENT', :direction, :amount,
-                :balance_before, :balance_after, :remarks, :created_by
-            )",
+        $movement = BalanceLedgerService::bankMovement(
+            $bankAccountId,
+            'ADJUSTMENT',
+            $direction,
+            $amount,
+            'bank_accounts',
+            $bankAccountId,
+            $remarks,
+            (int) $user['user_id'],
+            null,
+            null,
+            false,
+            $remarks
+        );
+
+        logActivity(
+            $user['user_id'],
+            $direction === 'IN' ? 'BANK_BALANCE_INCREASE' : 'BANK_BALANCE_DECREASE',
+            'BANK_ACCOUNTS',
+            $movement['txn_code'],
+            ['balance_before' => $movement['balance_before']],
             [
-                'bank_account_id' => $bankAccountId,
-                'txn_code' => $txnCode,
+                'balance_after' => $movement['balance_after'],
+                'adjustment_amount' => $amount,
                 'direction' => $direction,
-                'amount' => $amount,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-                'remarks' => $remarks,
-                'created_by' => $user['user_id']
             ]
         );
-        
-        // Update bank account balance
-        Database::execute(
-            "UPDATE bank_accounts SET current_balance = :balance_after 
-             WHERE bank_account_id = :bank_account_id",
-            [
-                'balance_after' => $balanceAfter,
-                'bank_account_id' => $bankAccountId
-            ]
-        );
-        
-        // Log activity
-        $logAction = $direction === 'IN' ? 'BANK_BALANCE_INCREASE' : 'BANK_BALANCE_DECREASE';
-        $referenceCode = $bankAccount['bank_name'] . ' - ' . $bankAccount['account_name'];
-        
-        Database::execute(
-            "INSERT INTO activity_logs (
-                user_id, action, module_name, reference_code, ip_address,
-                old_value, new_value, created_at
-            ) VALUES (
-                :user_id, :action, :module_name, :reference_code, :ip_address,
-                :old_value, :new_value, NOW()
-            )",
-            [
-                'user_id' => $user['user_id'],
-                'action' => $logAction,
-                'module_name' => 'Bank Accounts',
-                'reference_code' => $referenceCode,
-                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                'old_value' => json_encode(['balance_before' => $balanceBefore]),
-                'new_value' => json_encode([
-                    'balance_after' => $balanceAfter,
-                    'adjustment_amount' => $amount,
-                    'direction' => $direction,
-                    'txn_code' => $txnCode
-                ])
-            ]
-        );
-        
-        Database::execute("COMMIT");
-        
+
         echo json_encode([
             'success' => true,
             'message' => 'Balance adjustment recorded successfully',
             'data' => [
-                'txn_code' => $txnCode,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter
+                'txn_code' => $movement['txn_code'],
+                'balance_before' => $movement['balance_before'],
+                'balance_after' => $movement['balance_after'],
             ]
         ]);
-    } catch (Exception $e) {
-        Database::execute("ROLLBACK");
+    } catch (Throwable $e) {
         error_log("Balance Adjustment Error: " . $e->getMessage());
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Failed to record balance adjustment']);
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
 }
 

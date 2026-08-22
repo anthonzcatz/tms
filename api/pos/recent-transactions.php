@@ -31,13 +31,28 @@ $date      = $_GET['date'] ?? null;
 $startDate = $_GET['start_date'] ?? null;
 $endDate   = $_GET['end_date'] ?? null;
 
+$dateStart = null;
+$dateEndExclusive = null;
+if ($date || $startDate || $endDate) {
+    $fromValue = $date ?: $startDate;
+    $from = $fromValue ? DateTimeImmutable::createFromFormat('!Y-m-d', $fromValue) : null;
+    $to = $date ? $from : ($endDate ? DateTimeImmutable::createFromFormat('!Y-m-d', $endDate) : null);
+    if (($fromValue && !$from) || ($endDate && !$to)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid date filter.']);
+        exit;
+    }
+    $dateStart = $from?->format('Y-m-d H:i:s');
+    $dateEndExclusive = $to?->modify('+1 day')->format('Y-m-d H:i:s');
+}
+
 // Get user branch for filtering
 $branchId = $user['branch_id'] ?? null;
 $userRoleCode = $user['role_code'] ?? '';
 $branchIds = $branchId
     ? array_values(array_filter(array_map('intval', explode(',', (string)$branchId))))
     : [];
-$canViewBranchTransactions = in_array($userRoleCode, ['SUPER_ADMIN', 'MANAGER'], true);
+$canViewBranchTransactions = in_array($userRoleCode, ['SUPER_ADMIN', 'MANAGER', 'CASHIER'], true);
 
 // ---------------------------------------------------------------
 // Strategy: Query pos_orders (grouped) if table exists,
@@ -68,9 +83,12 @@ if ($useOrdersTable) {
             $params['branch_id_' . $index] = $allowedBranchId;
         }
         $where[] = 'o.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
-    }
 
-    if (!$canViewBranchTransactions) {
+        if (!$canViewBranchTransactions) {
+            $where[] = 'o.created_by = :created_by';
+            $params['created_by'] = $user['user_id'];
+        }
+    } elseif ($userRoleCode !== 'SUPER_ADMIN') {
         $where[] = 'o.created_by = :created_by';
         $params['created_by'] = $user['user_id'];
     }
@@ -95,15 +113,13 @@ if ($useOrdersTable) {
         $params['status'] = $status;
     }
 
-    if ($date) {
-        $where[] = 'DATE(o.created_at) = :date';
-        $params['date'] = $date;
+    if ($dateStart) {
+        $where[] = 'o.created_at >= :date_start';
+        $params['date_start'] = $dateStart;
     }
-
-    if ($startDate && $endDate) {
-        $where[] = 'DATE(o.created_at) BETWEEN :start_date AND :end_date';
-        $params['start_date'] = $startDate;
-        $params['end_date']   = $endDate;
+    if ($dateEndExclusive) {
+        $where[] = 'o.created_at < :date_end_exclusive';
+        $params['date_end_exclusive'] = $dateEndExclusive;
     }
 
     if ($type === 'TICKET') {
@@ -205,6 +221,99 @@ if ($useOrdersTable) {
              LEFT JOIN ticket_transactions tt ON oi8.reference_id = tt.transaction_id AND oi8.item_type = 'TICKET'
              LEFT JOIN ticket_cancellations tc ON tt.transaction_id = tc.transaction_id AND tc.status = 'pending'
              WHERE oi8.order_id = o.order_id AND tc.cancellation_id IS NOT NULL) as pending_cash_refund_amount,
+            (SELECT ta.type
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta.created_at DESC
+             LIMIT 1) as adjustment_type,
+            (SELECT ta.approval_status
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta.created_at DESC
+             LIMIT 1) as adjustment_approval_status,
+            (SELECT ta.charged_to
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta.created_at DESC
+             LIMIT 1) as adjustment_responsibility,
+            (SELECT ta.amount
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta.created_at DESC
+             LIMIT 1) as adjustment_amount,
+            (SELECT CASE WHEN tc_adj.reason_category = 'PRINTER_ERROR' THEN 0 ELSE COALESCE(tc_adj.void_fee, 0) END
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
+             LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta_adj.created_at DESC
+             LIMIT 1) as void_fee,
+            (SELECT CASE WHEN tc_adj.reason_category = 'PRINTER_ERROR' THEN 0 ELSE COALESCE(tc_adj.void_service_fee, 0) END
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
+             LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta_adj.created_at DESC
+             LIMIT 1) as void_service_fee,
+            (SELECT COALESCE(SUM(tc_adj.lost_sales_void_fee), 0)
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
+             LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
+             WHERE oi_adj.order_id = o.order_id
+               AND oi_adj.item_type = 'TICKET'
+               AND tc_adj.operation_type = 'VOID'
+               AND tc_adj.status = 'completed') as lost_sales_void_fee,
+            (SELECT COALESCE(SUM(tc_adj.lost_sales_service_fee), 0)
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
+             LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
+             WHERE oi_adj.order_id = o.order_id
+               AND oi_adj.item_type = 'TICKET'
+               AND tc_adj.operation_type = 'VOID'
+               AND tc_adj.status = 'completed') as lost_sales_service_fee,
+            (SELECT tc_adj.reason_category
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
+             LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta_adj.created_at DESC
+             LIMIT 1) as adjustment_reason_category,
+            (SELECT COALESCE(SUM(
+                        CASE WHEN tc_void.reason_category = 'PRINTER_ERROR' THEN COALESCE(tt_void.total_amount, 0) ELSE 0 END
+                    ), 0)
+             FROM pos_order_items oi_void
+             JOIN ticket_transactions tt_void ON tt_void.transaction_id = oi_void.reference_id
+             JOIN ticket_cancellations tc_void ON tc_void.transaction_id = tt_void.transaction_id
+             WHERE oi_void.order_id = o.order_id
+               AND oi_void.item_type = 'TICKET'
+               AND tc_void.operation_type = 'VOID'
+               AND tc_void.status = 'completed') as technical_void_amount,
+            (SELECT COALESCE(CONCAT_WS(' ', e_adj.first_name, e_adj.last_name), ua_adj.username)
+             FROM pos_order_items oi_adj
+             JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
+             LEFT JOIN user_accounts ua_adj ON ua_adj.user_id = ta.responsible_user_id
+             LEFT JOIN employees e_adj ON e_adj.emp_id = ua_adj.emp_id
+             WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
+             ORDER BY ta.created_at DESC
+             LIMIT 1) as adjustment_responsible_cashier,
+            (SELECT COALESCE(CONCAT_WS(' ', e_void.first_name, e_void.last_name), ua_void.username)
+             FROM pos_order_items oi_void
+             JOIN ticket_cancellations tc_void ON tc_void.transaction_id = oi_void.reference_id
+             LEFT JOIN user_accounts ua_void ON ua_void.user_id = tc_void.responsible_user_id
+             LEFT JOIN employees e_void ON e_void.emp_id = ua_void.emp_id
+             WHERE oi_void.order_id = o.order_id
+               AND oi_void.item_type = 'TICKET'
+               AND tc_void.operation_type = 'VOID'
+               AND tc_void.responsibility = 'CASHIER'
+               AND tc_void.responsible_user_id IS NOT NULL
+               AND tc_void.status IN ('pending', 'approved', 'completed')
+             ORDER BY COALESCE(tc_void.approved_at, tc_void.requested_at) DESC,
+                      tc_void.cancellation_id DESC
+             LIMIT 1) as void_responsible_cashier,
             -- Count cancelled tickets in this order
             (SELECT COUNT(*)
              FROM pos_order_items oi9
@@ -226,6 +335,72 @@ if ($useOrdersTable) {
         array_merge($params, ['limit' => $limit, 'offset' => $offset])
     );
 
+    // Batch-load order items and legacy payment breakdowns to avoid N+1 queries.
+    $orderItemMap = [];
+    $orderPaymentMap = [];
+    $orderIds = array_values(array_filter(array_map('intval', array_column($orders, 'order_id'))));
+    if ($orderIds) {
+        $orderPlaceholders = [];
+        $orderParams = [];
+        foreach ($orderIds as $index => $orderId) {
+            $placeholder = ':recent_order_' . $index;
+            $orderPlaceholders[] = $placeholder;
+            $orderParams['recent_order_' . $index] = $orderId;
+        }
+        $orderIdList = implode(',', $orderPlaceholders);
+
+        $itemRows = Database::fetchAll(
+            "SELECT oi.item_id, oi.order_id, oi.item_type, oi.reference_id, oi.transaction_code,
+                    COALESCE(oi.ticket_number, tt.ticket_number) as ticket_number,
+                    oi.total_amount,
+                    tt.total_amount as ticket_total_amount,
+                    oi.provider_id, oi.variant_id, oi.wallet_id,
+                    tt.passenger_id, tt.origin, tt.destination, tt.travel_date, tt.service_fee, tt.status as ticket_status,
+                    st.description as service_name, st_type.name as service_type_name, st.status as service_status,
+                    pa.fullname as passenger_name,
+                    tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
+                    tp_parent.provider_name as parent_provider_name,
+                    pv.variant_name as variant_name, pv.variant_code as variant_code,
+                    tp_wallet.provider_name as wallet_provider_name,
+                    pv_wallet.variant_name as wallet_variant_name,
+                    CASE WHEN pw.variant_id IS NOT NULL THEN 1 ELSE 0 END as wallet_is_variant
+             FROM pos_order_items oi
+             LEFT JOIN ticket_transactions tt ON oi.reference_id = tt.transaction_id AND oi.item_type = 'TICKET'
+             LEFT JOIN service_transactions st ON oi.reference_id = st.service_txn_id AND oi.item_type = 'SERVICE'
+             LEFT JOIN service_types st_type ON st.service_type_id = st_type.service_type_id
+             LEFT JOIN passenger_accounts pa ON COALESCE(tt.passenger_id, st.passenger_id) = pa.passenger_id
+             LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
+             LEFT JOIN provider_ticket_variants pv ON oi.variant_id = pv.variant_id
+             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
+             LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
+             LEFT JOIN provider_ticket_variants pv_wallet ON pw.variant_id = pv_wallet.variant_id
+             WHERE oi.order_id IN ($orderIdList)
+             ORDER BY oi.order_id, oi.item_type DESC, oi.item_id ASC",
+            $orderParams
+        );
+        foreach ($itemRows as $itemRow) {
+            $orderItemMap[(int) $itemRow['order_id']][] = $itemRow;
+        }
+
+        $paymentRows = Database::fetchAll(
+            "SELECT oi.order_id, pm.method_name, pm.method_type, pm.method_code, pm.tracks_credit, pm.sort_order,
+                    SUM(tp.amount) AS amount
+             FROM transaction_payments tp
+             JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+             JOIN pos_order_items oi ON oi.reference_id = tp.source_id
+                AND ((oi.item_type = 'TICKET' AND tp.source_type = 'TICKET_TRANSACTION')
+                  OR (oi.item_type = 'SERVICE' AND tp.source_type = 'SERVICE_TRANSACTION'))
+             WHERE oi.order_id IN ($orderIdList)
+             GROUP BY oi.order_id, pm.method_id, pm.method_name, pm.method_type, pm.method_code, pm.tracks_credit, pm.sort_order
+             ORDER BY oi.order_id, pm.sort_order ASC, pm.method_name ASC",
+            $orderParams
+        );
+        foreach ($paymentRows as $paymentRow) {
+            $orderPaymentMap[(int) $paymentRow['order_id']][] = $paymentRow;
+        }
+    }
+
     // Normalize to match legacy format for JS rendering
     foreach ($orders as &$order) {
         $hasTickets  = $order['ticket_count'] > 0;
@@ -239,72 +414,24 @@ if ($useOrdersTable) {
             ? "{$order['ticket_count']} ticket(s) + {$order['service_count']} service(s)"
             : ($hasTickets ? "{$order['ticket_count']} ticket(s)" : "{$order['service_count']} service(s)");
         $order['provider_type']    = null;
-        
+
         // Add profit information for display
         $order['profit_margin'] = $order['total_amount'] > 0 ? round(($order['total_profit'] / $order['total_amount']) * 100, 1) : 0;
-        
+
         // Ensure payment method is available for display
         if (empty($order['payment_method']) && !empty($order['payments'])) {
             $paymentNames = array_column($order['payments'], 'method_name');
             $order['payment_method'] = implode(' + ', $paymentNames);
         }
 
-        // Fetch line items for this order
-        $order['order_items'] = Database::fetchAll(
-            "SELECT oi.item_id, oi.order_id, oi.item_type, oi.reference_id, oi.transaction_code, oi.total_amount,
-                    oi.provider_id, oi.variant_id, oi.wallet_id,
-                    tt.passenger_id, tt.origin, tt.destination, tt.travel_date, tt.service_fee, tt.status as ticket_status,
-                    st.description as service_name, st_type.name as service_type_name, st.status as service_status,
-                    pa.fullname as passenger_name,
-                    tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
-                    tp_parent.provider_name as parent_provider_name,
-                    pv.variant_name as variant_name, pv.variant_code as variant_code,
-                    tp_wallet.provider_name as wallet_provider_name,
-                    pv_wallet.variant_name as wallet_variant_name
-             FROM pos_order_items oi
-             LEFT JOIN ticket_transactions tt ON oi.reference_id = tt.transaction_id AND oi.item_type = 'TICKET'
-             LEFT JOIN service_transactions st ON oi.reference_id = st.service_txn_id AND oi.item_type = 'SERVICE'
-             LEFT JOIN service_types st_type ON st.service_type_id = st_type.service_type_id
-             LEFT JOIN passenger_accounts pa ON COALESCE(tt.passenger_id, st.passenger_id) = pa.passenger_id
-             LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
-             LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
-             LEFT JOIN provider_ticket_variants pv ON oi.variant_id = pv.variant_id
-             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
-             LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
-             LEFT JOIN provider_ticket_variants pv_wallet ON pw.variant_id = pv_wallet.variant_id
-             WHERE oi.order_id = :oid
-             ORDER BY oi.item_type DESC, oi.item_id ASC",
-            ['oid' => $order['order_id']]
-        );
+        $orderId = (int) $order['order_id'];
+        $order['order_items'] = $orderItemMap[$orderId] ?? [];
 
-        // Fetch aggregated payment breakdown for this order.
-        // Use the new payment_methods_json if available, otherwise fall back to transaction_payments
+        // Use the denormalized payment JSON when available; otherwise use the batched fallback map.
         if (!empty($order['payment_methods_json'])) {
             $order['payments'] = json_decode($order['payment_methods_json'], true) ?: [];
         } else {
-            // Fallback: We join transaction_payments against all items in the order (TICKET and SERVICE).
-            // DISTINCT on payment_method_id + bank_account_id gives one row per payment split.
-            $order['payments'] = Database::fetchAll(
-                "SELECT pm.method_name,
-                        pm.method_type,
-                        pm.method_code,
-                        pm.tracks_credit,
-                        SUM(tp.amount) AS amount
-                 FROM transaction_payments tp
-                 JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-                 WHERE EXISTS (
-                     SELECT 1 FROM pos_order_items oi
-                     WHERE oi.order_id = :oid
-                       AND oi.reference_id = tp.source_id
-                       AND (
-                           (oi.item_type = 'TICKET'  AND tp.source_type = 'TICKET_TRANSACTION') OR
-                           (oi.item_type = 'SERVICE' AND tp.source_type = 'SERVICE_TRANSACTION')
-                       )
-                 )
-                 GROUP BY pm.method_id
-                 ORDER BY pm.sort_order ASC, pm.method_name ASC",
-                ['oid' => $order['order_id']]
-            );
+            $order['payments'] = $orderPaymentMap[$orderId] ?? [];
         }
     }
     unset($order);
@@ -325,8 +452,12 @@ if ($useOrdersTable) {
                 $params['ticket_branch_id_' . $index] = $allowedBranchId;
             }
             $where[] = 'tt.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
-        }
-        if (!$canViewBranchTransactions) {
+
+            if (!$canViewBranchTransactions) {
+                $where[] = 'tt.created_by = :created_by';
+                $params['created_by'] = $user['user_id'];
+            }
+        } elseif ($userRoleCode !== 'SUPER_ADMIN') {
             $where[] = 'tt.created_by = :created_by';
             $params['created_by'] = $user['user_id'];
         }
@@ -337,8 +468,8 @@ if ($useOrdersTable) {
             $params['ticket_search_passenger'] = $searchValue;
         }
         if ($status) { $where[] = 'tt.status = :status'; $params['status'] = $status; }
-        if ($date) { $where[] = 'DATE(tt.created_at) = :date'; $params['date'] = $date; }
-        if ($startDate && $endDate) { $where[] = 'DATE(tt.created_at) BETWEEN :start_date AND :end_date'; $params['start_date'] = $startDate; $params['end_date'] = $endDate; }
+        if ($dateStart) { $where[] = 'tt.created_at >= :date_start'; $params['date_start'] = $dateStart; }
+        if ($dateEndExclusive) { $where[] = 'tt.created_at < :date_end_exclusive'; $params['date_end_exclusive'] = $dateEndExclusive; }
 
         $whereClause = count($where) > 0 ? implode(' AND ', $where) : '1=1';
 
@@ -353,6 +484,7 @@ if ($useOrdersTable) {
                     pv.variant_name as variant_name, pv.variant_code as variant_code,
                     tp_wallet.provider_name as wallet_provider_name,
                     pv_wallet.variant_name as wallet_variant_name,
+                    CASE WHEN pw.variant_id IS NOT NULL THEN 1 ELSE 0 END as wallet_is_variant,
                     tc.cancellation_id as pending_cancellation_id, tc.status as cancellation_status,
                     tc.refund_amount as cancellation_refund_amount, tc.requested_at as cancellation_requested_at,
                     COALESCE(CONCAT(e.first_name, ' ', e.last_name), ua.username) as cancellation_requested_by,
@@ -392,8 +524,12 @@ if ($useOrdersTable) {
                 $paramsS['service_branch_id_' . $index] = $allowedBranchId;
             }
             $whereS[] = 'st.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
-        }
-        if (!$canViewBranchTransactions) {
+
+            if (!$canViewBranchTransactions) {
+                $whereS[] = 'st.created_by = :created_by';
+                $paramsS['created_by'] = $user['user_id'];
+            }
+        } elseif ($userRoleCode !== 'SUPER_ADMIN') {
             $whereS[] = 'st.created_by = :created_by';
             $paramsS['created_by'] = $user['user_id'];
         }
@@ -404,8 +540,8 @@ if ($useOrdersTable) {
             $paramsS['service_search_description'] = $searchValue;
         }
         if ($status) { $whereS[] = 'st.status = :status'; $paramsS['status'] = $status; }
-        if ($date) { $whereS[] = 'DATE(st.created_at) = :date'; $paramsS['date'] = $date; }
-        if ($startDate && $endDate) { $whereS[] = 'DATE(st.created_at) BETWEEN :start_date AND :end_date'; $paramsS['start_date'] = $startDate; $paramsS['end_date'] = $endDate; }
+        if ($dateStart) { $whereS[] = 'st.created_at >= :date_start'; $paramsS['date_start'] = $dateStart; }
+        if ($dateEndExclusive) { $whereS[] = 'st.created_at < :date_end_exclusive'; $paramsS['date_end_exclusive'] = $dateEndExclusive; }
 
         $whereSClause = count($whereS) > 0 ? implode(' AND ', $whereS) : '1=1';
 

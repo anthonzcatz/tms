@@ -451,18 +451,6 @@
                               <span class="fas fa-ship me-2"></span>Shipping
                             </label>
                           </div>
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="transportType-bus" name="transport_types[]" value="bus">
-                            <label class="form-check-label" for="transportType-bus">
-                              <span class="fas fa-bus me-2"></span>Bus Lines
-                            </label>
-                          </div>
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="transportType-other" name="transport_types[]" value="other">
-                            <label class="form-check-label" for="transportType-other">
-                              <span class="fas fa-ellipsis-h me-2"></span>Other
-                            </label>
-                          </div>
                         </div>
                       </div>
 
@@ -477,9 +465,7 @@
                           foreach ($groupedProviders as $type => $typeProviders):
                             $typeIcon = match($type) {
                               'airline' => 'fa-plane',
-                              'shipping' => 'fa-ship',
-                              'bus' => 'fa-bus',
-                              'other' => 'fa-ellipsis-h'
+                              'shipping' => 'fa-ship'
                             };
                           ?>
                             <div class="mb-2">

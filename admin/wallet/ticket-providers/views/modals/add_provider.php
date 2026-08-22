@@ -29,10 +29,9 @@
               <label for="addProviderType" class="form-label fw-bold">Provider Type <span class="text-danger">*</span></label>
               <select class="form-select" id="addProviderType" name="provider_type" required>
                 <option value="">Select Type</option>
-                <option value="airline">Airline</option>
-                <option value="shipping">Shipping</option>
-                <option value="bus">Bus</option>
-                <option value="other">Other</option>
+                <?php foreach ($providerTypeOptions as $typeValue => $typeLabel): ?>
+                  <option value="<?php echo htmlspecialchars($typeValue, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($typeLabel); ?></option>
+                <?php endforeach; ?>
               </select>
             </div>
             <div class="col-md-6">

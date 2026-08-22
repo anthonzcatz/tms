@@ -7,6 +7,7 @@
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 require_once dirname(__DIR__) . '/_guard.php';
 
@@ -127,8 +128,14 @@ $wallets = Database::fetchAll(
             pv.variant_name as variant_name,
             pv.display_color as variant_color,
             CONCAT(tp.provider_name,
-                   IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
-                   ' - ', bb.branch_name) as wallet_name,
+                   IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), '')) as wallet_name,
+            (
+                SELECT COALESCE(SUM(bts.on_hand_qty), 0)
+                FROM branch_ticket_stocks bts
+                WHERE bts.branch_id = pw.branch_id
+                  AND bts.provider_id = pw.provider_id
+                  AND bts.variant_id = pw.variant_id
+            ) AS on_hand_qty,
             (
                 SELECT GROUP_CONCAT(child.provider_name ORDER BY child.provider_name SEPARATOR ', ')
                 FROM ticket_providers child
@@ -228,7 +235,10 @@ $viewData = [
     'filterProvider' => $filterProvider,
     'filterBranch' => $filterBranch,
     'filterStatus' => $filterStatus,
-    'systemSettings' => $systemSettings
+    'systemSettings' => $systemSettings,
+    'pusherConfigured' => PusherService::isConfigured(),
+    'pusherKey' => PusherService::isConfigured() ? env('PUSHER_KEY', '') : '',
+    'pusherCluster' => PusherService::isConfigured() ? env('PUSHER_CLUSTER', 'ap1') : 'ap1'
 ];
 
 extract($viewData);

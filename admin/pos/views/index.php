@@ -77,7 +77,8 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                       </h6>
                     </div>
                   </div>
-                  <div class="col-auto d-flex gap-2 flex-wrap justify-content-end">
+                  <div class="col-auto d-flex gap-2 flex-wrap justify-content-end align-items-center">
+                    <small id="posRealtimeStatus" class="text-muted" title="POS data refresh status">Live updates initializing...</small>
                     <a href="<?php echo BASE_URL; ?>/admin/pos/printer-setup" class="btn btn-outline-info btn-sm rounded-2 d-flex align-items-center">
                       <span class="fas fa-print"></span><span class="ms-1 d-none d-sm-inline">Printer Setup</span>
                     </a>
@@ -226,7 +227,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     </div>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label fw-semibold" for="ticketNumber">Ticket Number <span class="text-danger">*</span></label>
+                    <label class="form-label fw-semibold" for="ticketNumber">Ticket Number <span class="text-danger" id="ticketNumberRequiredMark">*</span></label>
                     <input type="text" class="form-control" id="ticketNumber" name="ticketNumber" placeholder="Enter ticket number for tracking">
                   </div>
                   <!-- Hidden for now - Origin and Destination
@@ -239,20 +240,6 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     <input type="text" class="form-control" id="ticketDestination" name="ticketDestination" placeholder="e.g. Baguio">
                   </div>
                   -->
-                  <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketBaseAmount">Base fare (₱) <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="ticketBaseAmount" name="ticketBaseAmount" inputmode="decimal" placeholder="0.00" oninput="formatBaseAmountInput(); computeTicketTotal()">
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label fw-semibold">Discount <span class="text-danger">*</span></label>
-                    <select class="form-select" id="ticketDiscount" name="ticketDiscount" onchange="computeTicketTotal()">
-                    </select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label fw-semibold" for="ticketAccommodation">Accommodation <span class="text-danger">*</span></label>
-                    <select class="form-select" id="ticketAccommodation" name="ticketAccommodation">
-                    </select>
-                  </div>
                   <div class="col-md-4">
                     <label class="form-label fw-semibold" for="ticketMainProvider">Main Provider <span class="text-danger">*</span></label>
                     <select class="form-select" id="ticketMainProvider" onchange="onMainProviderChanged()">
@@ -290,6 +277,20 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                     <label class="form-label fw-semibold">Service Fee</label>
                     <div class="form-control bg-light" id="ticketServiceFeeDisplay">-</div>
                   </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="ticketBaseAmount">Base fare (₱) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="ticketBaseAmount" name="ticketBaseAmount" inputmode="decimal" placeholder="0.00" oninput="formatBaseAmountInput(); computeTicketTotal()">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold">Discount <span class="text-danger">*</span></label>
+                    <select class="form-select" id="ticketDiscount" name="ticketDiscount" onchange="computeTicketTotal()">
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="ticketAccommodation">Accommodation <span class="text-danger">*</span></label>
+                    <select class="form-select" id="ticketAccommodation" name="ticketAccommodation">
+                    </select>
+                  </div>
                   <!-- Hidden inputs for service fee and base amount display -->
                   <input type="hidden" id="ticketServiceFee" name="ticketServiceFee" value="0.00">
                   <div id="ticketBaseAmountDisplay" class="d-none">₱0.00</div>
@@ -299,6 +300,31 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                       <span class="fw-bold text-success fs-5" id="ticketTotalDisplay">₱0.00</span>
                     </div>
                   </div>
+
+                  <!-- Optional special action: hidden by default because it is rarely used -->
+                  <div class="col-12" id="ticketSpecialActionToggleRow">
+                    <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="btnToggleSpecialAction" onclick="toggleTicketSpecialAction()">
+                      <span class="fas fa-plus-circle me-1"></span>Add special action (rebooking, revalidate, reschedule)
+                    </button>
+                  </div>
+                  <div class="col-12 d-none" id="ticketSpecialActionWrapper">
+                    <label class="form-label fw-semibold">Special Action</label>
+                    <div class="btn-group w-100 ticket-special-action-group" role="group" aria-label="Special action">
+                      <input type="radio" class="btn-check" name="ticketSpecialAction" id="specialActionRebooking" value="REBOOKING" autocomplete="off">
+                      <label class="btn btn-outline-primary btn-sm flex-fill" for="specialActionRebooking">Rebooking</label>
+
+                      <input type="radio" class="btn-check" name="ticketSpecialAction" id="specialActionRevalidate" value="REVALIDATE" autocomplete="off">
+                      <label class="btn btn-outline-primary btn-sm flex-fill" for="specialActionRevalidate">Revalidate</label>
+
+                      <input type="radio" class="btn-check" name="ticketSpecialAction" id="specialActionReschedule" value="RESCHEDULE" autocomplete="off">
+                      <label class="btn btn-outline-primary btn-sm flex-fill" for="specialActionReschedule">Reschedule</label>
+
+                      <button type="button" class="btn btn-sm btn-outline-danger ticket-special-action-clear" onclick="clearTicketSpecialAction()" title="Remove">
+                        <span class="fas fa-times"></span>
+                      </button>
+                    </div>
+                  </div>
+
                   <div class="col-12">
                     <button class="btn btn-primary w-100" onclick="addTicketToCart()">
                       <span class="fas fa-plus"></span><span class="ms-2 d-none d-sm-inline">Add Ticket to Cart</span>
@@ -527,11 +553,17 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     ?>
 
     window.POS_SESSION_ID   = <?php echo $debugSessionId ? $debugSessionId : 'null'; ?>;
-    window.POS_BRANCH_ID    = <?php echo !empty($activeSession) && isset($activeSession['branch_id']) ? (int)$activeSession['branch_id'] : (isset($userBranchId) && $userBranchId ? (int)$userBranchId : 'null'); ?>;
+    window.POS_BRANCH_ID    = <?php echo !empty($activeBranchId) ? (int) $activeBranchId : 'null'; ?>;
     window.POS_USER_ID      = <?php echo isset($currentUser) && isset($currentUser['user_id']) ? (int)$currentUser['user_id'] : 'null'; ?>;
     window.POS_USER_NAME    = '<?php echo isset($currentUser) && isset($currentUser['fullname']) ? htmlspecialchars($currentUser['fullname']) : ''; ?>';
     window.POS_HAS_SESSION  = <?php echo $debugActive ? 'true' : 'false'; ?>;
-    window.POS_SESSION_START = <?php echo !empty($activeSession) && isset($activeSession['started_at']) ? "'" . $activeSession['started_at'] . "'" : 'null'; ?>;
+    window.POS_SESSION_START = <?php echo !empty($activeSession) && isset($activeSession['started_at']) ? json_encode($activeSession['started_at']) : 'null'; ?>;
+    window.PUSHER_CONFIG = {
+        enabled: <?php echo PusherService::isConfigured() ? 'true' : 'false'; ?>,
+        key: <?php echo json_encode(PusherService::isConfigured() ? env('PUSHER_KEY', '') : ''); ?>,
+        cluster: <?php echo json_encode(PusherService::isConfigured() ? env('PUSHER_CLUSTER', 'ap1') : 'ap1'); ?>,
+        authEndpoint: <?php echo json_encode(BASE_URL . '/api/pusher/auth'); ?>
+    };
 
     // Branch info for receipt address (from business_branches, not system_settings)
     window.POS_BRANCH_NAME  = '<?php echo !empty($branchDetails) && isset($branchDetails['branch_name']) ? htmlspecialchars($branchDetails['branch_name']) : ''; ?>';
@@ -552,10 +584,13 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     // Cancellation settings
     window.CANCELLATION_SETTINGS = {
         requires_confirmation: <?php echo ($cancellationSettings['cancellation_requires_confirmation'] ?? 1) ? 'true' : 'false'; ?>,
+        return_requires_confirmation: <?php echo ($cancellationSettings['return_requires_confirmation'] ?? ($cancellationSettings['cancellation_requires_confirmation'] ?? 1)) ? 'true' : 'false'; ?>,
+        void_requires_confirmation: <?php echo ($cancellationSettings['void_requires_confirmation'] ?? ($cancellationSettings['cancellation_requires_confirmation'] ?? 1)) ? 'true' : 'false'; ?>,
         auto_approve: <?php echo ($cancellationSettings['cancellation_auto_approve'] ?? 0) ? 'true' : 'false'; ?>,
         refund_to_wallet: <?php echo ($cancellationSettings['cancellation_refund_to_wallet'] ?? 1) ? 'true' : 'false'; ?>,
         refund_processing_days: <?php echo intval($cancellationSettings['cancellation_refund_processing_days'] ?? 3); ?>,
-        allow_partial: <?php echo ($cancellationSettings['cancellation_allow_partial'] ?? 0) ? 'true' : 'false'; ?>
+        allow_partial: <?php echo ($cancellationSettings['cancellation_allow_partial'] ?? 0) ? 'true' : 'false'; ?>,
+        show_pending_refunds_in_close_session: <?php echo ($cancellationSettings['show_pending_refunds_in_close_session'] ?? 0) ? 'true' : 'false'; ?>
     };
 
     // POS Settings and user permissions
@@ -564,7 +599,9 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         cashier_can_close: <?php echo $posCashierCloseRaw === 1 ? 'true' : 'false'; ?>,
         manager_can_open: <?php echo $posManagerOpenRaw === 1 ? 'true' : 'false'; ?>,
         manager_can_close: <?php echo $posManagerCloseRaw === 1 ? 'true' : 'false'; ?>,
-        allow_negative_ticket_stock: <?php echo (int) ($posSettings['allow_negative_ticket_stock'] ?? 0) === 1 ? 'true' : 'false'; ?>
+        allow_negative_ticket_stock: <?php echo (int) ($posSettings['allow_negative_ticket_stock'] ?? 0) === 1 ? 'true' : 'false'; ?>,
+        allow_insufficient_wallet: <?php echo (int) ($posSettings['pos_allow_insufficient_wallet'] ?? 0) === 1 ? 'true' : 'false'; ?>,
+        ticket_number_required: <?php echo (int) ($posSettings['pos_ticket_number_required'] ?? 1) === 1 ? 'true' : 'false'; ?>
     };
     window.POS_USER_ROLE = '<?php echo $userRoleCode; ?>';
     window.POS_CAN_OPEN = (window.POS_USER_ROLE === 'SUPER_ADMIN' || window.POS_USER_ROLE === 'MANAGER') ? window.POS_SETTINGS.manager_can_open : window.POS_SETTINGS.cashier_can_open;
@@ -587,6 +624,12 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
         showServiceFee: <?php echo ($printerSettings['receipt_show_service_fee'] ?? 1) ? 'true' : 'false'; ?>,
         showBaseAmount: <?php echo ($printerSettings['receipt_show_base_amount'] ?? 1) ? 'true' : 'false'; ?>,
         showDiscount: <?php echo ($printerSettings['receipt_show_discount'] ?? 1) ? 'true' : 'false'; ?>,
+        showItemTotal: <?php echo ($printerSettings['receipt_show_item_total'] ?? 1) ? 'true' : 'false'; ?>,
+        showSubtotal: <?php echo ($printerSettings['receipt_show_subtotal'] ?? 1) ? 'true' : 'false'; ?>,
+        showTendered: <?php echo ($printerSettings['receipt_show_tendered'] ?? 1) ? 'true' : 'false'; ?>,
+        showServiceFeeTotal: <?php echo ($printerSettings['receipt_show_service_fee_total'] ?? 1) ? 'true' : 'false'; ?>,
+        totalSource: '<?php echo $printerSettings['receipt_total_source'] ?? 'grand_total'; ?>',
+        showVat: <?php echo ($printerSettings['receipt_show_vat'] ?? 1) ? 'true' : 'false'; ?>,
         qrEnabled: <?php echo ($printerSettings['receipt_qr_code_enabled'] ?? 0) ? 'true' : 'false'; ?>,
         qrFormat: '<?php echo $printerSettings['receipt_qr_format'] ?? 'TRANSACTION_ID'; ?>',
         logoEnabled: <?php echo ($printerSettings['receipt_logo_enabled'] ?? 0) ? 'true' : 'false'; ?>,
@@ -616,7 +659,7 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
     };
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/qz-tray.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/jsrsasign-all-min.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/jsrsasign-all-min.js'); ?>"></script>
   <script>
     // QZ Tray signing credentials (served via PHP to avoid public file exposure)
     window.QZ_CERT = <?php echo json_encode(
@@ -628,6 +671,9 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
   </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos-printer.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos-printer.js'); ?>"></script>
   <script src="<?php echo BASE_URL; ?>/resources/vendors/choices/choices.min.js?v=<?php echo filemtime(dirname(dirname(dirname(__DIR__))) . '/resources/vendors/choices/choices.min.js'); ?>"></script>
+  <?php if (PusherService::isConfigured()): ?>
+  <script src="https://js.pusher.com/8.4.0/pusher.min.js"></script>
+  <?php endif; ?>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>

@@ -76,23 +76,23 @@
 /* Amount styling */
 .amount-in {
     color: #28a745;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .amount-out {
     color: #dc3545;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 /* Balance styling */
 .balance-positive {
     color: #28a745;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .balance-negative {
     color: #dc3545;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 /* Transaction details styling */
@@ -118,6 +118,42 @@
 .transaction-detail-value {
     flex: 1;
     color: var(--falcon-900);
+}
+
+#transactionsTableBody td {
+    font-size: 0.75rem;
+}
+
+#transactionsTableBody td .small,
+#transactionsTableBody td small {
+    font-size: inherit;
+}
+
+.wallet-transactions-page .card-body,
+.wallet-transactions-page .card-header,
+.wallet-transactions-page .btn,
+.wallet-transactions-page .form-control,
+.wallet-transactions-page .form-select,
+.wallet-transactions-page .dropdown-item,
+.wallet-transactions-page .dropdown-header {
+    font-size: 0.75rem;
+}
+
+.wallet-transactions-page h5,
+.wallet-transactions-page h6 {
+    font-size: 0.75rem !important;
+}
+
+.wallet-transactions-page #totalTransactions,
+.wallet-transactions-page #totalInflow,
+.wallet-transactions-page #totalOutflow,
+.wallet-transactions-page #netBalance {
+    font-size: 1rem !important;
+}
+
+.wallet-transactions-page .small,
+.wallet-transactions-page small {
+    font-size: inherit;
 }
 
 /* Table row hover effect */
@@ -172,4 +208,21 @@
 .empty-state-subtext {
     font-size: 0.9rem;
     color: var(--falcon-400);
+}
+
+/* View transaction modal code/amount styling */
+.txn-code {
+    font-family: var(--bs-font-monospace);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--bs-primary);
+    word-break: normal;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+#viewTransactionModal .card-header h6 {
+    font-size: 1rem;
+    font-weight: 600;
 }

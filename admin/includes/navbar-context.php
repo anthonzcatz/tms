@@ -130,3 +130,26 @@ if ($currentUser) {
         ];
     }
 }
+
+// Track recently browsed pages for the navbar search dropdown.
+if (session_status() === PHP_SESSION_ACTIVE && Auth::check()) {
+    if (!isset($_SESSION['tms_recent_pages']) || !is_array($_SESSION['tms_recent_pages'])) {
+        $_SESSION['tms_recent_pages'] = [];
+    }
+    $trackPath  = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $trackTitle = $pageTitle ?? 'Page';
+
+    $recent = $_SESSION['tms_recent_pages'];
+    foreach ($recent as $i => $p) {
+        if (($p['url'] ?? '') === $trackPath) {
+            unset($recent[$i]);
+            break;
+        }
+    }
+    array_unshift($recent, [
+        'url'   => $trackPath,
+        'title' => $trackTitle,
+        'icon'  => 'fas fa-file-alt',
+    ]);
+    $_SESSION['tms_recent_pages'] = array_values(array_slice($recent, 0, 5));
+}

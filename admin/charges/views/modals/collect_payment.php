@@ -1,5 +1,5 @@
 <!-- Collect Payment Modal -->
-<div class="modal fade" id="collectPaymentModal" tabindex="-1" aria-labelledby="collectPaymentModalLabel" aria-hidden="true">
+<div class="modal fade" id="collectPaymentModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="collectPaymentModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header px-5 position-relative modal-shape-header bg-shape">
@@ -22,8 +22,23 @@
           <div>
             <div class="fw-bold fs-6" id="collectCustomerName">—</div>
             <div class="text-muted small" id="collectCustomerContact">—</div>
-            <div class="mt-1">
-              Outstanding Balance: <strong class="text-danger fs-5" id="collectBalance">₱0.00</strong>
+            <div class="mt-2 row g-2">
+              <div class="col-4">
+                <div class="small text-muted">Base</div>
+                <strong class="text-primary" id="collectBaseBalance">₱0.00</strong>
+              </div>
+              <div class="col-4">
+                <div class="small text-muted">Service Fee</div>
+                <strong class="text-info" id="collectFeeBalance">₱0.00</strong>
+              </div>
+              <div class="col-4">
+                <div class="small text-muted">Total</div>
+                <strong class="text-danger" id="collectBalance">₱0.00</strong>
+              </div>
+            </div>
+            <div class="mt-2" id="collectCollectibleRow">
+              Collectible now: <strong class="text-success fs-5" id="collectCollectible">₱0.00</strong>
+              <span id="collectModeBadge" class="badge bg-soft-secondary text-secondary ms-2">Customer</span>
             </div>
           </div>
         </div>
@@ -31,8 +46,12 @@
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label fw-semibold">Amount to Collect (₱) <span class="text-danger">*</span></label>
-            <input type="number" class="form-control fs-5 fw-bold" id="collectAmount" min="0.01" step="0.01" placeholder="0.00">
-            <div class="form-text">Can be partial or full payment.</div>
+            <input type="number" class="form-control fs-5 fw-bold" id="collectAmount" min="0.01" step="0.01" placeholder="0.00" oninput="validateCollectAmount()">
+            <div class="form-text d-flex justify-content-between align-items-center">
+              <span>Can be partial or full payment.</span>
+              <a href="javascript:void(0)" class="small" id="collectUseFullBalance" onclick="setFullCollectAmount()">Use full balance</a>
+            </div>
+            <div id="collectAmountFeedback" class="invalid-feedback" style="display:none;"></div>
           </div>
           <div class="col-md-6">
             <label class="form-label fw-semibold">Branch</label>
@@ -84,8 +103,9 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-success" onclick="submitCollectPayment()">
-          <span class="fas fa-check-circle me-1"></span>Record Payment
+        <button type="button" class="btn btn-success" id="collectSubmitBtn" onclick="submitCollectPayment()">
+          <span class="fas fa-check-circle me-1" id="collectSubmitIcon"></span>
+          <span id="collectSubmitLabel">Record Payment</span>
         </button>
       </div>
     </div>
@@ -108,6 +128,29 @@
         </div>
       </div>
       <div class="modal-body">
+        <div class="row g-2 mb-3 align-items-center">
+          <div class="col-6 col-md-3">
+            <select class="form-select form-select-sm" id="historyBranchFilter" onchange="applyHistoryFilters()">
+              <option value="">All Branches</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <select class="form-select form-select-sm" id="historyTypeFilter" onchange="applyHistoryFilters()">
+              <option value="">All Types</option>
+              <option value="charge">Charge</option>
+              <option value="payment">Payment</option>
+              <option value="reversal">Reversal</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <button class="btn btn-outline-primary btn-sm w-100" onclick="printChargeStatement()">
+              <span class="fas fa-file-invoice me-1"></span>Print Statement
+            </button>
+          </div>
+          <div class="col-12 col-md-3">
+            <div id="chargeHistoryPager" class="d-flex justify-content-md-end align-items-center"></div>
+          </div>
+        </div>
         <div id="chargeHistoryContent">
           <div class="text-center py-4"><span class="fas fa-spinner fa-spin me-2"></span>Loading history...</div>
         </div>

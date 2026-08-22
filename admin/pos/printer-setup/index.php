@@ -43,7 +43,10 @@ $printerSettings = Database::fetch(
     "SELECT receipt_printing_enabled, receipt_paper_width, printer_type, system_logo,
             receipt_auto_print, receipt_show_preview, receipt_copies,
             receipt_show_tin, receipt_show_service_fee, receipt_show_base_amount,
-            receipt_show_discount, receipt_show_cashier, receipt_show_payment_method,
+            receipt_show_discount, receipt_show_item_total, receipt_show_subtotal,
+            receipt_show_tendered, receipt_show_service_fee_total, receipt_total_source,
+            receipt_show_vat,
+            receipt_show_cashier, receipt_show_payment_method,
             receipt_show_branch, receipt_logo_enabled, receipt_qr_code_enabled,
             receipt_qr_format, receipt_footer, receipt_custom_footer, receipt_address_source,
             company_name, company_address, company_contact_number, company_email, company_tin

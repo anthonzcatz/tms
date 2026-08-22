@@ -56,6 +56,12 @@
           showServiceFee: <?php echo ($printerSettings['receipt_show_service_fee'] ?? 1) ? 'true' : 'false'; ?>,
           showBaseAmount: <?php echo ($printerSettings['receipt_show_base_amount'] ?? 1) ? 'true' : 'false'; ?>,
           showDiscount: <?php echo ($printerSettings['receipt_show_discount'] ?? 1) ? 'true' : 'false'; ?>,
+          showItemTotal: <?php echo ($printerSettings['receipt_show_item_total'] ?? 1) ? 'true' : 'false'; ?>,
+          showSubtotal: <?php echo ($printerSettings['receipt_show_subtotal'] ?? 1) ? 'true' : 'false'; ?>,
+          showTendered: <?php echo ($printerSettings['receipt_show_tendered'] ?? 1) ? 'true' : 'false'; ?>,
+          showServiceFeeTotal: <?php echo ($printerSettings['receipt_show_service_fee_total'] ?? 1) ? 'true' : 'false'; ?>,
+          totalSource: '<?php echo $printerSettings['receipt_total_source'] ?? 'grand_total'; ?>',
+          showVat: <?php echo ($printerSettings['receipt_show_vat'] ?? 1) ? 'true' : 'false'; ?>,
           showCashier: <?php echo ($printerSettings['receipt_show_cashier'] ?? 1) ? 'true' : 'false'; ?>,
           showPaymentMethod: <?php echo ($printerSettings['receipt_show_payment_method'] ?? 1) ? 'true' : 'false'; ?>,
           showBranch: <?php echo ($printerSettings['receipt_show_branch'] ?? 1) ? 'true' : 'false'; ?>,
@@ -418,7 +424,7 @@ Waiting for test print...
 
   <!-- QZ Tray Library -->
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/qz-tray.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+  <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/jsrsasign-all-min.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/jsrsasign-all-min.js'); ?>"></script>
   <script>
     // QZ Tray signing credentials (served via PHP to avoid public file exposure)
     window.QZ_CERT = <?php echo json_encode(

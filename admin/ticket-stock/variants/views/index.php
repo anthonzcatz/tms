@@ -74,6 +74,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
         </div>
 
+        <?php $activeTicketStockModule = 'variants'; include dirname(dirname(__DIR__)) . '/_partials/ticket_stock_nav.php'; ?>
+
         <!-- Stats Cards -->
         <div class="row g-3 mb-3">
           <div class="col-sm-6 col-md-3">

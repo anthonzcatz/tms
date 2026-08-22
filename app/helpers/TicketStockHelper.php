@@ -479,7 +479,29 @@ final class TicketStockHelper
             $branchId, $providerId, $variantId, $qty, $userId, $releaseReserved, $extra
         ) {
             if ($releaseReserved > 0) {
-                self::_adjustReserved($pdo, $branchId, $providerId, $variantId, -$releaseReserved);
+                $reservation = Database::fetch(
+                    "SELECT reservation_id, reserved_qty
+                     FROM ticket_stock_reservations
+                     WHERE branch_id = :branch_id
+                       AND provider_id = :provider_id
+                       AND variant_id = :variant_id
+                       AND reserved_qty >= :qty
+                       AND (session_id = :session_id OR pos_order_id = :pos_order_id)
+                     ORDER BY reservation_id ASC
+                     LIMIT 1",
+                    [
+                        'branch_id' => $branchId,
+                        'provider_id' => $providerId,
+                        'variant_id' => $variantId,
+                        'qty' => $releaseReserved,
+                        'session_id' => $extra['session_id'] ?? null,
+                        'pos_order_id' => $extra['pos_order_id'] ?? null,
+                    ]
+                );
+                if ($reservation) {
+                    self::_adjustReserved($pdo, $branchId, $providerId, $variantId, -$releaseReserved);
+                    self::_expireReservation($pdo, $branchId, $providerId, $variantId, $releaseReserved, $extra);
+                }
             }
 
             $movementData = [
@@ -524,7 +546,7 @@ final class TicketStockHelper
             $providerId,
             $variantId,
             $qty,
-            'POS_CANCEL',
+            'POS_SALE_REVERSAL',
             $movementData,
             $userId
         );
@@ -947,27 +969,48 @@ final class TicketStockHelper
         int $qty,
         array $extra
     ): void {
-        $stmt = $pdo->prepare(
-            "DELETE FROM `ticket_stock_reservations`
+        $reservation = Database::fetch(
+            "SELECT reservation_id, reserved_qty
+             FROM `ticket_stock_reservations`
              WHERE `branch_id` = :branch_id
                AND `provider_id` = :provider_id
                AND `variant_id` = :variant_id
-               AND `reserved_qty` >= :qty
                AND (
                    `session_id` = :session_id
                    OR `pos_order_id` = :pos_order_id
                )
              ORDER BY `reservation_id` ASC
-             LIMIT 1"
+             LIMIT 1
+             FOR UPDATE",
+            [
+                'branch_id' => $branchId,
+                'provider_id' => $providerId,
+                'variant_id' => $variantId,
+                'session_id' => $extra['session_id'] ?? null,
+                'pos_order_id' => $extra['pos_order_id'] ?? null,
+            ]
         );
+        if (!$reservation) {
+            return;
+        }
 
-        $stmt->execute([
-            ':branch_id'    => $branchId,
-            ':provider_id'  => $providerId,
-            ':variant_id'   => $variantId,
-            ':qty'          => $qty,
-            ':session_id'   => $extra['session_id'] ?? null,
-            ':pos_order_id' => $extra['pos_order_id'] ?? null,
-        ]);
+        $reservedQty = (int) $reservation['reserved_qty'];
+        if ($reservedQty <= $qty) {
+            Database::execute(
+                'DELETE FROM ticket_stock_reservations WHERE reservation_id = :reservation_id',
+                ['reservation_id' => (int) $reservation['reservation_id']]
+            );
+            return;
+        }
+
+        Database::execute(
+            'UPDATE ticket_stock_reservations
+             SET reserved_qty = reserved_qty - :qty
+             WHERE reservation_id = :reservation_id',
+            [
+                'qty' => $qty,
+                'reservation_id' => (int) $reservation['reservation_id'],
+            ]
+        );
     }
 }

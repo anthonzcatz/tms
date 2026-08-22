@@ -569,13 +569,12 @@ If any step fails, roll back the entire POS order including wallet and stock cha
 
 Inventory reversal must be explicit and must not automatically happen for every financial refund.
 
-Add a cancellation/refund decision. The cashier or receiver must choose a disposition; the system must not automatically return damaged tickets to usable stock:
+For the current POS rule, a sold variant ticket is consumed and cannot return to usable inventory:
 
-- **Returned to usable stock**: create `POS_SALE_REVERSAL` and increase the same branch/provider/variant stock.
-- **Returned to provider**: create a `RETURN_TO_SOURCE` movement (or dispatch note) so the physical tickets are sent back to the supplier; usable inventory is not restored.
-- **Written off internally / not reusable**: do not return to usable inventory; create a `DAMAGE_OR_VOID` movement with reason and approval if required.
-- **Replaced with equivalent variant**: perform a paired adjustment (out from the returned variant, in to the replacement variant) with reason and approver.
-- **Financial refund only**: wallet and payment logic follows current rules; inventory behavior depends on the selected disposition and must be audited.
+- **Variant Void/Cancellation/Refund**: do not increase branch/provider/variant stock and do not credit the provider wallet; record the consumed-ticket disposition and approval.
+- **CHARGE reversal**: reverse the original customer Charge Account when the approved operation requires it.
+- **Cash/bank refund**: follow the approved payment-source allocation and responsibility rules, independent of inventory restoration.
+- **Future physical disposition workflow**: any provider return or replacement must be a separate inventory process with its own authorization and movement records; it is not part of POS cancellation.
 
 Every reversal must reference the original ticket transaction and preserve the original `variant_id`.
 
@@ -641,7 +640,7 @@ GET ?action=low-stock
 ### Existing APIs to update
 
 - POS ticket processing endpoint: validate and deduct variant inventory during checkout.
-- Ticket cancellation and approval endpoints: perform inventory return or void movement based on the authorized disposition.
+- Ticket cancellation and approval endpoints: record consumed-variant Void/Cancellation/Refund without restoring variant availability; any future physical return is a separate authorized inventory workflow.
 - Ticket provider endpoint: expose `uses_controlled_ticket_stock` and variant relationship/counts as needed.
 - Reports endpoints: include provider variant in ticket, POS, and inventory reports.
 

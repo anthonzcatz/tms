@@ -6,6 +6,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 require_once dirname(__DIR__) . '/_guard.php';
@@ -30,6 +31,12 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 
 $userRoleCode  = $user['role_code'] ?? '';
 $userBranchId  = $user['branch_id'] ?? null;
+$realtimeBranchIds = $userRoleCode === 'SUPER_ADMIN'
+    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches"), 'branch_id'))
+    : array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
+$pusherConfigured = PusherService::isConfigured();
+$pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';
+$pusherCluster = $pusherConfigured ? env('PUSHER_CLUSTER', 'ap1') : 'ap1';
 
 // Build branch filter
 $branchWhere = '';
@@ -69,9 +76,12 @@ $transactionPayments = Database::fetchAll(
             COALESCE(CONCAT_WS(' ', e_cashier.first_name, e_cashier.last_name), ua_cashier.username) AS cashier_name,
             COALESCE(CONCAT_WS(' ', e_confirm.first_name, e_confirm.last_name), ua_confirm.username) AS confirmed_by_name,
             bb.branch_name,
-            st.transaction_code AS service_txn_code,
-            st.total_amount AS service_txn_total,
-            stype.name AS service_type_name,
+            COALESCE(tt.transaction_code, st.transaction_code) AS service_txn_code,
+            COALESCE(po.order_code, '') AS order_code,
+            tt.ticket_number,
+            tt.status AS ticket_status,
+            COALESCE(st.total_amount, tt.total_amount) AS service_txn_total,
+            COALESCE(stype.name, 'Ticket Sale') AS service_type_name,
             'PAYMENT' AS source_type_label,
             'PAYMENT' AS item_type,
             tp.confirmation_status AS item_status,
@@ -83,9 +93,14 @@ $transactionPayments = Database::fetchAll(
      LEFT JOIN employees e_cashier ON ua_cashier.emp_id = e_cashier.emp_id
      LEFT JOIN user_accounts ua_confirm ON tp.confirmed_by = ua_confirm.user_id
      LEFT JOIN employees e_confirm ON ua_confirm.emp_id = e_confirm.emp_id
+     LEFT JOIN ticket_transactions tt ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
      LEFT JOIN service_transactions st ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
      LEFT JOIN service_types stype ON st.service_type_id = stype.service_type_id
-     LEFT JOIN business_branches bb ON st.branch_id = bb.branch_id
+     LEFT JOIN pos_order_items oi
+        ON ((tp.source_type = 'TICKET_TRANSACTION' AND oi.item_type = 'TICKET' AND oi.reference_id = tt.transaction_id)
+         OR (tp.source_type = 'SERVICE_TRANSACTION' AND oi.item_type = 'SERVICE' AND oi.reference_id = st.service_txn_id))
+     LEFT JOIN pos_orders po ON oi.order_id = po.order_id
+     LEFT JOIN business_branches bb ON COALESCE(st.branch_id, tt.branch_id) = bb.branch_id
      WHERE pm.requires_confirmation = 1
        {$statusWhere}
        {$branchWhere}
@@ -142,8 +157,52 @@ $chargePayments = Database::fetchAll(
     array_merge($chargeStatusParam, $chargeBranchParam)
 );
 
+$depositStatusWhere = $statusFilter !== 'ALL' ? "AND bt.confirmation_status = :status" : '';
+$depositStatusParam = $statusFilter !== 'ALL' ? ['status' => $statusFilter] : [];
+$depositBranchWhere = '';
+$depositBranchParam = [];
+if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
+    $depositBranchWhere = 'AND COALESCE(ba.branch_id, cs.branch_id) = :branch_id';
+    $depositBranchParam['branch_id'] = $userBranchId;
+}
+$depositPayments = Database::fetchAll(
+    "SELECT
+            bt.bank_txn_id AS payment_id,
+            bt.txn_code AS service_txn_code,
+            bt.amount,
+            bt.confirmation_status,
+            bt.confirmed_by,
+            bt.confirmed_at,
+            bt.created_at,
+            bt.bank_account_id,
+            'Cash Deposit' AS method_name,
+            'CASH_DEPOSIT' AS method_type,
+            ba.bank_name, ba.account_name, ba.account_number,
+            COALESCE(CONCAT_WS(' ', e_cashier.first_name, e_cashier.last_name), ua_cashier.username) AS cashier_name,
+            COALESCE(CONCAT_WS(' ', e_confirm.first_name, e_confirm.last_name), ua_confirm.username) AS confirmed_by_name,
+            COALESCE(bb.branch_name, session_bb.branch_name) AS branch_name,
+            'Cash Deposit' AS service_type_name,
+            'DEPOSIT' AS item_type,
+            bt.confirmation_status AS item_status,
+            NULL AS amount_paid
+     FROM bank_transactions bt
+     JOIN bank_accounts ba ON bt.bank_account_id = ba.bank_account_id
+     LEFT JOIN business_branches bb ON ba.branch_id = bb.branch_id
+     LEFT JOIN cashier_sessions cs ON bt.reference_table = 'cashier_sessions' AND bt.reference_id = cs.session_id
+     LEFT JOIN business_branches session_bb ON cs.branch_id = session_bb.branch_id
+     LEFT JOIN user_accounts ua_cashier ON bt.created_by = ua_cashier.user_id
+     LEFT JOIN employees e_cashier ON ua_cashier.emp_id = e_cashier.emp_id
+     LEFT JOIN user_accounts ua_confirm ON bt.confirmed_by = ua_confirm.user_id
+     LEFT JOIN employees e_confirm ON ua_confirm.emp_id = e_confirm.emp_id
+     WHERE bt.txn_type = 'DEPOSIT'
+       {$depositStatusWhere}
+       {$depositBranchWhere}
+     ORDER BY bt.created_at DESC",
+    array_merge($depositStatusParam, $depositBranchParam)
+);
+
 // Merge and sort by date
-$payments = array_merge($transactionPayments, $chargePayments);
+$payments = array_merge($transactionPayments, $chargePayments, $depositPayments);
 usort($payments, function($a, $b) {
     return strtotime($b['created_at']) - strtotime($a['created_at']);
 });

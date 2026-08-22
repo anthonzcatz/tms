@@ -6,8 +6,11 @@ header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PaymentSettlementService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/NotificationService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
     $now = date('Y-m-d H:i:s');
@@ -52,10 +55,25 @@ if ($method === 'GET') {
     
     // Get transaction_payments with pending confirmation
     $transactionPayments = Database::fetchAll(
-        "SELECT tp.*, pm.method_name, ba.bank_name, 'transaction' AS source_type
+        "SELECT tp.*, pm.method_name, pm.method_type,
+                ba.bank_name, ba.account_name, ba.account_number,
+                COALESCE(tt.transaction_code, st.transaction_code) AS transaction_code,
+                tt.ticket_number, tt.status AS ticket_status,
+                COALESCE(po.order_code, '') AS order_code,
+                COALESCE(tt.branch_id, st.branch_id) AS branch_id,
+                COALESCE(tt.passenger_id, st.passenger_id) AS passenger_id,
+                'transaction' AS source_type
          FROM transaction_payments tp
          JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
          LEFT JOIN bank_accounts ba ON tp.bank_account_id = ba.bank_account_id
+         LEFT JOIN ticket_transactions tt
+            ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
+         LEFT JOIN service_transactions st
+            ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
+         LEFT JOIN pos_order_items oi
+            ON ((tp.source_type = 'TICKET_TRANSACTION' AND oi.item_type = 'TICKET' AND oi.reference_id = tt.transaction_id)
+             OR (tp.source_type = 'SERVICE_TRANSACTION' AND oi.item_type = 'SERVICE' AND oi.reference_id = st.service_txn_id))
+         LEFT JOIN pos_orders po ON oi.order_id = po.order_id
          WHERE pm.requires_confirmation = 1 AND tp.confirmation_status = :status
          ORDER BY tp.created_at DESC",
         ['status' => $status]
@@ -93,6 +111,7 @@ if ($method === 'PUT') {
     $chargePaymentId = $input['charge_payment_id'] ?? null;
     $action = $input['action'] ?? null;
     $notes  = $input['notes'] ?? null;
+    $realtimeBranchIds = [];
 
     if (!$payId && !$depositId && !$chargePaymentId || !in_array($action, ['CONFIRMED', 'REJECTED'])) {
         echo json_encode(['success' => false, 'error' => 'Invalid request.']); return;
@@ -112,6 +131,19 @@ if ($method === 'PUT') {
                     return;
                 }
 
+                $paymentBranch = Database::fetch(
+                    "SELECT COALESCE(tt.branch_id, st.branch_id, cs.branch_id) AS branch_id
+                     FROM transaction_payments tp
+                     LEFT JOIN ticket_transactions tt ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
+                     LEFT JOIN service_transactions st ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
+                     LEFT JOIN cashier_sessions cs ON tp.cashier_session_id = cs.session_id
+                     WHERE tp.payment_id = :id",
+                    ['id' => $payId]
+                );
+                if (!empty($paymentBranch['branch_id'])) {
+                    $realtimeBranchIds[] = (int) $paymentBranch['branch_id'];
+                }
+
                 $pm = Database::fetch("SELECT * FROM payment_methods WHERE method_id = :id", ['id' => $existing['payment_method_id']]);
                 if (!$pm) {
                     Database::connection()->rollBack();
@@ -119,48 +151,62 @@ if ($method === 'PUT') {
                     return;
                 }
 
-                Database::execute(
-                    "UPDATE transaction_payments SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = :confirmed_at WHERE payment_id = :id",
-                    ['status' => $action, 'uid' => $user['user_id'], 'confirmed_at' => date('Y-m-d H:i:s'), 'id' => $payId]
-                );
-
-                // Create bank transaction when confirming bank/e-wallet payments
-                if ($action === 'CONFIRMED' && $existing['bank_account_id'] && ($pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET')) {
-                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $existing['bank_account_id']]);
-                    if ($bankAccount) {
-                        $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
-                        $balAfterBank = $balBeforeBank + $existing['amount'];
-                        
-                        $bankTxnCode = 'BANK-' . date('Ymd-His') . '-' . strtoupper(substr(uniqid(), -5));
-                        Database::execute(
-                            "INSERT INTO bank_transactions
-                                (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
-                                 reference_table, reference_id, remarks, created_by, created_at)
-                             VALUES (:bank_id, :code, 'CONFIRMED', 'RECEIPT', 'IN', :amount, :before, :after, 'transaction_payments', :ref_id, :remarks, :uid, :created_at)",
-                            [
-                                'bank_id' => $existing['bank_account_id'],
-                                'code' => $bankTxnCode,
-                                'amount' => $existing['amount'],
-                                'before' => $balBeforeBank,
-                                'after' => $balAfterBank,
-                                'ref_id' => $payId,
-                                'remarks' => "Confirmed bank transfer payment",
-                                'uid' => $user['user_id'],
-                                'created_at' => date('Y-m-d H:i:s')
-                            ]
-                        );
-                        
-                        Database::execute(
-                            "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
-                            ['balance' => $balAfterBank, 'id' => $existing['bank_account_id']]
-                        );
-                        
-                        logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankTxnCode,
-                            null, ['bank_account_id' => $existing['bank_account_id'], 'amount' => $existing['amount'], 'type' => 'RECEIPT']);
-                    }
+                if (($existing['confirmation_status'] ?? null) !== 'PENDING') {
+                    Database::connection()->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Payment is no longer pending.']);
+                    return;
                 }
 
-                logActivity($user['user_id'], $action . '_PAYMENT', 'Bank Confirmations', "PAY-{$payId}", null, ['status' => $action]);
+                Database::execute(
+                    "UPDATE transaction_payments
+                     SET confirmation_status = :status,
+                         confirmed_by = :uid,
+                         confirmed_at = :confirmed_at,
+                         confirmation_notes = :notes
+                     WHERE payment_id = :id AND confirmation_status = 'PENDING'",
+                    [
+                        'status' => $action,
+                        'uid' => $user['user_id'],
+                        'confirmed_at' => date('Y-m-d H:i:s'),
+                        'notes' => $notes,
+                        'id' => $payId,
+                    ]
+                );
+
+                if ($action === 'CONFIRMED'
+                    && $existing['bank_account_id']
+                    && in_array($pm['method_type'], ['BANK_TRANSFER', 'E_WALLET'], true)) {
+                    $bankMovement = BalanceLedgerService::bankMovement(
+                        (int) $existing['bank_account_id'],
+                        'RECEIPT',
+                        'IN',
+                        (float) $existing['amount'],
+                        'transaction_payments',
+                        (int) $payId,
+                        'Confirmed ' . strtolower((string) $pm['method_type']) . ' payment',
+                        (int) $user['user_id'],
+                        'bank-receipt:payment:' . (int) $payId,
+                        null,
+                        false,
+                        $notes
+                    );
+                    logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankMovement['txn_code'],
+                        null, ['bank_account_id' => $existing['bank_account_id'], 'amount' => $existing['amount'], 'type' => 'RECEIPT']);
+                }
+
+                if ($action === 'REJECTED') {
+                    $settlement = PaymentSettlementService::handleRejectedTransactionPayment(
+                        $existing,
+                        $pm,
+                        (int) $user['user_id'],
+                        $notes
+                    );
+                    logActivity($user['user_id'], 'REJECTED_PAYMENT_SETTLEMENT', 'POS', "PAY-{$payId}",
+                        null, $settlement);
+                }
+
+                logActivity($user['user_id'], $action . '_PAYMENT', 'Bank Confirmations', "PAY-{$payId}", null,
+                    ['status' => $action, 'notes' => $notes]);
 
                 // Payment notification triggers
                 if ($action === 'CONFIRMED') {
@@ -205,32 +251,56 @@ if ($method === 'PUT') {
                     return;
                 }
 
+                $depositBranch = Database::fetch(
+                    "SELECT branch_id FROM bank_accounts WHERE bank_account_id = :bank_account_id",
+                    ['bank_account_id' => $existing['bank_account_id']]
+                );
+                if (!empty($depositBranch['branch_id'])) {
+                    $realtimeBranchIds[] = (int) $depositBranch['branch_id'];
+                }
+
                 if ($existing['confirmation_status'] !== 'PENDING') {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Deposit is not pending']);
                     return;
                 }
 
-                Database::execute(
-                    "UPDATE bank_transactions SET confirmation_status = :status, confirmed_by = :uid, confirmed_at = :confirmed_at WHERE bank_txn_id = :id",
-                    ['status' => $action, 'uid' => $user['user_id'], 'confirmed_at' => date('Y-m-d H:i:s'), 'id' => $depositId]
-                );
+                $depositResult = $action === 'CONFIRMED'
+                    ? BalanceLedgerService::confirmPendingBankTransaction(
+                        (int) $depositId,
+                        (int) $user['user_id'],
+                        $notes
+                    )
+                    : BalanceLedgerService::rejectPendingBankTransaction(
+                        (int) $depositId,
+                        (int) $user['user_id'],
+                        $notes
+                    );
 
-                // Update bank account balance when confirming a deposit
-                if ($action === 'CONFIRMED') {
-                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id FOR UPDATE", ['id' => $existing['bank_account_id']]);
-                    if ($bankAccount) {
-                        $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
-                        $balAfterBank = $balBeforeBank + $existing['amount'];
-                        
+                if ($existing['reference_table'] === 'cashier_sessions' && $existing['reference_id']) {
+                    if ($action === 'CONFIRMED') {
                         Database::execute(
-                            "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
-                            ['balance' => $balAfterBank, 'id' => $existing['bank_account_id']]
+                            "UPDATE cashier_sessions
+                             SET deposit_status = 'DEPOSITED',
+                                 deposited_at = NOW(),
+                                 deposited_by = :user_id
+                             WHERE session_id = :session_id",
+                            ['user_id' => $user['user_id'], 'session_id' => (int) $existing['reference_id']]
+                        );
+                    } else {
+                        Database::execute(
+                            "UPDATE cashier_sessions
+                             SET deposit_status = 'PENDING',
+                                 deposited_at = NULL,
+                                 deposited_by = NULL
+                             WHERE session_id = :session_id",
+                            ['session_id' => (int) $existing['reference_id']]
                         );
                     }
                 }
 
-                logActivity($user['user_id'], $action . '_DEPOSIT', 'Bank Confirmations', "DEP-{$depositId}", null, ['status' => $action]);
+                logActivity($user['user_id'], $action . '_DEPOSIT', 'Bank Confirmations', "DEP-{$depositId}", null,
+                    ['status' => $action, 'bank_txn_code' => $depositResult['txn_code'], 'notes' => $notes]);
             }
 
             if ($chargePaymentId) {
@@ -240,6 +310,10 @@ if ($method === 'PUT') {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Charge payment not found']);
                     return;
+                }
+
+                if (!empty($existing['branch_id'])) {
+                    $realtimeBranchIds[] = (int) $existing['branch_id'];
                 }
 
                 if ($existing['confirmation_status'] !== 'PENDING') {
@@ -260,40 +334,26 @@ if ($method === 'PUT') {
                     ['status' => $action, 'uid' => $user['user_id'], 'confirmed_at' => date('Y-m-d H:i:s'), 'id' => $chargePaymentId]
                 );
 
-                // Create bank transaction when confirming bank/e-wallet charge payments
-                if ($action === 'CONFIRMED' && $existing['bank_account_id'] && ($pm['method_type'] === 'BANK_TRANSFER' || $pm['method_type'] === 'E_WALLET')) {
-                    $bankAccount = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id FOR UPDATE", ['id' => $existing['bank_account_id']]);
-                    if ($bankAccount) {
-                        $balBeforeBank = floatval($bankAccount['current_balance'] ?? 0);
-                        $balAfterBank = $balBeforeBank + $existing['amount_paid'];
-                        
-                        $bankTxnCode = 'BANK-' . date('Ymd-His') . '-' . strtoupper(substr(uniqid(), -5));
-                        Database::execute(
-                            "INSERT INTO bank_transactions
-                                (bank_account_id, txn_code, confirmation_status, txn_type, direction, amount, balance_before, balance_after,
-                                 reference_table, reference_id, remarks, created_by, created_at)
-                             VALUES (:bank_id, :code, 'CONFIRMED', 'RECEIPT', 'IN', :amount, :before, :after, 'charge_payments', :ref_id, :remarks, :uid, :created_at)",
-                            [
-                                'bank_id' => $existing['bank_account_id'],
-                                'code' => $bankTxnCode,
-                                'amount' => $existing['amount_paid'],
-                                'before' => $balBeforeBank,
-                                'after' => $balAfterBank,
-                                'ref_id' => $chargePaymentId,
-                                'remarks' => "Confirmed charge collection payment from passenger {$existing['passenger_id']}",
-                                'uid' => $user['user_id'],
-                                'created_at' => date('Y-m-d H:i:s')
-                            ]
-                        );
-                        
-                        Database::execute(
-                            "UPDATE bank_accounts SET current_balance = :balance, updated_at = NOW() WHERE bank_account_id = :id",
-                            ['balance' => $balAfterBank, 'id' => $existing['bank_account_id']]
-                        );
-                        
-                        logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankTxnCode,
-                            null, ['bank_account_id' => $existing['bank_account_id'], 'amount' => $existing['amount_paid'], 'type' => 'RECEIPT']);
-                    }
+                // Create the bank receipt through the shared bank ledger.
+                if ($action === 'CONFIRMED'
+                    && $existing['bank_account_id']
+                    && in_array($pm['method_type'], ['BANK_TRANSFER', 'E_WALLET'], true)) {
+                    $bankMovement = BalanceLedgerService::bankMovement(
+                        (int) $existing['bank_account_id'],
+                        'RECEIPT',
+                        'IN',
+                        (float) $existing['amount_paid'],
+                        'charge_payments',
+                        (int) $chargePaymentId,
+                        "Confirmed charge collection from passenger {$existing['passenger_id']}",
+                        (int) $user['user_id'],
+                        'bank-receipt:charge:' . (int) $chargePaymentId,
+                        null,
+                        false,
+                        $notes
+                    );
+                    logActivity($user['user_id'], 'CREATE_BANK_TRANSACTION', 'BANK_TRANSACTIONS', $bankMovement['txn_code'],
+                        null, ['bank_account_id' => $existing['bank_account_id'], 'amount' => $existing['amount_paid'], 'type' => 'RECEIPT']);
                 }
 
                 // Note: Customer balance is already updated when payment is made
@@ -325,10 +385,24 @@ if ($method === 'PUT') {
 
             Database::connection()->commit();
 
+            $realtimeItemType = $depositId ? 'DEPOSIT' : ($chargePaymentId ? 'CHARGE' : 'PAYMENT');
+            $realtimeItemId = (int) ($depositId ?: ($chargePaymentId ?: $payId));
+            foreach (array_values(array_unique($realtimeBranchIds)) as $realtimeBranchId) {
+                PusherService::triggerBranch($realtimeBranchId, 'bank.confirmation.updated', [
+                    'branch_id' => $realtimeBranchId,
+                    'item_type' => $realtimeItemType,
+                    'item_id' => $realtimeItemId,
+                    'action' => $action,
+                    'confirmation_status' => $action,
+                ]);
+            }
+
             echo json_encode(['success' => true, 'message' => ucfirst(strtolower($action)) . ' successfully']);
             return;
-        } catch (Exception $e) {
-            Database::connection()->rollBack();
+        } catch (Throwable $e) {
+            if (Database::connection()->inTransaction()) {
+                Database::connection()->rollBack();
+            }
             echo json_encode(['success' => false, 'error' => 'Failed to process: ' . $e->getMessage()]);
             return;
         }

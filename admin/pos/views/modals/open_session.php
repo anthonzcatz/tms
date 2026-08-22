@@ -1,6 +1,6 @@
 <!-- Open Cashier Session Modal -->
 <div class="modal fade" id="openSessionModal" tabindex="-1" aria-labelledby="openSessionModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-md" role="document">
+  <div class="modal-dialog modal-md modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header px-5 position-relative modal-shape-header bg-shape">
         <div class="position-relative z-1">
@@ -31,9 +31,52 @@
             </select>
           </div>
           <div class="col-12">
-            <label class="form-label fw-semibold" for="sessionOpeningCash">Opening Cash Balance (₱)</label>
-            <input type="text" class="form-control text-end fw-bold" id="sessionOpeningCash" name="sessionOpeningCash" placeholder="0.00" oninput="formatNumberInput(this)" autofocus>
+            <label class="form-label fw-semibold" for="sessionOpeningCash">Opening Cash Balance (₱) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control text-end fw-bold" id="sessionOpeningCash" name="sessionOpeningCash" placeholder="0.00" inputmode="decimal" pattern="[0-9,.]*" onkeypress="return /[0-9.,]/.test(event.key)" oninput="formatNumberInput(this)" required autofocus>
             <div class="form-text">Count your starting cash and enter here.</div>
+          </div>
+          <div class="col-12" id="cashierTransportAccessSection" style="display:none;">
+            <div class="card border-primary bg-soft-primary">
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                  <div>
+                    <h6 class="fw-bold mb-1"><span class="fas fa-route me-2 text-primary"></span>Transportation Type Access</h6>
+                    <div class="small text-muted">Cashier Only · By Transportation Type</div>
+                  </div>
+                  <span class="badge bg-soft-primary text-primary" id="cashierTransportAccessMode">Loading...</span>
+                </div>
+                <div id="cashierTransportAccessStatus" class="small text-muted mb-2">Loading your current access...</div>
+                <div id="cashierTransportTypeForm" class="row g-2" style="display:none;">
+                  <div class="col-6 col-md-3">
+                    <div class="form-check">
+                      <input class="form-check-input cashier-transport-type" type="checkbox" value="airline" id="cashierTransportAirline">
+                      <label class="form-check-label" for="cashierTransportAirline">Airlines</label>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="form-check">
+                      <input class="form-check-input cashier-transport-type" type="checkbox" value="shipping" id="cashierTransportShipping">
+                      <label class="form-check-label" for="cashierTransportShipping">Shipping</label>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="form-check">
+                      <input class="form-check-input cashier-transport-type" type="checkbox" value="bus" id="cashierTransportBus">
+                      <label class="form-check-label" for="cashierTransportBus">Bus Lines</label>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="form-check">
+                      <input class="form-check-input cashier-transport-type" type="checkbox" value="other" id="cashierTransportOther">
+                      <label class="form-check-label" for="cashierTransportOther">Other</label>
+                    </div>
+                  </div>
+                  <div class="col-12 mt-2">
+                    <small class="text-muted">Changes will be saved when you open the session.</small>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold" for="sessionNotes">Notes</label>

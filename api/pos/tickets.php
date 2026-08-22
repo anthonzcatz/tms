@@ -8,7 +8,12 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BIRHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/TicketStockHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/ChargeService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/CashierTransportAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
     $now = date('Y-m-d H:i:s');
@@ -51,45 +56,42 @@ if (!$branchId)         { echo json_encode(['success' => false, 'error' => 'Bran
 if (empty($tickets))    { echo json_encode(['success' => false, 'error' => 'At least one ticket is required.']); exit; }
 if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No payment provided.']); exit; }
 
-// Verify session is open and belongs to the provided branch
-$session = Database::fetch("SELECT * FROM cashier_sessions WHERE session_id = :id AND status = 'OPEN'", ['id' => $sessionId]);
-if (!$session) { echo json_encode(['success' => false, 'error' => 'No active session found.']); exit; }
-if ((int)$session['cashier_user_id'] !== (int)$user['user_id'] || (int)$session['branch_id'] !== (int)$branchId) {
+// Verify the active session and branch against current server-side access.
+try {
+    $session = PosAccess::assertSessionForTransaction((int) $sessionId, (int) $branchId, $user);
+} catch (Throwable $e) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Session/branch mismatch.']);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     exit;
 }
 
-// Read system settings once — used inside the transaction loop
-$sysSettings = Database::fetch("SELECT pos_allow_insufficient_wallet FROM system_settings WHERE setting_id = 1") ?? [];
+// Read system settings once — used inside the transaction loop.
+// Default to requiring ticket numbers if an older database has not received the migration yet.
+try {
+    $sysSettings = Database::fetch("SELECT pos_allow_insufficient_wallet, pos_ticket_number_required FROM system_settings WHERE setting_id = 1") ?? [];
+} catch (Throwable $e) {
+    $sysSettings = Database::fetch("SELECT pos_allow_insufficient_wallet FROM system_settings WHERE setting_id = 1") ?? [];
+    $sysSettings['pos_ticket_number_required'] = 1;
+}
 $allowWalletOverdraft = !empty($sysSettings['pos_allow_insufficient_wallet']);
+$ticketNumberRequired = (int) ($sysSettings['pos_ticket_number_required'] ?? 1) === 1;
+
+foreach ($tickets as $ticket) {
+    if ($ticketNumberRequired && trim((string) ($ticket['ticket_number'] ?? '')) === '') {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'error' => 'Ticket number is required.']);
+        exit;
+    }
+}
 
 // Process transaction with retry for duplicate key errors
 $maxRetries = 50;
 $lastError = null;
+$changedWalletIds = [];
 
 function generateOrderCode() {
-    $today = date('Ymd');
-    $prefix = 'ORD-' . $today;
-
-    // Get the last order code for today
-    $lastOrder = Database::fetch(
-        "SELECT order_code FROM pos_orders WHERE order_code LIKE :prefix ORDER BY order_code DESC LIMIT 1",
-        ['prefix' => $prefix . '%']
-    );
-
-    if ($lastOrder) {
-        // Extract the sequence number from the last order code
-        // Format: ORD-YYYYMMDD-HHMMSS-###
-        $parts = explode('-', $lastOrder['order_code']);
-        $lastSeq = (int)end($parts);
-        $nextSeq = $lastSeq + 1;
-    } else {
-        // First order of the day
-        $nextSeq = 1;
-    }
-
-    return 'ORD-' . date('Ymd-His') . '-' . sprintf('%03d', $nextSeq);
+    // Random suffix avoids the check-then-increment race under concurrent cashiers.
+    return 'ORD-' . date('Ymd-His') . '-' . strtoupper(bin2hex(random_bytes(5)));
 }
 
 for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
@@ -235,11 +237,23 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         // --- Process each ticket ---
         $ticketTxnIds = [];
         $firstTxnCode = null;
+        $firstTicketPassengerId = null;
         foreach ($tickets as $ticket) {
+            if ($firstTicketPassengerId === null && !empty($ticket['passenger_id'])) {
+                $firstTicketPassengerId = $ticket['passenger_id'];
+            }
             $providerId = $ticket['provider_id'] ?? null;
             if (!$providerId) {
                 Database::connection()->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Provider is required for each ticket.']); exit;
+            }
+
+            try {
+                CashierTransportAccess::assertAllowed($user, (int) $providerId);
+            } catch (Throwable $e) {
+                Database::connection()->rollBack();
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]); exit;
             }
 
             // Determine selected ticket variant, if any
@@ -318,11 +332,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 Database::execute(
                     "INSERT INTO ticket_transactions
                         (transaction_code, wallet_id, provider_id, branch_id, passenger_id, accommodation_id, discount_id, variant_id,
-                         origin, destination, travel_date, ticket_number,
+                         origin, destination, travel_date, ticket_number, ticket_action,
                          base_amount, service_fee, discount_amount, total_amount, status,
                          cashier_session_id, created_by, created_at)
                      VALUES (:code, :wallet, :provider, :branch, :passenger, :accommodation_id, :discount_id, :variant_id,
-                             :origin, :destination, :travel_date, :ticket_number,
+                             :origin, :destination, :travel_date, :ticket_number, :ticket_action,
                              :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
                              :session, :uid, :created_at)",
                     [
@@ -338,6 +352,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'destination'     => $ticket['destination'] ?? null,
                         'travel_date'     => $ticket['travel_date'] ?? null,
                         'ticket_number'   => $ticket['ticket_number'] ?? null,
+                        'ticket_action'   => !empty($ticket['ticket_action']) ? strtoupper(trim($ticket['ticket_action'])) : null,
                         'base_amount'     => floatval($ticket['base_amount'] ?? 0),
                         'service_fee'     => floatval($ticket['service_fee'] ?? 0),
                         'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
@@ -356,8 +371,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $ticketTxnId = Database::connection()->lastInsertId();
             $ticketTxnIds[] = $ticketTxnId;
 
-            // --- Deduct ticket stock when a variant was selected and is NOT backed by a variant-specific wallet ---
-            if ($variantId && !$isVariantWallet) {
+            // --- Deduct 1 ticket stock when a variant was selected ---
+            if ($variantId) {
                 $ticketNumber = $ticket['ticket_number'] ?? $txnCode;
                 try {
                     TicketStockHelper::deductForSale(
@@ -372,6 +387,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                             'ticket_number_from' => $ticketNumber,
                             'ticket_number_to'   => $ticketNumber,
                             'remarks'            => 'POS sale',
+                            'release_reserved'  => 1,
+                            'session_id'        => (string) $sessionId,
                         ]
                     );
                 } catch (Exception $stockEx) {
@@ -385,11 +402,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 Database::execute(
                     "INSERT INTO pos_order_items
                         (order_id, item_type, reference_id, transaction_code, ticket_number,
-                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, variant_id, description,
+                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, variant_id, ticket_action, description,
                          unit_price, service_fee, discount_amount, total_amount,
                          origin, destination, travel_date, created_at)
                      VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :variant_id, :description,
+                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :variant_id, :ticket_action, :description,
                              :unit_price, :service_fee, :discount_amount, :total,
                              :origin, :destination, :travel_date, :created_at)",
                     [
@@ -403,6 +420,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'wallet_id'        => $walletId,
                         'passenger_id'     => $ticket['passenger_id'] ?? null,
                         'variant_id'       => $variantId,
+                        'ticket_action'    => !empty($ticket['ticket_action']) ? strtoupper(trim($ticket['ticket_action'])) : null,
                         'description'      => $ticket['description'] ?? null,
                         'unit_price'       => floatval($ticket['base_amount'] ?? 0),
                         'service_fee'      => floatval($ticket['service_fee'] ?? 0),
@@ -426,48 +444,30 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             // --- Wallet balance deduction (Base Amount only, NOT Service Fee) ---
             $baseAmount = floatval($ticket['base_amount'] ?? 0);
 
-            if ($walletId && $baseAmount > 0) {
-                $wallet = Database::fetch(
-                    "SELECT * FROM provider_wallets WHERE wallet_id = :wid AND status = 'active' FOR UPDATE",
-                    ['wid' => $walletId]
-                );
-                if (!$wallet) {
-                    Database::connection()->rollBack();
-                    echo json_encode(['success' => false, 'error' => 'Wallet not found or inactive.']); exit;
-                }
-                if ($wallet['current_balance'] < $baseAmount && !$allowWalletOverdraft) {
-                    Database::connection()->rollBack();
-                    echo json_encode(['success' => false, 'error' => 'Insufficient wallet balance. Required: ₱' . number_format($baseAmount, 2) . ', Available: ₱' . number_format($wallet['current_balance'], 2) . '. Contact your manager to top up the provider wallet or enable overdraft in System Settings > POS Settings.']); exit;
-                }
-
-                $balanceBefore = $wallet['current_balance'];
-                $balanceAfter  = $balanceBefore - $baseAmount;
-
-                Database::execute(
-                    "UPDATE provider_wallets SET current_balance = :new_balance, updated_at = :updated_at WHERE wallet_id = :wid",
-                    ['new_balance' => $balanceAfter, 'updated_at' => date('Y-m-d H:i:s'), 'wid' => $walletId]
+            if ($walletId && $baseAmount > 0 && !$variantId) {
+                $walletMovement = BalanceLedgerService::walletMovement(
+                    (int) $walletId,
+                    'SALE',
+                    'OUT',
+                    $baseAmount,
+                    'ticket_transactions',
+                    (int) $ticketTxnId,
+                    "Ticket sale - Base Amount only. Order: {$orderCode}, Txn: {$txnCode}",
+                    (int) $user['user_id'],
+                    'pos-sale:' . (int) $ticketTxnId,
+                    null,
+                    (bool) $allowWalletOverdraft
                 );
 
-                $walletTxnCode = 'SALE-' . date('Ymd-His') . '-' . sprintf('%03d', mt_rand(0, 999));
-                Database::execute(
-                    "INSERT INTO wallet_transactions
-                        (wallet_id, txn_code, txn_type, direction, amount, balance_before, balance_after, reference_table, reference_id, remarks, created_by, created_at)
-                     VALUES (:wid, :code, 'SALE', 'OUT', :amount, :before, :after, 'ticket_transactions', :ref_id, :remarks, :uid, :created_at)",
-                    [
-                        'wid'    => $walletId,
-                        'code'   => $walletTxnCode,
-                        'amount' => $baseAmount,
-                        'before' => $balanceBefore,
-                        'after'  => $balanceAfter,
-                        'ref_id' => $ticketTxnId,
-                        'remarks'=> "Ticket sale - Base Amount only. Order: {$orderCode}, Txn: {$txnCode}",
-                        'uid'    => $user['user_id'],
-                        'created_at' => date('Y-m-d H:i:s'),
-                    ]
-                );
-
+                $changedWalletIds[] = (int) $walletId;
                 logActivity($user['user_id'], 'WALLET_DEDUCTION', 'POS', $txnCode, null,
-                    ['wallet_id' => $walletId, 'amount' => $baseAmount, 'balance_before' => $balanceBefore, 'balance_after' => $balanceAfter]);
+                    [
+                        'wallet_id' => $walletId,
+                        'amount' => $baseAmount,
+                        'balance_before' => $walletMovement['balance_before'],
+                        'balance_after' => $walletMovement['balance_after'],
+                        'wallet_txn_code' => $walletMovement['txn_code'],
+                    ]);
             }
 
             // --- Record payment against ticket ---
@@ -492,33 +492,6 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 // Auto-resolve passenger_id: use payment passenger_id or fall back to ticket's passenger
                 $resolvedPassengerId = $passengerId ?: ($ticket['passenger_id'] ?? null);
 
-                // Handle credit-tracking payments — post to customer_charges
-                if ($tracksCredit && $resolvedPassengerId) {
-                    // Lock the row because we will update the aggregate in the same transaction.
-                    $existingCharge = Database::fetch(
-                        "SELECT * FROM customer_charges WHERE passenger_id = :pid FOR UPDATE",
-                        ['pid' => $resolvedPassengerId]
-                    );
-                    if (!$existingCharge) {
-                        Database::execute(
-                            "INSERT INTO customer_charges (passenger_id, total_charged, total_paid, balance, status, last_charge_date)
-                             VALUES (:pid, 0, 0, 0, 'CLEAR', :last_charge_date)",
-                            ['pid' => $resolvedPassengerId, 'last_charge_date' => date('Y-m-d H:i:s')]
-                        );
-                    }
-                    // Fixed CASE WHEN END
-                    Database::execute(
-                        "UPDATE customer_charges
-                         SET total_charged = total_charged + :amt1,
-                             balance = balance + :amt2,
-                             status = CASE WHEN (balance + :amt3) > 0 THEN 'OUTSTANDING' ELSE 'CLEAR' END,
-                             last_charge_date = :last_charge_date,
-                             updated_at = :updated_at
-                         WHERE passenger_id = :pid",
-                        ['pid' => $resolvedPassengerId, 'amt1' => $amount, 'amt2' => $amount, 'amt3' => $amount, 'last_charge_date' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]
-                    );
-                }
-
                 Database::execute(
                     "INSERT INTO transaction_payments
                         (source_type, source_id, payment_method_id, bank_account_id, amount, reference_number,
@@ -537,10 +510,50 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'created_at' => date('Y-m-d H:i:s'),
                     ]
                 );
+
+                // Update cashier session payment type breakdown based on method type
+                switch ($methodType) {
+                    case 'CASH':
+                        Database::execute("UPDATE cashier_sessions SET total_cash = total_cash + :amt WHERE session_id = :id", ['amt' => $amount, 'id' => $sessionId]);
+                        break;
+                    case 'BANK_TRANSFER':
+                        Database::execute("UPDATE cashier_sessions SET total_bank_transfer = total_bank_transfer + :amt WHERE session_id = :id", ['amt' => $amount, 'id' => $sessionId]);
+                        break;
+                    case 'E_WALLET':
+                        Database::execute("UPDATE cashier_sessions SET total_e_wallet = total_e_wallet + :amt WHERE session_id = :id", ['amt' => $amount, 'id' => $sessionId]);
+                        break;
+                    case 'CHARGE':
+                        Database::execute("UPDATE cashier_sessions SET total_charge = total_charge + :amt WHERE session_id = :id", ['amt' => $amount, 'id' => $sessionId]);
+                        break;
+                    default:
+                        Database::execute("UPDATE cashier_sessions SET total_other = total_other + :amt WHERE session_id = :id", ['amt' => $amount, 'id' => $sessionId]);
+                        break;
+                }
             }
         }
 
         // --- Create service transactions ---
+        // Determine the default charge account for services from credit-tracking payments.
+        $defaultChargePassengerId = null;
+        foreach ($payments as $pay) {
+            $methodId = $pay['payment_method_id'] ?? null;
+            if (!$methodId) continue;
+
+            $methodInfo = Database::fetch("SELECT tracks_credit FROM payment_methods WHERE method_id = :id", ['id' => $methodId]);
+            if (!empty($methodInfo['tracks_credit']) && !empty($pay['passenger_id'])) {
+                $defaultChargePassengerId = $pay['passenger_id'];
+                break;
+            }
+        }
+        if (!$defaultChargePassengerId) {
+            foreach ($tickets as $ticket) {
+                if (!empty($ticket['passenger_id'])) {
+                    $defaultChargePassengerId = $ticket['passenger_id'];
+                    break;
+                }
+            }
+        }
+
         $serviceTxnIds = [];
         foreach ($services as $svc) {
             $serviceTypeId = $svc['service_type_id'] ?? null;
@@ -558,7 +571,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     'code'      => $svcCode,
                     'branch'    => $branchId,
                     'stype'     => $serviceTypeId,
-                    'passenger' => $svc['passenger_id'] ?? null,
+                    'passenger' => $defaultChargePassengerId,
                     'desc'      => $svc['description'] ?? null,
                     'qty'       => intval($svc['quantity'] ?? 1),
                     'price'     => floatval($svc['unit_price'] ?? 0),
@@ -585,7 +598,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                     'ref'             => $serviceTxnId,
                     'code'            => $svcCode,
                     'service_type_id' => $svc['service_type_id'] ?? null,
-                    'passenger_id'    => $svc['passenger_id'] ?? null,
+                    'passenger_id'    => $defaultChargePassengerId,
                     'description'     => $svc['description'] ?? null,
                     'quantity'        => intval($svc['quantity'] ?? 1),
                     'unit_price'      => floatval($svc['unit_price'] ?? 0),
@@ -598,6 +611,55 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 ['order_code' => $orderCode, 'service_txn_id' => $serviceTxnId, 'service_type_id' => $serviceTypeId]);
         }
 
+        // --- Post customer charges for credit-tracking payments ---
+        // Ticket and add-on amounts are split proportionally so the customer
+        // is charged the full order total with service fees handled by mode.
+        if ($orderTotal > 0) {
+            $paymentDate = date('Y-m-d H:i:s');
+            foreach ($payments as $pay) {
+                $methodId    = $pay['payment_method_id'] ?? null;
+                $amount      = floatval($pay['amount'] ?? 0);
+                $passengerId = $pay['passenger_id'] ?? null;
+                if ($amount <= 0 || !$methodId) {
+                    continue;
+                }
+
+                $methodInfo = Database::fetch("SELECT * FROM payment_methods WHERE method_id = :id", ['id' => $methodId]);
+                if (empty($methodInfo['tracks_credit'])) {
+                    continue;
+                }
+
+                $resolvedPassengerId = $passengerId ?: $firstTicketPassengerId;
+                if (!$resolvedPassengerId) {
+                    continue;
+                }
+
+                // Ticket portions (split proportionally among tickets, then base/fee within each ticket)
+                foreach ($tickets as $ticket) {
+                    $ticketTotal   = floatval($ticket['total_amount'] ?? 0);
+                    if ($ticketTotal <= 0) continue;
+
+                    $ticketPayment = round($amount * ($ticketTotal / $orderTotal), 2);
+                    if ($ticketPayment <= 0) continue;
+
+                    ChargeService::postTicketCharge(
+                        $resolvedPassengerId,
+                        $ticketPayment,
+                        floatval($ticket['base_amount'] ?? 0),
+                        floatval($ticket['service_fee'] ?? 0),
+                        $ticketTotal,
+                        $paymentDate
+                    );
+                }
+
+                // Service add-ons are tracked separately from ticket base.
+                $servicePayment = round($amount * ($servicesTotal / $orderTotal), 2);
+                if ($servicePayment > 0) {
+                    ChargeService::addToCustomerCharge($resolvedPassengerId, $servicePayment, 0, 0, $servicePayment);
+                }
+            }
+        }
+
         // --- Update cashier session totals ---
         Database::execute(
             "UPDATE cashier_sessions SET total_sales = total_sales + :total WHERE session_id = :id",
@@ -607,8 +669,29 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         logActivity($user['user_id'], 'PROCESS_ORDER', 'POS', $orderCode, null,
             ['order_code' => $orderCode, 'order_id' => $orderId, 'total' => $orderTotal, 'tickets' => count($ticketTxnIds), 'services' => count($serviceTxnIds)]);
 
-        // Commit transaction
+        // Commit transaction before notifying other POS clients.
         Database::connection()->commit();
+
+        PusherService::triggerBranch((int) $branchId, 'pos.transaction.completed', [
+            'branch_id' => (int) $branchId,
+            'order_id' => (int) $orderId,
+            'transaction_code' => $orderCode,
+            'wallet_ids' => array_values(array_unique($changedWalletIds)),
+            'completed_at' => date(DATE_ATOM),
+        ]);
+
+        $stockVariantIds = array_values(array_unique(array_filter(array_map(
+            static fn (array $ticket): int => (int) ($ticket['variant_id'] ?? 0),
+            $tickets
+        ))));
+        if ($stockVariantIds) {
+            PusherService::triggerBranch((int) $branchId, 'ticket_stock.updated', [
+                'branch_id' => (int) $branchId,
+                'variant_ids' => $stockVariantIds,
+                'source' => 'pos_sale',
+                'changed_at' => date(DATE_ATOM),
+            ]);
+        }
 
         echo json_encode([
             'success'          => true,
@@ -634,6 +717,15 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
         if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
             $lastError = $e->getMessage();
             continue;
+        }
+
+        if ($e->getMessage() === 'Insufficient wallet balance.') {
+            echo json_encode([
+                'success' => false,
+                'code'    => 'INSUFFICIENT_WALLET_BALANCE',
+                'error'   => 'The selected wallet balance is insufficient to cover the ticket base fare. Please top up the wallet or select another wallet.',
+            ]);
+            exit;
         }
 
         echo json_encode(['success' => false, 'error' => 'Transaction failed: ' . $e->getMessage(), 'debug' => $e->getTraceAsString()]);

@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 
 Auth::requireLogin();
 $user = Auth::user();
@@ -171,6 +172,41 @@ if ($useOrdersTable) {
             ['order_id' => $transaction['order_id']]
         );
         $transaction['order_items'] = $items;
+        $transaction['adjustments'] = Database::fetchAll(
+            "SELECT ta.adjustment_id, ta.type, ta.amount, ta.reason, ta.charged_to,
+                    ta.charged_to_passenger_id, pa.fullname AS charged_to_passenger_name,
+                    ta.responsible_user_id,
+                    COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username) AS responsible_cashier_name,
+                    ta.cashier_session_id, ta.approval_status, ta.settlement_status,
+                    ta.approved_at, ta.settled_at, ta.created_at,
+                    tc.cancellation_id, tc.operation_type, tc.reason_category,
+                    tc.cancellation_type, tc.status AS cancellation_status,
+                    CASE
+                        WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
+                        ELSE COALESCE(tc.void_fee, 0)
+                    END AS void_fee,
+                    CASE
+                        WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
+                        ELSE COALESCE(tc.void_service_fee, 0)
+                    END AS void_service_fee,
+                    COALESCE(tc.lost_sales_void_fee, 0) AS lost_sales_void_fee,
+                    COALESCE(tc.lost_sales_service_fee, 0) AS lost_sales_service_fee,
+                    CASE
+                        WHEN tc.reason_category = 'PRINTER_ERROR'
+                         AND tc.status = 'completed' THEN COALESCE(tt_adj.total_amount, 0)
+                        ELSE 0
+                    END AS technical_void_amount
+             FROM ticket_adjustments ta
+             JOIN pos_order_items oi ON oi.reference_id = ta.transaction_id AND oi.item_type = 'TICKET'
+             JOIN ticket_transactions tt_adj ON tt_adj.transaction_id = ta.transaction_id
+             LEFT JOIN ticket_cancellations tc ON tc.cancellation_id = ta.cancellation_id
+             LEFT JOIN passenger_accounts pa ON pa.passenger_id = ta.charged_to_passenger_id
+             LEFT JOIN user_accounts ua ON ua.user_id = ta.responsible_user_id
+             LEFT JOIN employees e ON e.emp_id = ua.emp_id
+             WHERE oi.order_id = :order_id
+             ORDER BY ta.created_at DESC",
+            ['order_id' => $transaction['order_id']]
+        );
     }
 } else {
     // Fallback to ticket/service tables
@@ -284,6 +320,43 @@ if ($useOrdersTable) {
     }
 }
 
+if ($transaction && ($transaction['type'] ?? '') === 'TICKET' && !isset($transaction['adjustments'])) {
+    $transaction['adjustments'] = Database::fetchAll(
+        "SELECT ta.adjustment_id, ta.type, ta.amount, ta.reason, ta.charged_to,
+                ta.charged_to_passenger_id, pa.fullname AS charged_to_passenger_name,
+                ta.responsible_user_id,
+                COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username) AS responsible_cashier_name,
+                ta.cashier_session_id, ta.approval_status, ta.settlement_status,
+                ta.approved_at, ta.settled_at, ta.created_at,
+                tc.cancellation_id, tc.operation_type, tc.reason_category,
+                tc.cancellation_type, tc.status AS cancellation_status,
+                CASE
+                    WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
+                    ELSE COALESCE(tc.void_fee, 0)
+                END AS void_fee,
+                CASE
+                    WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
+                    ELSE COALESCE(tc.void_service_fee, 0)
+                END AS void_service_fee,
+                COALESCE(tc.lost_sales_void_fee, 0) AS lost_sales_void_fee,
+                COALESCE(tc.lost_sales_service_fee, 0) AS lost_sales_service_fee,
+                CASE
+                    WHEN tc.reason_category = 'PRINTER_ERROR'
+                     AND tc.status = 'completed' THEN COALESCE(tt_adj.total_amount, 0)
+                    ELSE 0
+                END AS technical_void_amount
+         FROM ticket_adjustments ta
+         LEFT JOIN ticket_cancellations tc ON tc.cancellation_id = ta.cancellation_id
+         LEFT JOIN ticket_transactions tt_adj ON tt_adj.transaction_id = ta.transaction_id
+         LEFT JOIN passenger_accounts pa ON pa.passenger_id = ta.charged_to_passenger_id
+         LEFT JOIN user_accounts ua ON ua.user_id = ta.responsible_user_id
+         LEFT JOIN employees e ON e.emp_id = ua.emp_id
+         WHERE ta.transaction_id = :transaction_id
+         ORDER BY ta.created_at DESC",
+        ['transaction_id' => (int) $transaction['transaction_id']]
+    );
+}
+
 if (!$transaction) {
     http_response_code(404);
     echo json_encode(['success' => false, 'error' => 'Transaction not found']);
@@ -291,9 +364,10 @@ if (!$transaction) {
 }
 
 // Branch access control
-if ($user['role_code'] !== 'SUPER_ADMIN' && (int)$user['branch_id'] !== (int)$transaction['branch_id']) {
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+if ($allowedBranchIds !== null && !in_array((int) $transaction['branch_id'], $allowedBranchIds, true)) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Access denied: transaction does not belong to your branch']);
+    echo json_encode(['success' => false, 'error' => 'Access denied: transaction does not belong to an assigned branch']);
     exit;
 }
 

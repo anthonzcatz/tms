@@ -435,22 +435,22 @@ require_once __DIR__ . '/../_guard.php';
                     </div>
                     <img class="ms-n4 d-md-none d-lg-block" src="<?php echo BASE_URL; ?>/resources/assets/img/illustrations/crm-line-chart.png" alt="" width="150" />
                   </div>
-                  <div style="display: none;" class="col-md-auto p-3">
+                  <div  class="col-md-auto p-3">
                     <div class="row align-items-center g-3">
                       <div class="col-auto">
                         <h6 class="text-700 mb-0">Showing Data For: </h6>
                       </div>
                       <div class="col-auto">
-                        <div class="btn-group" role="group" id="dateRangeButtons">
-                          <button type="button" class="btn btn-sm btn-outline-primary active" data-range="today">Today</button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="week">This Week</button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="last30days">Last 30 Days</button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="year">This Year</button>
-                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="custom">Custom</button>
+                        <div class="btn-group" role="group" id="dateRangeButtons" aria-label="Analytics date range">
+                          <button type="button" class="btn btn-sm btn-outline-primary active" data-range="today" aria-pressed="true">Today</button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="week" aria-pressed="false">This Week</button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="last30days" aria-pressed="false">Last 30 Days</button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="year" aria-pressed="false">This Year</button>
+                          <button type="button" class="btn btn-sm btn-outline-primary" data-range="custom" aria-pressed="false">Custom</button>
                         </div>
                       </div>
                       <div class="col-auto">
-                        <select class="form-select form-select-sm" id="globalBranchSelector" style="width: auto; min-width: 150px;">
+                        <select class="form-select form-select-sm" id="globalBranchSelector" aria-label="Analytics branch" style="width: auto; min-width: 150px;">
                           <option value="">All Branches</option>
                         </select>
                       </div>
@@ -466,22 +466,25 @@ require_once __DIR__ . '/../_guard.php';
                           <div class="col-auto" id="dailyRangeInput">
                             <div class="position-relative">
                               <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y" style="left:10px;z-index:5;pointer-events:none;"></span>
-                              <input class="form-control form-control-sm datetimepicker" id="AnalyticsDateRange" type="text" placeholder="Jan 1 - Jan 5" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M d&quot;,&quot;disableMobile&quot;:true}" />
+                              <input class="form-control form-control-sm datetimepicker" id="AnalyticsDateRange" type="text" placeholder="Jan 1, 2026 - Jan 5, 2026" aria-label="Custom daily date range" autocomplete="off" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M d, Y&quot;,&quot;disableMobile&quot;:true}" />
                             </div>
                           </div>
                           <div class="col-auto d-none" id="monthlyRangeInput">
                             <div class="position-relative">
                               <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y" style="left:10px;z-index:5;pointer-events:none;"></span>
-                              <input class="form-control form-control-sm datetimepicker" id="MonthlyRange" type="text" placeholder="Jan - Mar" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;M&quot;,&quot;disableMobile&quot;:true}" />
+                              <input class="form-control form-control-sm datetimepicker" id="MonthlyRange" type="text" placeholder="January 2026 - March 2026" aria-label="Custom monthly date range" autocomplete="off" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;F Y&quot;,&quot;disableMobile&quot;:true}" />
                             </div>
                           </div>
                           <div class="col-auto d-none" id="annualRangeInput">
                             <div class="position-relative">
                               <span class="fas fa-calendar-alt text-primary position-absolute top-50 translate-middle-y" style="left:10px;z-index:5;pointer-events:none;"></span>
-                              <input class="form-control form-control-sm datetimepicker" id="AnnualRange" type="text" placeholder="2021 - 2026" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;Y&quot;,&quot;disableMobile&quot;:true}" />
+                              <input class="form-control form-control-sm datetimepicker" id="AnnualRange" type="text" placeholder="2020 - 2026" aria-label="Custom annual date range" autocomplete="off" style="padding-left:2rem;" data-options="{&quot;mode&quot;:&quot;range&quot;,&quot;dateFormat&quot;:&quot;Y&quot;,&quot;disableMobile&quot;:true}" />
                             </div>
                           </div>
                         </div>
+                      </div>
+                      <div class="col-12">
+                        <small class="text-600" id="analyticsFilterSummary" aria-live="polite">Loading analytics filters...</small>
                       </div>
                     </div>
                   </div>
@@ -549,14 +552,11 @@ require_once __DIR__ . '/../_guard.php';
                   </ul>
                 </div>
                 <div class="card-body">
-                  <!-- Branch Selector -->
                   <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 text-primary" id="currentBranchName">
                       <span class="fas fa-store me-2"></span><span id="branchNameText">Loading...</span>
                     </h5>
-                    <select class="form-select form-select-sm" id="branchSelector" style="width: auto; min-width: 150px;">
-                      <!-- Populated by JS -->
-                    </select>
+                    <span class="text-600 fs-11" id="branchFilterContext">Using dashboard filters</span>
                   </div>
 
                   <div class="tab-content">
@@ -577,12 +577,7 @@ require_once __DIR__ . '/../_guard.php';
                 <div class="card-footer bg-body-tertiary py-2">
                   <div class="row flex-between-center g-0">
                     <div class="col-auto">
-                      <select class="form-select form-select-sm" id="branchAnalyticsRange">
-                        <option value="today">Today</option>
-                        <option value="week" selected="selected">Last 7 days</option>
-                        <option value="last30days">Last 30 days</option>
-                        <option value="year">This Year</option>
-                      </select>
+                      <span class="text-600 fs-11" id="branchAnalyticsFilterContext">Using dashboard filters</span>
                     </div>
                     <div class="col-auto">
                       <a class="btn btn-link btn-sm px-0 fw-medium" href="<?php echo BASE_URL; ?>/admin/pos/transactions/">
@@ -622,16 +617,17 @@ require_once __DIR__ . '/../_guard.php';
                         <span class="badge badge-subtle-warning fs-11 px-2" id="arCustomersBadge">0 customers</span>
                       </div>
                     </div>
-                    <!-- Collection progress (7-day) -->
+                    <!-- Collection progress for the selected period -->
                     <div class="mb-3">
-                      <div class="d-flex justify-content-between fs-11 text-600 mb-1">
+                      <div class="d-flex justify-content-between fs-11 text-600 mb-1" id="arActivityLabel">
                         <span><span class="fas fa-arrow-up text-danger me-1"></span>Charged <span class="fw-semibold text-danger" id="arCharged7d">₱0.00</span></span>
                         <span><span class="fas fa-arrow-down text-success me-1"></span>Collected <span class="fw-semibold text-success" id="arCollected7d">₱0.00</span></span>
                       </div>
                       <div class="progress" style="height:6px;">
                         <div class="progress-bar bg-success" id="arCollectionBar" role="progressbar" style="width:0%"></div>
                       </div>
-                      <p class="fs-11 text-500 mt-1 mb-0">Collection rate this week: <span id="arCollectionRate" class="fw-semibold">0%</span></p>
+                      <p class="fs-11 text-500 mt-1 mb-0"><span id="arCollectionRateLabel">Collection rate for selected period</span>: <span id="arCollectionRate" class="fw-semibold">0%</span></p>
+                      <p class="fs-11 text-warning mt-1 mb-0" id="arDataQuality" style="display:none;"><span class="fas fa-exclamation-triangle me-1"></span>Historical charge data needs reconciliation.</p>
                     </div>
                     <div id="arTopDebtorsSection" style="display:none;"><div id="arTopDebtors"></div></div>
                   </div>
@@ -724,16 +720,8 @@ require_once __DIR__ . '/../_guard.php';
                 </div>
                 <div class="card-footer bg-body-tertiary py-2">
                   <div class="row flex-between-center g-0">
-                    <div class="col-auto d-flex gap-2">
-                      <select class="form-select form-select-sm" id="cashierPerformanceBranchFilter" style="width:140px;">
-                        <option value="">All Branches</option>
-                      </select>
-                      <select class="form-select form-select-sm" id="cashierPerformanceFilter" style="width:120px;">
-                        <option value="1">Today</option>
-                        <option value="7" selected>Last 7 days</option>
-                        <option value="30">Last 30 days</option>
-                        <option value="365">This Year</option>
-                      </select>
+                    <div class="col-auto">
+                      <span class="text-600 fs-11" id="cashierPerformanceFilterContext">Using dashboard filters</span>
                     </div>
                     <div class="col-auto">
                       <h6 class="mb-0"><a class="py-2" href="<?php echo BASE_URL; ?>/admin/pos/transactions/">POS Transactions<span class="fas fa-chevron-right ms-1 fs-11"></span></a></h6>
@@ -834,15 +822,11 @@ require_once __DIR__ . '/../_guard.php';
                   </div>
                 </div>
                 <div class="card-body pb-0">
-                  <!-- Branch Selector -->
                   <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="mb-0 text-700 fs-11">
                       <span class="fas fa-store me-1"></span><span id="walletBranchName">All Branches</span>
                     </h6>
-                    <select class="form-select form-select-sm" id="walletBranchSelector" style="width: auto; min-width: 150px;">
-                      <option value="">All Branches</option>
-                      <!-- Populated by JS -->
-                    </select>
+                    <span class="text-600 fs-11" id="walletFilterContext">Balance as of selected period</span>
                   </div>
                   <!-- Legend row — dynamic -->
                   <div id="walletLegend" class="d-flex flex-wrap gap-2 mb-3 fs-11 text-600">
@@ -889,16 +873,8 @@ require_once __DIR__ . '/../_guard.php';
                   <div id="transactionsPerHourChart" style="height:250px;"></div>
                 </div>
                 <div class="card-footer bg-body-tertiary py-2">
-                  <div class="d-flex gap-2 align-items-center">
-                    <select class="form-select form-select-sm flex-grow-1" id="hourlyFilter">
-                      <option value="today">Today</option>
-                      <option value="week" selected="selected">Last 7 days</option>
-                      <option value="last30days">Last 30 days</option>
-                      <option value="year">This Year</option>
-                    </select>
-                    <select class="form-select form-select-sm flex-grow-1" id="hourlyBranchFilter">
-                      <option value="" selected="selected">All Branches</option>
-                    </select>
+                  <div class="d-flex justify-content-between align-items-center gap-2">
+                    <span class="text-600 fs-11" id="hourlyFilterContext">Using dashboard filters</span>
                     <a class="btn btn-link btn-sm px-0 fw-medium flex-shrink-0" href="#!">Details<span class="fas fa-chevron-right ms-1 fs-11"></span></a>
                   </div>
                 </div>
@@ -929,16 +905,8 @@ require_once __DIR__ . '/../_guard.php';
                 </div>
                 <div class="card-footer bg-body-tertiary py-2">
                   <div class="row flex-between-center g-0">
-                    <div class="col-auto d-flex gap-2">
-                      <select class="form-select form-select-sm" id="paymentBreakdownBranchFilter" style="width:140px;">
-                        <option value="">All Branches</option>
-                      </select>
-                      <select class="form-select form-select-sm" id="paymentBreakdownFilter" style="width:120px;">
-                        <option value="today">Today</option>
-                        <option value="week" selected="selected">Last 7 days</option>
-                        <option value="last30days">Last 30 days</option>
-                        <option value="year">This Year</option>
-                      </select>
+                    <div class="col-auto">
+                      <span class="text-600 fs-11" id="paymentBreakdownFilterContext">Using dashboard filters</span>
                     </div>
                     <div class="col-auto"><a class="btn btn-link btn-sm px-0 fw-medium" href="#!">Payment overview<span class="fas fa-chevron-right ms-1 fs-11"></span></a></div>
                   </div>
@@ -949,17 +917,9 @@ require_once __DIR__ . '/../_guard.php';
               <div class="card h-100">
                 <div class="card-header">
                   <div class="row flex-between-center">
-                    <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
-                      <h6 class="mb-0 text-nowrap py-2 py-xl-0">Top Services Today</h6>
-                      <select class="form-select form-select-sm flex-grow-1 flex-shrink-0" id="topServicesBranchFilter" style="min-width:120px; max-width:140px;">
-                        <option value="">All Branches</option>
-                      </select>
-                      <select class="form-select form-select-sm flex-grow-1 flex-shrink-0" id="topServicesFilter" style="min-width:120px; max-width:140px;">
-                        <option value="today" selected="selected">Today</option>
-                        <option value="week">Last 7 days</option>
-                        <option value="last30days">Last 30 days</option>
-                        <option value="year">This Year</option>
-                      </select>
+                    <div class="col-12 d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                      <h6 class="mb-0 text-nowrap py-2 py-xl-0" id="topServicesTitle">Top Services</h6>
+                      <span class="text-600 fs-11" id="topServicesFilterContext">Using dashboard filters</span>
                     </div>
                   </div>
                 </div>
@@ -1134,46 +1094,186 @@ require_once __DIR__ . '/../_guard.php';
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script>
     // ─── Global Filter Helpers ─────────────────────────────────────────────
-    // Returns the current global analytics filters from localStorage/DOM.
-    // {range, branchId, startDate, endDate, effectiveRange}
-    // - effectiveRange normalizes "custom-*" to a base range so legacy cards
-    //   that don't support custom dates can still pick a sensible fallback.
+    const ANALYTICS_STANDARD_RANGES = ['today', 'week', 'last30days', 'year'];
+    const ANALYTICS_GRANULARITIES = ['daily', 'monthly', 'annual'];
     let analyticsFilterVersion = 0;
+    let analyticsAbortController = null;
+    let analyticsFilterState = {
+        range: 'today',
+        granularity: 'hourly',
+        branchId: '',
+        startDate: '',
+        endDate: ''
+    };
 
-    function getGlobalFilters() {
-        const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
-        const savedBranch = localStorage.getItem('analyticsBranchId') || '';
-        const branchEl = document.getElementById('globalBranchSelector');
-        const branchId = branchEl
-            ? (branchEl.value || (branchEl.dataset.populated === 'true' ? '' : savedBranch))
-            : savedBranch;
-        const startDate = localStorage.getItem('analyticsCustomStartDate') || '';
-        const endDate   = localStorage.getItem('analyticsCustomEndDate')   || '';
-
-        // Map custom-* range -> base range for legacy fallbacks
-        let effectiveRange = savedRange;
-        const isCustom = typeof savedRange === 'string' && savedRange.startsWith('custom');
-        if (isCustom) {
-            switch (savedRange) {
-                case 'custom-daily':   effectiveRange = 'week';  break;
-                case 'custom-weekly':  effectiveRange = 'month'; break;
-                case 'custom-monthly': effectiveRange = 'month'; break;
-                case 'custom-annual':  effectiveRange = 'year';  break;
-                default:               effectiveRange = 'month';
-            }
-        }
-        return { range: savedRange, effectiveRange, branchId, startDate, endDate, isCustom };
+    function customGranularityFromRange(range) {
+        if (range === 'custom-monthly') return 'monthly';
+        if (range === 'custom-annual') return 'annual';
+        return 'daily';
     }
 
-    // Build a URL querystring fragment from global filters.
-    // opts.includeDates: send start_date/end_date when custom range is active
-    // opts.includeBranch: include branch_id
+    function hydrateAnalyticsFilterState() {
+        const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
+        const isCustom = savedRange.indexOf('custom') === 0;
+        const savedGranularity = localStorage.getItem('analyticsCustomRangeType') || customGranularityFromRange(savedRange);
+        const range = isCustom
+            ? 'custom'
+            : (ANALYTICS_STANDARD_RANGES.includes(savedRange) ? savedRange : 'today');
+
+        analyticsFilterState = {
+            range,
+            granularity: isCustom && ANALYTICS_GRANULARITIES.includes(savedGranularity)
+                ? savedGranularity
+                : (range === 'today' ? 'hourly' : (range === 'year' ? 'monthly' : 'daily')),
+            branchId: localStorage.getItem('analyticsBranchId') || '',
+            startDate: localStorage.getItem('analyticsCustomStartDate') || '',
+            endDate: localStorage.getItem('analyticsCustomEndDate') || ''
+        };
+        if (isCustom && (!analyticsFilterState.startDate || !analyticsFilterState.endDate)) {
+            const today = new Date();
+            const start = new Date(today);
+            start.setDate(start.getDate() - 4);
+            analyticsFilterState.startDate = formatDate(start);
+            analyticsFilterState.endDate = formatDate(today);
+        }
+        if (isCustom && analyticsFilterState.startDate && analyticsFilterState.endDate) {
+            const normalized = normalizeClientCustomRange(
+                analyticsFilterState.startDate,
+                analyticsFilterState.endDate,
+                analyticsFilterState.granularity
+            );
+            analyticsFilterState.startDate = normalized.startDate;
+            analyticsFilterState.endDate = normalized.endDate;
+        }
+    }
+
+    function getGlobalFilters() {
+        const branchEl = document.getElementById('globalBranchSelector');
+        const branchId = branchEl && branchEl.dataset.populated === 'true'
+            ? branchEl.value
+            : analyticsFilterState.branchId;
+        const isCustom = analyticsFilterState.range === 'custom';
+
+        return {
+            ...analyticsFilterState,
+            branchId,
+            effectiveRange: analyticsFilterState.range,
+            isCustom
+        };
+    }
+
+    function persistAnalyticsFilterState() {
+        const f = getGlobalFilters();
+        const storedRange = f.isCustom ? `custom-${f.granularity}` : f.range;
+        localStorage.setItem('analyticsDateRange', storedRange);
+        localStorage.setItem('analyticsBranchId', f.branchId || '');
+        localStorage.setItem('analyticsCustomRangeType', f.granularity);
+        if (f.startDate && f.endDate) {
+            localStorage.setItem('analyticsCustomStartDate', f.startDate);
+            localStorage.setItem('analyticsCustomEndDate', f.endDate);
+        }
+    }
+
+    function parseLocalDate(value) {
+        const [year, month, day] = value.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    }
+
+    function normalizeClientCustomRange(startDate, endDate, granularity) {
+        let start = parseLocalDate(startDate);
+        let end = parseLocalDate(endDate);
+        if (granularity === 'monthly') {
+            start = new Date(start.getFullYear(), start.getMonth(), 1);
+            end = new Date(end.getFullYear(), end.getMonth() + 1, 0);
+        } else if (granularity === 'annual') {
+            start = new Date(start.getFullYear(), 0, 1);
+            end = new Date(end.getFullYear(), 11, 31);
+        }
+        return { startDate: formatDate(start), endDate: formatDate(end) };
+    }
+
+    function formatAnalyticsFilterLabel(filter = getGlobalFilters()) {
+        if (filter.isCustom && filter.startDate && filter.endDate) {
+            if (filter.granularity === 'monthly') {
+                const options = { month: 'long', year: 'numeric' };
+                return `${parseLocalDate(filter.startDate).toLocaleDateString('en-PH', options)} - ${parseLocalDate(filter.endDate).toLocaleDateString('en-PH', options)}`;
+            }
+            if (filter.granularity === 'annual') {
+                return `${filter.startDate.slice(0, 4)} - ${filter.endDate.slice(0, 4)}`;
+            }
+            return `${filter.startDate} to ${filter.endDate}`;
+        }
+        return {
+            today: 'Today',
+            week: 'Last 7 Days',
+            last30days: 'Last 30 Days',
+            year: 'Year to Date'
+        }[filter.range] || 'Today';
+    }
+
+    function updateAnalyticsFilterContext(filter = getGlobalFilters()) {
+        const branchEl = document.getElementById('globalBranchSelector');
+        const branchName = filter.branchId && branchEl
+            ? (branchEl.options[branchEl.selectedIndex]?.textContent || 'Selected Branch')
+            : 'All Branches';
+        const label = `${formatAnalyticsFilterLabel(filter)} · ${branchName}`;
+        const summary = document.getElementById('analyticsFilterSummary');
+        if (summary) summary.textContent = `Showing ${label}`;
+
+        [
+            'branchAnalyticsFilterContext',
+            'cashierPerformanceFilterContext',
+            'hourlyFilterContext',
+            'paymentBreakdownFilterContext',
+            'topServicesFilterContext'
+        ].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = `Using ${label}`;
+        });
+
+        const walletContext = document.getElementById('walletFilterContext');
+        if (walletContext) walletContext.textContent = `Balance as of ${filter.endDate || 'today'}`;
+        const arActivityLabel = document.getElementById('arActivityLabel');
+        if (arActivityLabel) {
+            arActivityLabel.innerHTML = `<span><span class="fas fa-arrow-up text-danger me-1"></span>Charged <span class="fw-semibold text-danger" id="arCharged7d">₱0.00</span></span><span><span class="fas fa-arrow-down text-success me-1"></span>Collected <span class="fw-semibold text-success" id="arCollected7d">₱0.00</span></span>`;
+        }
+        const arLabel = document.getElementById('arCollectionRateLabel');
+        if (arLabel) arLabel.textContent = `Collection rate for ${formatAnalyticsFilterLabel(filter).toLowerCase()}`;
+    }
+
+    function syncAnalyticsFilterUI() {
+        const filter = getGlobalFilters();
+        const buttonContainer = document.getElementById('dateRangeButtons');
+        if (buttonContainer) {
+            buttonContainer.querySelectorAll('button').forEach(button => {
+                const active = filter.isCustom
+                    ? button.dataset.range === 'custom'
+                    : button.dataset.range === filter.range;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+        }
+
+        const customContainer = document.getElementById('customDateRangeContainer');
+        if (customContainer) customContainer.classList.toggle('d-none', !filter.isCustom);
+        const rangeType = document.getElementById('customRangeType');
+        if (rangeType) rangeType.value = filter.granularity;
+        ['daily', 'monthly', 'annual'].forEach(type => {
+            const input = document.getElementById(`${type}RangeInput`);
+            if (input) input.classList.toggle('d-none', !filter.isCustom || filter.granularity !== type);
+        });
+        const branchEl = document.getElementById('globalBranchSelector');
+        if (branchEl && branchEl.dataset.populated === 'true') branchEl.value = filter.branchId || '';
+        updateAnalyticsFilterContext(filter);
+    }
+
     function buildFilterQuery(opts = {}) {
         const { includeDates = true, includeBranch = true } = opts;
         const f = getGlobalFilters();
         const params = new URLSearchParams();
-        params.set('range', f.effectiveRange);
-        if (includeBranch && f.branchId) params.set('branch_id', f.branchId);
+        params.set('range', f.range);
+        params.set('granularity', f.granularity);
+        if (includeBranch) params.set('branch_id', f.branchId || '');
         if (includeDates && f.isCustom && f.startDate && f.endDate) {
             params.set('start_date', f.startDate);
             params.set('end_date', f.endDate);
@@ -1181,10 +1281,19 @@ require_once __DIR__ . '/../_guard.php';
         return params.toString();
     }
 
+    function fetchAnalytics(url, options = {}) {
+        const signal = analyticsAbortController?.signal;
+        return fetch(url, { ...options, ...(signal ? { signal } : {}) });
+    }
+
+    hydrateAnalyticsFilterState();
+
     // Live Sales Data
     const LIVE_SALES_API = window.BASE_URL + '/api/analytics/live-sales.php';
     let liveSalesChart = null;
     let liveSalesInterval = null;
+    let liveSalesRequestVersion = 0;
+    let liveSalesAbortController = null;
     let transactionsPerHourChart = null;
 
     function initLiveSalesChart() {
@@ -1237,6 +1346,16 @@ require_once __DIR__ . '/../_guard.php';
         return '₱' + parseFloat(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[character]));
+    }
+
     function formatTime(dateString) {
         const date = new Date(dateString);
         return date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
@@ -1245,11 +1364,12 @@ require_once __DIR__ . '/../_guard.php';
     const filterLabels = { 'today': 'today', '1': 'last hour', '6': 'last 6 hours', '24': 'last 24 hours' };
 
     function fetchLiveSales() {
-        const requestVersion = analyticsFilterVersion;
-        const filter = document.getElementById('liveSalesFilter').value;
+        const requestVersion = ++liveSalesRequestVersion;
+        const filter = document.getElementById('liveSalesFilter')?.value || 'today';
         const branchFilter = document.getElementById('liveSalesBranchFilter');
-        const globalFilters = getGlobalFilters();
-        const branchId = (branchFilter && branchFilter.value) || globalFilters.branchId;
+        const branchId = branchFilter?.value || '';
+        if (liveSalesAbortController) liveSalesAbortController.abort();
+        liveSalesAbortController = new AbortController();
 
         // Update subtitle label
         const labelEl = document.getElementById('liveFilterLabel');
@@ -1260,10 +1380,10 @@ require_once __DIR__ . '/../_guard.php';
             apiUrl += '&branch_id=' + encodeURIComponent(branchId);
         }
 
-        fetch(apiUrl)
+        fetch(apiUrl, { signal: liveSalesAbortController.signal })
             .then(r => r.json())
             .then(data => {
-                if (!data.success || requestVersion !== analyticsFilterVersion) return;
+                if (!data.success || requestVersion !== liveSalesRequestVersion) return;
                 const d = data.data;
 
                 document.getElementById('liveSalesTotal').textContent      = formatCurrency(d.total_sales);
@@ -1334,14 +1454,14 @@ require_once __DIR__ . '/../_guard.php';
                         <div class="d-flex flex-column py-2 ${idx < 4 ? 'border-bottom' : ''}" style="border-color:rgba(255,255,255,0.1)!important;cursor:pointer;transition:background-color 0.2s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.1)'" onmouseout="this.style.backgroundColor='transparent'">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="text-truncate" style="max-width:65%;">
-                                    <span class="fs-11 fw-medium text-white">${txn.order_code}</span>
+                                    <span class="fs-11 fw-medium text-white">${escapeHtml(txn.order_code)}</span>
                                 </div>
                                 <span class="fs-11 fw-light text-white">${formatCurrency(txn.grand_total)}</span>
                             </div>
                             <div class="d-flex align-items-center mt-1">
-                                <span class="fs-10 text-white opacity-75">${txn.branch_name || 'N/A'}</span>
+                                <span class="fs-10 text-white opacity-75">${escapeHtml(txn.branch_name || 'N/A')}</span>
                                 <span class="fs-10 text-white opacity-50 mx-1">&bull;</span>
-                                <span class="fs-10 text-white opacity-75">${txn.cashier_name || 'N/A'}</span>
+                                <span class="fs-10 text-white opacity-75">${escapeHtml(txn.cashier_name || 'N/A')}</span>
                             </div>
                         </div>`).join('');
                 } else {
@@ -1349,35 +1469,19 @@ require_once __DIR__ . '/../_guard.php';
                 }
             })
             .catch(e => {
-                if (requestVersion === analyticsFilterVersion) {
+                if (e.name !== 'AbortError' && requestVersion === liveSalesRequestVersion) {
                     console.error('Live sales error:', e);
                 }
             });
     }
 
-    function initGoalCharts(savedRange = null, savedBranch = null) {
-        // Fetch TMS metrics from pos_orders with saved or current filters
-        const range = savedRange || currentRange || 'month';
-        const branchId = savedBranch || document.getElementById('globalBranchSelector')?.value || '';
-        fetchTMSMetrics(range, branchId);
-    }
+    function initGoalCharts() {}
 
-    async function fetchTMSMetrics(range = 'month', branchId = null) {
+    async function fetchTMSMetrics() {
         const requestVersion = analyticsFilterVersion;
         try {
-            // Prefer the centralized global filters; fall back to args if needed
-            const f = getGlobalFilters();
-            const params = new URLSearchParams();
-            const effRange = f.effectiveRange || range || 'month';
-            params.set('range', effRange);
-            const finalBranch = branchId ?? f.branchId;
-            if (finalBranch) params.set('branch_id', finalBranch);
-            if (f.isCustom && f.startDate && f.endDate) {
-                params.set('start_date', f.startDate);
-                params.set('end_date', f.endDate);
-            }
-            const url = `${window.BASE_URL}/api/analytics/tms-metrics.php?${params.toString()}`;
-            const response = await fetch(url);
+            const url = `${window.BASE_URL}/api/analytics/tms-metrics.php?${buildFilterQuery()}`;
+            const response = await fetchAnalytics(url);
             const result = await response.json();
 
             if (requestVersion !== analyticsFilterVersion) return;
@@ -1490,76 +1594,37 @@ require_once __DIR__ . '/../_guard.php';
 
     // Initialize on page load with optimized loading
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOMContentLoaded started...');
+        hydrateAnalyticsFilterState();
+        syncAnalyticsFilterUI();
+        if (analyticsFilterState.range === 'custom') initCustomDatePickers();
 
-        // Get saved filters before initializing charts
-        const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
-        const savedBranch = localStorage.getItem('analyticsBranchId') || '';
-        
-        // Initialize charts first (non-blocking) with saved values
         requestAnimationFrame(() => {
             initLiveSalesChart();
-            initGoalCharts(savedRange, savedBranch);
-            initCashierPerformanceChart(savedRange, savedBranch);
+            initGoalCharts();
+            initCashierPerformanceChart();
             initTransactionsPerHourChart();
         });
 
-        // Restore filter from localStorage
-        const savedFilter = localStorage.getItem('liveSalesFilter');
-        if (savedFilter) {
-            document.getElementById('liveSalesFilter').value = savedFilter;
+        const savedLiveFilter = localStorage.getItem('liveSalesFilter');
+        const liveFilter = document.getElementById('liveSalesFilter');
+        if (liveFilter && ['today', '1', '6', '24'].includes(savedLiveFilter)) {
+            liveFilter.value = savedLiveFilter;
         }
-
-        // Restore hourly filter from localStorage
-        const savedHourlyFilter = localStorage.getItem('hourlyFilter') || 'week';
-        const hourlyFilterEl = document.getElementById('hourlyFilter');
-        if (hourlyFilterEl) {
-            hourlyFilterEl.value = savedHourlyFilter;
-        }
-
-        // Restore payment breakdown filter from localStorage
-        const savedPaymentFilter = localStorage.getItem('paymentBreakdownFilter') || 'week';
-        const paymentFilterEl = document.getElementById('paymentBreakdownFilter');
-        if (paymentFilterEl) {
-            paymentFilterEl.value = savedPaymentFilter;
-        }
-
-        // Fetch Transactions per Hour after filters are restored
-        setTimeout(() => {
-            fetchTransactionsPerHour();
-        }, 100);
-
-        // Live Sales filter change handler -> push to global
-        document.getElementById('liveSalesFilter').addEventListener('change', function() {
-            localStorage.setItem('liveSalesFilter', this.value);
-            // If it's a standard range, push to global so all cards stay in sync
-            if (['today','week','last30days','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
-                refreshAnalytics(this.value);
-                syncTopFilterButtons(this.value);
-            } else {
+        const liveBranch = document.getElementById('liveSalesBranchFilter');
+        if (liveBranch) {
+            liveBranch.addEventListener('change', function() {
+                localStorage.setItem('liveSalesBranchId', this.value);
                 fetchLiveSales();
-            }
-        });
-
-        // Live Sales branch filter change handler -> push to global
-        document.getElementById('liveSalesBranchFilter')?.addEventListener('change', function() {
-            const globalSelector = document.getElementById('globalBranchSelector');
-            if (globalSelector) {
-                globalSelector.value = this.value;
-                localStorage.setItem('analyticsBranchId', this.value);
-                // Trigger global change event so all cards refresh
-                globalSelector.dispatchEvent(new Event('change'));
-            } else {
+            });
+        }
+        if (liveFilter) {
+            liveFilter.addEventListener('change', function() {
+                localStorage.setItem('liveSalesFilter', this.value);
                 fetchLiveSales();
-            }
-        });
+            });
+        }
 
-        // Save hourly filter to localStorage on change
-
-        // Fetch critical data first
         fetchLiveSales();
-
-        // Poll every 30 seconds for real-time updates
         liveSalesInterval = setInterval(fetchLiveSales, 30000);
 
         // Initialize branch analytics with loading state
@@ -1594,118 +1659,19 @@ require_once __DIR__ . '/../_guard.php';
             arObserver.observe(arWidgetBody, { childList: true, subtree: true });
         }
 
-        // Initialize branch analytics after restoreDateRange is complete (300ms to ensure restore happens first)
-        setTimeout(() => {
-            try {
-                initBranchCharts();
-                fetchBranchAnalytics().finally(() => {
-                    const loadingOverlay = document.getElementById('branchAnalyticsLoading');
+        initBranchCharts();
+        const loadingOverlay = document.getElementById('branchAnalyticsLoading');
+        loadAnalyticsBranches()
+            .catch(error => console.warn('Unable to load branch list:', error))
+            .finally(() => {
+                refreshAnalytics().finally(() => {
                     if (loadingOverlay) loadingOverlay.remove();
                 });
-            } catch (e) {
-                console.error('Branch analytics init error:', e);
-                const loadingOverlay = document.getElementById('branchAnalyticsLoading');
-                if (loadingOverlay) loadingOverlay.remove();
-            }
-        }, 300);
-
-        // Branch analytics event listeners - sync with global filter
-        const rangeSelector = document.getElementById('branchAnalyticsRange');
-        if (rangeSelector) {
-            rangeSelector.addEventListener('change', function() {
-                // Update global currentRange
-                currentRange = this.value;
-                localStorage.setItem('analyticsDateRange', this.value);
-                // Update global date range buttons UI
-                if (dateRangeButtons) {
-                    const buttons = dateRangeButtons.querySelectorAll('button');
-                    buttons.forEach(btn => btn.classList.remove('active'));
-                    const matchingBtn = dateRangeButtons.querySelector(`[data-range="${this.value}"]`);
-                    if (matchingBtn) matchingBtn.classList.add('active');
-                }
-                customDateRangeContainer.classList.add('d-none');
-                // Refresh all connected cards
-                refreshAnalytics(this.value);
             });
-        }
 
-        const branchSelector = document.getElementById('branchSelector');
-        if (branchSelector) {
-            branchSelector.addEventListener('change', function() {
-                // Sync with global branch selector
-                const globalSelector = document.getElementById('globalBranchSelector');
-                if (globalSelector) {
-                    globalSelector.value = this.value;
-                    localStorage.setItem('analyticsBranchId', this.value);
-                    // Trigger global change event so all cards refresh
-                    globalSelector.dispatchEvent(new Event('change'));
-                } else {
-                    localStorage.setItem('analyticsBranchId', this.value);
-                    const currentRange = localStorage.getItem('analyticsDateRange') || 'week';
-                    refreshAnalytics(currentRange);
-                }
-            });
-        }
-
-        // Load secondary widgets after primary data is loaded
-        setTimeout(() => {
-            // Accounts Receivable widget
-            try {
-                console.log('Fetching Accounts Receivable...');
-                fetchAccountsReceivable();
-                setInterval(fetchAccountsReceivable, 60000);
-            } catch (e) {
-                console.error('Error fetching Accounts Receivable:', e);
-            }
-
-            // Provider Wallet Balances widget - use saved branch
-            try {
-                console.log('Fetching Provider Wallet Balances...');
-                fetchProviderWallets(savedBranch || null);
-                setInterval(() => {
-                    const currentBranch = localStorage.getItem('analyticsBranchId') || '';
-                    fetchProviderWallets(currentBranch || null);
-                }, 60000);
-            } catch (e) {
-                console.error('Error fetching Provider Wallet Balances:', e);
-            }
-
-            // Today's Sales Target widget
-            try {
-                console.log('Fetching Today\'s Sales Target...');
-                fetchTodaySalesTarget(savedBranch || null);
-                setInterval(() => {
-                    const currentBranch = localStorage.getItem('analyticsBranchId') || '';
-                    fetchTodaySalesTarget(currentBranch || null);
-                }, 60000);
-            } catch (e) {
-                console.error('Error fetching Today\'s Sales Target:', e);
-            }
-
-            // Transactions per Hour chart
-            try {
-                console.log('Fetching Transactions per Hour...');
-                fetchTransactionsPerHour();
-            } catch (e) {
-                console.error('Error fetching Transactions per Hour:', e);
-            }
-
-            // Top Services table
-            try {
-                console.log('Fetching Top Services...');
-                fetchTopServices();
-            } catch (e) {
-                console.error('Error fetching Top Services:', e);
-            }
-
-            // Payment Breakdown chart
-            try {
-                console.log('Fetching Payment Breakdown...');
-                fetchPaymentBreakdown();
-            } catch (e) {
-                console.error('Error fetching Payment Breakdown:', e);
-            }
-        }, 1000);
+        setInterval(fetchAccountsReceivable, 60000);
+        setInterval(fetchProviderWallets, 60000);
+        setInterval(fetchTodaySalesTarget, 60000);
 
         // Handle window resize for all charts
         window.addEventListener('resize', function() {
@@ -1737,6 +1703,8 @@ require_once __DIR__ . '/../_guard.php';
     // Clean up interval when leaving page
     window.addEventListener('beforeunload', function() {
         if (liveSalesInterval) clearInterval(liveSalesInterval);
+        if (liveSalesAbortController) liveSalesAbortController.abort();
+        if (analyticsAbortController) analyticsAbortController.abort();
     });
 
     // ─── Transactions per Hour Chart ─────────────────────────────────────────────
@@ -1756,21 +1724,9 @@ require_once __DIR__ . '/../_guard.php';
     async function fetchTransactionsPerHour() {
         const requestVersion = analyticsFilterVersion;
         try {
-            console.log('fetchTransactionsPerHour called');
-            // Use global filter as the source of truth; sync local selectors visually
-            const f = getGlobalFilters();
-            const localHourly = document.getElementById('hourlyFilter');
-            const localBranch = document.getElementById('hourlyBranchFilter');
-            if (localHourly && ['today','week','month','last30days','year'].includes(f.effectiveRange)) {
-                localHourly.value = f.effectiveRange;
-            }
-            if (localBranch) localBranch.value = f.branchId || '';
-
             const url = `${window.BASE_URL}/api/analytics/transactions-per-hour.php?${buildFilterQuery()}`;
-            console.log('Fetching from URL:', url);
-            const response = await fetch(url);
+            const response = await fetchAnalytics(url);
             const result = await response.json();
-            console.log('API response:', result);
 
             if (requestVersion !== analyticsFilterVersion) return;
 
@@ -1900,59 +1856,12 @@ require_once __DIR__ . '/../_guard.php';
         }, 100);
     }
 
-    // Hourly filter change handler -> push to global filter
-    document.getElementById('hourlyFilter')?.addEventListener('change', function() {
-        if (['today','week','last30days','year'].includes(this.value)) {
-            // Push to global so all cards stay in sync
-            if (typeof refreshAnalytics === 'function') {
-                refreshAnalytics(this.value);
-                syncTopFilterButtons(this.value);
-            } else {
-                localStorage.setItem('analyticsDateRange', this.value);
-                fetchTransactionsPerHour();
-            }
-        } else {
-            fetchTransactionsPerHour();
-        }
-    });
-
-    // Branch filter change handler -> push to global filter
-    document.getElementById('hourlyBranchFilter')?.addEventListener('change', function() {
-        const globalSelector = document.getElementById('globalBranchSelector');
-        if (globalSelector) {
-            globalSelector.value = this.value;
-            localStorage.setItem('analyticsBranchId', this.value);
-            // Trigger global change event so all cards refresh
-            globalSelector.dispatchEvent(new Event('change'));
-        } else {
-            fetchTransactionsPerHour();
-        }
-    });
-
     // ─── Top Services Table ───────────────────────────────────────────────────────
     async function fetchTopServices() {
         const requestVersion = analyticsFilterVersion;
         try {
-            const f = getGlobalFilters();
-            // Sync local selector visually
-            const local = document.getElementById('topServicesFilter');
-            const branchFilter = document.getElementById('topServicesBranchFilter');
-            if (local && ['today','week','month','year'].includes(f.effectiveRange)) {
-                local.value = f.effectiveRange;
-            }
-            
-            // Use local branch filter if set, otherwise use global/saved filter
-            const branchId = (branchFilter && branchFilter.value) || f.branchId;
-            
-            let query = 'range=' + (f.effectiveRange || 'today');
-            if (branchId) {
-                query += '&branch_id=' + branchId;
-            }
-            if (f.isCustom && f.startDate && f.endDate) {
-                query += '&start_date=' + f.startDate + '&end_date=' + f.endDate;
-            }
-            
-            const response = await fetch(`${window.BASE_URL}/api/analytics/top-services.php?${query}`);
+            const query = buildFilterQuery();
+            const response = await fetchAnalytics(`${window.BASE_URL}/api/analytics/top-services.php?${query}`);
             const result = await response.json();
 
             if (requestVersion !== analyticsFilterVersion) return;
@@ -1967,54 +1876,14 @@ require_once __DIR__ . '/../_guard.php';
         }
     }
 
-    // Top Services filter change handler -> push to global
-    document.getElementById('topServicesFilter')?.addEventListener('change', function() {
-        if (['today','week','last30days','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
-            refreshAnalytics(this.value);
-            syncTopFilterButtons(this.value);
-        } else {
-            fetchTopServices();
-        }
-    });
-
-    // Top Services branch filter change handler -> push to global
-    document.getElementById('topServicesBranchFilter')?.addEventListener('change', function() {
-        const globalSelector = document.getElementById('globalBranchSelector');
-        if (globalSelector) {
-            globalSelector.value = this.value;
-            localStorage.setItem('analyticsBranchId', this.value);
-            // Trigger global change event so all cards refresh
-            globalSelector.dispatchEvent(new Event('change'));
-        } else {
-            fetchTopServices();
-        }
-    });
-
     // ─── Payment Breakdown Pie Chart ─────────────────────────────────────────────
     let paymentBreakdownChart = null;
 
     async function fetchPaymentBreakdown() {
         const requestVersion = analyticsFilterVersion;
         try {
-            const f = getGlobalFilters();
-            const local = document.getElementById('paymentBreakdownFilter');
-            const branchFilter = document.getElementById('paymentBreakdownBranchFilter');
-            if (local && ['today','week','last30days','year'].includes(f.effectiveRange)) {
-                local.value = f.effectiveRange;
-            }
-            
-            // Use local branch filter if set, otherwise use global/saved filter
-            const branchId = (branchFilter && branchFilter.value) || f.branchId;
-            
-            let query = 'range=' + (f.effectiveRange || 'today');
-            if (branchId) {
-                query += '&branch_id=' + branchId;
-            }
-            if (f.isCustom && f.startDate && f.endDate) {
-                query += '&start_date=' + f.startDate + '&end_date=' + f.endDate;
-            }
-            
-            const response = await fetch(`${window.BASE_URL}/api/analytics/payment-breakdown.php?${query}`);
+            const query = buildFilterQuery();
+            const response = await fetchAnalytics(`${window.BASE_URL}/api/analytics/payment-breakdown.php?${query}`);
             const result = await response.json();
 
             if (requestVersion !== analyticsFilterVersion) return;
@@ -2144,7 +2013,7 @@ require_once __DIR__ . '/../_guard.php';
                         <td class="py-3">
                             <div class="d-flex align-items-center">
                                 <span class="fas ${icon} ${colorClass} fs-11 me-2"></span>
-                                <h6 class="text-600 mb-0">${name}</h6>
+                                <h6 class="text-600 mb-0">${escapeHtml(name)}</h6>
                             </div>
                         </td>
                         <td class="py-3">
@@ -2163,40 +2032,6 @@ require_once __DIR__ . '/../_guard.php';
             }).join('');
         
         tableBody.innerHTML = rows || '<tr><td colspan="3" class="text-center py-3 text-muted">No payment data</td></tr>';
-    }
-
-    // Payment Breakdown filter change handler -> push to global
-    document.getElementById('paymentBreakdownFilter')?.addEventListener('change', function() {
-        if (['today','week','last30days','year'].includes(this.value) && typeof refreshAnalytics === 'function') {
-            refreshAnalytics(this.value);
-            syncTopFilterButtons(this.value);
-        } else {
-            fetchPaymentBreakdown();
-        }
-    });
-
-    // Payment Breakdown branch filter change handler -> push to global
-    document.getElementById('paymentBreakdownBranchFilter')?.addEventListener('change', function() {
-        const globalSelector = document.getElementById('globalBranchSelector');
-        if (globalSelector) {
-            globalSelector.value = this.value;
-            localStorage.setItem('analyticsBranchId', this.value);
-            // Trigger global change event so all cards refresh
-            globalSelector.dispatchEvent(new Event('change'));
-        } else {
-            fetchPaymentBreakdown();
-        }
-    });
-
-    // Helper: visually sync the top filter buttons to a given range
-    function syncTopFilterButtons(range) {
-        const btnContainer = document.getElementById('dateRangeButtons');
-        if (!btnContainer) return;
-        btnContainer.querySelectorAll('button').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.range === range);
-        });
-        const customContainer = document.getElementById('customDateRangeContainer');
-        if (customContainer) customContainer.classList.add('d-none');
     }
 
     function renderTopServicesTable(data) {
@@ -2224,7 +2059,7 @@ require_once __DIR__ . '/../_guard.php';
         tableBody.innerHTML = data.services.map(service => `
             <tr class="btn-reveal-trigger hover-bg-100" style="cursor: pointer;">
                 <td class="align-middle white-space-nowrap">
-                    <span class="text-primary fw-semi-bold">${service.service_name}</span>
+                    <span class="text-primary fw-semi-bold">${escapeHtml(service.service_name)}</span>
                 </td>
                 <td class="align-middle white-space-nowrap text-end">${service.orders}</td>
                 <td class="align-middle white-space-nowrap text-end">₱${parseFloat(service.revenue).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -2237,14 +2072,11 @@ require_once __DIR__ . '/../_guard.php';
     let cashierPerformanceChart = null;
     let cashierPerformanceData = null;
 
-    async function fetchCashierPerformance(days = 7, branchId = null) {
+    async function fetchCashierPerformance() {
         const requestVersion = analyticsFilterVersion;
         try {
-            let url = `${window.BASE_URL}/api/analytics/cashier-performance.php?days=${days}`;
-            if (branchId) {
-                url += `&branch_id=${encodeURIComponent(branchId)}`;
-            }
-            const res = await fetch(url);
+            const url = `${window.BASE_URL}/api/analytics/cashier-performance.php?${buildFilterQuery()}`;
+            const res = await fetchAnalytics(url);
             const result = await res.json();
 
             if (requestVersion !== analyticsFilterVersion) return null;
@@ -2313,7 +2145,7 @@ require_once __DIR__ . '/../_guard.php';
         legendEl.innerHTML = topCashiers.map((c, i) => `
             <div class="pb-2 ${i > 0 ? 'border-top pt-2' : ''}">
                 <h6 class="fs-11 text-600 mb-1">
-                    <span class="fas fa-circle me-2 fs-11" style="color:${c.color}"></span>${c.name}
+                    <span class="fas fa-circle me-2 fs-11" style="color:${escapeHtml(c.color)}"></span>${escapeHtml(c.name)}
                 </h6>
                 <h5 class="fw-normal text-800 mb-0">₱${c.total_sales.toLocaleString('en-PH')}</h5>
                 <small class="text-600 fs-10">${c.transaction_count} sales</small>
@@ -2353,7 +2185,7 @@ require_once __DIR__ . '/../_guard.php';
                 textStyle: { color: isDark ? '#d8e2ef' : '#344050', fontSize: 12 },
                 axisPointer: { type: 'line', lineStyle: { color: gridColor, width: 1 } },
                 formatter: function(params) {
-                    let html = `<div class="fw-semibold mb-1 fs-11">${params[0].axisValue}</div>`;
+                    let html = `<div class="fw-semibold mb-1 fs-11">${escapeHtml(params[0].axisValue)}</div>`;
                     params.forEach(p => {
                         const val = parseFloat(p.value);
                         html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">`
@@ -2400,107 +2232,12 @@ require_once __DIR__ . '/../_guard.php';
         }
     }
 
-    // Helper function to convert range to days
-    function rangeToDays(range) {
-        switch(range) {
-            case 'today': return 1;
-            case 'week': return 7;
-            case 'last30days': return 30;
-            case 'month': return 30; // Keep for backward compatibility
-            case 'year': return 365;
-            default: return 7; // Default to week
-        }
-    }
-
-    function daysToRange(days) {
-        switch(parseInt(days)) {
-            case 1: return 'today';
-            case 7: return 'week';
-            case 30: return 'last30days';
-            case 90: return 'year';
-            default: return 'week';
-        }
-    }
-
-    async function initCashierPerformanceChart(savedRange = null, savedBranch = null) {
+    function initCashierPerformanceChart() {
         const chartDom = document.getElementById('cashierPerformanceChart');
-        if (!chartDom) return;
-
-        // Prevent re-initialization
-        if (chartDom.dataset.initialized === 'true') return;
+        if (!chartDom || chartDom.dataset.initialized === 'true') return;
         chartDom.dataset.initialized = 'true';
-
         cashierPerformanceChart = echarts.init(chartDom, null, { renderer: 'canvas' });
-
-        // Initial load with saved or current filter
-        const range = savedRange || currentRange || 'week';
-        const branchId = savedBranch || document.getElementById('globalBranchSelector')?.value || '';
-        const days = rangeToDays(range);
-        const data = await fetchCashierPerformance(days, branchId);
-        if (data) renderCashierPerformanceChart(data);
-
-        // Sync date filter with saved range
-        const dateFilter = document.getElementById('cashierPerformanceFilter');
-        const branchFilter = document.getElementById('cashierPerformanceBranchFilter');
-        if (dateFilter && ['today', 'week', 'month', 'year'].includes(range)) {
-            dateFilter.value = rangeToDays(range);
-        }
-
-        // Date filter change handler - only add once
-        if (dateFilter && !dateFilter.dataset.listenerAdded) {
-            dateFilter.dataset.listenerAdded = 'true';
-            dateFilter.addEventListener('change', async function() {
-                const days = parseInt(this.value);
-                const branchId = document.getElementById('cashierPerformanceBranchFilter')?.value || null;
-                // Push to global filter for consistency
-                const range = daysToRange(days);
-                if (['today','week','last30days','year'].includes(range) && typeof refreshAnalytics === 'function') {
-                    refreshAnalytics(range);
-                    syncTopFilterButtons(range);
-                } else {
-                    const newData = await fetchCashierPerformance(days, branchId);
-                    if (newData) renderCashierPerformanceChart(newData);
-                }
-            });
-        }
-
-        // Branch filter change handler - only add once
-        if (branchFilter && !branchFilter.dataset.listenerAdded) {
-            branchFilter.dataset.listenerAdded = 'true';
-            branchFilter.addEventListener('change', async function() {
-                const days = parseInt(document.getElementById('cashierPerformanceFilter')?.value || 7);
-                const branchId = this.value || null;
-                // Sync with global branch selector
-                const globalSelector = document.getElementById('globalBranchSelector');
-                if (globalSelector) {
-                    globalSelector.value = branchId;
-                    localStorage.setItem('analyticsBranchId', branchId);
-                    // Trigger global change event so all cards refresh
-                    globalSelector.dispatchEvent(new Event('change'));
-                } else {
-                    const newData = await fetchCashierPerformance(days, branchId);
-                    if (newData) renderCashierPerformanceChart(newData);
-                }
-            });
-        }
     }
-
-    // Wallet branch selector event listener - sync with global
-    document.getElementById('walletBranchSelector')?.addEventListener('change', function() {
-        const branchId = this.value;
-        const branchName = branchId ? this.options[this.selectedIndex].textContent : 'All Branches';
-        document.getElementById('walletBranchName').textContent = branchName;
-        // Sync with global branch selector
-        const globalSelector = document.getElementById('globalBranchSelector');
-        if (globalSelector) {
-            globalSelector.value = branchId;
-            localStorage.setItem('analyticsBranchId', branchId);
-            // Trigger global change event so all cards refresh
-            globalSelector.dispatchEvent(new Event('change'));
-        } else {
-            fetchProviderWallets(branchId || null);
-        }
-    });
 
     // ============================================
     // BRANCH SALES ANALYTICS (NEW)
@@ -2542,150 +2279,89 @@ require_once __DIR__ . '/../_guard.php';
     // Fetch branch analytics data (optimized for new pos_orders structure)
     async function fetchBranchAnalytics() {
         const requestVersion = analyticsFilterVersion;
-        const globalFilters = getGlobalFilters();
-        const globalRange = globalFilters.range || 'today';
-        const isCustom = globalFilters.isCustom;
-        
-        // For custom ranges, use a base range for the API but pass custom dates
-        let range = globalRange;
-        if (isCustom) {
-            // Map custom ranges to base ranges for API compatibility
-            if (globalRange === 'custom-daily') range = 'week';
-            else if (globalRange === 'custom-monthly') range = 'month';
-            else if (globalRange === 'custom-annual') range = 'year';
-            else range = 'week';
-        }
-        
-        // Use global branch selector if available, fallback to branchSelector
-        const globalBranchSelector = document.getElementById('globalBranchSelector');
-        const branchSelector = document.getElementById('branchSelector');
-        // Always send branch_id: empty string = All Branches, value = specific branch.
-        // getGlobalFilters() falls back to localStorage until the branch options are loaded.
-        const branchId = globalBranchSelector
-            ? globalFilters.branchId
-            : (branchSelector ? (branchSelector.value || '') : '');
-
-        // Sync the branch selector when it is already populated.
-        if (globalBranchSelector && branchSelector && globalBranchSelector.dataset.populated === 'true') {
-            branchSelector.value = globalBranchSelector.value;
-        }
-
-        // Show loading state
         const branchNameEl = document.getElementById('branchNameText');
-        const originalText = branchNameEl.textContent;
-        branchNameEl.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Loading...</span>';
+        if (branchNameEl) branchNameEl.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Loading...</span>';
 
         try {
-            // Build URL with custom dates if applicable
-            const branchParam = (globalBranchSelector || branchSelector)
-                ? `&branch_id=${encodeURIComponent(branchId || '')}`
-                : '';
-            let url = `${window.BASE_URL}/api/analytics/branch-sales?range=${encodeURIComponent(range)}${branchParam}`;
-            
-            // Add custom date parameters if custom range is active
-            if (isCustom) {
-                const startDate = localStorage.getItem('analyticsCustomStartDate');
-                const endDate = localStorage.getItem('analyticsCustomEndDate');
-                if (startDate && endDate) {
-                    url += `&start_date=${startDate}&end_date=${endDate}`;
-                }
-            }
-            
-            // Add timeout for better error handling
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-            
-            const response = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            
+            const url = `${window.BASE_URL}/api/analytics/branch-sales?${buildFilterQuery()}`;
+            const response = await fetchAnalytics(url);
             const result = await response.json();
 
             if (requestVersion !== analyticsFilterVersion) return;
 
             if (result.success) {
+                if (branchNameEl) branchNameEl.classList.remove('text-danger', 'text-warning');
                 branchAnalyticsData = result.data;
                 updateBranchAnalyticsUI();
                 renderBranchCharts();
                 populateBranchSelector(result.data.accessible_branches);
 
-                // Clear any error message
-                branchNameEl.textContent = result.data.branch_name;
-                
-                // Log performance metrics for debugging
+                if (branchNameEl) branchNameEl.textContent = result.data.branch_name || 'All Branches';
                 console.log('Branch analytics loaded:', {
-                    range,
-                    branchId,
+                    filter: result.data.filter,
                     dataPoints: result.data.chart_data?.length || 0,
                     hasProfitData: result.data.summary.total_profit > 0
                 });
             } else {
                 console.error('Branch analytics error:', result.error);
-                // Show error in UI
-                branchNameEl.innerHTML =
-                    `<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${result.error || 'Failed to load'}</span>`;
+                if (branchNameEl) {
+                    branchNameEl.textContent = result.error || 'Failed to load';
+                    branchNameEl.classList.add('text-danger');
+                }
             }
         } catch (error) {
-            if (requestVersion !== analyticsFilterVersion) return;
+            if (requestVersion !== analyticsFilterVersion || error.name === 'AbortError') return;
             console.error('Failed to fetch branch analytics:', error);
-            // Show appropriate error message
-            if (error.name === 'AbortError') {
-                branchNameEl.innerHTML = '<span class="text-warning"><i class="fas fa-clock me-1"></i>Request timeout</span>';
-            } else {
-                branchNameEl.innerHTML = '<span class="text-warning"><i class="fas fa-wifi me-1"></i>Connection error - retrying...</span>';
+            if (branchNameEl) {
+                branchNameEl.textContent = 'Connection error - retrying...';
+                branchNameEl.classList.add('text-warning');
             }
-
-            // Retry after 5 seconds (with exponential backoff)
-            setTimeout(fetchBranchAnalytics, 5000);
+            setTimeout(() => {
+                if (requestVersion === analyticsFilterVersion) fetchBranchAnalytics();
+            }, 5000);
         }
     }
 
-    // Populate all branch selectors and restore the saved branch after options exist.
     function populateBranchSelector(branches) {
         const availableBranches = Array.isArray(branches) ? branches : [];
-        const selector = document.getElementById('branchSelector');
         const globalSelector = document.getElementById('globalBranchSelector');
-        const branchSelectors = [
-            globalSelector,
-            selector,
-            document.getElementById('cashierPerformanceBranchFilter'),
-            document.getElementById('walletBranchSelector'),
-            document.getElementById('paymentBreakdownBranchFilter'),
-            document.getElementById('liveSalesBranchFilter'),
-            document.getElementById('topServicesBranchFilter'),
-            document.getElementById('hourlyBranchFilter')
-        ].filter(Boolean);
+        const liveSelector = document.getElementById('liveSalesBranchFilter');
+        const savedGlobalBranch = analyticsFilterState.branchId || '';
+        const savedGlobalIsValid = !savedGlobalBranch || availableBranches.some(branch => branch.id === savedGlobalBranch);
+        const selectedGlobalBranch = savedGlobalIsValid ? savedGlobalBranch : '';
+        const savedLiveBranch = localStorage.getItem('liveSalesBranchId') || '';
+        const selectedLiveBranch = availableBranches.some(branch => branch.id === savedLiveBranch) ? savedLiveBranch : '';
 
-        let html = '';
-        if (availableBranches.length > 1) {
-            html += '<option value="">All Branches</option>';
-        }
-        html += availableBranches.map(branch =>
-            `<option value="${branch.id}">${branch.name}</option>`
-        ).join('');
-
-        const savedBranch = localStorage.getItem('analyticsBranchId') || '';
-        const savedBranchIsValid = savedBranch && availableBranches.some(branch => branch.id === savedBranch);
-        const currentGlobalBranch = globalSelector?.dataset.populated === 'true'
-            ? globalSelector.value
-            : '';
-
-        let selectedBranch = currentGlobalBranch || (savedBranchIsValid ? savedBranch : '');
-        if (!selectedBranch && availableBranches.length === 1) {
-            selectedBranch = availableBranches[0].id;
-        }
-
-        // Do not keep a branch selection that is no longer accessible.
-        if (savedBranch && !savedBranchIsValid) {
+        if (!savedGlobalIsValid) {
+            analyticsFilterState.branchId = '';
             localStorage.removeItem('analyticsBranchId');
         }
 
-        branchSelectors.forEach(branchSelector => {
-            if (branchSelector.dataset.populated !== 'true') {
-                branchSelector.innerHTML = html;
-                branchSelector.dataset.populated = 'true';
-            }
-            branchSelector.value = selectedBranch;
+        [globalSelector, liveSelector].filter(Boolean).forEach((selector, selectorIndex) => {
+            selector.replaceChildren();
+            const allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All Branches';
+            selector.appendChild(allOption);
+            availableBranches.forEach(branch => {
+                const option = document.createElement('option');
+                option.value = branch.id;
+                option.textContent = branch.name;
+                selector.appendChild(option);
+            });
+            selector.dataset.populated = 'true';
+            selector.value = selectorIndex === 0 ? selectedGlobalBranch : selectedLiveBranch;
         });
+
+        syncAnalyticsFilterUI();
+        if (liveSelector && liveSelector.value) fetchLiveSales();
+    }
+
+    async function loadAnalyticsBranches() {
+        const response = await fetch(`${window.BASE_URL}/api/analytics/branches.php`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Unable to load branches');
+        populateBranchSelector(result.data);
     }
 
     // Update UI with analytics data (optimized for profit data)
@@ -3250,64 +2926,34 @@ require_once __DIR__ . '/../_guard.php';
         '#a8cbff', '#c9dcf8', '#91c4f2', '#5ea3de'
     ];
 
-    // Helper function to convert range to date range
     function getRangeDates(range) {
         const today = new Date();
-        let startDate, endDate;
-        
-        switch (range) {
-            case 'today':
-                startDate = endDate = today.toISOString().slice(0, 10);
-                break;
-            case 'week':
-                // Last 7 days (6 days ago to today)
-                startDate = new Date(today.setDate(today.getDate() - 6)).toISOString().slice(0, 10);
-                endDate = new Date().toISOString().slice(0, 10);
-                break;
-            case 'last30days':
-                startDate = new Date(today.setDate(today.getDate() - 29)).toISOString().slice(0, 10);
-                endDate = new Date().toISOString().slice(0, 10);
-                break;
-            case 'year':
-                startDate = new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10);
-                endDate = new Date(today.getFullYear(), 11, 31).toISOString().slice(0, 10);
-                break;
-            default:
-                startDate = endDate = new Date().toISOString().slice(0, 10);
-        }
-        
-        return { startDate, endDate };
+        today.setHours(0, 0, 0, 0);
+        const endDate = formatDate(today);
+        const start = new Date(today);
+        if (range === 'week') start.setDate(start.getDate() - 6);
+        if (range === 'last30days') start.setDate(start.getDate() - 29);
+        if (range === 'year') start.setMonth(0, 1);
+        return { startDate: formatDate(start), endDate };
     }
 
-    async function fetchTodaySalesTarget(branchId = null) {
+    async function fetchTodaySalesTarget() {
         const requestVersion = analyticsFilterVersion;
         try {
-            const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
-            const customStartDate = localStorage.getItem('analyticsCustomStartDate');
-            const customEndDate = localStorage.getItem('analyticsCustomEndDate');
-            
-            let startDate, endDate;
-            
-            // If custom date range is set, use it
-            if ((savedRange === 'custom' || savedRange.startsWith('custom-')) && customStartDate && customEndDate) {
-                startDate = customStartDate;
-                endDate = customEndDate;
-            } else {
-                // Convert standard range to date range
-                const dates = getRangeDates(savedRange);
-                startDate = dates.startDate;
-                endDate = dates.endDate;
-            }
-            
-            let url = `${window.BASE_URL}/api/sales-targets/targets.php?start_date=${startDate}&end_date=${endDate}`;
-            
-            if (branchId) {
-                url += `&branch_id=${encodeURIComponent(branchId)}`;
-            }
-            
-            console.log('Fetching sales target from:', url);
-            
-            const res = await fetch(url);
+            const filter = getGlobalFilters();
+            const branchId = filter.branchId;
+            const dates = filter.isCustom && filter.startDate && filter.endDate
+                ? { startDate: filter.startDate, endDate: filter.endDate }
+                : getRangeDates(filter.range);
+            const params = new URLSearchParams({
+                range: filter.range,
+                granularity: filter.granularity,
+                start_date: dates.startDate,
+                end_date: dates.endDate,
+                branch_id: filter.branchId || ''
+            });
+            const url = `${window.BASE_URL}/api/sales-targets/targets.php?${params.toString()}`;
+            const res = await fetchAnalytics(url);
             const result = await res.json();
 
             if (requestVersion !== analyticsFilterVersion) return;
@@ -3377,21 +3023,7 @@ require_once __DIR__ . '/../_guard.php';
                 }
                 
                 // Update date range display
-                const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
-                const customStartDate = localStorage.getItem('analyticsCustomStartDate');
-                const customEndDate = localStorage.getItem('analyticsCustomEndDate');
-                
-                if ((savedRange === 'custom' || savedRange.startsWith('custom-')) && customStartDate && customEndDate) {
-                    dateRangeElement.textContent = `${customStartDate} - ${customEndDate}`;
-                } else {
-                    const rangeLabels = {
-                        'today': 'Today',
-                        'week': 'Last 7 Days',
-                        'last30days': 'Last 30 Days',
-                        'year': 'This Year'
-                    };
-                    dateRangeElement.textContent = rangeLabels[savedRange] || savedRange;
-                }
+                dateRangeElement.textContent = formatAnalyticsFilterLabel(filter);
                 
                 if (percent >= 100) {
                     progressBar.classList.add('bg-success');
@@ -3437,14 +3069,21 @@ require_once __DIR__ . '/../_guard.php';
         }
     }
 
-    async function fetchProviderWallets(branchId = null) {
+    async function fetchProviderWallets() {
         const requestVersion = analyticsFilterVersion;
         try {
-            let url = `${window.BASE_URL}/api/analytics/wallet-summary.php`;
-            if (branchId) {
-                url += `?branch_id=${encodeURIComponent(branchId)}`;
+            const filter = getGlobalFilters();
+            const params = new URLSearchParams({
+                branch_id: filter.branchId || '',
+                as_of: filter.endDate || getRangeDates(filter.range).endDate,
+                range: filter.range,
+                granularity: filter.granularity
+            });
+            if (filter.isCustom && filter.startDate && filter.endDate) {
+                params.set('start_date', filter.startDate);
+                params.set('end_date', filter.endDate);
             }
-            const res    = await fetch(url);
+            const res = await fetchAnalytics(`${window.BASE_URL}/api/analytics/wallet-summary.php?${params.toString()}`);
             const result = await res.json();
 
             if (requestVersion !== analyticsFilterVersion) return;
@@ -3455,7 +3094,15 @@ require_once __DIR__ . '/../_guard.php';
                 return;
             }
 
+            document.getElementById('walletError').style.display = 'none';
             const d = result.data;
+            const globalSelector = document.getElementById('globalBranchSelector');
+            const walletBranchName = document.getElementById('walletBranchName');
+            if (walletBranchName) {
+                walletBranchName.textContent = filter.branchId && globalSelector
+                    ? (globalSelector.options[globalSelector.selectedIndex]?.textContent || 'Selected Branch')
+                    : 'All Branches';
+            }
 
             // Footer totals
             document.getElementById('walletTotalBalance').textContent = formatPHP(d.total_balance);
@@ -3558,7 +3205,7 @@ require_once __DIR__ . '/../_guard.php';
         legendEl.innerHTML = providerNames.map((n, i) =>
             `<span class="d-flex align-items-center gap-1">
                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${WALLET_COLORS[i % WALLET_COLORS.length]}"></span>
-               ${n}
+               ${escapeHtml(n)}
              </span>`
         ).join('');
 
@@ -3577,14 +3224,14 @@ require_once __DIR__ . '/../_guard.php';
                 padding: [8, 12],
                 textStyle: { color: isDark ? '#d8e2ef' : '#344050', fontSize: 11 },
                 formatter: function(params) {
-                    let html = `<div class="fw-semibold mb-1 fs-11">${params[0].axisValue}</div>`;
+                    let html = `<div class="fw-semibold mb-1 fs-11">${escapeHtml(params[0].axisValue)}</div>`;
                     let total = 0;
                     params.forEach(p => {
                         if (p.value > 0) {
                             total += p.value;
                             html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">`
                                   + `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>`
-                                  + `<span style="flex:1;font-size:11px">${p.seriesName}</span>`
+                                  + `<span style="flex:1;font-size:11px">${escapeHtml(p.seriesName)}</span>`
                                   + `<span style="font-weight:600;font-size:11px">₱${parseFloat(p.value).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>`
                                   + `</div>`;
                         }
@@ -3675,10 +3322,23 @@ require_once __DIR__ . '/../_guard.php';
     }
 
     async function fetchAccountsReceivable() {
+        const requestVersion = analyticsFilterVersion;
         try {
-            const res    = await fetch(`${window.BASE_URL}/api/analytics/receivables`);
+            const filter = getGlobalFilters();
+            const dates = filter.isCustom && filter.startDate && filter.endDate
+                ? { startDate: filter.startDate, endDate: filter.endDate }
+                : getRangeDates(filter.range);
+            const params = new URLSearchParams({
+                range: filter.range,
+                granularity: filter.granularity,
+                start_date: dates.startDate,
+                end_date: dates.endDate,
+                branch_id: filter.branchId || ''
+            });
+            const res = await fetchAnalytics(`${window.BASE_URL}/api/analytics/receivables?${params.toString()}`);
             const result = await res.json();
 
+            if (requestVersion !== analyticsFilterVersion) return;
             document.getElementById('arLoading').style.display = 'none';
 
             if (!result.success) {
@@ -3687,19 +3347,23 @@ require_once __DIR__ . '/../_guard.php';
                 return;
             }
 
+            document.getElementById('arError').style.display = 'none';
+            const dataQuality = document.getElementById('arDataQuality');
+            if (dataQuality) dataQuality.style.display = result.data.reconciled === false ? 'block' : 'none';
             const s = result.data.summary;
 
             // Hero
             document.getElementById('arTotalOutstanding').textContent = formatPHP(s.total_outstanding);
             document.getElementById('arCustomersBadge').textContent   = s.total_customers + ' customer' + (s.total_customers !== 1 ? 's' : '');
 
-            // 7-day activity
-            document.getElementById('arCharged7d').textContent   = formatPHP(s.charged_7d);
-            document.getElementById('arCollected7d').textContent = formatPHP(s.collected_7d);
+            const chargedAmount = parseFloat(s.charged_period ?? s.charged_7d) || 0;
+            const collectedAmount = parseFloat(s.collected_period ?? s.collected_7d) || 0;
+            document.getElementById('arCharged7d').textContent = formatPHP(chargedAmount);
+            document.getElementById('arCollected7d').textContent = formatPHP(collectedAmount);
 
             // Collection rate progress bar
-            const charged   = parseFloat(s.charged_7d)   || 0;
-            const collected = parseFloat(s.collected_7d) || 0;
+            const charged = chargedAmount;
+            const collected = collectedAmount;
             const rate = charged > 0 ? Math.min(100, (collected / charged) * 100) : (collected > 0 ? 100 : 0);
             document.getElementById('arCollectionBar').style.width  = rate.toFixed(1) + '%';
             document.getElementById('arCollectionRate').textContent = rate.toFixed(1) + '%';
@@ -3707,6 +3371,7 @@ require_once __DIR__ . '/../_guard.php';
             document.getElementById('arContent').style.display = 'block';
 
         } catch (e) {
+            if (e.name === 'AbortError' || requestVersion !== analyticsFilterVersion) return;
             document.getElementById('arLoading').style.display = 'none';
             document.getElementById('arError').style.display   = 'block';
             document.getElementById('arErrorMsg').textContent  = 'Connection error';
@@ -3724,391 +3389,138 @@ require_once __DIR__ . '/../_guard.php';
     let flatpickrInstances = {};
 
     if (dateRangeButtons) {
-        const buttons = dateRangeButtons.querySelectorAll('button');
-        buttons.forEach(button => {
+        dateRangeButtons.querySelectorAll('button').forEach(button => {
             button.addEventListener('click', function() {
-                // Remove active class from all buttons
-                buttons.forEach(btn => btn.classList.remove('active'));
-                // Add active class to clicked button
-                this.classList.add('active');
-                
-                const range = this.getAttribute('data-range');
-                currentRange = range;
-                
-                // Show/hide custom date picker
+                const range = this.dataset.range;
                 if (range === 'custom') {
-                    customDateRangeContainer.classList.remove('d-none');
-                    if (!flatpickrInstances.daily) {
-                        initCustomDatePickers();
+                    analyticsFilterState.range = 'custom';
+                    if (!ANALYTICS_GRANULARITIES.includes(analyticsFilterState.granularity)) {
+                        analyticsFilterState.granularity = 'daily';
                     }
-                } else {
-                    customDateRangeContainer.classList.add('d-none');
-                    // Trigger analytics refresh with selected range
-                    refreshAnalytics(range);
+                    persistAnalyticsFilterState();
+                    syncAnalyticsFilterUI();
+                    if (!Object.keys(flatpickrInstances).length) initCustomDatePickers();
+                    return;
                 }
+                refreshAnalytics(range);
             });
         });
     }
 
-    // Global branch selector event listener
     const globalBranchSelector = document.getElementById('globalBranchSelector');
     if (globalBranchSelector) {
         globalBranchSelector.addEventListener('change', function() {
-            const branchId = this.value;
-            analyticsFilterVersion += 1;
-            localStorage.setItem('analyticsBranchId', branchId);
-            
-            // Sync with Branch Analytics selector
-            const branchSelector = document.getElementById('branchSelector');
-            if (branchSelector) {
-                branchSelector.value = branchId;
-            }
-            
-            // Sync with Cashier Performance branch filter
-            const cashierBranchFilter = document.getElementById('cashierPerformanceBranchFilter');
-            if (cashierBranchFilter) {
-                cashierBranchFilter.value = branchId;
-            }
-            
-            // Sync with Wallet Balances branch filter
-            const walletBranchFilter = document.getElementById('walletBranchSelector');
-            if (walletBranchFilter) {
-                walletBranchFilter.value = branchId;
-                const walletNameEl = document.getElementById('walletBranchName');
-                if (walletNameEl) {
-                    walletNameEl.textContent = branchId ? 
-                        (walletBranchFilter.options[walletBranchFilter.selectedIndex]?.text || 'All Branches') : 'All Branches';
-                }
-            }
-
-            // Sync with Transactions per Hour branch filter
-            const hourlyBranchFilter = document.getElementById('hourlyBranchFilter');
-            if (hourlyBranchFilter) hourlyBranchFilter.value = branchId;
-            
-            // Sync with Payment Breakdown branch filter
-            const paymentBreakdownBranchFilter = document.getElementById('paymentBreakdownBranchFilter');
-            if (paymentBreakdownBranchFilter) paymentBreakdownBranchFilter.value = branchId;
-            
-            // Sync with Live Sales branch filter
-            const liveSalesBranchFilter = document.getElementById('liveSalesBranchFilter');
-            if (liveSalesBranchFilter) liveSalesBranchFilter.value = branchId;
-            
-            // Sync with Top Services branch filter
-            const topServicesBranchFilter = document.getElementById('topServicesBranchFilter');
-            if (topServicesBranchFilter) topServicesBranchFilter.value = branchId;
-            
-            // Refresh all connected cards
-            fetchBranchAnalytics();
-            fetchTMSMetrics(currentRange || 'month', branchId || null);
-            fetchCashierPerformance(rangeToDays(currentRange || 'week'), branchId).then(data => {
-                if (data) renderCashierPerformanceChart(data);
-            });
-            fetchProviderWallets(branchId || null);
-            fetchTodaySalesTarget(branchId || null);
-            // Branch-aware cards
-            try { fetchTransactionsPerHour(); } catch (e) { console.warn(e); }
-            try { fetchPaymentBreakdown();   } catch (e) { console.warn(e); }
-            try { fetchTopServices();        } catch (e) { console.warn(e); }
+            analyticsFilterState.branchId = this.value || '';
+            persistAnalyticsFilterState();
+            refreshAnalytics();
         });
     }
 
-    // Handle custom range type selection
     if (customRangeType) {
         customRangeType.addEventListener('change', function() {
-            const rangeType = this.value;
-            
-            // Hide all range inputs
-            document.getElementById('dailyRangeInput').classList.add('d-none');
-            document.getElementById('monthlyRangeInput').classList.add('d-none');
-            document.getElementById('annualRangeInput').classList.add('d-none');
-            
-            // Show selected range input
-            document.getElementById(rangeType + 'RangeInput').classList.remove('d-none');
+            if (!ANALYTICS_GRANULARITIES.includes(this.value)) return;
+            analyticsFilterState.range = 'custom';
+            analyticsFilterState.granularity = this.value;
+            persistAnalyticsFilterState();
+            syncAnalyticsFilterUI();
+            if (!Object.keys(flatpickrInstances).length) initCustomDatePickers();
         });
     }
 
-    // Initialize all custom date pickers
     function initCustomDatePickers() {
         if (typeof flatpickr === 'undefined') return;
 
-        // Daily range picker (Jan 1 - Jan 5)
-        const dailyPicker = document.getElementById('AnalyticsDateRange');
-        if (dailyPicker) {
-            flatpickrInstances.daily = flatpickr(dailyPicker, {
-                mode: 'range',
-                dateFormat: 'M d',
-                disableMobile: true,
-                defaultDate: [
-                    new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-                    new Date()
-                ],
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 2) {
-                        const startDate = formatDate(selectedDates[0]);
-                        const endDate = formatDate(selectedDates[1]);
-                        console.log('Daily range changed:', startDate, 'to', endDate);
-                        refreshAnalytics('custom-daily', startDate, endDate);
-                    }
-                }
-            });
-        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const fallbackDefaults = {
+            daily: [new Date(today.getTime() - 4 * 24 * 60 * 60 * 1000), today],
+            monthly: [new Date(today.getFullYear(), 0, 1), new Date(today.getFullYear(), 2, 1)],
+            annual: [new Date(today.getFullYear() - 5, 0, 1), today]
+        };
+        const savedDates = analyticsFilterState.startDate && analyticsFilterState.endDate
+            ? [analyticsFilterState.startDate, analyticsFilterState.endDate]
+            : null;
 
-        // Monthly range picker (Jan - Mar)
-        const monthlyPicker = document.getElementById('MonthlyRange');
-        if (monthlyPicker) {
-            flatpickrInstances.monthly = flatpickr(monthlyPicker, {
+        const createPicker = (elementId, type) => {
+            const input = document.getElementById(elementId);
+            if (!input || flatpickrInstances[type]) return;
+            flatpickrInstances[type] = flatpickr(input, {
                 mode: 'range',
-                dateFormat: 'M',
+                dateFormat: type === 'monthly' ? 'F Y' : (type === 'annual' ? 'Y' : 'M d, Y'),
                 disableMobile: true,
-                defaultDate: [
-                    new Date(new Date().getFullYear(), 0, 1),
-                    new Date(new Date().getFullYear(), 2, 1)
-                ],
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 2) {
-                        const startDate = formatDate(selectedDates[0]);
-                        const endDate = formatDate(selectedDates[1]);
-                        console.log('Monthly range changed:', startDate, 'to', endDate);
-                        refreshAnalytics('custom-monthly', startDate, endDate);
+                maxDate: 'today',
+                defaultDate: savedDates || fallbackDefaults[type],
+                onChange: function(selectedDates) {
+                    if (selectedDates.length !== 2) return;
+                    const dates = selectedDates.slice().sort((a, b) => a.getTime() - b.getTime());
+                    let start = dates[0];
+                    let end = dates[1];
+                    if (type === 'monthly') {
+                        start = new Date(start.getFullYear(), start.getMonth(), 1);
+                        end = new Date(end.getFullYear(), end.getMonth() + 1, 0);
+                    } else if (type === 'annual') {
+                        start = new Date(start.getFullYear(), 0, 1);
+                        end = new Date(end.getFullYear(), 11, 31);
                     }
+                    refreshAnalytics('custom', formatDate(start), formatDate(end), type);
                 }
             });
-        }
+        };
 
-        // Annual range picker (2021 - 2026)
-        const annualPicker = document.getElementById('AnnualRange');
-        if (annualPicker) {
-            flatpickrInstances.annual = flatpickr(annualPicker, {
-                mode: 'range',
-                dateFormat: 'Y',
-                disableMobile: true,
-                defaultDate: [
-                    new Date(new Date().getFullYear() - 5, 0, 1),
-                    new Date()
-                ],
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 2) {
-                        const startDate = formatDate(selectedDates[0]);
-                        const endDate = formatDate(selectedDates[1]);
-                        console.log('Annual range changed:', startDate, 'to', endDate);
-                        refreshAnalytics('custom-annual', startDate, endDate);
-                    }
-                }
-            });
-        }
+        createPicker('AnalyticsDateRange', 'daily');
+        createPicker('MonthlyRange', 'monthly');
+        createPicker('AnnualRange', 'annual');
     }
 
-    // Refresh analytics based on selected range
-    function refreshAnalytics(range, startDate = null, endDate = null) {
-        console.log('Refreshing analytics for range:', range);
+    function refreshAnalytics(range = null, startDate = null, endDate = null, granularity = null) {
+        const requestedRange = range || analyticsFilterState.range;
+        const isCustom = requestedRange === 'custom' || requestedRange.indexOf('custom') === 0;
+        if (isCustom) {
+            analyticsFilterState.range = 'custom';
+            analyticsFilterState.granularity = granularity || (requestedRange.indexOf('custom') === 0
+                ? customGranularityFromRange(requestedRange)
+                : analyticsFilterState.granularity);
+            if (startDate && endDate) {
+                const normalized = normalizeClientCustomRange(
+                    startDate,
+                    endDate,
+                    analyticsFilterState.granularity
+                );
+                analyticsFilterState.startDate = normalized.startDate;
+                analyticsFilterState.endDate = normalized.endDate;
+            }
+        } else if (ANALYTICS_STANDARD_RANGES.includes(requestedRange)) {
+            analyticsFilterState.range = requestedRange;
+            analyticsFilterState.granularity = requestedRange === 'today'
+                ? 'hourly'
+                : (requestedRange === 'year' ? 'monthly' : 'daily');
+            analyticsFilterState.startDate = '';
+            analyticsFilterState.endDate = '';
+        }
+
+        if (analyticsAbortController) analyticsAbortController.abort();
+        analyticsAbortController = new AbortController();
         analyticsFilterVersion += 1;
-        
-        // Save selected range to localStorage
-        localStorage.setItem('analyticsDateRange', range);
-        if (startDate && endDate) {
-            localStorage.setItem('analyticsCustomStartDate', startDate);
-            localStorage.setItem('analyticsCustomEndDate', endDate);
-        }
-        
-        // Sync branch analytics range selector (if not custom)
-        const branchRangeSelector = document.getElementById('branchAnalyticsRange');
-        if (branchRangeSelector && ['today', 'week', 'last30days', 'year'].includes(range)) {
-            branchRangeSelector.value = range;
-        }
-        
-        // Sync Top Services range selector (if not custom)
-        const topServicesFilter = document.getElementById('topServicesFilter');
-        if (topServicesFilter && ['today', 'week', 'last30days', 'year'].includes(range)) {
-            topServicesFilter.value = range;
-        }
-        
-        // Refresh Branch Analytics with new range
-        fetchBranchAnalytics();
-        
-        // Refresh Total Orders / Revenue / Avg Order Value (Goals card)
-        fetchTMSMetrics(range);
-        
-        // Refresh Cashier Performance with new range
-        if (['today', 'week', 'last30days', 'year'].includes(range)) {
-            const days = rangeToDays(range);
-            const branchId = getGlobalFilters().branchId || null;
-            // Sync Cashier Performance dropdown UI
-            const cashierFilter = document.getElementById('cashierPerformanceFilter');
-            if (cashierFilter) {
-                cashierFilter.value = days;
-            }
-            fetchCashierPerformance(days, branchId).then(data => {
+        currentRange = analyticsFilterState.range;
+        persistAnalyticsFilterState();
+        syncAnalyticsFilterUI();
+
+        const jobs = [
+            fetchBranchAnalytics(),
+            fetchTMSMetrics(),
+            fetchCashierPerformance().then(data => {
                 if (data) renderCashierPerformanceChart(data);
-            });
-        }
-        
-        // Refresh Provider Wallet Balances with new branch
-        const globalBranchId = getGlobalFilters().branchId || '';
-        fetchProviderWallets(globalBranchId);
-        
-        // Refresh Today's Sales Target
-        fetchTodaySalesTarget(globalBranchId || null);
+            }),
+            fetchProviderWallets(),
+            fetchTodaySalesTarget(),
+            fetchTransactionsPerHour(),
+            fetchPaymentBreakdown(),
+            fetchTopServices(),
+            fetchAccountsReceivable()
+        ];
 
-        // Refresh Transactions per Hour, Payment Breakdown, Top Services
-        try { fetchTransactionsPerHour(); } catch (e) { console.warn(e); }
-        try { fetchPaymentBreakdown();   } catch (e) { console.warn(e); }
-        try { fetchTopServices();        } catch (e) { console.warn(e); }
-
-        // Log the action
-        switch(range) {
-            case 'today':
-                console.log('Loading today\'s data');
-                break;
-            case 'week':
-                console.log('Loading this week\'s data');
-                break;
-            case 'month':
-                console.log('Loading this month\'s data');
-                break;
-            case 'year':
-                console.log('Loading this year\'s data');
-                break;
-            case 'custom-daily':
-                console.log('Loading custom daily range:', startDate, 'to', endDate);
-                break;
-            case 'custom-weekly':
-                console.log('Loading custom weekly range:', startDate);
-                break;
-            case 'custom-monthly':
-                console.log('Loading custom monthly range:', startDate, 'to', endDate);
-                break;
-            case 'custom-annual':
-                console.log('Loading custom annual range:', startDate, 'to', endDate);
-                break;
-        }
+        return Promise.allSettled(jobs);
     }
-
-    // Restore saved range on page load
-    function restoreDateRange() {
-        const savedRange = localStorage.getItem('analyticsDateRange') || 'today';
-        const savedBranch = localStorage.getItem('analyticsBranchId') || '';
-        const button = dateRangeButtons?.querySelector(`[data-range="${savedRange}"]`);
-        
-        if (button) {
-            // Just update UI classes without triggering click event
-            const buttons = dateRangeButtons.querySelectorAll('button');
-            buttons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            currentRange = savedRange;
-            
-            // Show/hide custom date picker based on saved range
-            if (savedRange === 'custom') {
-                customDateRangeContainer.classList.remove('d-none');
-                if (!flatpickrInstances.daily) {
-                    initCustomDatePickers();
-                }
-                // Restore custom range type
-                const savedRangeType = localStorage.getItem('analyticsCustomRangeType') || 'daily';
-                if (customRangeType) {
-                    customRangeType.value = savedRangeType;
-                    // Show the appropriate input
-                    document.getElementById('dailyRangeInput').classList.add('d-none');
-                    document.getElementById('monthlyRangeInput').classList.add('d-none');
-                    document.getElementById('annualRangeInput').classList.add('d-none');
-                    document.getElementById(savedRangeType + 'RangeInput').classList.remove('d-none');
-                }
-            } else {
-                customDateRangeContainer.classList.add('d-none');
-            }
-        }
-        
-        // Restore global branch selector
-        const globalBranchSelector = document.getElementById('globalBranchSelector');
-        if (globalBranchSelector && savedBranch) {
-            globalBranchSelector.value = savedBranch;
-        }
-        
-        // Sync Branch Analytics range selector (if not custom)
-        const branchRangeSelector = document.getElementById('branchAnalyticsRange');
-        if (branchRangeSelector && ['today', 'week', 'last30days', 'year'].includes(savedRange)) {
-            branchRangeSelector.value = savedRange;
-        }
-        
-        // Sync Cashier Performance filters
-        const cashierFilter = document.getElementById('cashierPerformanceFilter');
-        const cashierBranchFilter = document.getElementById('cashierPerformanceBranchFilter');
-        if (cashierFilter && ['today', 'week', 'last30days', 'year'].includes(savedRange)) {
-            cashierFilter.value = rangeToDays(savedRange);
-        }
-        if (cashierBranchFilter) {
-            cashierBranchFilter.value = savedBranch;
-        }
-        
-        // Sync Wallet Balances branch filter
-        const walletBranchFilter = document.getElementById('walletBranchSelector');
-        const walletBranchName = document.getElementById('walletBranchName');
-        if (walletBranchFilter) {
-            walletBranchFilter.value = savedBranch;
-            if (walletBranchName) {
-                walletBranchName.textContent = savedBranch ? 
-                    walletBranchFilter.options[walletBranchFilter.selectedIndex]?.text || 'All Branches' : 'All Branches';
-            }
-        }
-
-        // Sync Transactions per Hour / Payment Breakdown / Top Services local selectors
-        const effectiveRange = (savedRange && !savedRange.startsWith('custom'))
-            ? savedRange
-            : ({
-                'custom-daily': 'week',
-                'custom-weekly': 'last30days',
-                'custom-monthly': 'last30days',
-                'custom-annual': 'year'
-            }[savedRange] || 'last30days');
-        const hourlyFilter = document.getElementById('hourlyFilter');
-        const hourlyBranchFilter = document.getElementById('hourlyBranchFilter');
-        const pbFilter = document.getElementById('paymentBreakdownFilter');
-        const pbBranchFilter = document.getElementById('paymentBreakdownBranchFilter');
-        const tsFilter = document.getElementById('topServicesFilter');
-        const tsBranchFilter = document.getElementById('topServicesBranchFilter');
-        const lsBranchFilter = document.getElementById('liveSalesBranchFilter');
-        if (hourlyFilter && ['today','week','last30days','year'].includes(effectiveRange)) hourlyFilter.value = effectiveRange;
-        if (hourlyBranchFilter) hourlyBranchFilter.value = savedBranch;
-        if (pbFilter && ['today','week','last30days','year'].includes(effectiveRange)) pbFilter.value = effectiveRange;
-        if (pbBranchFilter) pbBranchFilter.value = savedBranch;
-        if (tsFilter && ['today','week','last30days','year'].includes(effectiveRange)) tsFilter.value = effectiveRange;
-        if (tsBranchFilter) tsBranchFilter.value = savedBranch;
-        if (lsBranchFilter) lsBranchFilter.value = savedBranch;
-        
-        // Refresh all connected cards with restored filter values
-        // This ensures charts load with correct saved filters instead of defaults
-        setTimeout(() => {
-            console.log('Refreshing charts with restored filters:', savedRange, savedBranch);
-            
-            // Refresh Total Orders / Revenue / Avg Order Value
-            fetchTMSMetrics(savedRange, savedBranch || null);
-            
-            // Refresh Cashier Performance
-            if (['today', 'week', 'month', 'year'].includes(savedRange)) {
-                const days = rangeToDays(savedRange);
-                fetchCashierPerformance(days, savedBranch).then(data => {
-                    if (data) renderCashierPerformanceChart(data);
-                });
-            }
-            
-            // Refresh Provider Wallet Balances
-            fetchProviderWallets(savedBranch || null);
-
-            // Refresh Transactions per Hour, Payment Breakdown, Top Services
-            try { fetchTransactionsPerHour(); } catch (e) { console.warn(e); }
-            try { fetchPaymentBreakdown();   } catch (e) { console.warn(e); }
-            try { fetchTopServices();        } catch (e) { console.warn(e); }
-        }, 50);
-    }
-
-    // Save custom range type when changed
-    if (customRangeType) {
-        customRangeType.addEventListener('change', function() {
-            localStorage.setItem('analyticsCustomRangeType', this.value);
-        });
-    }
-
-    // Call restore after a short delay to ensure DOM is ready
-    setTimeout(restoreDateRange, 100);
 
     function formatDate(date) {
         const year = date.getFullYear();

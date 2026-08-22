@@ -9,7 +9,12 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/TicketStockHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/CashierTransportAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 
 // Helper function for logging activity
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
@@ -297,7 +302,14 @@ function handleGet() {
                 echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
                 exit;
             }
-            $branchId = $decodedId;
+                $branchId = $decodedId;
+        }
+        try {
+            PosAccess::assertBranchAccess($user, (int) $branchId);
+        } catch (Throwable $e) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
         }
         $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "pw.branch_id = :branch_id";
         $params['branch_id'] = (int)$branchId;
@@ -307,7 +319,14 @@ function handleGet() {
     // Returns the actual wallet (parent wallet if child has none)
     $resolve = $_GET['resolve'] ?? null;
     if ($resolve === '1' && $providerId) {
-        $resolveBranchId = $branchId ? (int)$branchId : (int)$effectiveBranchId;
+        $allowedResolveBranches = PosAccess::allowedBranchIds($user);
+        $resolveBranchId = $branchId ? (int) $branchId : null;
+        if (!$resolveBranchId && $sessionBranchId) {
+            $resolveBranchId = (int) $sessionBranchId;
+        }
+        if (!$resolveBranchId && $allowedResolveBranches !== null && count($allowedResolveBranches) === 1) {
+            $resolveBranchId = $allowedResolveBranches[0];
+        }
         if (!$resolveBranchId) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Branch ID is required to resolve wallet']);
@@ -361,6 +380,13 @@ function handleGet() {
                     pv.variant_code as variant_code,
                     pv.variant_name as variant_name,
                     pv.display_color as variant_color,
+                    (
+                        SELECT COALESCE(SUM(bts.on_hand_qty), 0)
+                        FROM branch_ticket_stocks bts
+                        WHERE bts.branch_id = pw.branch_id
+                          AND bts.provider_id = pw.provider_id
+                          AND bts.variant_id = pw.variant_id
+                    ) as on_hand_qty,
                     CONCAT(tp.provider_name,
                            IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
                            ' - ', bb.branch_name) as wallet_name
@@ -384,60 +410,20 @@ function handleGet() {
         exit;
     }
 
-    // Filter by transport type for cashiers with restrictions
-    // Fetch user data directly to get has_restricted_transport
-    $userData = Database::fetch(
-        "SELECT has_restricted_transport FROM user_accounts WHERE user_id = :user_id",
-        ['user_id' => $user['user_id']]
-    );
-    $hasRestrictedTransport = ($userData['has_restricted_transport'] ?? 0) == 1;
-    
-    if ($userRoleCode === 'CASHIER' && $hasRestrictedTransport) {
-        // Get cashier's transport assignments
-        $transportAssignments = Database::fetchAll(
-            "SELECT cta.provider_id, cta.transport_type
-             FROM cashier_transport_assignments cta
-             WHERE cta.user_id = :user_id",
-            ['user_id' => $user['user_id']]
-        );
-
-        if ($transportAssignments) {
-            $allowedProviderIds = [];
-            $allowedTransportTypes = [];
-
-            foreach ($transportAssignments as $assignment) {
-                if ($assignment['provider_id']) {
-                    $allowedProviderIds[] = (int)$assignment['provider_id'];
-                }
-                if ($assignment['transport_type']) {
-                    $allowedTransportTypes[] = $assignment['transport_type'];
-                }
+    // Apply the same server-authoritative provider policy used by ticket sales.
+    $allowedWalletProviderIds = CashierTransportAccess::allowedWalletProviderIds($user);
+    if ($allowedWalletProviderIds !== null) {
+        if (!$allowedWalletProviderIds) {
+            $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "1 = 0";
+        } else {
+            $placeholders = [];
+            foreach (array_values($allowedWalletProviderIds) as $index => $providerId) {
+                $placeholder = ':transport_wallet_provider_' . $index;
+                $placeholders[] = $placeholder;
+                $params['transport_wallet_provider_' . $index] = $providerId;
             }
-
-            // Build filter for specific providers or transport types
-            $transportFilter = "";
-            if (!empty($allowedProviderIds)) {
-                $providerPlaceholders = [];
-                foreach ($allowedProviderIds as $i => $pid) {
-                    $providerPlaceholders[] = ':transport_provider_' . $i;
-                    $params['transport_provider_' . $i] = $pid;
-                }
-                $transportFilter = "pw.provider_id IN (" . implode(',', $providerPlaceholders) . ")";
-            } elseif (!empty($allowedTransportTypes)) {
-                $typePlaceholders = [];
-                foreach ($allowedTransportTypes as $i => $type) {
-                    $typePlaceholders[] = ':transport_type_' . $i;
-                    $params['transport_type_' . $i] = $type;
-                }
-                $transportFilter = "tp.provider_type IN (" . implode(',', $typePlaceholders) . ")";
-            }
-
-            if ($transportFilter) {
-                $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . $transportFilter;
-            } else {
-                // No assignments - show no wallets
-                $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "1 = 0";
-            }
+            $providerFilter = "pw.provider_id IN (" . implode(',', $placeholders) . ")";
+            $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . $providerFilter;
         }
     }
 
@@ -452,6 +438,13 @@ function handleGet() {
                    pv.variant_code as variant_code,
                    pv.variant_name as variant_name,
                    pv.display_color as variant_color,
+                   (
+                       SELECT COALESCE(SUM(bts.on_hand_qty), 0)
+                       FROM branch_ticket_stocks bts
+                       WHERE bts.branch_id = pw.branch_id
+                         AND bts.provider_id = pw.provider_id
+                         AND bts.variant_id = pw.variant_id
+                   ) as on_hand_qty,
                    CONCAT(tp.provider_name,
                           IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
                           ' - ', bb.branch_name) as wallet_name
@@ -464,6 +457,26 @@ function handleGet() {
             ORDER BY tp.provider_name, pv.variant_name, bb.branch_name";
 
     $wallets = Database::fetchAll($sql, $params);
+
+    if ($action === 'balances') {
+        $balances = array_map(function ($w) {
+            return [
+                'wallet_id' => (int)$w['wallet_id'],
+                'branch_id' => (int)$w['branch_id'],
+                'current_balance' => (float)$w['current_balance'],
+                'min_balance' => (float)$w['min_balance'],
+                'status' => $w['status']
+            ];
+        }, $wallets);
+
+        echo json_encode([
+            'success' => true,
+            'data' => [
+                'wallets' => $balances
+            ]
+        ]);
+        return;
+    }
 
     echo json_encode([
         'success' => true,
@@ -497,6 +510,9 @@ function handlePost() {
     $branchId = $input['branch_id'] ?? null;
     $variantId = $input['variant_id'] ?? null;
     $initialBalance = floatval($input['initial_balance'] ?? 0);
+    $initialTicketCount = ($variantId && isset($input['initial_ticket_count']))
+        ? max(0, (int) $input['initial_ticket_count'])
+        : 0;
     $minBalance = floatval($input['min_balance'] ?? 1000);
     $status = $input['status'] ?? 'active';
 
@@ -533,6 +549,18 @@ function handlePost() {
     // Validate required fields
     if (!$providerId || !$branchId) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
+        return;
+    }
+    if ($initialBalance < 0 || $minBalance < 0 || !in_array($status, ['active', 'inactive'], true)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid wallet balance or status.']);
+        return;
+    }
+    if ($initialTicketCount < 0) {
+        echo json_encode(['success' => false, 'error' => 'Invalid initial ticket count.']);
+        return;
+    }
+    if (($initialBalance > 0 || $initialTicketCount > 0) && $status !== 'active') {
+        echo json_encode(['success' => false, 'error' => 'An inactive wallet cannot receive an opening balance or stock.']);
         return;
     }
 
@@ -572,39 +600,99 @@ function handlePost() {
         return;
     }
     
-    // Insert new wallet with initial balance
-    $sql = "INSERT INTO provider_wallets (provider_id, branch_id, variant_id, current_balance, min_balance, status, created_at)
-            VALUES (:provider_id, :branch_id, :variant_id, :initial_balance, :min_balance, :status, :created_at)";
-    
-    Database::execute($sql, [
-        'provider_id' => (int)$providerId,
-        'branch_id' => (int)$branchId,
-        'variant_id' => $variantId ? (int)$variantId : null,
-        'initial_balance' => $initialBalance,
-        'min_balance' => $minBalance,
-        'status' => $status,
-        'created_at' => date('Y-m-d H:i:s')
-    ]);
-    
-    $walletId = Database::connection()->lastInsertId();
-    
-    // Log activity
-    logActivity(
-        $user['user_id'],
-        'CREATE_WALLET',
-        'WALLET_MANAGEMENT',
-        "WALLET-{$walletId}",
-        null,
-        [
-            'wallet_id' => $walletId,
-            'provider_id' => $providerId,
-            'branch_id' => $branchId,
-            'initial_balance' => $initialBalance,
-            'status' => $status
-        ]
-    );
-    
-    echo json_encode(['success' => true, 'message' => 'Wallet created successfully', 'wallet_id' => $walletId, 'initial_balance' => $initialBalance]);
+    // Create the wallet at zero, then post the opening balance through the same
+    // append-only ledger used by POS sales and manual adjustments.
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+
+    try {
+        $sql = "INSERT INTO provider_wallets (provider_id, branch_id, variant_id, current_balance, min_balance, status, created_at)
+                VALUES (:provider_id, :branch_id, :variant_id, 0, :min_balance, :status, :created_at)";
+
+        Database::execute($sql, [
+            'provider_id' => (int)$providerId,
+            'branch_id' => (int)$branchId,
+            'variant_id' => $variantId ? (int)$variantId : null,
+            'min_balance' => $minBalance,
+            'status' => $status,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+
+        $walletId = (int) Database::lastInsertId();
+        $openingLedger = null;
+        $stockMovement = null;
+        if (!$variantId && $initialBalance > 0) {
+            $openingLedger = BalanceLedgerService::walletMovement(
+                $walletId,
+                'TOPUP',
+                'IN',
+                $initialBalance,
+                'provider_wallets',
+                $walletId,
+                'Opening wallet balance',
+                (int) $user['user_id'],
+                'wallet-opening:' . $walletId
+            );
+        }
+        if ($variantId && $initialTicketCount > 0) {
+            $stockMovement = TicketStockHelper::receiveStock(
+                (int) $branchId,
+                (int) $providerId,
+                (int) $variantId,
+                $initialTicketCount,
+                (int) $user['user_id'],
+                [
+                    'reference_type' => 'WALLET',
+                    'reference_id'   => $walletId,
+                    'remarks'        => 'Opening stock from wallet creation'
+                ]
+            );
+        }
+
+        logActivity(
+            $user['user_id'],
+            'CREATE_WALLET',
+            'WALLET_MANAGEMENT',
+            "WALLET-{$walletId}",
+            null,
+            [
+                'wallet_id' => $walletId,
+                'provider_id' => $providerId,
+                'branch_id' => $branchId,
+                'initial_balance' => $variantId ? 0 : $initialBalance,
+                'initial_ticket_count' => $variantId ? $initialTicketCount : 0,
+                'opening_ledger_id' => $openingLedger['wallet_txn_id'] ?? null,
+                'opening_stock_movement_id' => $stockMovement['movement_id'] ?? null,
+                'status' => $status
+            ]
+        );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    if ($stockMovement) {
+        PusherService::triggerBranch((int) $branchId, 'ticket_stock.updated', [
+            'branch_id' => (int) $branchId,
+            'provider_id' => (int) $providerId,
+            'variant_id' => (int) $variantId,
+            'source' => 'wallet_creation',
+            'changed_at' => date(DATE_ATOM),
+        ]);
+    }
+
+    $responseData = [
+        'success' => true,
+        'message' => 'Wallet created successfully',
+        'wallet_id' => $walletId,
+        'initial_balance' => $variantId ? 0 : $initialBalance,
+        'initial_ticket_count' => $variantId ? $initialTicketCount : 0,
+    ];
+    echo json_encode($responseData);
 }
 
 /**
@@ -640,8 +728,18 @@ function handlePut() {
         $walletId = $decodedId;
     }
     
-    if (!$walletId || (!$status && !$minBalance)) {
+    if (!$walletId || ($status === null && $minBalance === null)) {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
+        return;
+    }
+
+    if ($status !== null && !in_array($status, ['active', 'inactive'], true)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid wallet status']);
+        return;
+    }
+
+    if ($minBalance !== null && (!is_numeric($minBalance) || (float)$minBalance < 0)) {
+        echo json_encode(['success' => false, 'error' => 'Minimum balance cannot be negative']);
         return;
     }
     
@@ -679,17 +777,44 @@ function handlePut() {
     
     Database::execute($sql, $updateParams);
     
+    $updatedStatus = $status !== null ? $status : $currentWallet['status'];
+    $updatedMinBalance = $minBalance !== null ? (float)$minBalance : (float)$currentWallet['min_balance'];
+    $updatedBalance = (float)$currentWallet['current_balance'];
+
     // Log activity
     logActivity(
         $user['user_id'],
         'UPDATE_WALLET',
         'WALLET_MANAGEMENT',
         "WALLET-{$walletId}",
-        ['status' => $currentWallet['status']],
-        ['status' => $status]
+        [
+            'status' => $currentWallet['status'],
+            'min_balance' => (float)$currentWallet['min_balance']
+        ],
+        [
+            'status' => $updatedStatus,
+            'min_balance' => $updatedMinBalance
+        ]
     );
-    
-    echo json_encode(['success' => true, 'message' => 'Wallet updated successfully']);
+
+    PusherService::triggerBranch((int)$currentWallet['branch_id'], 'wallet.updated', [
+        'wallet_id' => (int)$walletId,
+        'branch_id' => (int)$currentWallet['branch_id'],
+        'current_balance' => $updatedBalance,
+        'min_balance' => $updatedMinBalance,
+        'status' => $updatedStatus
+    ]);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Wallet updated successfully',
+        'data' => [
+            'wallet_id' => (int)$walletId,
+            'current_balance' => $updatedBalance,
+            'min_balance' => $updatedMinBalance,
+            'status' => $updatedStatus
+        ]
+    ]);
 }
 
 /**

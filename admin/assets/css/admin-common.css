@@ -1,0 +1,112 @@
+/*
+ * admin-common.css
+ * Shared admin UI normalizations to keep font weights and sizes consistent
+ * across modules (matches the calmer look of /admin/system-settings/).
+ *
+ * Loaded in admin/includes/head.php so it applies to all admin pages.
+ */
+
+/* Make the default "bold" utility less heavy so pages are not over-bold */
+.fw-bold {
+    font-weight: 600;
+}
+
+/* Keep extra-bold for actual emphasis */
+.fw-bolder {
+    font-weight: 700;
+}
+
+/* Buttons and badges keep theme weights */
+.btn {
+    font-weight: 500;
+}
+
+.badge {
+    font-weight: 600;
+}
+
+/* Labels and small helper text should not be heavy */
+label,
+.form-label,
+.form-check-label,
+label.fw-bold,
+.form-label.fw-bold,
+.fw-bold.text-muted.small,
+.fw-bold.small.text-muted,
+.small.fw-bold,
+.text-muted.small.fw-bold {
+    font-weight: 500;
+}
+
+/* Detail view labels */
+.transaction-detail-label,
+.detail-label,
+.detail-row label {
+    font-weight: 500;
+}
+
+/* Headings: semibold, not heavy bold */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+    font-weight: 600;
+}
+
+/* Card headers should match the system-settings look */
+.card-header {
+    font-weight: 600;
+}
+
+.card-header h4,
+.card-header h5,
+.card-header h6,
+.card-header .h4,
+.card-header .h5,
+.card-header .h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+/* Table headers: semibold for clear hierarchy */
+.table thead th {
+    font-weight: 600;
+}
+
+/* Table data values: avoid heavy bold on plain values */
+.table td .fw-bold {
+    font-weight: 600;
+}
+
+/* Stat/value numbers can be bold-ish but not oversized */
+.fs-5.fw-bold,
+.fs-4.fw-bold,
+.fs-3.fw-bold {
+    font-weight: 600;
+}
+
+/* Empty states: keep icon/text sizes reasonable */
+.empty-state-icon {
+    font-size: 2.5rem !important;
+}
+
+.empty-state-text {
+    font-size: 1rem !important;
+    font-weight: 600;
+}
+
+.empty-state-subtext {
+    font-size: 0.875rem !important;
+}
+
+/* Wallet transaction detail modal: calm oversized amount text */
+#viewTransactionModal .txn-amount {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+/* Calm oversized stat-card numbers without touching icons or display values */
+.card .font-sans-serif.fs-5:not(.display-4),
+.card .fs-5.font-sans-serif:not(.display-4) {
+    font-size: 1rem;
+    font-weight: 500;
+}

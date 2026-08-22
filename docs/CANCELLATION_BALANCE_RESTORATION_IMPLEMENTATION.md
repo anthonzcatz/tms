@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-Ensure that every ticket cancellation (immediate or manager-approved) restores money and physical inventory in the exact reverse way the original POS sale consumed them. The work also centralizes duplicated cancellation logic into a reusable service so future fixes only need to happen in one place.
+Ensure that every ticket cancellation (immediate or manager-approved) reverses only the eligible financial/inventory effects. Variant tickets are consumed and are never returned to physical availability or provider-wallet balance; the work also centralizes cancellation effects in one reusable service.
 
 ## 2. Sale behavior that cancellation must mirror
 
@@ -27,11 +27,11 @@ A single helper that both cancellation APIs now delegate to:
 - `processCancellationEffects(...)`
   - Marks `ticket_transactions.status = 'cancelled'`.
   - Reverses the CHARGE portion from `customer_charges`.
-  - Resolves the correct wallet via `WalletResolver::resolve(...)` with `variant_id`.
-  - Credits the wallet proportionally on `base_amount`.
-  - Inserts a `wallet_transactions` refund row (`txn_type = 'REFUND'`, `direction = 'IN'`).
-  - For **non-wallet variants**, restores 1 physical ticket to `branch_ticket_stocks` via `TicketStockHelper::restoreOnSale()` with movement type `POS_CANCEL`.
-  - Zeros the `pos_order_items` row and increments `pos_orders.total_refunded_amount`.
+  - Resolves the correct wallet via `WalletResolver::resolve(...)` with `variant_id` only when restoration is allowed.
+  - Credits the provider wallet proportionally on `base_amount` only for non-variant tickets.
+  - Inserts a `wallet_transactions` refund row (`txn_type = 'REFUND'`, `direction = 'IN'`) only when a provider-wallet restoration is allowed.
+  - Consumed variant tickets do not restore physical stock and do not receive provider-wallet credit.
+  - Zeros or reduces the `pos_order_items` row and updates `pos_orders.total_refunded_amount` for real refunds.
   - Inserts a `ticket_refunds` record.
 
 Helper utilities in the same file:
@@ -44,7 +44,7 @@ Helper utilities in the same file:
 
 **File:** `app/helpers/TicketStockHelper.php`
 
-Added `restoreOnSale(...)` as a convenience wrapper over `adjustOnHand(...)` with a positive delta and `movement_type = 'POS_CANCEL'`. This is used only for non-wallet variants, because wallet-backed variants never deducted physical stock on sale.
+`restoreOnSale(...)` remains available for inventory workflows, but consumed POS variant tickets must not call it during cancellation, refund, or void. Variant tickets are not reusable after sale, regardless of whether the provider wallet is variant-specific.
 
 ### 3.3 Refactored cancellation APIs
 
@@ -75,8 +75,9 @@ When `cancellation_requires_confirmation = 0`:
 2. Inserts an `approved` `ticket_cancellations` row.
 3. Updates the cashier session refund total.
 4. Calls `CancellationService::processCancellationEffects(...)`.
-   - Wallet is credited proportionally.
-   - Physical stock is restored **only** if the resolved wallet is not variant-specific.
+   - Customer CHARGE debt is reversed according to the original payment account.
+   - Provider wallet/stock restoration occurs only for non-variant tickets.
+   - Consumed variant tickets receive no physical-stock or provider-wallet restoration.
 5. Logs and responds.
 
 ### 4.2 Approval of pending cancellation from Refund Confirmations
@@ -87,7 +88,8 @@ When a pending cancellation is approved:
 
 1. Updates `ticket_cancellations.status = 'approved'`.
 2. Calls `CancellationService::processCancellationEffects(...)`.
-   - Same wallet credit and conditional stock restore as immediate cancellation.
+   - Same customer CHARGE reversal and non-variant restoration rules as immediate cancellation.
+   - Consumed variant tickets receive no stock or provider-wallet restoration.
 3. Logs and responds.
 
 ## 5. Files changed
@@ -108,13 +110,12 @@ When a pending cancellation is approved:
 
 ```
 Ticket has variant_id?
-├── No  → no branch stock movement on sale or cancel
-└── Yes → WalletResolver::resolve(provider, branch, variant)
-            ├── Variant-specific wallet (variant_id NOT NULL)
-            │       Sale:  deduct base_amount from provider_wallets
-            │       Cancel: credit base_amount to provider_wallets
-            │       Branch stock is never touched
-            └── Provider-level / parent wallet (variant_id IS NULL)
-                    Sale:  deduct 1 from branch_ticket_stocks + deduct base_amount from wallet
-                    Cancel: restore 1 to branch_ticket_stocks + credit base_amount to wallet
+├── No  → non-variant ticket
+│         Sale: deduct the applicable provider wallet balance
+│         Refund/Void: restore the applicable provider wallet balance when allowed
+│         Physical variant stock: not involved
+└── Yes → consumed variant ticket
+          Sale: consume the selected variant according to sale rules
+          Refund/Void: do not restore branch stock or provider wallet balance
+          CHARGE debt: reverse the original charged account when applicable
 ```

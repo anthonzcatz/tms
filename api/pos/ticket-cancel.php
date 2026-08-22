@@ -1,16 +1,16 @@
 <?php
 /**
- * POS Ticket Cancel/Return API — Handle ticket cancellation with wallet refund
- * Supports mixed payments (cash + CHARGE). On cancellation the CHARGE portion
- * is stored as charge_amount and reversed from customer_charges only when the
- * cancellation is confirmed (approved or immediate). Pending cancellations do
- * NOT touch customer_charges or pos_order_items until a decision is made.
+ * POS Ticket Adjustment API — Handle ticket Void and Refund operations.
+ * Supports mixed payments (cash + CHARGE), customer responsibility deductions,
+ * and manager-approved cashier responsibility. Pending operations do NOT touch
+ * customer_charges, wallet balances, stock, or order items until approved.
  */
 
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/CancellationService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 function logActivity($userId, $action, $module, $ref = null, $old = null, $new = null) {
@@ -21,6 +21,119 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
          'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null]
     );
+}
+
+function resolveTicketChargeAccountId(int $transactionId, ?int $fallbackPassengerId): ?int
+{
+    $row = Database::fetch(
+        "SELECT tp.charged_to_passenger_id
+         FROM transaction_payments tp
+         JOIN payment_methods pm ON pm.method_id = tp.payment_method_id
+         WHERE tp.source_type = 'TICKET_TRANSACTION'
+           AND tp.source_id = :transaction_id
+           AND pm.tracks_credit = 1
+           AND tp.charged_to_passenger_id IS NOT NULL
+           AND tp.confirmation_status <> 'REJECTED'
+         ORDER BY tp.payment_id ASC
+         LIMIT 1",
+        ['transaction_id' => $transactionId]
+    );
+
+    return $row ? (int) $row['charged_to_passenger_id'] : ($fallbackPassengerId ?: null);
+}
+
+function resolveTargetCashier(int $cashierUserId, int $branchId): ?array
+{
+    if ($cashierUserId <= 0 || $branchId <= 0) return null;
+
+    return Database::fetch(
+        "SELECT ua.user_id, cs.session_id, cs.cashier_user_id, cs.branch_id
+         FROM user_accounts ua
+         JOIN user_roles ur ON ur.role_id = ua.role_id
+         LEFT JOIN cashier_sessions cs
+           ON cs.cashier_user_id = ua.user_id
+          AND cs.branch_id = :branch_id
+          AND cs.status = 'OPEN'
+         WHERE ua.user_id = :cashier_user_id
+           AND ua.status = 'active'
+           AND FIND_IN_SET(:assigned_branch_id, ua.branch_id) > 0
+           AND ur.role_code = 'CASHIER'
+         ORDER BY cs.started_at DESC
+         LIMIT 1",
+        ['cashier_user_id' => $cashierUserId, 'branch_id' => $branchId, 'assigned_branch_id' => $branchId]
+    ) ?: null;
+}
+
+function createTicketAdjustment(
+    int $transactionId,
+    int $cancellationId,
+    string $operationType,
+    string $responsibility,
+    float $amount,
+    ?int $chargeAccountId,
+    ?int $responsibleUserId,
+    ?int $cashierSessionId,
+    string $approvalStatus,
+    ?int $approvedBy,
+    ?string $reason
+): int {
+    $adjustmentType = $operationType === 'VOID' ? 'VOID' : 'REFUND';
+    $chargedTo = $responsibility === 'CUSTOMER'
+        ? 'customer'
+        : ($responsibility === 'CASHIER' ? 'cashier' : 'none');
+    if ($approvalStatus === 'APPROVED' && $responsibility === 'CASHIER' && $amount > 0) {
+        $settlementStatus = $cashierSessionId ? 'DEDUCTED' : 'RECORDED';
+    } elseif ($approvalStatus === 'APPROVED' && $responsibility === 'CUSTOMER' && $amount > 0) {
+        $settlementStatus = 'AUDIT_ONLY';
+    } else {
+        $settlementStatus = 'NOT_APPLICABLE';
+    }
+    $settledAt = in_array($settlementStatus, ['DEDUCTED', 'RECORDED', 'AUDIT_ONLY'], true)
+        ? date('Y-m-d H:i:s')
+        : null;
+    $settledBy = $settledAt !== null ? $approvedBy : null;
+    $idempotencyKey = 'ticket-adjustment:cancellation:' . $cancellationId;
+
+    Database::execute(
+        "INSERT INTO ticket_adjustments
+            (transaction_id, cancellation_id, idempotency_key, type, amount, reason,
+             charged_to, charged_to_passenger_id, responsible_user_id, cashier_session_id,
+             approval_status, approved_by, approved_at, settlement_status, created_by, settled_at, settled_by, created_at)
+         VALUES (:transaction_id, :cancellation_id, :idempotency_key, :type, :amount, :reason,
+                 :charged_to, :charged_to_passenger_id, :responsible_user_id, :cashier_session_id,
+                 :approval_status, :approved_by, :approved_at, :settlement_status, :created_by, :settled_at, :settled_by, NOW())",
+        [
+            'transaction_id' => $transactionId,
+            'cancellation_id' => $cancellationId,
+            'idempotency_key' => $idempotencyKey,
+            'type' => $adjustmentType,
+            'amount' => max(0, round($amount, 2)),
+            'reason' => $reason,
+            'charged_to' => $chargedTo,
+            'charged_to_passenger_id' => $chargeAccountId,
+            'responsible_user_id' => $responsibleUserId,
+            'cashier_session_id' => $cashierSessionId,
+            'approval_status' => $approvalStatus,
+            'approved_by' => $approvedBy,
+            'approved_at' => $approvedBy ? date('Y-m-d H:i:s') : null,
+            'settlement_status' => $settlementStatus,
+            'created_by' => Auth::id(),
+            'settled_at' => $settledAt,
+            'settled_by' => $settledBy,
+        ]
+    );
+    $adjustmentId = (int) Database::lastInsertId();
+
+    if ($settlementStatus === 'DEDUCTED' && $cashierSessionId && $amount > 0) {
+        Database::execute(
+            "UPDATE cashier_sessions
+             SET total_cash_adjustments = COALESCE(total_cash_adjustments, 0) + :amount
+             WHERE session_id = :session_id",
+            ['amount' => max(0, round($amount, 2)), 'session_id' => $cashierSessionId]
+        );
+    }
+
+    return $adjustmentId;
 }
 
 Auth::requireLogin();
@@ -35,23 +148,88 @@ if ($method !== 'POST') {
 
 $input = json_decode(file_get_contents('php://input'), true);
 
-$txnCode      = $input['transaction_code'] ?? null;
-$refundAmount = $input['refund_amount'] ?? null;
-$reason       = $input['reason'] ?? null;
+$txnCode = $input['transaction_code'] ?? null;
+$operationType = strtoupper(trim((string) ($input['operation_type'] ?? 'REFUND')));
+$reasonCategory = strtoupper(trim((string) ($input['reason_category'] ?? 'OTHER')));
+$responsibility = strtoupper(trim((string) ($input['responsibility'] ?? 'NONE')));
+$reason = trim((string) ($input['reason'] ?? ''));
+$grossRefundAmount = max(0, round((float) ($input['refund_amount'] ?? 0), 2));
+$responsibilityAmount = max(0, round((float) ($input['responsibility_amount'] ?? 0), 2));
+$enteredVoidFee = max(0, round((float) ($input['void_fee'] ?? 0), 2));
+$enteredVoidServiceFee = max(0, round((float) ($input['void_service_fee'] ?? 0), 2));
+$voidFee = 0.0;
+$voidServiceFee = 0.0;
+$lostSalesVoidFee = 0.0;
+$lostSalesServiceFee = 0.0;
+$responsibleUserId = !empty($input['responsible_user_id']) ? (int) $input['responsible_user_id'] : null;
 
-// Validate
+$allowedOperations = ['REFUND', 'VOID'];
+$allowedReasonCategories = ['CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR', 'PRINTER_ERROR', 'SYSTEM_ERROR', 'OTHER'];
+$allowedResponsibilities = ['NONE', 'CUSTOMER', 'CASHIER'];
+
+$requiredResponsibilityByReason = [
+    'CUSTOMER_ERROR' => 'CUSTOMER',
+    'CASHIER_ERROR'  => 'CASHIER',
+    'PRINTER_ERROR'  => 'NONE',
+    'SYSTEM_ERROR'   => 'NONE',
+    'CUSTOMER_REQUEST' => 'NONE',
+    'OTHER'          => 'NONE',
+];
+
 if (!$txnCode) { echo json_encode(['success' => false, 'error' => 'Transaction code required.']); exit; }
-if (!$refundAmount || floatval($refundAmount) <= 0) { echo json_encode(['success' => false, 'error' => 'Refund amount must be greater than 0.']); exit; }
-
-$refundAmount = floatval($refundAmount);
+if (!in_array($operationType, $allowedOperations, true)) { echo json_encode(['success' => false, 'error' => 'Invalid operation type.']); exit; }
+if (!in_array($reasonCategory, $allowedReasonCategories, true)) { echo json_encode(['success' => false, 'error' => 'Invalid reason category.']); exit; }
+if (!in_array($responsibility, $allowedResponsibilities, true)) { echo json_encode(['success' => false, 'error' => 'Invalid responsibility type.']); exit; }
+if (!$reason) { echo json_encode(['success' => false, 'error' => 'Reason is required.']); exit; }
+if ($operationType === 'REFUND' && $grossRefundAmount <= 0) { echo json_encode(['success' => false, 'error' => 'Refund amount must be greater than 0.']); exit; }
+if ($operationType === 'VOID') {
+    $grossRefundAmount = 0.0;
+    if ($reasonCategory === 'PRINTER_ERROR') {
+        $lostSalesVoidFee = $enteredVoidFee;
+        $lostSalesServiceFee = $enteredVoidServiceFee;
+    } else {
+        $voidFee = $enteredVoidFee;
+        $voidServiceFee = $enteredVoidServiceFee;
+    }
+}
+if ($operationType === 'VOID' && $responsibility !== 'NONE') {
+    $responsibilityAmount = round($voidFee + $voidServiceFee, 2);
+}
+if ($responsibility === 'NONE' && $responsibilityAmount > 0) { echo json_encode(['success' => false, 'error' => 'A responsibility type is required for the entered amount.']); exit; }
+$reasonAllowsResponsibility = $operationType === 'VOID' && $reasonCategory === 'CUSTOMER_REQUEST';
+if (!$reasonAllowsResponsibility
+    && isset($requiredResponsibilityByReason[$reasonCategory])
+    && $responsibility !== $requiredResponsibilityByReason[$reasonCategory]) {
+    $expected = strtolower($requiredResponsibilityByReason[$reasonCategory] === 'NONE' ? 'no responsibility' : $requiredResponsibilityByReason[$reasonCategory] . ' responsibility');
+    echo json_encode(['success' => false, 'error' => ucfirst(str_replace('_', ' ', strtolower($reasonCategory))) . ' requires ' . $expected . '.']); exit;
+}
+if ($responsibility === 'CASHIER' && !$responsibleUserId) { echo json_encode(['success' => false, 'error' => 'A responsible cashier is required.']); exit; }
+if ($responsibility !== 'CASHIER') $responsibleUserId = null;
+if ($responsibility === 'CASHIER' && $operationType === 'VOID' && $responsibilityAmount <= 0) {
+    echo json_encode(['success' => false, 'error' => 'Responsibility amount must be greater than 0 for a VOID assigned to a cashier.']); exit;
+}
+if ($responsibility === 'CUSTOMER' && $operationType === 'REFUND' && $responsibilityAmount >= $grossRefundAmount) {
+    echo json_encode(['success' => false, 'error' => 'Customer responsibility amount must be less than the refund amount.']); exit;
+}
+if ($responsibility === 'CASHIER' && $operationType === 'REFUND' && $responsibilityAmount <= 0) {
+    $responsibilityAmount = $grossRefundAmount;
+}
 
 // Get system settings for cancellation
-$settings = Database::fetch(
-    "SELECT cancellation_requires_confirmation, cancellation_refund_processing_days
-     FROM system_settings WHERE setting_id = 1"
-);
-
-$requiresConfirmation = $settings['cancellation_requires_confirmation'] ?? 1;
+try {
+    $settings = Database::fetch(
+        "SELECT cancellation_requires_confirmation, void_requires_confirmation,
+                return_requires_confirmation, cancellation_refund_processing_days
+         FROM system_settings WHERE setting_id = 1"
+    ) ?: [];
+} catch (Throwable $e) {
+    $settings = Database::fetch(
+        "SELECT cancellation_requires_confirmation, cancellation_refund_processing_days
+         FROM system_settings WHERE setting_id = 1"
+    ) ?: [];
+    $settings['void_requires_confirmation'] = $settings['cancellation_requires_confirmation'] ?? 1;
+    $settings['return_requires_confirmation'] = $settings['cancellation_requires_confirmation'] ?? 1;
+}
 
 // Get ticket transaction by transaction code
 $ticketTxn = Database::fetch(
@@ -86,20 +264,51 @@ if ($pendingCancellation) {
 
 // Validate refund amount (cannot exceed original total amount)
 $totalAmount = floatval($ticketTxn['total_amount'] ?? 0);
-if ($refundAmount > $totalAmount) {
+if ($grossRefundAmount > $totalAmount) {
     echo json_encode(['success' => false, 'error' => 'Refund amount cannot exceed the original Total Amount (₱' . number_format($totalAmount, 2) . ').']); exit;
 }
 
-$ticketTxnId = $ticketTxn['transaction_id'];
+$ticketTxnId = (int) $ticketTxn['transaction_id'];
 $passengerId = $ticketTxn['passenger_id'] ?? null;
+$refundAmount = $operationType === 'REFUND'
+    ? round($grossRefundAmount - ($responsibility === 'CUSTOMER' ? $responsibilityAmount : 0), 2)
+    : 0.0;
 
 if (!CancellationService::resolveProviderId($ticketTxn)) {
     echo json_encode(['success' => false, 'error' => 'This ticket transaction has no associated provider or wallet.']); exit;
 }
 
-// The charge amount to reverse = the smaller of (what was charged) and (refund being requested).
-$chargePaymentsTotal = CancellationService::computeChargePaymentsTotal((int) $ticketTxnId);
-$chargeAmount = min($chargePaymentsTotal, $refundAmount);
+$targetCashier = null;
+if ($responsibility === 'CASHIER') {
+    $targetCashier = resolveTargetCashier($responsibleUserId, (int) $ticketTxn['branch_id']);
+    if (!$targetCashier) {
+        echo json_encode(['success' => false, 'error' => 'The selected cashier must be active and assigned to this transaction branch.']); exit;
+    }
+}
+
+$chargeAccountId = resolveTicketChargeAccountId($ticketTxnId, $passengerId ? (int) $passengerId : null);
+$chargeAmount = 0.0;
+$cashRefundAmount = 0.0;
+if ($operationType === 'REFUND') {
+    try {
+        $refundPreview = RefundService::previewPaymentAllocations(
+            'TICKET_TRANSACTION',
+            $ticketTxnId,
+            $refundAmount
+        );
+        $chargeAmount = (float) ($refundPreview['charge_amount'] ?? 0);
+        $cashRefundAmount = (float) ($refundPreview['cash_amount'] ?? 0);
+    } catch (Throwable $e) {
+        echo json_encode(['success' => false, 'error' => 'Refund allocation failed: ' . $e->getMessage()]);
+        exit;
+    }
+} else {
+    $chargeAmount = CancellationService::computeChargePaymentsTotal($ticketTxnId);
+}
+
+$requiresConfirmation = (int) ($operationType === 'VOID'
+    ? ($settings['void_requires_confirmation'] ?? $settings['cancellation_requires_confirmation'] ?? 1)
+    : ($settings['return_requires_confirmation'] ?? $settings['cancellation_requires_confirmation'] ?? 1));
 
 // Get active cashier session for this user
 $cashierSession = Database::fetch(
@@ -114,8 +323,25 @@ $cashierSessionId = $cashierSession ? $cashierSession['session_id'] : null;
 Database::connection()->beginTransaction();
 
 try {
-    $cancellationType = ($refundAmount < $totalAmount) ? 'partial' : 'full';
-    $cashRefundAmount = $refundAmount - $chargeAmount;
+    $lockedTicketTxn = Database::fetch(
+        "SELECT * FROM ticket_transactions WHERE transaction_id = :transaction_id FOR UPDATE",
+        ['transaction_id' => $ticketTxnId]
+    );
+    if (!$lockedTicketTxn || in_array($lockedTicketTxn['status'], ['cancelled', 'refunded'], true)) {
+        throw new RuntimeException('Ticket transaction is already cancelled/refunded.');
+    }
+    $pendingCheck = Database::fetch(
+        "SELECT cancellation_id FROM ticket_cancellations
+         WHERE transaction_id = :transaction_id AND status = 'pending'
+         LIMIT 1",
+        ['transaction_id' => $ticketTxnId]
+    );
+    if ($pendingCheck) {
+        throw new RuntimeException('There is already a pending cancellation request for this ticket.');
+    }
+    $ticketTxn = $lockedTicketTxn;
+
+    $cancellationType = $operationType === 'VOID' || $grossRefundAmount >= $totalAmount ? 'full' : 'partial';
 
     if ($requiresConfirmation) {
         // -----------------------------------------------------------------
@@ -130,51 +356,112 @@ try {
 
         Database::execute(
             "INSERT INTO ticket_cancellations
-                (transaction_id, transaction_code, passenger_id, reason, cancellation_type,
-                 refund_amount, charge_amount, cash_refund_amount, status, requested_by, cashier_session_id, requested_at)
-             VALUES (:tid, :code, :pid, :reason, :ctype,
-                     :ramount, :camount, :cramount, 'pending', :uid, :csid, NOW())",
+                (transaction_id, transaction_code, operation_type, passenger_id, reason, reason_category,
+                 responsibility, responsible_user_id, cancellation_type, refund_amount, gross_refund_amount,
+                 charge_amount, cash_refund_amount, responsibility_amount, void_fee, void_service_fee,
+                 lost_sales_void_fee, lost_sales_service_fee,
+                 status, requested_by, cashier_session_id, responsibility_cashier_session_id, requested_at)
+             VALUES (:tid, :code, :operation_type, :pid, :reason, :reason_category,
+                     :responsibility, :responsible_user_id, :ctype, :ramount, :gross_amount,
+                     :camount, :cramount, :responsibility_amount, :void_fee, :void_service_fee,
+                     :lost_sales_void_fee, :lost_sales_service_fee, 'pending', :uid,
+                     :csid, :target_csid, NOW())",
             [
-                'tid'     => $ticketTxnId,
-                'code'    => $ticketTxn['transaction_code'],
-                'pid'     => $passengerId,
-                'reason'  => $reason,
-                'ctype'   => $cancellationType,
+                'tid' => $ticketTxnId,
+                'code' => $ticketTxn['transaction_code'],
+                'operation_type' => $operationType,
+                'pid' => $passengerId,
+                'reason' => $reason,
+                'reason_category' => $reasonCategory,
+                'responsibility' => $responsibility,
+                'responsible_user_id' => $responsibleUserId,
+                'ctype' => $cancellationType,
                 'ramount' => $refundAmount,
+                'gross_amount' => $grossRefundAmount,
                 'camount' => $chargeAmount,
                 'cramount' => $cashRefundAmount,
-                'uid'     => $user['user_id'],
-                'csid'    => $cashierSessionId,
+                'responsibility_amount' => $responsibilityAmount,
+                'void_fee' => $voidFee,
+                'void_service_fee' => $voidServiceFee,
+                'lost_sales_void_fee' => $lostSalesVoidFee,
+                'lost_sales_service_fee' => $lostSalesServiceFee,
+                'uid' => $user['user_id'],
+                'csid' => $cashierSessionId,
+                'target_csid' => $targetCashier['session_id'] ?? null,
             ]
         );
 
-        $cancellationId = Database::lastInsertId();
+        $cancellationId = (int) Database::lastInsertId();
+        $adjustmentId = createTicketAdjustment(
+            $ticketTxnId,
+            $cancellationId,
+            $operationType,
+            $responsibility,
+            $responsibilityAmount,
+            $responsibility === 'CUSTOMER' ? $chargeAccountId : null,
+            $responsibleUserId,
+            $targetCashier['session_id'] ?? null,
+            'PENDING',
+            null,
+            $reason
+        );
+        Database::execute(
+            "UPDATE ticket_cancellations SET adjustment_id = :adjustment_id WHERE cancellation_id = :cancellation_id",
+            ['adjustment_id' => $adjustmentId, 'cancellation_id' => $cancellationId]
+        );
 
-        // Track pending cash refund in cashier session
+        // Track pending cash separately; finalized expected cash is updated
+        // only after approval and actual refund processing.
         if ($cashierSessionId && $cashRefundAmount > 0) {
             Database::execute(
-                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-                ['ramount' => $cashRefundAmount, 'csid' => $cashierSessionId]
+                "UPDATE cashier_sessions
+                 SET pending_refunds_cash = COALESCE(pending_refunds_cash, 0) + :amount
+                 WHERE session_id = :session_id",
+                ['amount' => $cashRefundAmount, 'session_id' => $cashierSessionId]
             );
         }
 
-        logActivity($user['user_id'], 'TICKET_CANCEL_REQUEST', 'POS', $ticketTxn['transaction_code'], null,
-            ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId,
-             'refund_amount' => $refundAmount, 'charge_amount' => $chargeAmount, 'status' => 'pending']);
+        logActivity($user['user_id'], 'TICKET_ADJUSTMENT_REQUEST', 'POS', $ticketTxn['transaction_code'], null,
+            ['cancellation_id' => $cancellationId, 'adjustment_id' => $adjustmentId, 'ticket_txn_id' => $ticketTxnId,
+             'operation_type' => $operationType, 'reason_category' => $reasonCategory,
+             'responsibility' => $responsibility, 'responsible_user_id' => $responsibleUserId,
+             'gross_refund_amount' => $grossRefundAmount, 'refund_amount' => $refundAmount,
+             'responsibility_amount' => $responsibilityAmount, 'void_fee' => $voidFee,
+             'void_service_fee' => $voidServiceFee,
+             'lost_sales_void_fee' => $lostSalesVoidFee, 'lost_sales_service_fee' => $lostSalesServiceFee,
+             'charge_amount' => $chargeAmount, 'status' => 'pending']);
 
         Database::connection()->commit();
 
+        PusherService::triggerBranch((int) $ticketTxn['branch_id'], 'refund.updated', [
+            'branch_id' => (int) $ticketTxn['branch_id'],
+            'cancellation_id' => (int) $cancellationId,
+            'transaction_code' => $ticketTxn['transaction_code'],
+            'status' => 'pending',
+        ]);
+
         echo json_encode([
-            'success'              => true,
-            'message'              => 'Cancellation request submitted. Awaiting manager approval.',
-            'transaction_id'       => $ticketTxn['transaction_id'],
-            'transaction_code'     => $ticketTxn['transaction_code'],
-            'refund_amount'        => $refundAmount,
-            'charge_amount'        => $chargeAmount,
-            'cancellation_id'      => $cancellationId,
-            'status'               => 'pending_confirmation',
-            'requires_confirmation'=> true,
-            'refund_source'        => 'cashier_cash',
+            'success' => true,
+            'message' => $operationType === 'VOID'
+                ? 'Void request submitted. Awaiting manager approval.'
+                : 'Cancellation/refund request submitted. Awaiting manager approval.',
+            'transaction_id' => $ticketTxn['transaction_id'],
+            'transaction_code' => $ticketTxn['transaction_code'],
+            'operation_type' => $operationType,
+            'gross_refund_amount' => $grossRefundAmount,
+            'refund_amount' => $refundAmount,
+            'responsibility' => $responsibility,
+            'responsibility_amount' => $responsibilityAmount,
+            'void_fee' => $voidFee,
+            'void_service_fee' => $voidServiceFee,
+            'lost_sales_void_fee' => $lostSalesVoidFee,
+            'lost_sales_service_fee' => $lostSalesServiceFee,
+            'charge_amount' => $chargeAmount,
+            'cancellation_id' => $cancellationId,
+            'adjustment_id' => $adjustmentId,
+            'status' => 'pending_confirmation',
+            'requires_confirmation' => true,
+            'refund_source' => $operationType === 'REFUND' ? 'original_payment_sources' : 'none',
         ]);
 
     } else {
@@ -186,80 +473,158 @@ try {
         // Record the approved cancellation request.
         Database::execute(
             "INSERT INTO ticket_cancellations
-                (transaction_id, transaction_code, passenger_id, reason, cancellation_type,
-                 refund_amount, charge_amount, cash_refund_amount, status, requested_by, cashier_session_id,
-                 requested_at, approved_by, approved_at)
-             VALUES (:tid, :code, :pid, :reason, :ctype,
-                     :ramount, :camount, :cramount, 'approved', :uid, :csid,
-                     NOW(), :uid2, NOW())",
+                (transaction_id, transaction_code, operation_type, passenger_id, reason, reason_category,
+                 responsibility, responsible_user_id, cancellation_type, refund_amount, gross_refund_amount,
+                 charge_amount, cash_refund_amount, responsibility_amount, void_fee, void_service_fee,
+                 lost_sales_void_fee, lost_sales_service_fee,
+                 status, requested_by, cashier_session_id, responsibility_cashier_session_id, requested_at,
+                 approved_by, approved_at)
+             VALUES (:tid, :code, :operation_type, :pid, :reason, :reason_category,
+                     :responsibility, :responsible_user_id, :ctype, :ramount, :gross_amount,
+                     :camount, :cramount, :responsibility_amount, :void_fee, :void_service_fee,
+                     :lost_sales_void_fee, :lost_sales_service_fee, 'approved', :uid,
+                     :csid, :target_csid, NOW(), :uid2, NOW())",
             [
-                'tid'     => $ticketTxnId,
-                'code'    => $ticketTxn['transaction_code'],
-                'pid'     => $passengerId,
-                'reason'  => $reason,
-                'ctype'   => $cancellationType,
+                'tid' => $ticketTxnId,
+                'code' => $ticketTxn['transaction_code'],
+                'operation_type' => $operationType,
+                'pid' => $passengerId,
+                'reason' => $reason,
+                'reason_category' => $reasonCategory,
+                'responsibility' => $responsibility,
+                'responsible_user_id' => $responsibleUserId,
+                'ctype' => $cancellationType,
                 'ramount' => $refundAmount,
+                'gross_amount' => $grossRefundAmount,
                 'camount' => $chargeAmount,
                 'cramount' => $cashRefundAmount,
-                'uid'     => $user['user_id'],
-                'uid2'    => $user['user_id'],
-                'csid'    => $cashierSessionId,
+                'responsibility_amount' => $responsibilityAmount,
+                'void_fee' => $voidFee,
+                'void_service_fee' => $voidServiceFee,
+                'lost_sales_void_fee' => $lostSalesVoidFee,
+                'lost_sales_service_fee' => $lostSalesServiceFee,
+                'uid' => $user['user_id'],
+                'csid' => $cashierSessionId,
+                'target_csid' => $targetCashier['session_id'] ?? null,
+                'uid2' => $user['user_id'],
             ]
         );
 
-        $cancellationId = Database::lastInsertId();
-
-        // Track cash refund in cashier session.
-        if ($cashierSessionId && $cashRefundAmount > 0) {
-            Database::execute(
-                "UPDATE cashier_sessions SET total_refunds_wallet = total_refunds_wallet + :ramount WHERE session_id = :csid",
-                ['ramount' => $cashRefundAmount, 'csid' => $cashierSessionId]
-            );
-        }
-
-        $processingDays = $settings['cancellation_refund_processing_days'] ?? 0;
-
-        $effects = CancellationService::processCancellationEffects(
-            $ticketTxn,
-            [
-                'cancellation_id'      => $cancellationId,
-                'requested_by'         => $user['user_id'],
-                'cashier_session_id'   => $cashierSessionId,
-                'requested_at'         => date('Y-m-d H:i:s'),
-            ],
-            $refundAmount,
-            $cashRefundAmount,
-            $chargeAmount,
+        $cancellationId = (int) Database::lastInsertId();
+        $adjustmentId = createTicketAdjustment(
+            $ticketTxnId,
+            $cancellationId,
+            $operationType,
+            $responsibility,
+            $responsibilityAmount,
+            $responsibility === 'CUSTOMER' ? $chargeAccountId : null,
+            $responsibleUserId,
+            $targetCashier['session_id'] ?? null,
+            'APPROVED',
             (int) $user['user_id'],
-            (int) $processingDays,
-            $reason ?? '',
-            null
+            $reason
+        );
+        Database::execute(
+            "UPDATE ticket_cancellations SET adjustment_id = :adjustment_id WHERE cancellation_id = :cancellation_id",
+            ['adjustment_id' => $adjustmentId, 'cancellation_id' => $cancellationId]
         );
 
-        logActivity($user['user_id'], 'TICKET_CANCEL', 'POS', $ticketTxn['transaction_code'], null,
-            ['cancellation_id' => $cancellationId, 'ticket_txn_id' => $ticketTxnId,
-             'refund_amount' => $refundAmount, 'charge_amount' => $chargeAmount,
+        $processingDays = $settings['cancellation_refund_processing_days'] ?? 0;
+        $cancellationData = [
+            'cancellation_id' => $cancellationId,
+            'requested_by' => $user['user_id'],
+            'cashier_session_id' => $cashierSessionId,
+            'requested_at' => date('Y-m-d H:i:s'),
+            'reason' => $reason,
+            'operation_type' => $operationType,
+            'gross_refund_amount' => $grossRefundAmount,
+            'responsibility_amount' => $responsibilityAmount,
+            'void_fee' => $voidFee,
+            'void_service_fee' => $voidServiceFee,
+            'lost_sales_void_fee' => $lostSalesVoidFee,
+            'lost_sales_service_fee' => $lostSalesServiceFee,
+            'adjustment_id' => $adjustmentId,
+        ];
+
+        $effects = $operationType === 'VOID'
+            ? CancellationService::processVoidEffects(
+                $ticketTxn,
+                $cancellationData,
+                (int) $user['user_id'],
+                $reason
+            )
+            : CancellationService::processCancellationEffects(
+                $ticketTxn,
+                $cancellationData,
+                $refundAmount,
+                $cashRefundAmount,
+                $chargeAmount,
+                (int) $user['user_id'],
+                (int) $processingDays,
+                $reason,
+                null
+            );
+
+        logActivity($user['user_id'], 'TICKET_ADJUSTMENT', 'POS', $ticketTxn['transaction_code'], null,
+            ['cancellation_id' => $cancellationId, 'adjustment_id' => $adjustmentId, 'ticket_txn_id' => $ticketTxnId,
+             'operation_type' => $operationType, 'reason_category' => $reasonCategory,
+             'responsibility' => $responsibility, 'responsible_user_id' => $responsibleUserId,
+             'gross_refund_amount' => $grossRefundAmount, 'refund_amount' => $refundAmount,
+             'responsibility_amount' => $responsibilityAmount,
+             'void_fee' => $voidFee, 'void_service_fee' => $voidServiceFee,
+             'lost_sales_void_fee' => $lostSalesVoidFee, 'lost_sales_service_fee' => $lostSalesServiceFee,
+             'charge_amount' => $effects['charge_reversal_amount'],
              'wallet_balance_before' => $effects['wallet_balance_before'],
-             'wallet_balance_after'  => $effects['wallet_balance_after'],
+             'wallet_balance_after' => $effects['wallet_balance_after'],
              'wallet_txn_code' => $effects['wallet_txn_code'], 'requires_confirmation' => false]);
 
         Database::connection()->commit();
 
+        PusherService::triggerBranch((int) $ticketTxn['branch_id'], 'refund.updated', [
+            'branch_id' => (int) $ticketTxn['branch_id'],
+            'cancellation_id' => (int) $cancellationId,
+            'transaction_code' => $ticketTxn['transaction_code'],
+            'status' => 'completed',
+        ]);
+        if (!empty($effects['wallet_id'])) {
+            PusherService::triggerBranch((int) $ticketTxn['branch_id'], 'wallet.updated', [
+                'wallet_id' => (int) $effects['wallet_id'],
+                'branch_id' => (int) $ticketTxn['branch_id'],
+                'current_balance' => (float) ($effects['wallet_balance_after'] ?? 0),
+            ]);
+        }
+
         echo json_encode([
-            'success'              => true,
-            'message'              => 'Ticket cancelled successfully. Refund to be given from cashier cash.',
-            'transaction_id'       => $ticketTxn['transaction_id'],
-            'transaction_code'     => $ticketTxn['transaction_code'],
-            'refund_amount'        => $refundAmount,
-            'charge_amount'        => $chargeAmount,
-            'cancellation_id'      => $cancellationId,
-            'refund_status'        => $effects['refund_status'],
-            'requires_confirmation'=> false,
+            'success' => true,
+            'message' => $operationType === 'VOID'
+                ? 'Ticket voided successfully. No cash or bank refund was issued.'
+                : 'Ticket cancelled successfully and source refund processed.',
+            'transaction_id' => $ticketTxn['transaction_id'],
+            'transaction_code' => $ticketTxn['transaction_code'],
+            'operation_type' => $operationType,
+            'gross_refund_amount' => $grossRefundAmount,
+            'refund_amount' => $refundAmount,
+            'responsibility' => $responsibility,
+            'responsibility_amount' => $responsibilityAmount,
+            'void_fee' => $voidFee,
+            'void_service_fee' => $voidServiceFee,
+            'lost_sales_void_fee' => $lostSalesVoidFee,
+            'lost_sales_service_fee' => $lostSalesServiceFee,
+            'charge_amount' => $effects['charge_reversal_amount'],
+            'cash_refund_amount' => $effects['cash_refund_amount'],
+            'bank_refund_amount' => $effects['bank_refund_amount'] ?? 0,
+            'cancellation_id' => $cancellationId,
+            'adjustment_id' => $adjustmentId,
+            'refund_status' => $effects['refund_status'] ?? null,
+            'is_consumed_variant' => !empty($effects['is_consumed_variant']),
+            'requires_confirmation' => false,
         ]);
     }
 
-} catch (Exception $e) {
-    Database::connection()->rollBack();
+} catch (Throwable $e) {
+    if (Database::connection()->inTransaction()) {
+        Database::connection()->rollBack();
+    }
     echo json_encode(['success' => false, 'error' => 'Cancellation failed: ' . $e->getMessage()]);
 }
 

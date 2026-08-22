@@ -72,7 +72,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row">
                   <div class="col">
-                    <p class="font-sans-serif lh-1 mb-1 fs-5"><?php echo count($providers); ?></p>
+                    <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium"><?php echo count($providers); ?></p>
                   </div>
                   <div class="col-auto ps-0">
                     <div class="d-flex align-items-center">
@@ -91,7 +91,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
                   <div class="col-auto align-self-end">
-                    <div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($providers, fn($p) => $p['status'] === 'active')); ?></div>
+                    <div class="fs-6 fw-medium font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($providers, fn($p) => $p['status'] === 'active')); ?></div>
                   </div>
                   <div class="col-auto ps-0 mt-n4">
                     <div class="d-flex align-items-center">
@@ -110,7 +110,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between">
                   <div class="col-auto align-self-end">
-                    <div class="fs-5 fw-normal font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($providers, fn($p) => $p['status'] === 'inactive')); ?></div>
+                    <div class="fs-6 fw-medium font-sans-serif text-700 lh-1 mb-1"><?php echo count(array_filter($providers, fn($p) => $p['status'] === 'inactive')); ?></div>
                   </div>
                   <div class="col-auto ps-0 mt-n4">
                     <div class="d-flex align-items-center">
@@ -304,14 +304,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                           <?php endif; ?>
                         </td>
                         <td>
-                          <div class="fw-bold d-flex align-items-center <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3 border-start border-2 border-success'; ?>">
+                          <div class="fw-medium d-flex align-items-center <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3 border-start border-2 border-success'; ?>">
                             <?php if (empty($provider['parent_provider_id']) && !empty($provider['sub_provider_count'])): ?>
                             <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle d-inline-flex align-items-center justify-content-center me-2 toggle-sub-btn" data-main-id="<?php echo $provider['provider_id']; ?>" onclick="toggleSubProviders(<?php echo $provider['provider_id']; ?>, this)" title="Show/hide sub-providers" style="width: 1.5rem; height: 1.5rem; font-size: 0.75rem; line-height: 1; padding: 0; text-decoration: none;">
                               <span class="toggle-icon-right"><i class="fas fa-chevron-right"></i></span>
                               <span class="toggle-icon-down d-none"><i class="fas fa-chevron-down"></i></span>
                             </button>
                             <?php endif; ?>
-                            <span><?php echo htmlspecialchars($provider['provider_code']); ?></span>
+                            <span id="providerCode<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_code']); ?></span>
                             <?php if (!empty($provider['parent_provider_name'])): ?>
                               <span class="badge bg-light text-success border border-success ms-1">Sub of <?php echo htmlspecialchars($provider['parent_provider_code'] ?? $provider['parent_provider_name']); ?></span>
                             <?php elseif (!empty($provider['sub_provider_count'])): ?>
@@ -320,7 +320,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                               <span class="badge bg-light text-secondary border border-secondary ms-1">Standalone</span>
                             <?php endif; ?>
                           </div>
-                          <div class="small text-muted <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3'; ?>"><?php echo htmlspecialchars($provider['provider_name']); ?></div>
+                          <div class="small text-muted <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3'; ?>" id="providerName<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_name']); ?></div>
                         </td>
                         <td>
                           <span class="badge <?php echo match($provider['provider_type']) {
@@ -329,7 +329,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                             'bus' => 'bg-warning',
                             default => 'bg-secondary'
                           }; ?>">
-                            <?php echo ucfirst($provider['provider_type']); ?>
+                            <span id="providerType<?php echo (int) $provider['provider_id']; ?>"><?php echo ucfirst($provider['provider_type']); ?></span>
                           </span>
                         </td>
                         <td class="text-center">
@@ -389,6 +389,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     <?php include __DIR__ . '/modals/edit_provider.php'; ?>
     <?php include __DIR__ . '/modals/manage_variants.php'; ?>
 
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js"></script>
     <script src="<?php echo BASE_URL; ?>/admin/wallet/ticket-providers/assets/js/ticket-providers.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/ticket-providers.js'); ?>"></script>
 
     <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>

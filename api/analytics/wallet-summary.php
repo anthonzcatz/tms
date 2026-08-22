@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
 
 header('Content-Type: application/json');
 
@@ -21,68 +22,38 @@ try {
         exit;
     }
 
-    $userRoleCode  = $user['role_code'] ?? '';
-    $userBranchId  = $user['branch_id'] ?? null;
-
-    // Optional encoded branch filter from request
-    $filterBranchIdRaw = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
-        ? $_GET['branch_id']
-        : null;
-    $filterBranchId = null;
-
-    if ($filterBranchIdRaw !== null) {
-        $filterBranchId = IdEncoder::decode($filterBranchIdRaw);
-        if ($filterBranchId === false) {
-            echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
-            exit;
-        }
-    }
-
-    // Build branch restriction
-    $branchWhere  = '';
-    $branchParams = [];
-
-    if ($filterBranchId) {
-        // Check if user has access to this branch
-        if ($userRoleCode === 'SUPER_ADMIN') {
-            // SUPER_ADMIN can access any branch
-            $branchWhere  = "AND pw.branch_id = ?";
-            $branchParams = [$filterBranchId];
-        } elseif ($userBranchId) {
-            // Non-SUPER_ADMIN can only filter within their allowed branches
-            $branchIds = array_map('trim', explode(',', $userBranchId));
-            $allowedBranchIds = array_map('intval', array_filter($branchIds, function ($id) {
-                return $id !== '';
-            }));
-            if (in_array((int)$filterBranchId, $allowedBranchIds, true)) {
-                // User has access to this specific branch
-                $branchWhere  = "AND pw.branch_id = ?";
-                $branchParams = [$filterBranchId];
-            } else {
-                // User doesn't have access to this branch, use their allowed branches
-                $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-                $branchWhere  = "AND pw.branch_id IN ($placeholders)";
-                $branchParams = $branchIds;
-            }
-        }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        // No specific branch selected, use user's branch restriction
-        $branchIds    = array_map('trim', explode(',', $userBranchId));
-        $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-        $branchWhere  = "AND pw.branch_id IN ($placeholders)";
-        $branchParams = $branchIds;
-    }
+    $filter = AnalyticsFilter::parse($_GET, $user);
+    $branchScope = AnalyticsFilter::branchCondition($filter, 'pw.branch_id', 'wallet_branch');
+    $branchWhere = 'AND ' . $branchScope['sql'];
+    $branchParams = $branchScope['params'];
+    $isHistorical = $filter['end_date'] < date('Y-m-d');
+    $walletHistoryJoin = $isHistorical
+        ? "LEFT JOIN (
+                SELECT wt.wallet_id,
+                       SUBSTRING_INDEX(GROUP_CONCAT(CAST(wt.balance_after AS CHAR)
+                           ORDER BY wt.created_at DESC, wt.wallet_txn_id DESC SEPARATOR ','), ',', 1) AS balance_as_of
+                FROM wallet_transactions wt
+                WHERE wt.created_at < :wallet_ledger_as_of
+                GROUP BY wt.wallet_id
+           ) ws ON ws.wallet_id = pw.wallet_id"
+        : '';
+    $balanceColumn = $isHistorical ? 'COALESCE(ws.balance_as_of, 0)' : 'pw.current_balance';
+    $asOfWhere = $isHistorical ? ' AND pw.created_at < :wallet_outer_as_of' : '';
+    $snapshotParams = $isHistorical ? ['wallet_ledger_as_of' => $filter['end_exclusive']] : [];
+    $outerParams = $isHistorical ? ['wallet_outer_as_of' => $filter['end_exclusive']] : [];
 
     // Total wallet balance across all accessible wallets
     $totals = Database::fetch(
         "SELECT
-            COUNT(*)                        AS wallet_count,
-            COALESCE(SUM(pw.current_balance), 0) AS total_balance,
-            COUNT(CASE WHEN pw.current_balance <= 0 THEN 1 END) AS low_balance_count
+            COUNT(*) AS wallet_count,
+            COALESCE(SUM($balanceColumn), 0) AS total_balance,
+            COUNT(CASE WHEN $balanceColumn <= 0 THEN 1 END) AS low_balance_count
          FROM provider_wallets pw
+         $walletHistoryJoin
          WHERE pw.status = 'active'
+         $asOfWhere
          $branchWhere",
-        $branchParams
+        array_merge($branchParams, $snapshotParams, $outerParams)
     );
 
     // Per-provider summary
@@ -90,17 +61,19 @@ try {
         "SELECT
             tp.provider_id,
             tp.provider_name,
-            COUNT(pw.wallet_id)                  AS branch_count,
-            COALESCE(SUM(pw.current_balance), 0) AS total_balance,
-            MIN(pw.current_balance)              AS min_balance
+            COUNT(pw.wallet_id) AS branch_count,
+            COALESCE(SUM($balanceColumn), 0) AS total_balance,
+            MIN($balanceColumn) AS min_balance
          FROM provider_wallets pw
+         $walletHistoryJoin
          LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
          WHERE pw.status = 'active'
+         $asOfWhere
          $branchWhere
          GROUP BY tp.provider_id, tp.provider_name
          ORDER BY total_balance DESC
          LIMIT 8",
-        $branchParams
+        array_merge($branchParams, $snapshotParams, $outerParams)
     );
 
     // Per-branch breakdown (for stacked bar chart — branch on X, provider as series)
@@ -111,14 +84,16 @@ try {
             bb.branch_code,
             bb.branch_name,
             tp.provider_name,
-            COALESCE(pw.current_balance, 0) AS balance
+            COALESCE($balanceColumn, 0) AS balance
          FROM provider_wallets pw
+         $walletHistoryJoin
          INNER JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
          INNER JOIN business_branches bb ON pw.branch_id = bb.branch_id
          WHERE pw.status = 'active'
+         $asOfWhere
          $branchWhere
          ORDER BY bb.branch_name, tp.provider_name",
-        $branchParams
+        array_merge($branchParams, $snapshotParams, $outerParams)
     );
 
     // Calculate branch totals and sort, then limit to top 6
@@ -164,10 +139,15 @@ try {
                     'balance'       => floatval($b['balance']),
                 ];
             }, $branches),
+            'filter'            => AnalyticsFilter::responseMeta($filter),
+            'as_of'             => $filter['end_date'],
         ],
     ]);
 
+} catch (InvalidArgumentException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {
     error_log('Wallet Summary Widget Error: ' . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Unable to load wallet summary']);
 }

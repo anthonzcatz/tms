@@ -54,6 +54,7 @@ $providers = Database::fetchAll(
      FROM ticket_providers tp
      LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
      WHERE tp.status = 'active'
+       AND tp.provider_type IN ('airline', 'shipping')
      ORDER BY tp.provider_type, tp.provider_name"
 );
 

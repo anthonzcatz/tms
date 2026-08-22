@@ -67,29 +67,47 @@
                         <?php else: ?>
                             <div class="list-group list-group-flush">
                                 <?php foreach ($notifications as $notification): ?>
+                                    <?php
+                                    $notificationTitle = trim((string) ($notification['title'] ?? ''));
+                                    $notificationMessage = trim((string) ($notification['message'] ?? ''));
+                                    if ($notificationTitle === '') {
+                                        $notificationTitle = ucwords(str_replace('_', ' ', (string) ($notification['type'] ?? 'Notification')));
+                                    }
+                                    if ($notificationMessage === '') {
+                                        $notificationMessage = 'Notification details are not available.';
+                                    }
+                                    $notificationColor = in_array(($notification['color'] ?? ''), ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark'], true)
+                                        ? $notification['color'] : 'info';
+                                    $notificationIcon = preg_match('/^[a-z0-9-]+$/i', (string) ($notification['icon'] ?? ''))
+                                        ? $notification['icon'] : 'fa-bell';
+                                    $notificationLink = (is_string($notification['link'] ?? null)
+                                        && str_starts_with($notification['link'], '/')
+                                        && !str_starts_with($notification['link'], '//'))
+                                        ? BASE_URL . $notification['link'] : '#';
+                                    ?>
                                     <div class="list-group-item list-group-item-action <?php echo !$notification['is_read'] ? 'bg-soft-info' : ''; ?>">
                                         <div class="d-flex align-items-start">
                                             <div class="avatar avatar-xl me-3 flex-shrink-0">
-                                                <div class="avatar-name rounded-circle bg-<?php echo $notification['color']; ?>-subtle text-<?php echo $notification['color']; ?> d-flex align-items-center justify-content-center">
-                                                    <span class="fas <?php echo $notification['icon']; ?>"></span>
+                                                <div class="avatar-name rounded-circle bg-<?php echo htmlspecialchars($notificationColor, ENT_QUOTES, 'UTF-8'); ?>-subtle text-<?php echo htmlspecialchars($notificationColor, ENT_QUOTES, 'UTF-8'); ?> d-flex align-items-center justify-content-center">
+                                                    <span class="fas <?php echo htmlspecialchars($notificationIcon, ENT_QUOTES, 'UTF-8'); ?>"></span>
                                                 </div>
                                             </div>
                                             <div class="flex-1">
                                                 <div class="d-flex justify-content-between align-items-start">
                                                     <div>
                                                         <h6 class="mb-1 <?php echo !$notification['is_read'] ? 'fw-bold' : ''; ?>">
-                                                            <?php echo htmlspecialchars($notification['title']); ?>
+                                                            <?php echo htmlspecialchars($notificationTitle, ENT_QUOTES, 'UTF-8'); ?>
                                                             <?php if (!$notification['is_read']): ?>
                                                                 <span class="badge bg-primary ms-2">New</span>
                                                             <?php endif; ?>
                                                         </h6>
-                                                        <p class="mb-1 text-muted small"><?php echo htmlspecialchars($notification['message']); ?></p>
+                                                        <p class="mb-1 text-muted small"><?php echo htmlspecialchars($notificationMessage, ENT_QUOTES, 'UTF-8'); ?></p>
                                                         <small class="text-muted">
                                                             <span class="fas fa-clock me-1"></span>
                                                             <?php echo date('M d, Y h:i A', strtotime($notification['created_at'])); ?>
                                                         </small>
                                                     </div>
-                                                    <a href="<?php echo $notification['link']; ?>" class="btn btn-sm btn-outline-primary ms-2">
+                                                    <a href="<?php echo htmlspecialchars($notificationLink, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-primary ms-2">
                                                         View
                                                     </a>
                                                 </div>
@@ -127,6 +145,12 @@
             alert('Failed to mark all as read');
         }
     }
+
+    document.addEventListener('tms:notification-created', function() {
+        if (document.visibilityState === 'visible') {
+            window.location.reload();
+        }
+    });
     </script>
 
     <?php include dirname(dirname(dirname(__DIR__))) . '/admin/includes/scripts.php'; ?>

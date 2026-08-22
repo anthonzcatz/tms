@@ -11,9 +11,15 @@
  */
 $dropdownId = $dropdownId ?? 'navbarDropdownNotification';
 
-// Fetch system settings for notification role access
-$systemSettings = Database::fetch("SELECT notification_roles FROM system_settings WHERE setting_id = 1");
-$notificationRoles = $systemSettings['notification_roles'] ?? null;
+// Fetch system settings for notification role access.
+// Older production databases may not have the optional column yet.
+$notificationRoles = null;
+try {
+    $systemSettings = Database::fetch("SELECT notification_roles FROM system_settings WHERE setting_id = 1");
+    $notificationRoles = $systemSettings['notification_roles'] ?? null;
+} catch (Throwable $e) {
+    error_log('[Notifications] notification_roles column is unavailable; using VIEW_NOTIFICATIONS permission.');
+}
 
 // Permission-based access control
 $showNotifications = false;
@@ -81,11 +87,22 @@ if (!$showNotifications) {
   </div>
 </li>
 
+<?php if (PusherService::isConfigured()): ?>
+<script src="https://js.pusher.com/8.4.0/pusher.min.js"></script>
+<?php endif; ?>
 <script>
 (function() {
     let notificationDropdown = document.getElementById('<?php echo $dropdownId; ?>');
     let notificationList = document.getElementById('notificationList');
     let notificationBadge = document.getElementById('notificationBadge');
+    let notificationRealtimeTimer = null;
+    let notificationRealtimeReady = 0;
+    window.TMS_PUSHER_CONFIG = {
+        enabled: <?php echo PusherService::isConfigured() ? 'true' : 'false'; ?>,
+        key: <?php echo json_encode(PusherService::isConfigured() ? env('PUSHER_KEY', '') : ''); ?>,
+        cluster: <?php echo json_encode(PusherService::isConfigured() ? env('PUSHER_CLUSTER', 'ap1') : 'ap1'); ?>,
+        authEndpoint: <?php echo json_encode(BASE_URL . '/api/pusher/auth'); ?>
+    };
     
     // Fetch notifications from API
     async function fetchNotifications() {
@@ -103,6 +120,26 @@ if (!$showNotifications) {
         }
     }
     
+    function escapeHtml(value) {
+        const element = document.createElement('div');
+        element.textContent = value == null ? '' : String(value);
+        return element.innerHTML;
+    }
+
+    function safeNotificationColor(value) {
+        const allowed = ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark'];
+        return allowed.includes(String(value)) ? String(value) : 'info';
+    }
+
+    function safeNotificationIcon(value) {
+        return /^[a-z0-9-]+$/i.test(String(value || '')) ? String(value) : 'fa-bell';
+    }
+
+    function safeNotificationLink(value) {
+        const link = String(value || '');
+        return link.startsWith('/') && !link.startsWith('//') ? `<?php echo BASE_URL; ?>${link}` : '#';
+    }
+
     // Render notifications
     function renderNotifications(notifications) {
         if (!notifications || notifications.length === 0) {
@@ -123,9 +160,14 @@ if (!$showNotifications) {
         let lastReadStatus = null;
         
         notifications.forEach(notification => {
-            const isRead = notification.is_read;
+            const isRead = Boolean(notification.is_read);
             const readClass = isRead ? '' : 'notification-unread';
-            const timeAgo = getTimeAgo(notification.created_at);
+            const timeAgo = escapeHtml(getTimeAgo(notification.created_at));
+            const color = safeNotificationColor(notification.color);
+            const icon = safeNotificationIcon(notification.icon);
+            const title = escapeHtml(notification.title || notification.type || 'Notification');
+            const message = escapeHtml(notification.message || 'Notification details are not available.');
+            const link = safeNotificationLink(notification.link);
             
             // Add section header if read status changed
             if (lastReadStatus !== isRead) {
@@ -139,17 +181,17 @@ if (!$showNotifications) {
             
             html += `
                 <div class="list-group-item">
-                    <a class="notification notification-flush ${readClass}" href="${notification.link ? '<?php echo BASE_URL; ?>' + notification.link : '#'}" onclick="markAsRead(event, ${notification.notification_id})">
+                    <a class="notification notification-flush ${readClass}" href="${link}" onclick="markAsRead(event, ${Number(notification.notification_id) || 0})">
                         <div class="notification-avatar">
                             <div class="avatar avatar-2xl me-3">
-                                <div class="avatar-name rounded-circle bg-${notification.color}-subtle text-${notification.color} d-flex align-items-center justify-content-center">
-                                    <span class="fas ${notification.icon}"></span>
+                                <div class="avatar-name rounded-circle bg-${color}-subtle text-${color} d-flex align-items-center justify-content-center">
+                                    <span class="fas ${icon}"></span>
                                 </div>
                             </div>
                         </div>
                         <div class="notification-body">
-                            <p class="mb-1"><strong>${notification.title}</strong> ${notification.message}</p>
-                            <span class="notification-time"><span class="me-2 fas ${notification.icon} text-${notification.color}"></span>${timeAgo}</span>
+                            <p class="mb-1"><strong>${title}</strong> ${message}</p>
+                            <span class="notification-time"><span class="me-2 fas ${icon} text-${color}"></span>${timeAgo}</span>
                         </div>
                     </a>
                 </div>
@@ -225,11 +267,48 @@ if (!$showNotifications) {
         }
     };
     
+    function markRealtimeReady() {
+        notificationRealtimeReady += 1;
+        if (notificationRealtimeReady >= 2 && notificationRealtimeTimer) {
+            clearInterval(notificationRealtimeTimer);
+            notificationRealtimeTimer = null;
+        }
+    }
+
+    function startNotificationRealtime() {
+        if (!window.TMS_PUSHER_CONFIG.enabled || typeof Pusher === 'undefined' || window.tmsNotificationPusher) {
+            return;
+        }
+
+        try {
+            const pusher = new Pusher(window.TMS_PUSHER_CONFIG.key, {
+                cluster: window.TMS_PUSHER_CONFIG.cluster,
+                forceTLS: true,
+                authEndpoint: window.TMS_PUSHER_CONFIG.authEndpoint,
+                auth: { withCredentials: true }
+            });
+            const onNotification = () => {
+                fetchNotifications();
+                document.dispatchEvent(new CustomEvent('tms:notification-created'));
+            };
+            const userChannel = pusher.subscribe(`private-user-<?php echo (int) Auth::id(); ?>`);
+            const globalChannel = pusher.subscribe('private-notifications-global');
+            userChannel.bind('pusher:subscription_succeeded', markRealtimeReady);
+            globalChannel.bind('pusher:subscription_succeeded', markRealtimeReady);
+            userChannel.bind('notification.created', onNotification);
+            globalChannel.bind('notification.created', onNotification);
+            window.tmsNotificationPusher = pusher;
+        } catch (error) {
+            console.error('Notification realtime initialization failed:', error);
+        }
+    }
+
     // Initial fetch
     fetchNotifications();
-    
-    // Poll for new notifications every 30 seconds
-    setInterval(fetchNotifications, 30000);
+    startNotificationRealtime();
+
+    // Poll only until both realtime notification channels are connected.
+    notificationRealtimeTimer = setInterval(fetchNotifications, 30000);
     
     // Fetch when dropdown is opened
     if (notificationDropdown) {
