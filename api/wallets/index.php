@@ -136,7 +136,7 @@ function handleGet() {
                     COUNT(*) as total_wallets,
                     SUM(CASE WHEN pw.status = 'active' THEN 1 ELSE 0 END) as active_wallets,
                     SUM(CASE WHEN pw.status = 'inactive' THEN 1 ELSE 0 END) as inactive_wallets,
-                    COALESCE(SUM(pw.current_balance), 0) as total_balance
+                    COALESCE(SUM(CASE WHEN pw.variant_id IS NULL THEN pw.current_balance ELSE 0 END), 0) as total_balance
                 FROM provider_wallets pw
                 $branchFilter";
 
@@ -346,8 +346,8 @@ function handleGet() {
         $resolveVariantId = $resolveVariantId ? (int)$resolveVariantId : null;
         $resolvedWallet = WalletResolver::resolve((int)$providerId, $resolveBranchId, $resolveVariantId);
 
-        // If not found in the requested/effective branch, try all accessible branches.
-        if (!$resolvedWallet) {
+        // If no branch was requested and no active session branch was found, try all accessible branches.
+        if (!$resolvedWallet && !$branchId && !$sessionBranchId) {
             $fallbackBranchIds = [];
             if ($userRoleCode === 'SUPER_ADMIN') {
                 $allBranchRows = Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active' OR status IS NULL");
@@ -387,6 +387,20 @@ function handleGet() {
                           AND bts.provider_id = pw.provider_id
                           AND bts.variant_id = pw.variant_id
                     ) as on_hand_qty,
+                    (
+                        SELECT COALESCE(SUM(bts.reserved_qty), 0)
+                        FROM branch_ticket_stocks bts
+                        WHERE bts.branch_id = pw.branch_id
+                          AND bts.provider_id = pw.provider_id
+                          AND bts.variant_id = pw.variant_id
+                    ) as reserved_qty,
+                    (
+                        SELECT COALESCE(SUM(bts.on_hand_qty - bts.reserved_qty), 0)
+                        FROM branch_ticket_stocks bts
+                        WHERE bts.branch_id = pw.branch_id
+                          AND bts.provider_id = pw.provider_id
+                          AND bts.variant_id = pw.variant_id
+                    ) as available_qty,
                     CONCAT(tp.provider_name,
                            IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
                            ' - ', bb.branch_name) as wallet_name
@@ -445,6 +459,20 @@ function handleGet() {
                          AND bts.provider_id = pw.provider_id
                          AND bts.variant_id = pw.variant_id
                    ) as on_hand_qty,
+                   (
+                       SELECT COALESCE(SUM(bts.reserved_qty), 0)
+                       FROM branch_ticket_stocks bts
+                       WHERE bts.branch_id = pw.branch_id
+                         AND bts.provider_id = pw.provider_id
+                         AND bts.variant_id = pw.variant_id
+                   ) as reserved_qty,
+                   (
+                       SELECT COALESCE(SUM(bts.on_hand_qty - bts.reserved_qty), 0)
+                       FROM branch_ticket_stocks bts
+                       WHERE bts.branch_id = pw.branch_id
+                         AND bts.provider_id = pw.provider_id
+                         AND bts.variant_id = pw.variant_id
+                   ) as available_qty,
                    CONCAT(tp.provider_name,
                           IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
                           ' - ', bb.branch_name) as wallet_name
@@ -460,11 +488,17 @@ function handleGet() {
 
     if ($action === 'balances') {
         $balances = array_map(function ($w) {
+            $isVariant = !empty($w['variant_id']);
             return [
                 'wallet_id' => (int)$w['wallet_id'],
                 'branch_id' => (int)$w['branch_id'],
+                'provider_id' => (int)$w['provider_id'],
+                'variant_id' => $isVariant ? (int)$w['variant_id'] : null,
                 'current_balance' => (float)$w['current_balance'],
                 'min_balance' => (float)$w['min_balance'],
+                'on_hand_qty' => $isVariant ? (int)($w['on_hand_qty'] ?? 0) : 0,
+                'reserved_qty' => $isVariant ? (int)($w['reserved_qty'] ?? 0) : 0,
+                'available_qty' => $isVariant ? (int)($w['on_hand_qty'] ?? 0) - (int)($w['reserved_qty'] ?? 0) : 0,
                 'status' => $w['status']
             ];
         }, $wallets);

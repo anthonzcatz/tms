@@ -245,7 +245,16 @@ function handleGet(): void {
                     v.description,
                     v.stock_controlled,
                     v.requires_ticket_number,
-                    v.is_active
+                    v.is_active,
+                    COALESCE((SELECT SUM(s.on_hand_qty)
+                              FROM branch_ticket_stocks s
+                              WHERE s.variant_id = v.variant_id), 0) AS on_hand_qty,
+                    COALESCE((SELECT SUM(s.reserved_qty)
+                              FROM branch_ticket_stocks s
+                              WHERE s.variant_id = v.variant_id), 0) AS reserved_qty,
+                    COALESCE((SELECT SUM(s.on_hand_qty - s.reserved_qty)
+                              FROM branch_ticket_stocks s
+                              WHERE s.variant_id = v.variant_id), 0) AS available_qty
                 FROM provider_ticket_variants v
                 LEFT JOIN ticket_providers p ON p.provider_id = v.provider_id
                 WHERE v.deleted_at IS NULL";
@@ -270,7 +279,7 @@ function handleGet(): void {
     $branchId   = $branchId ? (int) $branchId : null;
 
     // Fetch variants with branch-specific stock; wallet data is resolved separately
-    // so it can fall back to any branch the user has access to.
+    // and remains branch-scoped when a branch is requested.
     $sql = "SELECT
                 v.variant_id,
                 v.provider_id,
@@ -305,9 +314,9 @@ function handleGet(): void {
         'stock_branch_id' => $branchId ?? 0,
     ]);
 
-    // Resolve the best active wallet for each variant across accessible branches.
-    // Priority is given to the requested branch, then to any other allowed branch.
-    $walletBranchIds = getWalletBranchIds($branchId);
+    // Resolve the best active wallet for each variant, scoped to the requested branch when provided.
+    // Priority is given to the requested branch, then to any other allowed branch when no branch was requested.
+    $walletBranchIds = $branchId !== null ? [$branchId] : getWalletBranchIds($branchId);
     $walletParams = ['provider_id' => $providerId, 'priority_branch' => ($branchId ?? 0)];
     $walletWhere = "provider_id = :provider_id AND status = 'active'";
 

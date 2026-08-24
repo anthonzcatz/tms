@@ -54,13 +54,21 @@ function syncCashierTransportAssignments(int $userId, bool $restricted, array $t
         throw new InvalidArgumentException('Select at least one transportation type or provider.');
     }
 
+    $typePlaceholders = [];
+    $typeParams = [];
+    foreach (CashierTransportAccess::getSupportedTransportTypes() as $index => $type) {
+        $key = 'provider_type_' . $index;
+        $typePlaceholders[] = ':' . $key;
+        $typeParams[$key] = $type;
+    }
+
     foreach ($specificProviders as $providerId) {
         $provider = Database::fetch(
             "SELECT provider_id FROM ticket_providers
              WHERE provider_id = :provider_id
                AND status = 'active'
-               AND provider_type IN ('airline', 'shipping')",
-            ['provider_id' => $providerId]
+               AND provider_type IN (" . implode(',', $typePlaceholders) . ")",
+            array_merge(['provider_id' => $providerId], $typeParams)
         );
         if (!$provider) {
             throw new InvalidArgumentException('One or more selected providers are invalid or inactive.');
@@ -78,8 +86,8 @@ function syncCashierTransportAssignments(int $userId, bool $restricted, array $t
     }
 
     foreach ($transportTypes as $transportType) {
-        if (!in_array($transportType, CashierTransportAccess::SUPPORTED_TRANSPORT_TYPES, true)) {
-            throw new InvalidArgumentException('Bus Lines and Other transportation access are inactive.');
+        if (!in_array($transportType, CashierTransportAccess::getSupportedTransportTypes(), true)) {
+            throw new InvalidArgumentException('Transportation type not supported for cashier access. Allowed types: ' . implode(', ', CashierTransportAccess::getSupportedTransportTypes()) . '.');
         }
         Database::execute(
             "INSERT INTO cashier_transport_assignments (user_id, provider_id, transport_type, created_by, created_at)

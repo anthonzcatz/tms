@@ -53,17 +53,25 @@ function cashierTransportAccessPayload(int $userId): array
         $assignments
     ))));
 
+    $allowedTypes = CashierTransportAccess::getSupportedTransportTypes();
+    $allowedTypeLabels = [];
+    foreach ($allowedTypes as $type) {
+        $allowedTypeLabels[$type] = match ($type) {
+            'airline' => 'Airlines',
+            'shipping' => 'Shipping',
+            'bus' => 'Bus Lines',
+            'other' => 'Other',
+            default => ucwords(str_replace('_', ' ', $type))
+        };
+    }
+
     return [
         'restricted' => $restricted,
         'mode' => $providerIds ? 'provider' : ($restricted ? 'transport_type' : 'all'),
         'provider_ids' => $providerIds,
         'transport_types' => $transportTypes,
-        'labels' => [
-            'airline' => 'Airlines',
-            'shipping' => 'Shipping',
-            'bus' => 'Bus Lines',
-            'other' => 'Other',
-        ],
+        'allowed_types' => $allowedTypeLabels,
+        'labels' => $allowedTypeLabels,
     ];
 }
 
@@ -86,7 +94,7 @@ if (!SecurityHelper::validateCSRFToken($csrfToken)) {
 }
 
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
-$allowedTypes = ['airline', 'shipping', 'bus', 'other'];
+$allowedTypes = CashierTransportAccess::getSupportedTransportTypes();
 $transportTypes = array_values(array_unique(array_filter(array_map(
     static fn($type): string => strtolower(trim((string) $type)),
     (array) ($input['transport_types'] ?? [])

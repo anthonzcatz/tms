@@ -41,6 +41,17 @@ function isDescendantOf($descendantId, $ancestorId) {
     return false;
 }
 
+/**
+ * Return true if the supplied value is a valid provider_type enum value.
+ */
+function isValidProviderType(?string $type): bool
+{
+    if ($type === null || $type === '') {
+        return false;
+    }
+    return in_array($type, Database::getEnumValues('ticket_providers', 'provider_type'), true);
+}
+
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
@@ -263,6 +274,11 @@ function handlePost() {
         return;
     }
 
+    if (!isValidProviderType($providerType)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', Database::getEnumValues('ticket_providers', 'provider_type'))]);
+        return;
+    }
+
     // Validate parent provider if provided
     if ($parentProviderId) {
         $parent = Database::fetch(
@@ -352,6 +368,11 @@ function handlePut() {
     $providerType = $input['provider_type'] ?? null;
     $parentProviderId = $input['parent_provider_id'] ?? null;
     $status = $input['status'] ?? null;
+
+    if ($providerType !== null && !isValidProviderType($providerType)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', Database::getEnumValues('ticket_providers', 'provider_type'))]);
+        return;
+    }
 
     if (!$providerId) {
         echo json_encode(['success' => false, 'error' => 'Missing provider ID']);

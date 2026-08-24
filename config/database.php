@@ -95,6 +95,29 @@ final class Database
     {
         return self::connection()->lastInsertId();
     }
+
+    /**
+     * Return the allowed values of an enum or set column.
+     */
+    public static function getEnumValues(string $table, string $column): array
+    {
+        $row = self::fetch(
+            'SHOW COLUMNS FROM `' . $table . '` WHERE `Field` = :column',
+            ['column' => $column]
+        );
+        if (empty($row['Type']) || !preg_match('/^(enum|set)\((.*)\)$/i', $row['Type'], $matches)) {
+            return [];
+        }
+
+        $values = [];
+        if (preg_match_all("/'((?:[^']|'')*)'/", $matches[2], $valueMatches)) {
+            foreach ($valueMatches[1] as $value) {
+                $values[] = str_replace("''", "'", $value);
+            }
+        }
+
+        return $values;
+    }
 }
 
 /* Global short helper */

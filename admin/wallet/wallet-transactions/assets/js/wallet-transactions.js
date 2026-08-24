@@ -13,6 +13,36 @@ let viewTransactionModal = null;
 let walletManagementModal = null;
 let walletsData = [];
 
+function isTicketStockWallet(wallet) {
+    return Boolean(wallet && (wallet.variant_id || wallet.variant_id === 0));
+}
+
+function formatTicketStock(walletOrData) {
+    const quantity = Number(walletOrData?.on_hand_qty || 0);
+    const available = Number(walletOrData?.available_qty);
+    const suffix = Number.isFinite(available) && available !== quantity
+        ? ` (${available} available)`
+        : '';
+    return `${quantity.toLocaleString('en-PH', { maximumFractionDigits: 0 })} tickets${suffix}`;
+}
+
+function formatTicketCount(value) {
+    return Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 });
+}
+
+function openTicketStockBalances(wallet) {
+    if (!wallet?.branch_id || !wallet?.provider_id || !wallet?.variant_id) {
+        showToast('error', 'Error', 'Ticket stock identity is incomplete.');
+        return;
+    }
+    const query = new URLSearchParams({
+        branch_id: wallet.branch_id,
+        provider_id: wallet.provider_id,
+        variant_id: wallet.variant_id
+    });
+    window.location.href = `${window.BASE_URL}/admin/ticket-stock/balances?${query.toString()}`;
+}
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     try {
@@ -175,11 +205,12 @@ function startTransactionPolling() {
 
 // Update stats cards from the currently filtered transactions
 function updateStats() {
-    const total = filteredTransactions.length;
-    const totalInflow = filteredTransactions
+    const monetaryTransactions = filteredTransactions.filter(t => !t.wallet_variant_id);
+    const total = monetaryTransactions.length;
+    const totalInflow = monetaryTransactions
         .filter(t => t.direction === 'IN')
         .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-    const totalOutflow = filteredTransactions
+    const totalOutflow = monetaryTransactions
         .filter(t => t.direction === 'OUT')
         .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
     const netBalance = totalInflow - totalOutflow;
@@ -202,7 +233,9 @@ async function updateCurrentBalance() {
         const res = await fetch(`${window.BASE_URL}/api/wallets?id=${walletId}`);
         const result = await res.json();
         if (result.success && result.data) {
-            el.textContent = formatCurrency(result.data.current_balance ?? result.data.wallet?.current_balance ?? 0);
+            el.textContent = isTicketStockWallet(result.data)
+                ? formatTicketStock(result.data)
+                : formatCurrency(result.data.current_balance ?? result.data.wallet?.current_balance ?? 0);
         }
     } catch (e) {
         console.error('Failed to fetch wallet balance:', e);
@@ -215,18 +248,42 @@ function updateAddTransactionBalanceDisplay() {
     const selectedOption = walletSelect.options[walletSelect.selectedIndex];
     const alertEl = document.getElementById('currentBalanceAlert');
     const balanceEl = document.getElementById('displayCurrentBalance');
+    const balanceLabel = document.getElementById('displayBalanceLabel');
     const walletNameEl = document.getElementById('displayWalletName');
+    const balanceHint = document.getElementById('balanceRefreshHint');
+    const stockNotice = document.getElementById('stockWalletNotice');
 
     if (!walletSelect.value) {
         alertEl.style.display = 'none';
+        stockNotice?.style.setProperty('display', 'none');
+        if (balanceHint) balanceHint.textContent = 'Balance is checked in real-time at submission. Click refresh to get latest balance.';
+        ['addTxnType', 'addDirection', 'addAmount'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) input.disabled = false;
+        });
         return;
     }
 
-    // Use data attributes from the selected option
-    const balance = selectedOption.getAttribute('data-balance');
+    const isStockWallet = Boolean(selectedOption.dataset.variantId);
+    ['addTxnType', 'addDirection', 'addAmount'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) input.disabled = isStockWallet;
+    });
     const walletName = selectedOption.getAttribute('data-name');
-
-    balanceEl.textContent = formatCurrency(balance ?? 0);
+    if (isStockWallet) {
+        balanceLabel.textContent = 'Current Ticket Stock:';
+        balanceEl.textContent = formatTicketStock({
+            on_hand_qty: selectedOption.dataset.onHandQty,
+            available_qty: selectedOption.dataset.availableQty
+        });
+        stockNotice?.style.setProperty('display', 'block');
+        if (balanceHint) balanceHint.textContent = 'Ticket stock is managed through the stock ledger, not monetary wallet transactions.';
+    } else {
+        balanceLabel.textContent = 'Current Balance:';
+        balanceEl.textContent = formatCurrency(selectedOption.dataset.balance ?? 0);
+        stockNotice?.style.setProperty('display', 'none');
+        if (balanceHint) balanceHint.textContent = 'Balance is checked in real-time at submission. Click refresh to get latest balance.';
+    }
     walletNameEl.textContent = walletName || '-';
     alertEl.style.display = 'block';
 }
@@ -250,16 +307,21 @@ async function refreshWalletBalance() {
         const res = await fetch(`${window.BASE_URL}/api/wallets?id=${walletId}`);
         const result = await res.json();
         if (result.success && result.data) {
-            const newBalance = result.data.current_balance ?? 0;
-            balanceEl.textContent = formatCurrency(newBalance);
-
-            // Update the dropdown option's data-balance attribute
             const walletSelect = document.getElementById('addWalletId');
             const selectedOption = walletSelect.options[walletSelect.selectedIndex];
-            if (selectedOption) {
-                selectedOption.setAttribute('data-balance', newBalance);
+            if (isTicketStockWallet(result.data)) {
+                balanceEl.textContent = formatTicketStock(result.data);
+                if (selectedOption) {
+                    selectedOption.dataset.onHandQty = result.data.on_hand_qty ?? 0;
+                    selectedOption.dataset.availableQty = result.data.available_qty ?? 0;
+                }
+            } else {
+                const newBalance = result.data.current_balance ?? 0;
+                balanceEl.textContent = formatCurrency(newBalance);
+                if (selectedOption) selectedOption.setAttribute('data-balance', newBalance);
             }
 
+            updateAddTransactionBalanceDisplay();
             showToast('success', 'Success', 'Balance refreshed successfully');
         } else {
             showToast('error', 'Error', 'Failed to refresh balance');
@@ -380,10 +442,10 @@ function renderTransactions() {
                 <span class="direction-badge direction-${txn.direction}">${txn.direction}</span>
             </td>
             <td class="${txn.direction === 'IN' ? 'amount-in' : 'amount-out'}">
-                ${txn.direction === 'OUT' ? '-' : ''}${formatCurrency(txn.amount)}
+                ${txn.direction === 'OUT' ? '-' : ''}${txn.wallet_variant_id ? formatTicketCount(txn.amount) + ' tickets' : formatCurrency(txn.amount)}
             </td>
             <td class="${txn.balance_after >= 0 ? 'balance-positive' : 'balance-negative'}">
-                ${formatCurrency(txn.balance_after)}
+                ${txn.wallet_variant_id ? formatTicketCount(txn.balance_after) + ' tickets' : formatCurrency(txn.balance_after)}
             </td>
             <td>
                 <small>${formatDateTime(txn.created_at)}</small>
@@ -493,6 +555,15 @@ function openAddTransactionModal() {
     document.getElementById('addTransactionForm').reset();
     // Hide balance display initially
     document.getElementById('currentBalanceAlert').style.display = 'none';
+    document.getElementById('stockWalletNotice')?.style.setProperty('display', 'none');
+    ['addTxnType', 'addDirection', 'addAmount'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) input.disabled = false;
+    });
+    const balanceLabel = document.getElementById('displayBalanceLabel');
+    if (balanceLabel) balanceLabel.textContent = 'Current Balance:';
+    const balanceHint = document.getElementById('balanceRefreshHint');
+    if (balanceHint) balanceHint.textContent = 'Balance is checked in real-time at submission. Click refresh to get latest balance.';
     addTransactionModal.show();
 }
 
@@ -526,7 +597,14 @@ async function saveTransaction(walletId = null, txnType = null, direction = null
     const formDirection = direction || document.getElementById('addDirection').value;
     const formAmountValue = amount || document.getElementById('addAmount').value;
     const formRemarks = remarks || document.getElementById('addRemarks').value;
-    
+    const walletSelect = document.getElementById('addWalletId');
+    const selectedWalletOption = walletSelect?.options[walletSelect.selectedIndex];
+
+    if (selectedWalletOption?.dataset.variantId) {
+        showToast('error', 'Ticket Stock Wallet', 'Use Ticket Stock Balances or Stock Requests to top up ticket quantities.');
+        return;
+    }
+
     // Parse formatted amount (remove commas and convert to number)
     const formAmount = parseFormattedNumber(formAmountValue);
     
@@ -665,8 +743,11 @@ async function viewTransaction(txnId) {
                 </div>` : '';
 
             // Format amount with sign
+            const isStockTxn = Boolean(txn.wallet_variant_id);
             const amountPrefix = txn.direction === 'IN' ? '+' : '-';
-            const amountDisplay = `${amountPrefix}${formatCurrency(txn.amount)}`;
+            const amountDisplay = isStockTxn
+                ? `${amountPrefix}${formatTicketCount(txn.amount)} tickets`
+                : `${amountPrefix}${formatCurrency(txn.amount)}`;
             const amountClass = txn.direction === 'IN' ? 'text-success' : 'text-danger';
 
             details.innerHTML = `
@@ -712,13 +793,13 @@ async function viewTransaction(txnId) {
                             <div class="col-6">
                                 <div class="p-2 bg-light rounded text-center">
                                     <div class="text-muted small mb-1">Balance Before</div>
-                                    <div class="fw-semibold">${formatCurrency(txn.balance_before)}</div>
+                                    <div class="fw-semibold">${isStockTxn ? formatTicketCount(txn.balance_before) + ' tickets' : formatCurrency(txn.balance_before)}</div>
                                 </div>
                             </div>
                             <div class="col-6">
                                 <div class="p-2 bg-light rounded text-center">
                                     <div class="text-muted small mb-1">Balance After</div>
-                                    <div class="fw-semibold ${txn.balance_after >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(txn.balance_after)}</div>
+                                    <div class="fw-semibold ${txn.balance_after >= 0 ? 'text-success' : 'text-danger'}">${isStockTxn ? formatTicketCount(txn.balance_after) + ' tickets' : formatCurrency(txn.balance_after)}</div>
                                 </div>
                             </div>
                         </div>
@@ -835,8 +916,8 @@ function renderWalletsTable() {
                 ` : '<span class="text-muted">-</span>'}
             </td>
             <td>${wallet.branch_name || '-'}</td>
-            <td class="${wallet.current_balance >= 0 ? 'balance-positive' : 'balance-negative'}">
-                ${formatCurrency(wallet.current_balance)}
+            <td class="${isTicketStockWallet(wallet) ? (Number(wallet.on_hand_qty || 0) >= 0 ? 'balance-positive' : 'balance-negative') : (wallet.current_balance >= 0 ? 'balance-positive' : 'balance-negative')}" title="${isTicketStockWallet(wallet) ? 'Ticket stock quantity' : 'Monetary wallet balance'}">
+                ${isTicketStockWallet(wallet) ? formatTicketStock(wallet) : formatCurrency(wallet.current_balance)}
             </td>
             <td>
                 <span class="badge ${wallet.status === 'active' ? 'bg-success' : 'bg-danger'}">
@@ -848,8 +929,8 @@ function renderWalletsTable() {
                     <button type="button" class="btn btn-sm btn-outline-primary" onclick="viewWalletTransactions(${wallet.wallet_id})" title="View Transactions">
                         <span class="fas fa-eye"></span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline-success" onclick="adjustWalletBalance(${wallet.wallet_id})" title="Adjust Balance">
-                        <span class="fas fa-wallet"></span>
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="adjustWalletBalance(${wallet.wallet_id})" title="${isTicketStockWallet(wallet) ? 'Manage Ticket Stock' : 'Adjust Balance'}">
+                        <span class="fas ${isTicketStockWallet(wallet) ? 'fa-boxes' : 'fa-wallet'}"></span>
                     </button>
                 </div>
             </td>
@@ -893,6 +974,11 @@ function adjustWalletBalance(walletId) {
     const wallet = walletsData.find(w => w.wallet_id === walletId);
     if (!wallet) {
         showToast('error', 'Error', 'Wallet not found');
+        return;
+    }
+
+    if (isTicketStockWallet(wallet)) {
+        openTicketStockBalances(wallet);
         return;
     }
 

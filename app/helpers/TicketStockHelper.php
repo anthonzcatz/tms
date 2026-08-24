@@ -205,6 +205,9 @@ final class TicketStockHelper
         if (!$variant) {
             throw new Exception('Ticket variant not found.');
         }
+        if ((int) $variant['provider_id'] !== $providerId) {
+            throw new Exception('Ticket variant does not belong to the selected provider.');
+        }
 
         if (!(bool) $variant['stock_controlled']) {
             return true;
@@ -229,6 +232,25 @@ final class TicketStockHelper
     /* ============================================================
        STOCK BALANCE UPDATES
        ============================================================ */
+
+    private static function ensureBranchStock(
+        PDO $pdo,
+        int $branchId,
+        int $providerId,
+        int $variantId
+    ): void {
+        $stmt = $pdo->prepare(
+            "INSERT INTO `branch_ticket_stocks`
+                (`branch_id`, `provider_id`, `variant_id`, `on_hand_qty`, `reserved_qty`, `updated_at`)
+             VALUES (:branch_id, :provider_id, :variant_id, 0, 0, NOW())
+             ON DUPLICATE KEY UPDATE `stock_id` = `stock_id`"
+        );
+        $stmt->execute([
+            ':branch_id' => $branchId,
+            ':provider_id' => $providerId,
+            ':variant_id' => $variantId,
+        ]);
+    }
 
     /**
      * Generic atomic upsert of one quantity column in branch_ticket_stocks.
@@ -313,10 +335,19 @@ final class TicketStockHelper
         if (!$variant) {
             throw new Exception('Ticket variant not found.');
         }
+        if ((int) $variant['provider_id'] !== $providerId) {
+            throw new Exception('Ticket variant does not belong to the selected provider.');
+        }
 
+        self::ensureBranchStock($pdo, $branchId, $providerId, $variantId);
         $row = self::getBranchStock($branchId, $providerId, $variantId, true);
         $balanceBefore = (int) ($row['on_hand_qty'] ?? 0);
+        $reservedQty   = (int) ($row['reserved_qty'] ?? 0);
         $balanceAfter  = $balanceBefore + $delta;
+
+        if ($balanceAfter < $reservedQty) {
+            throw new Exception('On-hand stock cannot be lower than reserved quantity.');
+        }
 
         // Final guard against negative on-hand when the system does not allow it.
         if ($delta < 0 && $balanceAfter < 0 && !self::allowNegativeStock()) {
@@ -373,6 +404,15 @@ final class TicketStockHelper
         int $variantId,
         int $delta
     ): array {
+        $variant = self::getVariant($variantId);
+        if (!$variant) {
+            throw new Exception('Ticket variant not found.');
+        }
+        if ((int) $variant['provider_id'] !== $providerId) {
+            throw new Exception('Ticket variant does not belong to the selected provider.');
+        }
+
+        self::ensureBranchStock($pdo, $branchId, $providerId, $variantId);
         $row = self::getBranchStock($branchId, $providerId, $variantId, true);
         $reservedBefore = (int) ($row['reserved_qty'] ?? 0);
         $reservedAfter  = $reservedBefore + $delta;

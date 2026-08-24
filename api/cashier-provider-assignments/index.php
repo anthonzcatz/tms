@@ -93,21 +93,30 @@ if ($method === 'POST') {
         return;
     }
 
+    $typePlaceholders = [];
+    $typeParams = [];
+    foreach (CashierTransportAccess::getSupportedTransportTypes() as $index => $type) {
+        $key = 'provider_type_' . $index;
+        $typePlaceholders[] = ':' . $key;
+        $typeParams[$key] = $type;
+    }
+
     if ($providerId) {
         $provider = Database::fetch(
             "SELECT provider_id FROM ticket_providers
              WHERE provider_id = :provider_id
                AND status = 'active'
-               AND provider_type IN ('airline', 'shipping')",
-            ['provider_id' => (int) $providerId]
+               AND provider_type IN (" . implode(',', $typePlaceholders) . ")",
+            array_merge(['provider_id' => (int) $providerId], $typeParams)
         );
         if (!$provider) {
             echo json_encode(['success' => false, 'error' => 'Provider not found or inactive']);
             return;
         }
     }
-    if ($transportType && !in_array($transportType, CashierTransportAccess::SUPPORTED_TRANSPORT_TYPES, true)) {
-        echo json_encode(['success' => false, 'error' => 'Bus Lines and Other transportation access are inactive']);
+    if ($transportType && !in_array($transportType, CashierTransportAccess::getSupportedTransportTypes(), true)) {
+        $allowedTypes = implode(', ', CashierTransportAccess::getSupportedTransportTypes());
+        echo json_encode(['success' => false, 'error' => "Transportation type not supported for cashier access. Allowed types: {$allowedTypes}"]);
         return;
     }
 

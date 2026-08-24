@@ -95,8 +95,12 @@ function ticketStockMovementMeta(type) {
         OPENING_BALANCE: { color: 'info', icon: 'fa-flag-checkered' },
         POS_SALE: { color: 'success', icon: 'fa-shopping-cart' },
         POS_SALE_REVERSAL: { color: 'warning', icon: 'fa-undo' },
+        POS_CANCEL: { color: 'warning', icon: 'fa-undo' },
         DISPATCH: { color: 'primary', icon: 'fa-truck' },
         RECEIPT: { color: 'success', icon: 'fa-inbox' },
+        STOCK_IN: { color: 'success', icon: 'fa-arrow-down' },
+        STOCK_OUT: { color: 'danger', icon: 'fa-arrow-up' },
+        RETURN_TO_SOURCE: { color: 'info', icon: 'fa-undo-alt' },
         ADJUSTMENT: { color: 'secondary', icon: 'fa-sliders-h' },
         DAMAGE_OR_VOID: { color: 'danger', icon: 'fa-ban' }
     }[String(type || '').toUpperCase()] || { color: 'secondary', icon: 'fa-exchange-alt' };
@@ -132,6 +136,22 @@ function ticketStockBalanceFilterKeyFor(params) {
     return JSON.stringify(params);
 }
 
+function applyTicketStockBalanceQueryFilters() {
+    const query = new URLSearchParams(window.location.search);
+    const filterMap = {
+        branch_id: 'balanceBranch',
+        provider_id: 'balanceProvider',
+        variant_id: 'balanceVariant'
+    };
+    Object.entries(filterMap).forEach(([key, id]) => {
+        const select = document.getElementById(id);
+        const value = query.get(key);
+        if (select && value && [...select.options].some(option => option.value === value)) {
+            select.value = value;
+        }
+    });
+}
+
 function renderTicketStockBalances(rows) {
     const tbody = document.querySelector('#ticketStockBalances tbody');
     if (!tbody) return;
@@ -149,7 +169,7 @@ function renderTicketStockBalances(rows) {
         <td class="text-end fw-bold">${ticketStockQty(row.available_qty)}</td>
         <td class="text-end">${ticketStockQty(row.reorder_level)}</td>
         <td>${Number(row.available_qty || 0) <= Number(row.reorder_level || 0) ? '<span class="badge bg-warning text-dark">Reorder</span>' : '<span class="badge bg-success">OK</span>'}</td>
-        <td class="text-end"><button class="btn btn-sm btn-outline-primary" onclick="openStockAdjustment(${row.branch_id}, ${row.provider_id}, ${row.variant_id}, ${row.on_hand_qty})"><span class="fas fa-edit"></span></button></td>
+        <td class="text-end text-nowrap"><button class="btn btn-sm btn-outline-success me-1" title="Top up / receive stock" onclick="openStockReceipt(${row.branch_id}, ${row.provider_id}, ${row.variant_id}, ${row.on_hand_qty})"><span class="fas fa-plus"></span></button><button class="btn btn-sm btn-outline-primary" title="Adjust on-hand quantity" onclick="openStockAdjustment(${row.branch_id}, ${row.provider_id}, ${row.variant_id}, ${row.on_hand_qty})"><span class="fas fa-edit"></span></button></td>
     </tr>`).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">No stock rows found.</td></tr>';
 }
 
@@ -251,11 +271,46 @@ function openStockAdjustment(branchId, providerId, variantId, currentQty) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('stockAdjustmentModal')).show();
 }
 
+function openStockReceipt(branchId, providerId, variantId, currentQty) {
+    document.getElementById('receiveStockBranch').value = branchId;
+    document.getElementById('receiveStockProvider').value = providerId;
+    document.getElementById('receiveStockVariant').value = variantId;
+    document.getElementById('receiveStockCurrent').textContent = ticketStockQty(currentQty);
+    document.getElementById('receiveStockQty').value = '';
+    document.getElementById('receiveStockReason').value = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('stockReceiptModal')).show();
+}
+
+async function submitStockReceipt() {
+    const qty = Number(document.getElementById('receiveStockQty').value);
+    if (!Number.isInteger(qty) || qty <= 0) {
+        ticketStockToast('error', 'Top-up quantity must be a whole number greater than 0.');
+        return;
+    }
+
+    try {
+        await ticketStockMutate({
+            action: 'receive',
+            branch_id: document.getElementById('receiveStockBranch').value,
+            provider_id: document.getElementById('receiveStockProvider').value,
+            variant_id: document.getElementById('receiveStockVariant').value,
+            qty,
+            reference_type: 'MANUAL_STOCK_RECEIPT',
+            remarks: document.getElementById('receiveStockReason').value.trim() || 'Manual ticket stock top-up'
+        });
+        bootstrap.Modal.getInstance(document.getElementById('stockReceiptModal'))?.hide();
+        ticketStockToast('success', 'Ticket stock topped up successfully.');
+        loadTicketStockBalances();
+    } catch (error) {
+        ticketStockToast('error', error.message);
+    }
+}
+
 async function submitStockAdjustment() {
     const currentOnHand = Number(document.getElementById('adjustStockCurrentOnHand').value);
     const newOnHand = Number(document.getElementById('adjustStockNewOnHand').value);
-    if (!Number.isFinite(newOnHand)) {
-        ticketStockToast('error', 'Please enter a valid new on-hand quantity.');
+    if (!Number.isInteger(newOnHand)) {
+        ticketStockToast('error', 'Please enter a whole-number on-hand quantity.');
         return;
     }
     const delta = newOnHand - currentOnHand;
@@ -410,6 +465,8 @@ function syncSourceWalletSelection() {
         providerSelect.disabled = false;
         sourceBranchSelect.disabled = false;
         info?.classList.add('d-none');
+        const balanceLabel = document.getElementById('sourceWalletBalanceLabel');
+        if (balanceLabel) balanceLabel.textContent = 'Current Balance:';
         updateRequestVariantOptions(providerSelect.value || '');
         return;
     }
@@ -418,7 +475,12 @@ function syncSourceWalletSelection() {
     sourceBranchSelect.value = option.dataset.branchId || '';
     providerSelect.disabled = true;
     sourceBranchSelect.disabled = true;
-    document.getElementById('sourceWalletBalance').textContent = ticketStockMoney(option.dataset.balance || 0);
+    const isVariantWallet = Boolean(option.dataset.variantId);
+    const balanceLabel = document.getElementById('sourceWalletBalanceLabel');
+    if (balanceLabel) balanceLabel.textContent = isVariantWallet ? 'Current Ticket Stock:' : 'Current Balance:';
+    document.getElementById('sourceWalletBalance').textContent = isVariantWallet
+        ? `${ticketStockQty(option.dataset.onHandQty || 0)} tickets`
+        : ticketStockMoney(option.dataset.balance || 0);
     document.getElementById('sourceWalletName').textContent = option.dataset.name || '-';
     info?.classList.remove('d-none');
     updateRequestVariantOptions(option.dataset.providerId || '', option.dataset.variantId || '');
@@ -540,7 +602,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target.matches('.request-item-variant')) handleRequestItemVariantChange(event.target);
     });
     document.getElementById('createStockRequestModal')?.addEventListener('hidden.bs.modal', resetNewStockRequestForm);
-    if (ticketStockPage === 'balances') startTicketStockBalancesRealtime();
+    if (ticketStockPage === 'balances') {
+        applyTicketStockBalanceQueryFilters();
+        startTicketStockBalancesRealtime();
+    }
     if (ticketStockPage === 'movements') {
         bindTicketStockMovementFilters();
         const movementDate = document.getElementById('movementDate');

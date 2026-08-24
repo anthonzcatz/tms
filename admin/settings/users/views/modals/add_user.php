@@ -439,18 +439,14 @@
                       <div class="col-md-6 mb-3">
                         <h6 class="fw-bold text-primary mb-2">By Transportation Type</h6>
                         <div class="d-flex flex-column gap-2">
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="transportType-airline" name="transport_types[]" value="airline">
-                            <label class="form-check-label" for="transportType-airline">
-                              <span class="fas fa-plane me-2"></span>Airlines
-                            </label>
-                          </div>
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="transportType-shipping" name="transport_types[]" value="shipping">
-                            <label class="form-check-label" for="transportType-shipping">
-                              <span class="fas fa-ship me-2"></span>Shipping
-                            </label>
-                          </div>
+                          <?php foreach ($supportedTypes as $type): ?>
+                            <div class="form-check">
+                              <input class="form-check-input" type="checkbox" id="transportType-<?php echo $type; ?>" name="transport_types[]" value="<?php echo $type; ?>">
+                              <label class="form-check-label" for="transportType-<?php echo $type; ?>">
+                                <span class="fas <?php echo $providerTypeIcons[$type] ?? 'fa-circle'; ?> me-2"></span><?php echo htmlspecialchars($providerTypeOptions[$type] ?? ucwords(str_replace('_', ' ', $type))); ?>
+                              </label>
+                            </div>
+                          <?php endforeach; ?>
                         </div>
                       </div>
 
@@ -463,13 +459,11 @@
                             $groupedProviders[$provider['provider_type']][] = $provider;
                           }
                           foreach ($groupedProviders as $type => $typeProviders):
-                            $typeIcon = match($type) {
-                              'airline' => 'fa-plane',
-                              'shipping' => 'fa-ship'
-                            };
+                            $typeIcon = $providerTypeIcons[$type] ?? 'fa-circle';
+                            $typeLabel = $providerTypeOptions[$type] ?? ucwords(str_replace('_', ' ', $type));
                           ?>
                             <div class="mb-2">
-                              <strong class="text-primary"><span class="fas <?php echo $typeIcon; ?> me-1"></span><?php echo ucfirst($type); ?></strong>
+                              <strong class="text-primary"><span class="fas <?php echo $typeIcon; ?> me-1"></span><?php echo htmlspecialchars($typeLabel); ?></strong>
                               <?php foreach ($typeProviders as $provider): ?>
                                 <div class="form-check ms-3">
                                   <input class="form-check-input provider-checkbox" type="checkbox" 

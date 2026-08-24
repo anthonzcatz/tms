@@ -131,15 +131,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     $providerTypeCounts = array_count_values(array_column($providers, 'provider_type'));
                     ksort($providerTypeCounts);
                     foreach ($providerTypeCounts as $typeName => $typeCount):
-                        $badgeClass = match (strtolower($typeName)) {
-                            'airline' => 'bg-primary',
-                            'shipping' => 'bg-info',
-                            'bus' => 'bg-warning text-dark',
-                            default => 'bg-secondary'
-                        };
+                        $badgeClass = $providerTypeColors[$typeName] ?? 'bg-secondary';
                     ?>
                       <span class="badge <?php echo $badgeClass; ?> fs-10">
-                        <?php echo htmlspecialchars(ucfirst($typeName)); ?> (<?php echo (int) $typeCount; ?>)
+                        <?php echo htmlspecialchars($providerTypeOptions[$typeName] ?? ucwords(str_replace('_', ' ', $typeName))); ?> (<?php echo (int) $typeCount; ?>)
                       </span>
                     <?php endforeach; ?>
                     <?php if (empty($providerTypeCounts)): ?>
@@ -210,7 +205,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                 <select class="form-select" id="providerTypeFilter" onchange="applyFilters()">
                   <option value="">All Types</option>
                   <?php foreach ($types as $type): ?>
-                    <option value="<?php echo $type; ?>"><?php echo ucfirst($type); ?></option>
+                    <option value="<?php echo $type; ?>"><?php echo htmlspecialchars($providerTypeOptions[$type] ?? ucwords(str_replace('_', ' ', $type))); ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
@@ -323,13 +318,9 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                           <div class="small text-muted <?php echo empty($provider['parent_provider_id']) ? '' : 'ps-3'; ?>" id="providerName<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_name']); ?></div>
                         </td>
                         <td>
-                          <span class="badge <?php echo match($provider['provider_type']) {
-                            'airline' => 'bg-primary',
-                            'shipping' => 'bg-info',
-                            'bus' => 'bg-warning',
-                            default => 'bg-secondary'
-                          }; ?>">
-                            <span id="providerType<?php echo (int) $provider['provider_id']; ?>"><?php echo ucfirst($provider['provider_type']); ?></span>
+                          <?php $typeColor = $providerTypeColors[$provider['provider_type']] ?? 'bg-secondary'; ?>
+                          <span class="badge <?php echo $typeColor; ?>">
+                            <span id="providerType<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($providerTypeOptions[$provider['provider_type']] ?? ucwords(str_replace('_', ' ', $provider['provider_type']))); ?></span>
                           </span>
                         </td>
                         <td class="text-center">
@@ -390,6 +381,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     <?php include __DIR__ . '/modals/manage_variants.php'; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js"></script>
+    <script>
+      window.PROVIDER_TYPE_OPTIONS = <?php echo json_encode($providerTypeOptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+      window.PROVIDER_TYPE_COLORS = <?php echo json_encode($providerTypeColors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+    </script>
     <script src="<?php echo BASE_URL; ?>/admin/wallet/ticket-providers/assets/js/ticket-providers.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/ticket-providers.js'); ?>"></script>
 
     <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>

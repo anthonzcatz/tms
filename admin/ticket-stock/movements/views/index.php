@@ -88,8 +88,12 @@
               <option value="OPENING_BALANCE">Opening balance</option>
               <option value="POS_SALE">POS sale</option>
               <option value="POS_SALE_REVERSAL">POS sale reversal</option>
+              <option value="POS_CANCEL">POS cancel</option>
               <option value="DISPATCH">Dispatch</option>
-              <option value="RECEIPT">Receipt</option>
+              <option value="RECEIPT">Receipt / top-up</option>
+              <option value="STOCK_IN">Stock in</option>
+              <option value="STOCK_OUT">Stock out</option>
+              <option value="RETURN_TO_SOURCE">Return to source</option>
               <option value="ADJUSTMENT">Adjustment</option>
               <option value="DAMAGE_OR_VOID">Damage or void</option>
             </select>

@@ -356,12 +356,12 @@ function handleMutation(): void
 
 function getBalanceFilters(): array
 {
-    $where = ['1=1'];
+    $where = ['v.deleted_at IS NULL', 'v.is_active = 1', 'v.stock_controlled = 1', 'b.status = \'active\''];
     $params = [];
-    applyBranchScope($where, $params, 's.branch_id');
-    applyOptionalInt($where, $params, 's.branch_id', 'branch_id');
-    applyOptionalInt($where, $params, 's.provider_id', 'provider_id');
-    applyOptionalInt($where, $params, 's.variant_id', 'variant_id');
+    applyBranchScope($where, $params, 'b.branch_id');
+    applyOptionalInt($where, $params, 'b.branch_id', 'branch_id');
+    applyOptionalInt($where, $params, 'v.provider_id', 'provider_id');
+    applyOptionalInt($where, $params, 'v.variant_id', 'variant_id');
 
     return [$where, $params];
 }
@@ -371,16 +371,26 @@ function getBalances(): array
     [$where, $params] = getBalanceFilters();
 
     return Database::fetchAll(
-        "SELECT s.stock_id, s.branch_id, b.branch_name,
-                s.provider_id, p.provider_code, p.provider_name,
-                s.variant_id, v.variant_code, v.variant_name,
-                s.on_hand_qty, s.reserved_qty,
-                (s.on_hand_qty - s.reserved_qty) AS available_qty,
-                s.reorder_level, s.created_at, s.updated_at
-         FROM branch_ticket_stocks s
-         JOIN business_branches b ON b.branch_id = s.branch_id
-         JOIN ticket_providers p ON p.provider_id = s.provider_id
-         JOIN provider_ticket_variants v ON v.variant_id = s.variant_id
+        "SELECT s.stock_id, b.branch_id, b.branch_name,
+                v.provider_id, p.provider_code, p.provider_name,
+                v.variant_id, v.variant_code, v.variant_name,
+                COALESCE(s.on_hand_qty, 0) AS on_hand_qty,
+                COALESCE(s.reserved_qty, 0) AS reserved_qty,
+                (COALESCE(s.on_hand_qty, 0) - COALESCE(s.reserved_qty, 0)) AS available_qty,
+                COALESCE(vw.min_balance, s.reorder_level, 0) AS reorder_level,
+                s.created_at, s.updated_at
+         FROM provider_ticket_variants v
+         JOIN ticket_providers p ON p.provider_id = v.provider_id
+         JOIN business_branches b ON b.status = 'active'
+         LEFT JOIN branch_ticket_stocks s
+           ON s.branch_id = b.branch_id
+          AND s.provider_id = v.provider_id
+          AND s.variant_id = v.variant_id
+         LEFT JOIN provider_wallets vw
+           ON vw.branch_id = b.branch_id
+          AND vw.provider_id = v.provider_id
+          AND vw.variant_id = v.variant_id
+          AND vw.status = 'active'
          WHERE " . implode(' AND ', $where) . "
          ORDER BY b.branch_name, p.provider_name, v.variant_name",
         $params
@@ -396,11 +406,22 @@ function getBalancesVersion(): array
                 COALESCE(MAX(s.stock_id), 0) AS max_stock_id,
                 COALESCE(SUM(COALESCE(s.on_hand_qty, 0)), 0) AS on_hand_total,
                 COALESCE(SUM(COALESCE(s.reserved_qty, 0)), 0) AS reserved_total,
-                COALESCE(SUM(COALESCE(s.reorder_level, 0)), 0) AS reorder_total,
-                COALESCE(SUM(s.stock_id * COALESCE(s.on_hand_qty, 0)), 0) AS on_hand_checksum,
-                COALESCE(SUM(s.stock_id * COALESCE(s.reserved_qty, 0)), 0) AS reserved_checksum,
-                COALESCE(SUM(s.stock_id * COALESCE(s.reorder_level, 0)), 0) AS reorder_checksum
-         FROM branch_ticket_stocks s
+                COALESCE(SUM(COALESCE(vw.min_balance, s.reorder_level, 0)), 0) AS reorder_total,
+                COALESCE(SUM(COALESCE(s.stock_id, 0) * COALESCE(s.on_hand_qty, 0)), 0) AS on_hand_checksum,
+                COALESCE(SUM(COALESCE(s.stock_id, 0) * COALESCE(s.reserved_qty, 0)), 0) AS reserved_checksum,
+                COALESCE(SUM(COALESCE(s.stock_id, 0) * COALESCE(vw.min_balance, s.reorder_level, 0)), 0) AS reorder_checksum
+         FROM provider_ticket_variants v
+         JOIN ticket_providers p ON p.provider_id = v.provider_id
+         JOIN business_branches b ON b.status = 'active'
+         LEFT JOIN branch_ticket_stocks s
+           ON s.branch_id = b.branch_id
+          AND s.provider_id = v.provider_id
+          AND s.variant_id = v.variant_id
+         LEFT JOIN provider_wallets vw
+           ON vw.branch_id = b.branch_id
+          AND vw.provider_id = v.provider_id
+          AND vw.variant_id = v.variant_id
+          AND vw.status = 'active'
          WHERE " . implode(' AND ', $where),
         $params
     ) ?: [];
@@ -451,13 +472,13 @@ function balanceVersionFromStats(array $stats): string
     return hash('sha256', implode('|', [
         (int) ($stats['row_count'] ?? 0),
         (string) ($stats['last_updated_at'] ?? ''),
-        (string) ($stats['max_stock_id'] ?? 0),
-        (string) ($stats['on_hand_total'] ?? 0),
-        (string) ($stats['reserved_total'] ?? 0),
-        (string) ($stats['reorder_total'] ?? 0),
-        (string) ($stats['on_hand_checksum'] ?? 0),
-        (string) ($stats['reserved_checksum'] ?? 0),
-        (string) ($stats['reorder_checksum'] ?? 0),
+        (string) ((int) ($stats['max_stock_id'] ?? 0)),
+        (string) ((int) ($stats['on_hand_total'] ?? 0)),
+        (string) ((int) ($stats['reserved_total'] ?? 0)),
+        (string) ((int) ($stats['reorder_total'] ?? 0)),
+        (string) ((int) ($stats['on_hand_checksum'] ?? 0)),
+        (string) ((int) ($stats['reserved_checksum'] ?? 0)),
+        (string) ((int) ($stats['reorder_checksum'] ?? 0)),
     ]));
 }
 
@@ -954,7 +975,7 @@ function receiveRequest(array $input): array
                     [
                         'reference_type' => 'STOCK_REQUEST',
                         'reference_id' => $requestId,
-                        'source_branch_id' => (int) $request['source_branch_id'],
+                        'source_branch_id' => $request['source_branch_id'] ? (int) $request['source_branch_id'] : null,
                         'ticket_number_from' => $item['ticket_series_from'],
                         'ticket_number_to' => $item['ticket_series_to'],
                         'remarks' => 'Receipt for ' . $request['request_code'],
@@ -1194,7 +1215,11 @@ function assertRequestAccess(array $request): void
 
 function requirePositiveInt(array $input, string $key): int
 {
-    $value = (int) ($input[$key] ?? 0);
+    $rawValue = $input[$key] ?? null;
+    if (filter_var($rawValue, FILTER_VALIDATE_INT) === false) {
+        throw new InvalidArgumentException("{$key} must be a positive integer.");
+    }
+    $value = (int) $rawValue;
     if ($value <= 0) {
         throw new InvalidArgumentException("{$key} must be a positive integer.");
     }
@@ -1206,7 +1231,7 @@ function requirePositiveInt(array $input, string $key): int
 
 function requireInt(array $input, string $key): int
 {
-    if (!isset($input[$key]) || !is_numeric($input[$key])) {
+    if (!isset($input[$key]) || filter_var($input[$key], FILTER_VALIDATE_INT) === false) {
         throw new InvalidArgumentException("{$key} must be an integer.");
     }
     return (int) $input[$key];

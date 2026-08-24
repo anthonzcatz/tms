@@ -158,30 +158,8 @@ $wallets = Database::fetchAll(
     $params
 );
 
-// Filter: show variant wallets and main wallets with sub-providers;
-// hide provider-level main wallets that have variant wallets but no sub-providers.
-$hasVariantWalletByProviderBranch = [];
-foreach ($wallets as $wallet) {
-    if (!empty($wallet['variant_id'])) {
-        $hasVariantWalletByProviderBranch[$wallet['provider_id'] . '|' . $wallet['branch_id']] = true;
-    }
-}
-
-$wallets = array_values(array_filter($wallets, function ($wallet) use ($hasVariantWalletByProviderBranch) {
-    // Variant wallets always display
-    if (!empty($wallet['variant_id'])) {
-        return true;
-    }
-
-    // Provider-level wallet with sub-providers (main-sub shared wallet) always display
-    if (!empty($wallet['child_provider_names'])) {
-        return true;
-    }
-
-    // Provider-level wallet without sub-providers: hide if variant wallets exist for the same provider/branch
-    $key = $wallet['provider_id'] . '|' . $wallet['branch_id'];
-    return !isset($hasVariantWalletByProviderBranch[$key]);
-}));
+// Keep monetary provider wallets visible alongside variant stock wallets.
+// Their balances belong to separate domains and must not be merged or hidden.
 
 // Derive filter providers and branches from the wallets the user can access
 $filterProviders = [];
@@ -224,6 +202,19 @@ ksort($branchMap);
 $filterProviders = array_values($providerMap);
 $filterBranches = array_values($branchMap);
 
+// Build provider type labels and badge colors from the database enum.
+$providerTypeValues = Database::getEnumValues('ticket_providers', 'provider_type');
+$providerTypeOptions = [];
+foreach ($providerTypeValues as $typeValue) {
+    $providerTypeOptions[$typeValue] = ucwords(str_replace('_', ' ', $typeValue));
+}
+
+$badgePalette = ['bg-primary', 'bg-info', 'bg-warning text-dark', 'bg-success', 'bg-danger', 'bg-dark', 'bg-secondary'];
+$providerTypeColors = [];
+foreach (array_keys($providerTypeOptions) as $index => $typeValue) {
+    $providerTypeColors[$typeValue] = $badgePalette[$index % count($badgePalette)];
+}
+
 // Pass filter values to view
 $viewData = [
     'wallets' => $wallets,
@@ -238,7 +229,9 @@ $viewData = [
     'systemSettings' => $systemSettings,
     'pusherConfigured' => PusherService::isConfigured(),
     'pusherKey' => PusherService::isConfigured() ? env('PUSHER_KEY', '') : '',
-    'pusherCluster' => PusherService::isConfigured() ? env('PUSHER_CLUSTER', 'ap1') : 'ap1'
+    'pusherCluster' => PusherService::isConfigured() ? env('PUSHER_CLUSTER', 'ap1') : 'ap1',
+    'providerTypeOptions' => $providerTypeOptions,
+    'providerTypeColors' => $providerTypeColors
 ];
 
 extract($viewData);

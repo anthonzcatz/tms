@@ -217,8 +217,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <select class="form-select" id="walletFilter">
                       <option value="">All Wallets</option>
                       <?php foreach ($wallets as $wallet): ?>
-                        <option value="<?php echo $wallet['wallet_id']; ?>" data-balance="<?php echo $wallet['current_balance']; ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>">
-                          <?php echo htmlspecialchars($wallet['wallet_name']); ?>
+                        <option value="<?php echo $wallet['wallet_id']; ?>"
+                                data-balance="<?php echo htmlspecialchars((string) $wallet['current_balance'], ENT_QUOTES, 'UTF-8'); ?>"
+                                data-variant-id="<?php echo $wallet['variant_id'] ? (int) $wallet['variant_id'] : ''; ?>"
+                                data-on-hand-qty="<?php echo (int) ($wallet['on_hand_qty'] ?? 0); ?>"
+                                data-available-qty="<?php echo (int) ($wallet['available_qty'] ?? 0); ?>"
+                                data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>">
+                          <?php echo htmlspecialchars($wallet['wallet_name']); ?><?php echo !empty($wallet['variant_id']) ? ' (Ticket Stock)' : ''; ?>
                         </option>
                       <?php endforeach; ?>
                     </select>

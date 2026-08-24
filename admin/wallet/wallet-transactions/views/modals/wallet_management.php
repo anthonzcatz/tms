@@ -22,7 +22,7 @@
               <th>Provider</th>
               <th>Variant</th>
               <th>Branch</th>
-              <th>Current Balance</th>
+              <th>Current Balance / Stock</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>

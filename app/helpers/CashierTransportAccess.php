@@ -6,9 +6,21 @@ require_once __DIR__ . '/../../config/database.php';
 
 final class CashierTransportAccess
 {
-    public const SUPPORTED_TRANSPORT_TYPES = ['airline', 'shipping'];
-
     private static array $contextCache = [];
+    private static ?array $supportedTransportTypes = null;
+
+    /**
+     * Return the transportation/provider types that may be assigned to cashiers.
+     * Driven by the live ticket_providers.provider_type enum so new types are
+     * automatically supported without code changes.
+     */
+    public static function getSupportedTransportTypes(): array
+    {
+        if (self::$supportedTransportTypes === null) {
+            self::$supportedTransportTypes = Database::getEnumValues('ticket_providers', 'provider_type');
+        }
+        return self::$supportedTransportTypes;
+    }
 
     public static function context(array $user): array
     {
@@ -49,12 +61,12 @@ final class CashierTransportAccess
                     return $providerId > 0
                         && isset($providerMap[$providerId])
                         && ($providerMap[$providerId]['status'] ?? '') === 'active'
-                        && in_array($providerMap[$providerId]['provider_type'] ?? '', self::SUPPORTED_TRANSPORT_TYPES, true);
+                        && in_array($providerMap[$providerId]['provider_type'] ?? '', self::getSupportedTransportTypes(), true);
                 }
             ))),
             'transport_types' => array_values(array_unique(array_filter(
                 array_map(static fn(array $row): string => (string) ($row['transport_type'] ?? ''), $assignments),
-                static fn(string $type): bool => in_array($type, self::SUPPORTED_TRANSPORT_TYPES, true)
+                static fn(string $type): bool => in_array($type, self::getSupportedTransportTypes(), true)
             ))),
         ];
 
@@ -71,7 +83,7 @@ final class CashierTransportAccess
         $providers = self::providerMap();
         if (!isset($providers[$providerId])
             || ($providers[$providerId]['status'] ?? '') !== 'active'
-            || !in_array($providers[$providerId]['provider_type'] ?? '', self::SUPPORTED_TRANSPORT_TYPES, true)) {
+            || !in_array($providers[$providerId]['provider_type'] ?? '', self::getSupportedTransportTypes(), true)) {
             return false;
         }
 
@@ -117,7 +129,7 @@ final class CashierTransportAccess
         $allowedRoots = [];
         foreach ($providers as $providerId => $provider) {
             if (($provider['status'] ?? '') !== 'active'
-                || !in_array($provider['provider_type'] ?? '', self::SUPPORTED_TRANSPORT_TYPES, true)) {
+                || !in_array($provider['provider_type'] ?? '', self::getSupportedTransportTypes(), true)) {
                 continue;
             }
             if ($context['provider_ids']
@@ -149,7 +161,7 @@ final class CashierTransportAccess
             return array_values(array_filter(
                 $providers,
                 static fn(array $provider): bool => ($provider['status'] ?? 'active') === 'active'
-                    && in_array($provider['provider_type'] ?? '', self::SUPPORTED_TRANSPORT_TYPES, true)
+                    && in_array($provider['provider_type'] ?? '', self::getSupportedTransportTypes(), true)
             ));
         }
 
@@ -164,7 +176,7 @@ final class CashierTransportAccess
                 $providerId = (int) ($provider['provider_id'] ?? 0);
                 if ($providerId <= 0
                     || ($provider['status'] ?? '') !== 'active'
-                    || !in_array($provider['provider_type'] ?? '', self::SUPPORTED_TRANSPORT_TYPES, true)) {
+                    || !in_array($provider['provider_type'] ?? '', self::getSupportedTransportTypes(), true)) {
                     return false;
                 }
                 if (!$context['provider_ids']
@@ -209,13 +221,21 @@ final class CashierTransportAccess
 
     private static function isActiveProvider(int $providerId): bool
     {
+        $typePlaceholders = [];
+        $typeParams = [];
+        foreach (self::getSupportedTransportTypes() as $index => $type) {
+            $key = 'provider_type_' . $index;
+            $typePlaceholders[] = ':' . $key;
+            $typeParams[$key] = $type;
+        }
+
         $provider = Database::fetch(
             "SELECT provider_id FROM ticket_providers
              WHERE provider_id = :provider_id
                AND status = 'active'
-               AND provider_type IN ('airline', 'shipping')
+               AND provider_type IN (" . implode(',', $typePlaceholders) . ")
              LIMIT 1",
-            ['provider_id' => $providerId]
+            array_merge(['provider_id' => $providerId], $typeParams)
         );
         return (bool) $provider;
     }

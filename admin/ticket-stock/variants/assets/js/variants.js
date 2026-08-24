@@ -97,7 +97,9 @@ function renderVariantsTable(data) {
             '<td>' + escapeHtml(v.variant_name || '') + '</td>' +
             '<td>' + escapeHtml(v.description || '') + '</td>' +
             '<td><span class="variant-color-swatch" style="background-color:' + escapeHtml(color) + ';"></span></td>' +
-            '<td>' + (v.stock_controlled ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>') + '</td>' +
+            '<td>' + (v.stock_controlled
+                ? '<span class="badge bg-success">Yes</span><small class="d-block text-muted">On hand: ' + Number(v.on_hand_qty || 0).toLocaleString('en-PH') + ' • Available: ' + Number(v.available_qty || 0).toLocaleString('en-PH') + '</small>'
+                : '<span class="badge bg-secondary">No</span>') + '</td>' +
             '<td>' + (v.requires_ticket_number ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>') + '</td>' +
             '<td>' + (v.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>') + '</td>' +
             '<td class="text-end">' +

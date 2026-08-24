@@ -32,6 +32,11 @@ function startProviderWalletRealtime() {
                     updateStats();
                 }
             });
+            channel.bind('ticket_stock.updated', () => {
+                refreshProviderWalletDisplays().catch(error => {
+                    console.warn('[Provider wallets realtime] Stock refresh failed:', error);
+                });
+            });
             channel.bind('pusher:subscription_error', status => {
                 console.warn('[Provider wallets realtime] Subscription failed:', status);
             });
@@ -46,6 +51,18 @@ function startProviderWalletRealtime() {
         window.providerWalletPusher = pusher;
     } catch (error) {
         console.error('[Provider wallets realtime] Pusher initialization failed:', error);
+    }
+}
+
+async function refreshProviderWalletDisplays() {
+    const response = await fetch(`${window.BASE_URL}/api/wallets?action=balances&_t=${Date.now()}`, {
+        cache: 'no-store'
+    });
+    const result = await response.json();
+
+    if (result.success && Array.isArray(result.data?.wallets)) {
+        result.data.wallets.forEach(wallet => updateWalletDisplay(wallet.wallet_id, wallet));
+        updateStats();
     }
 }
 
@@ -64,21 +81,7 @@ function startProviderWalletPolling() {
 
         isRefreshing = true;
         try {
-            const response = await fetch(`${window.BASE_URL}/api/wallets?action=balances&_t=${Date.now()}`, {
-                cache: 'no-store'
-            });
-            const result = await response.json();
-
-            if (result.success && Array.isArray(result.data?.wallets)) {
-                result.data.wallets.forEach(wallet => {
-                    updateWalletDisplay(wallet.wallet_id, {
-                        current_balance: wallet.current_balance,
-                        min_balance: wallet.min_balance,
-                        status: wallet.status
-                    });
-                });
-                updateStats();
-            }
+            await refreshProviderWalletDisplays();
         } catch (error) {
             console.warn('[Provider wallets polling] Refresh failed:', error);
         } finally {
@@ -99,6 +102,7 @@ function startProviderWalletPolling() {
 // Initialize Bootstrap modals
 let addWalletModal, editWalletModal, adjustBalanceModal, viewWalletModal, manageProviderWalletsModal;
 let addWalletPrefill = null; // holds variant_id to preselect when opening Add Wallet
+let currentAdjustWallet = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     addWalletModal = new bootstrap.Modal(document.getElementById('addWalletModal'));
@@ -145,8 +149,6 @@ function checkExistingWallet() {
     const branchSelect = document.getElementById('addBranchId');
     const providerSelect = document.getElementById('addProviderId');
     const variantSelect = document.getElementById('addVariantId');
-    const initialBalanceInput = document.getElementById('addInitialBalance');
-    const minBalanceInput = document.getElementById('addMinBalance');
     const statusSelect = document.getElementById('addStatus');
     const walletIdInput = document.getElementById('addWalletId');
     const alertEl = document.getElementById('addExistingWalletAlert');
@@ -168,24 +170,39 @@ function checkExistingWallet() {
     const existing = findExistingWallet(branchId, providerId, variantId);
 
     const isVariant = Boolean(variantId);
-    setAddWalletInitialInputMode(isVariant);
+    const initialBalanceInput = setAddWalletInitialInputMode(isVariant);
+    const minBalanceInput = setInputNumberMode('addMinBalance', isVariant, {
+        name: 'min_balance',
+        label: 'Min Balance Threshold',
+        labelVariant: 'Min Stock Threshold',
+        symbol: '₱',
+        symbolVariant: '',
+        placeholder: '1,000.00',
+        placeholderVariant: '0',
+        help: 'Alert when balance falls below this amount',
+        helpVariant: 'Alert when stock falls below this quantity'
+    });
 
     if (existing) {
         if (walletIdInput) walletIdInput.value = existing.wallet_id;
         if (initialBalanceInput) {
             initialBalanceInput.value = isVariant
-                ? String(Math.max(0, parseInt(existing.current_balance || 0, 10)))
+                ? String(Math.max(0, parseInt(existing.on_hand_qty || 0, 10)))
                 : formatNumberValue(existing.current_balance);
             initialBalanceInput.disabled = true;
         }
-        if (minBalanceInput) minBalanceInput.value = formatNumberValue(existing.min_balance);
+        if (minBalanceInput) {
+            minBalanceInput.value = isVariant
+                ? String(Math.max(0, parseInt(existing.min_balance || 0, 10)))
+                : formatNumberValue(existing.min_balance);
+        }
         if (statusSelect) statusSelect.value = existing.status;
 
         setAddWalletKeyFieldsDisabled(true);
 
         if (alertEl && messageEl) {
             const balanceText = isVariant
-                ? `${Math.max(0, parseInt(existing.current_balance || 0, 10))} tickets`
+                ? `${Math.max(0, parseInt(existing.on_hand_qty || 0, 10))} tickets`
                 : `₱${formatNumberValue(existing.current_balance)}`;
             messageEl.textContent = `An existing wallet with ${balanceText} was found. Saving will update its settings.`;
             alertEl.classList.remove('d-none');
@@ -196,7 +213,9 @@ function checkExistingWallet() {
             initialBalanceInput.disabled = false;
             initialBalanceInput.value = isVariant ? '0' : '0.00';
         }
-        if (minBalanceInput) minBalanceInput.value = '1,000.00';
+        if (minBalanceInput) {
+            minBalanceInput.value = isVariant ? '0' : '1,000.00';
+        }
         if (statusSelect) statusSelect.value = 'active';
 
         setAddWalletKeyFieldsDisabled(false);
@@ -345,8 +364,6 @@ async function openAddWalletModal(prefillProviderId, prefillBranchId, prefillVar
     const providerSelect = document.getElementById('addProviderId');
     const branchSelect = document.getElementById('addBranchId');
     const variantSelect = document.getElementById('addVariantId');
-    const initialBalanceInput = document.getElementById('addInitialBalance');
-    const minBalanceInput = document.getElementById('addMinBalance');
     const statusSelect = document.getElementById('addStatus');
     const walletIdInput = document.getElementById('addWalletId');
     const alertEl = document.getElementById('addExistingWalletAlert');
@@ -355,16 +372,29 @@ async function openAddWalletModal(prefillProviderId, prefillBranchId, prefillVar
     if (branchSelect) branchSelect.disabled = false;
     if (providerSelect) providerSelect.disabled = true;
     if (variantSelect) variantSelect.disabled = true;
-    if (initialBalanceInput) {
-        initialBalanceInput.disabled = false;
-    }
-    if (minBalanceInput) minBalanceInput.value = '1,000.00';
     if (statusSelect) statusSelect.value = 'active';
     if (walletIdInput) walletIdInput.value = '';
     if (alertEl) alertEl.classList.add('d-none');
 
     // Start in provider-level (money) mode
-    setAddWalletInitialInputMode(false);
+    const initialBalanceInput = setAddWalletInitialInputMode(false);
+    if (initialBalanceInput) {
+        initialBalanceInput.disabled = false;
+        initialBalanceInput.value = '0.00';
+    }
+
+    const addMinInput = setInputNumberMode('addMinBalance', false, {
+        name: 'min_balance',
+        label: 'Min Balance Threshold',
+        labelVariant: 'Min Stock Threshold',
+        symbol: '₱',
+        symbolVariant: '',
+        placeholder: '1,000.00',
+        placeholderVariant: '0',
+        help: 'Alert when balance falls below this amount',
+        helpVariant: 'Alert when stock falls below this quantity'
+    });
+    if (addMinInput) addMinInput.value = '1,000.00';
 
     await loadBranches();
 
@@ -395,11 +425,17 @@ async function saveWallet() {
     const minBalance = document.getElementById('addMinBalance').value;
     const status = document.getElementById('addStatus').value;
     const existingWalletId = walletIdInput ? walletIdInput.value : '';
+    const parsedMinBalance = minBalance.trim() === '' ? null : parseFloat(String(minBalance).replace(/,/g, ''));
 
     if (!providerId || !branchId) {
         showToast('warning', 'Warning', 'Please select provider and branch');
         return;
     }
+    if (parsedMinBalance !== null && (!Number.isFinite(parsedMinBalance) || parsedMinBalance < 0)) {
+        showToast('warning', 'Warning', 'Please enter a valid non-negative minimum threshold');
+        return;
+    }
+    const minBalanceValue = parsedMinBalance === null ? (isVariant ? 0 : 1000) : parsedMinBalance;
 
     // If a pre-existing wallet is detected, skip duplicate checks and update it
     if (!existingWalletId && variantSelect) {
@@ -428,7 +464,7 @@ async function saveWallet() {
             successMessage = 'Wallet updated successfully';
             body = JSON.stringify({
                 wallet_id: existingWalletId,
-                min_balance: parseFloat(String(minBalance).replace(/,/g, '')) || 1000,
+                min_balance: minBalanceValue,
                 status: status
             });
         } else {
@@ -438,7 +474,7 @@ async function saveWallet() {
                 provider_id: providerId,
                 branch_id: branchId,
                 variant_id: variantId || null,
-                min_balance: parseFloat(String(minBalance).replace(/,/g, '')) || 1000,
+                min_balance: minBalanceValue,
                 status: status
             };
             if (isVariant) {
@@ -464,7 +500,7 @@ async function saveWallet() {
             if (existingWalletId) {
                 updateWalletDisplay(existingWalletId, {
                     status: result.data?.status ?? status,
-                    min_balance: result.data?.min_balance ?? (parseFloat(String(minBalance).replace(/,/g, '')) || 1000),
+                    min_balance: result.data?.min_balance ?? minBalanceValue,
                     current_balance: result.data?.current_balance
                 });
                 updateStats();
@@ -504,7 +540,23 @@ async function editWallet(walletId) {
                     ? '0.00'
                     : parseFloat(wallet.current_balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
             document.getElementById('editCurrentBalance').textContent = balanceText;
-            document.getElementById('editMinBalance').value = formatNumberValue(wallet.min_balance || 0);
+
+            const editMinInput = setInputNumberMode('editMinBalance', isVariant, {
+                name: 'min_balance',
+                label: 'Min Balance Threshold',
+                labelVariant: 'Min Stock Threshold',
+                symbol: '₱',
+                symbolVariant: '',
+                placeholder: '1,000.00',
+                placeholderVariant: '0',
+                help: 'Alert when balance falls below this amount',
+                helpVariant: 'Alert when stock falls below this quantity'
+            });
+            if (editMinInput) {
+                editMinInput.value = isVariant
+                    ? String(Math.max(0, parseInt(wallet.min_balance || 0, 10)))
+                    : formatNumberValue(wallet.min_balance || 0);
+            }
 
             const editBalanceLabel = document.getElementById('editCurrentBalanceLabel');
             if (editBalanceLabel) editBalanceLabel.textContent = isVariant ? 'Current Ticket Stock:' : 'Current Balance:';
@@ -677,7 +729,7 @@ async function updateStats() {
         const totalWallets = wallets.length;
         const activeWallets = wallets.filter(wallet => wallet.status === 'active').length;
         const inactiveWallets = wallets.filter(wallet => wallet.status === 'inactive').length;
-        const totalBalance = wallets.reduce((sum, wallet) => {
+        const totalBalance = wallets.filter(wallet => !wallet.variant_id).reduce((sum, wallet) => {
             const balance = Number(wallet.current_balance);
             return sum + (Number.isFinite(balance) ? balance : 0);
         }, 0);
@@ -742,12 +794,16 @@ function updateWalletDisplay(walletId, changes) {
 
     if (changes.min_balance !== undefined) {
         const listMin = document.getElementById(`walletListMinBalance${walletId}`);
-        if (listMin) {
-            listMin.textContent = '₱' + formatNumberValue(changes.min_balance);
-        }
         const cardMin = document.getElementById(`walletCardMinBalance${walletId}`);
+        const isVariant = isVariantWallet(walletId);
+        const minBalanceValue = Math.max(0, parseInt(changes.min_balance || 0, 10));
+        if (listMin) {
+            listMin.textContent = isVariant ? `${minBalanceValue} tickets` : '₱' + formatNumberValue(changes.min_balance);
+        }
         if (cardMin) {
-            cardMin.innerHTML = `<span class="fas fa-exclamation-triangle me-1"></span>Min: ₱${formatNumberValue(changes.min_balance)}`;
+            cardMin.innerHTML = isVariant
+                ? `<span class="fas fa-exclamation-triangle me-1"></span>Min Stock: ${minBalanceValue} tickets`
+                : `<span class="fas fa-exclamation-triangle me-1"></span>Min: ₱${formatNumberValue(changes.min_balance)}`;
         }
     }
 
@@ -772,12 +828,18 @@ function updateWalletDisplay(walletId, changes) {
     if (changes.current_balance !== undefined) {
         updateWalletBalanceDisplay(walletId, changes.current_balance);
     }
+    if (changes.on_hand_qty !== undefined) {
+        updateWalletStockDisplay(walletId, changes.on_hand_qty);
+    }
 
     if (window.providerWalletData && window.providerWalletData.existingWallets) {
         const w = window.providerWalletData.existingWallets.find(w => w.wallet_id == walletId);
         if (w) {
             if (changes.min_balance !== undefined) w.min_balance = parseFloat(changes.min_balance) || 0;
             if (changes.current_balance !== undefined) w.current_balance = parseFloat(changes.current_balance) || 0;
+            if (changes.on_hand_qty !== undefined) w.on_hand_qty = parseInt(changes.on_hand_qty, 10) || 0;
+            if (changes.reserved_qty !== undefined) w.reserved_qty = parseInt(changes.reserved_qty, 10) || 0;
+            if (changes.available_qty !== undefined) w.available_qty = parseInt(changes.available_qty, 10) || 0;
             if (changes.status !== undefined) w.status = changes.status;
         }
     }
@@ -787,6 +849,27 @@ function isVariantWallet(walletId) {
     if (!window.providerWalletData?.existingWallets) return false;
     const w = window.providerWalletData.existingWallets.find(w => w.wallet_id == walletId);
     return Boolean(w && w.variant_id);
+}
+
+function updateWalletStockDisplay(walletId, onHandQty) {
+    if (!isVariantWallet(walletId)) return;
+
+    const stockQty = parseInt(onHandQty || 0, 10);
+    const stockText = `${stockQty} tickets`;
+    const stockClass = stockQty >= 0 ? 'text-success' : 'text-danger';
+    const listBalance = document.getElementById(`walletListBalance${walletId}`);
+    if (listBalance) {
+        listBalance.textContent = stockText;
+        listBalance.classList.remove('text-success', 'text-danger');
+        listBalance.classList.add(stockClass);
+    }
+
+    const cardBalance = document.getElementById(`walletCardBalance${walletId}`);
+    if (cardBalance) {
+        cardBalance.textContent = stockText;
+        cardBalance.classList.remove('text-success', 'text-danger');
+        cardBalance.classList.add(stockClass);
+    }
 }
 
 function updateWalletBalanceDisplay(walletId, currentBalance) {
@@ -816,8 +899,6 @@ function updateWalletBalanceDisplay(walletId, currentBalance) {
 async function adjustBalance(walletId) {
     document.getElementById('adjustWalletId').value = walletId;
 
-    const amountInput = document.getElementById('adjustAmount');
-    if (amountInput) amountInput.value = '0.00';
     document.getElementById('adjustDirection').value = '';
     document.getElementById('adjustRemarks').value = '';
 
@@ -827,6 +908,7 @@ async function adjustBalance(walletId) {
 
         if (result.success && result.data) {
             const wallet = result.data;
+            currentAdjustWallet = wallet;
             document.getElementById('adjustProviderName').textContent = wallet.provider_name || '-';
             document.getElementById('adjustBranchName').textContent = wallet.branch_name || '-';
             const variantLabel = wallet.variant_name
@@ -841,6 +923,18 @@ async function adjustBalance(walletId) {
                     ? '0.00'
                     : parseFloat(wallet.current_balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
             document.getElementById('adjustCurrentBalance').textContent = adjustBalanceText;
+
+            const adjustInput = setInputNumberMode('adjustAmount', isAdjustVariant, {
+                name: 'amount',
+                label: 'Amount',
+                labelVariant: 'Quantity',
+                symbol: '₱',
+                symbolVariant: '',
+                placeholder: '0.00',
+                placeholderVariant: '0'
+            });
+            if (adjustInput) adjustInput.value = '0';
+
             adjustBalanceModal.show();
 
             const adjustBalanceLabel = document.getElementById('adjustCurrentBalanceLabel');
@@ -860,38 +954,64 @@ async function saveAdjustment() {
     const direction = document.getElementById('adjustDirection').value;
     const amount = document.getElementById('adjustAmount').value;
     const remarks = document.getElementById('adjustRemarks').value;
-    
-    if (!direction || !amount) {
-        showToast('warning', 'Warning', 'Please fill direction and amount');
+    const parsedAmount = parseFloat(String(amount).replace(/,/g, ''));
+
+    if (!direction || !amount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        showToast('warning', 'Warning', 'Please fill direction and enter a valid amount');
         return;
     }
-    
+
     try {
-        // Get CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-        
-        if (csrfToken) {
-            headers['X-CSRF-TOKEN'] = csrfToken;
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+
+        if (currentAdjustWallet && Number(currentAdjustWallet.wallet_id) === Number(walletId) && currentAdjustWallet.variant_id) {
+            const quantity = Math.trunc(parsedAmount);
+            if (quantity <= 0 || quantity !== parsedAmount) {
+                showToast('warning', 'Warning', 'Ticket stock quantity must be a whole number greater than 0');
+                return;
+            }
+
+            const response = await fetch(`${window.BASE_URL}/api/ticket-stock`, {
+                method: 'POST',
+                headers,
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    action: 'adjust',
+                    branch_id: currentAdjustWallet.branch_id,
+                    provider_id: currentAdjustWallet.provider_id,
+                    variant_id: currentAdjustWallet.variant_id,
+                    delta: direction === 'IN' ? quantity : -quantity,
+                    reason: remarks || 'Manual ticket stock adjustment'
+                })
+            });
+            const result = await response.json();
+            if (!result.success) {
+                showToast('error', 'Error', result.error || 'Failed to adjust ticket stock');
+                return;
+            }
+
+            showToast('success', 'Success', 'Ticket stock adjusted successfully');
+            adjustBalanceModal.hide();
+            updateWalletDisplay(walletId, { on_hand_qty: result.data?.on_hand_after });
+            updateStats();
+            return;
         }
-        
+
         const response = await fetch(`${window.BASE_URL}/api/wallet-transactions`, {
             method: 'POST',
-            headers: headers,
+            headers,
             body: JSON.stringify({
                 wallet_id: walletId,
                 txn_type: 'ADJUSTMENT',
-                direction: direction,
-                amount: parseFloat(String(amount).replace(/,/g, '')),
-                remarks: remarks
+                direction,
+                amount: parsedAmount,
+                remarks
             })
         });
-        
         const result = await response.json();
-        
+
         if (result.success) {
             showToast('success', 'Success', 'Balance adjusted successfully');
             adjustBalanceModal.hide();
@@ -902,7 +1022,7 @@ async function saveAdjustment() {
                 location.reload();
             }
         } else {
-            showToast('error', 'Error', result.message || 'Failed to adjust balance');
+            showToast('error', 'Error', result.error || result.message || 'Failed to adjust balance');
         }
     } catch (error) {
         console.error('Error adjusting balance:', error);
@@ -989,7 +1109,10 @@ function viewWallet(walletId) {
                 ? `<div class="d-flex flex-wrap gap-1">${linkedSubProviders.map(name => `<span class="badge bg-light text-dark border"><span class="fas fa-sitemap me-1 text-primary"></span>${escapeWalletHtml(name)}</span>`).join('')}</div>`
                 : `<span class="text-muted">No linked sub-providers</span>`;
             const hierarchyLabel = isSubProvider ? 'Sub-provider' : linkedSubProviders.length ? 'Main provider with sub-providers' : 'Standalone provider';
-            const providerType = w.provider_type ? w.provider_type.charAt(0).toUpperCase() + w.provider_type.slice(1) : '-';
+            const typeOptions = window.PROVIDER_TYPE_OPTIONS || {};
+            const fallbackType = w.provider_type ? w.provider_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '-';
+            const providerType = typeOptions[w.provider_type] || fallbackType;
+            const typeColor = (window.PROVIDER_TYPE_COLORS || {})[w.provider_type] || 'bg-secondary';
             const walletDisplayName = [w.provider_name, w.variant_name].filter(Boolean).join(' - ') || w.wallet_name || '-';
             const walletStatus = w.status === 'active' ? 'Active' : w.status === 'inactive' ? 'Inactive' : '-';
 
@@ -1000,7 +1123,7 @@ function viewWallet(walletId) {
                   <div class="row g-2 small">
                     <div class="col-5 text-muted">Wallet Name</div><div class="col-7 fw-semibold">${escapeWalletHtml(walletDisplayName)}</div>
                     <div class="col-5 text-muted">Branch</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.branch_name || '-')}</div>
-                    <div class="col-5 text-muted">${w.variant_id ? 'Current Ticket Stock' : 'Current Balance'}</div><div class="col-7 fw-bold ${(w.current_balance || 0) >= 0 ? 'text-success' : 'text-danger'}">${w.variant_id ? (Number(w.on_hand_qty || 0) + ' tickets') : formatCurrency(w.current_balance)}</div>
+                    <div class="col-5 text-muted">${w.variant_id ? 'Current Ticket Stock' : 'Current Balance'}</div><div class="col-7 fw-bold ${(w.variant_id ? Number(w.on_hand_qty || 0) : Number(w.current_balance || 0)) >= 0 ? 'text-success' : 'text-danger'}">${w.variant_id ? (Number(w.on_hand_qty || 0) + ' tickets') : formatCurrency(w.current_balance)}</div>
                     <div class="col-5 text-muted">${w.variant_id ? 'Min. Stock' : 'Min. Balance'}</div><div class="col-7 fw-semibold">${w.variant_id ? (Number(w.min_balance || 0) + ' tickets') : formatCurrency(w.min_balance)}</div>
                     <div class="col-5 text-muted">Status</div><div class="col-7"><span class="badge ${w.status === 'active' ? 'bg-success' : w.status === 'inactive' ? 'bg-danger' : 'bg-secondary'}">${walletStatus}</span></div>
                     <div class="col-5 text-muted">Created</div><div class="col-7 fw-semibold">${escapeWalletHtml(formatDate(w.created_at))}</div>
@@ -1011,7 +1134,7 @@ function viewWallet(walletId) {
                   <div class="row g-2 small">
                     <div class="col-5 text-muted">Provider Name</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.provider_name || '-')}</div>
                     <div class="col-5 text-muted">Provider Code</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.provider_code || '-')}</div>
-                    <div class="col-5 text-muted">Type</div><div class="col-7 fw-semibold">${escapeWalletHtml(providerType)}</div>
+                    <div class="col-5 text-muted">Type</div><div class="col-7 fw-semibold"><span class="badge ${typeColor}">${escapeWalletHtml(providerType)}</span></div>
                     <div class="col-5 text-muted">Contact Person</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.contact_person || '-')}</div>
                     <div class="col-5 text-muted">Email</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.email || '-')}</div>
                     <div class="col-5 text-muted">Phone</div><div class="col-7 fw-semibold">${escapeWalletHtml(w.phone || '-')}</div>
@@ -1130,7 +1253,7 @@ function renderManageWalletRow(providerId, branchId, variantId, variantLabel, co
         ? (isRowVariant ? `${Number(wallet.on_hand_qty || 0)} tickets` : formatCurrency(wallet.current_balance))
         : '<span class="text-muted">-</span>';
     const minBalanceHtml = hasWallet
-        ? (isRowVariant ? `${Number(wallet.min_balance || 0)}` : formatCurrency(wallet.min_balance))
+        ? (isRowVariant ? `${Number(wallet.min_balance || 0)} tickets` : formatCurrency(wallet.min_balance))
         : '<span class="text-muted">-</span>';
     const colorStyle = variantCode ? `style="background:${color};color:#fff;"` : '';
     const variantBadge = variantCode ? `<span class="badge rounded-pill me-1" ${colorStyle}>${variantCode}</span>` : '';
@@ -1147,7 +1270,9 @@ function renderManageWalletRow(providerId, branchId, variantId, variantLabel, co
         `;
     }
 
-    const balanceClass = hasWallet ? (wallet.current_balance >= 0 ? 'text-success' : 'text-danger') : '';
+    const balanceClass = hasWallet
+        ? ((isRowVariant ? Number(wallet.on_hand_qty || 0) : Number(wallet.current_balance || 0)) >= 0 ? 'text-success' : 'text-danger')
+        : '';
 
     return `
         <tr>
@@ -1538,6 +1663,38 @@ function setAddWalletInitialInputMode(isVariant) {
         symbol.textContent = '₱';
         formatCurrencyInput(newInput);
     }
+    return newInput;
+}
+
+function setInputNumberMode(inputId, isVariant, config) {
+    const input = document.getElementById(inputId);
+    if (!input) return null;
+    const parent = input.parentElement;
+    if (!parent) return null;
+    const symbol = parent.querySelector('.input-group-text');
+    const label = document.querySelector('label[for="' + inputId + '"]');
+    const help = parent.parentElement?.querySelector('.form-text');
+
+    const newInput = document.createElement('input');
+    newInput.id = inputId;
+    newInput.name = config.name || input.name || inputId;
+    newInput.type = 'text';
+    newInput.className = 'form-control ' + (isVariant ? '' : 'number-format');
+    newInput.inputMode = isVariant ? 'numeric' : 'decimal';
+    newInput.placeholder = isVariant ? (config.placeholderVariant || '0') : (config.placeholder || '0.00');
+    newInput.autocomplete = 'off';
+    parent.replaceChild(newInput, input);
+
+    if (label) label.textContent = isVariant ? (config.labelVariant || config.label) : config.label;
+    if (symbol) symbol.textContent = isVariant ? (config.symbolVariant || '') : (config.symbol || '');
+    if (help) help.textContent = isVariant ? (config.helpVariant || config.help || '') : (config.help || '');
+
+    if (isVariant) {
+        formatIntegerInput(newInput);
+    } else {
+        formatCurrencyInput(newInput);
+    }
+    return newInput;
 }
 
 function initCurrencyInputs() {

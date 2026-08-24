@@ -112,6 +112,7 @@ if ($method === 'PUT') {
     $action = $input['action'] ?? null;
     $notes  = $input['notes'] ?? null;
     $realtimeBranchIds = [];
+    $stockUpdates = [];
 
     if (!$payId && !$depositId && !$chargePaymentId || !in_array($action, ['CONFIRMED', 'REJECTED'])) {
         echo json_encode(['success' => false, 'error' => 'Invalid request.']); return;
@@ -132,7 +133,8 @@ if ($method === 'PUT') {
                 }
 
                 $paymentBranch = Database::fetch(
-                    "SELECT COALESCE(tt.branch_id, st.branch_id, cs.branch_id) AS branch_id
+                    "SELECT COALESCE(tt.branch_id, st.branch_id, cs.branch_id) AS branch_id,
+                            tt.provider_id, tt.variant_id
                      FROM transaction_payments tp
                      LEFT JOIN ticket_transactions tt ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
                      LEFT JOIN service_transactions st ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
@@ -203,6 +205,17 @@ if ($method === 'PUT') {
                     );
                     logActivity($user['user_id'], 'REJECTED_PAYMENT_SETTLEMENT', 'POS', "PAY-{$payId}",
                         null, $settlement);
+                    if (!empty($settlement['voided'])
+                        && ($existing['source_type'] ?? '') === 'TICKET_TRANSACTION'
+                        && !empty($paymentBranch['branch_id'])
+                        && !empty($paymentBranch['provider_id'])
+                        && !empty($paymentBranch['variant_id'])) {
+                        $stockUpdates[] = [
+                            'branch_id' => (int) $paymentBranch['branch_id'],
+                            'provider_id' => (int) $paymentBranch['provider_id'],
+                            'variant_id' => (int) $paymentBranch['variant_id'],
+                        ];
+                    }
                 }
 
                 logActivity($user['user_id'], $action . '_PAYMENT', 'Bank Confirmations', "PAY-{$payId}", null,
@@ -395,6 +408,12 @@ if ($method === 'PUT') {
                     'action' => $action,
                     'confirmation_status' => $action,
                 ]);
+            }
+            foreach ($stockUpdates as $stockUpdate) {
+                PusherService::triggerBranch($stockUpdate['branch_id'], 'ticket_stock.updated', array_merge(
+                    $stockUpdate,
+                    ['source' => 'rejected_payment']
+                ));
             }
 
             echo json_encode(['success' => true, 'message' => ucfirst(strtolower($action)) . ' successfully']);

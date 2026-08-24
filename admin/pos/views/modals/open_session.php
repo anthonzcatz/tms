@@ -47,30 +47,14 @@
                 </div>
                 <div id="cashierTransportAccessStatus" class="small text-muted mb-2">Loading your current access...</div>
                 <div id="cashierTransportTypeForm" class="row g-2" style="display:none;">
-                  <div class="col-6 col-md-3">
-                    <div class="form-check">
-                      <input class="form-check-input cashier-transport-type" type="checkbox" value="airline" id="cashierTransportAirline">
-                      <label class="form-check-label" for="cashierTransportAirline">Airlines</label>
+                  <?php foreach ($cashierTransportTypes as $type): ?>
+                    <div class="col-6 col-md-3">
+                      <div class="form-check">
+                        <input class="form-check-input cashier-transport-type" type="checkbox" value="<?php echo $type; ?>" id="cashierTransport<?php echo ucfirst($type); ?>">
+                        <label class="form-check-label" for="cashierTransport<?php echo ucfirst($type); ?>"><?php echo htmlspecialchars($cashierTransportTypeLabels[$type] ?? ucwords(str_replace('_', ' ', $type))); ?></label>
+                      </div>
                     </div>
-                  </div>
-                  <div class="col-6 col-md-3">
-                    <div class="form-check">
-                      <input class="form-check-input cashier-transport-type" type="checkbox" value="shipping" id="cashierTransportShipping">
-                      <label class="form-check-label" for="cashierTransportShipping">Shipping</label>
-                    </div>
-                  </div>
-                  <div class="col-6 col-md-3">
-                    <div class="form-check">
-                      <input class="form-check-input cashier-transport-type" type="checkbox" value="bus" id="cashierTransportBus">
-                      <label class="form-check-label" for="cashierTransportBus">Bus Lines</label>
-                    </div>
-                  </div>
-                  <div class="col-6 col-md-3">
-                    <div class="form-check">
-                      <input class="form-check-input cashier-transport-type" type="checkbox" value="other" id="cashierTransportOther">
-                      <label class="form-check-label" for="cashierTransportOther">Other</label>
-                    </div>
-                  </div>
+                  <?php endforeach; ?>
                   <div class="col-12 mt-2">
                     <small class="text-muted">Changes will be saved when you open the session.</small>
                   </div>

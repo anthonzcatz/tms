@@ -204,6 +204,26 @@ $printerSettings = Database::fetch(
      WHERE setting_id = 1"
 );
 
+// Supported transportation types for the open session form.
+$cashierTransportTypeLabels = [];
+$cashierTransportTypeIcons = [];
+foreach (CashierTransportAccess::getSupportedTransportTypes() as $type) {
+    $cashierTransportTypeLabels[$type] = match ($type) {
+        'airline' => 'Airlines',
+        'shipping' => 'Shipping',
+        'bus' => 'Bus Lines',
+        'other' => 'Other',
+        default => ucwords(str_replace('_', ' ', $type))
+    };
+    $cashierTransportTypeIcons[$type] = match ($type) {
+        'airline' => 'fa-plane',
+        'shipping' => 'fa-ship',
+        'bus' => 'fa-bus',
+        'other' => 'fa-question-circle',
+        default => 'fa-circle'
+    };
+}
+
 // Pass user to view
 $viewData = [
     'userBranchId' => $userBranchId,
@@ -222,7 +242,10 @@ $viewData = [
          FROM bank_accounts
          WHERE is_active = 1
          ORDER BY bank_name ASC"
-    )
+    ),
+    'cashierTransportTypes' => CashierTransportAccess::getSupportedTransportTypes(),
+    'cashierTransportTypeLabels' => $cashierTransportTypeLabels,
+    'cashierTransportTypeIcons' => $cashierTransportTypeIcons
 ];
 
 extract($viewData);

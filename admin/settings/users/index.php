@@ -47,15 +47,24 @@ $branches = Database::fetchAll(
      ORDER BY branch_name"
 );
 
-// Get all ticket providers for cashier assignments (including wallet owner)
+// Get all ticket providers for cashier assignments (filtered by supported transport types)
+$allowedTypes = CashierTransportAccess::getSupportedTransportTypes();
+$typePlaceholders = [];
+$typeParams = [];
+foreach ($allowedTypes as $index => $type) {
+    $key = 'provider_type_' . $index;
+    $typePlaceholders[] = ':' . $key;
+    $typeParams[$key] = $type;
+}
 $providers = Database::fetchAll(
     "SELECT tp.provider_id, tp.provider_code, tp.provider_name, tp.provider_type,
             tp.parent_provider_id, ptp.provider_name as parent_provider_name
      FROM ticket_providers tp
      LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
      WHERE tp.status = 'active'
-       AND tp.provider_type IN ('airline', 'shipping')
-     ORDER BY tp.provider_type, tp.provider_name"
+       AND tp.provider_type IN (" . implode(',', $typePlaceholders) . ")
+     ORDER BY tp.provider_type, tp.provider_name",
+    $typeParams
 );
 
 // Get existing cashier transport assignments
@@ -71,6 +80,21 @@ $transportAssignments = Database::fetchAll(
 $assignmentsByUser = [];
 foreach ($transportAssignments as $assignment) {
     $assignmentsByUser[$assignment['user_id']][] = $assignment;
+}
+
+// Future-ready labels and icons for the supported transport/provider types.
+$supportedTypes = $allowedTypes;
+$providerTypeOptions = [];
+$providerTypeIcons = [];
+foreach ($allowedTypes as $type) {
+    $providerTypeOptions[$type] = ucwords(str_replace('_', ' ', $type));
+    $providerTypeIcons[$type] = match ($type) {
+        'airline' => 'fa-plane',
+        'shipping' => 'fa-ship',
+        'bus' => 'fa-bus',
+        'other' => 'fa-question-circle',
+        default => 'fa-circle'
+    };
 }
 
 // Include the main view

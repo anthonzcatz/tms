@@ -62,6 +62,9 @@ $wallets = Database::fetchAll(
             bb.branch_name,
             pv.variant_name,
             pv.display_color as variant_color,
+            COALESCE(bts.on_hand_qty, 0) as on_hand_qty,
+            COALESCE(bts.reserved_qty, 0) as reserved_qty,
+            COALESCE(bts.on_hand_qty - bts.reserved_qty, 0) as available_qty,
             CONCAT(tp.provider_name,
                    IF(pv.variant_name IS NOT NULL, CONCAT(' - ', pv.variant_name), ''),
                    ' - ', bb.branch_name) as wallet_name,
@@ -75,27 +78,17 @@ $wallets = Database::fetchAll(
      LEFT JOIN ticket_providers ptp ON tp.parent_provider_id = ptp.provider_id
      LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
      LEFT JOIN provider_ticket_variants pv ON pw.variant_id = pv.variant_id
+     LEFT JOIN branch_ticket_stocks bts
+       ON bts.branch_id = pw.branch_id
+      AND bts.provider_id = pw.provider_id
+      AND bts.variant_id = pw.variant_id
      $branchFilter
      ORDER BY tp.provider_name, pv.variant_name, bb.branch_name",
     $params
 );
 
-// Hide provider-level wallets for providers that also have variant wallets in the same branch
-$hasVariantByProviderBranch = [];
-foreach ($wallets as $wallet) {
-    if (!empty($wallet['variant_id'])) {
-        $key = $wallet['provider_id'] . '|' . $wallet['branch_id'];
-        $hasVariantByProviderBranch[$key] = true;
-    }
-}
-
-$wallets = array_values(array_filter($wallets, function ($wallet) use ($hasVariantByProviderBranch) {
-    if (empty($wallet['variant_id'])) {
-        $key = $wallet['provider_id'] . '|' . $wallet['branch_id'];
-        return !isset($hasVariantByProviderBranch[$key]);
-    }
-    return true;
-}));
+// Keep monetary provider wallets visible alongside variant stock wallets.
+// The wallet transaction page only processes monetary provider wallets.
 
 $operatingProviders = Database::fetchAll(
     "SELECT provider_id, provider_name

@@ -72,6 +72,9 @@ $wallets = Database::fetchAll(
             pw.current_balance, tp.provider_name,
             parent.provider_name AS parent_provider_name,
             bb.branch_name, pv.variant_name, pv.display_color AS variant_color,
+            COALESCE(bts.on_hand_qty, 0) AS on_hand_qty,
+            COALESCE(bts.reserved_qty, 0) AS reserved_qty,
+            COALESCE(bts.on_hand_qty - bts.reserved_qty, 0) AS available_qty,
             CASE
                 WHEN pv.variant_name IS NOT NULL THEN CONCAT(tp.provider_name, ' - ', pv.variant_name, ' - ', bb.branch_name)
                 WHEN parent.provider_name IS NOT NULL THEN CONCAT(parent.provider_name, ' - ', bb.branch_name)
@@ -82,24 +85,16 @@ $wallets = Database::fetchAll(
      LEFT JOIN ticket_providers parent ON parent.provider_id = tp.parent_provider_id
      LEFT JOIN business_branches bb ON bb.branch_id = pw.branch_id
      LEFT JOIN provider_ticket_variants pv ON pv.variant_id = pw.variant_id
+     LEFT JOIN branch_ticket_stocks bts
+       ON bts.branch_id = pw.branch_id
+      AND bts.provider_id = pw.provider_id
+      AND bts.variant_id = pw.variant_id
      WHERE " . implode(' AND ', $walletWhere) . "
      ORDER BY tp.provider_name, pv.variant_name, bb.branch_name",
     $walletParams
 );
 
-$hasVariantByProviderBranch = [];
-foreach ($wallets as $wallet) {
-    if (!empty($wallet['variant_id'])) {
-        $key = $wallet['provider_id'] . '|' . $wallet['branch_id'];
-        $hasVariantByProviderBranch[$key] = true;
-    }
-}
-$wallets = array_values(array_filter($wallets, function ($wallet) use ($hasVariantByProviderBranch) {
-    if (empty($wallet['variant_id'])) {
-        $key = $wallet['provider_id'] . '|' . $wallet['branch_id'];
-        return !isset($hasVariantByProviderBranch[$key]);
-    }
-    return true;
-}));
+// Keep both provider-level and variant-specific wallets available as source identities.
+// Stock quantities are still maintained only through branch_ticket_stocks.
 
 include __DIR__ . '/views/index.php';

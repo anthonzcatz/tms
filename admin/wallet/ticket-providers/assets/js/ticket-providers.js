@@ -237,16 +237,21 @@ function updateProviderRow(providerId, provider) {
 
     if (codeEl) codeEl.textContent = provider.provider_code;
     if (nameEl) nameEl.textContent = provider.provider_name;
-    if (typeEl) typeEl.textContent = provider.provider_type.charAt(0).toUpperCase() + provider.provider_type.slice(1);
-
     if (typeEl) {
+        const typeOptions = window.PROVIDER_TYPE_OPTIONS || {};
+        const typeColors = window.PROVIDER_TYPE_COLORS || {};
+        const fallbackLabel = provider.provider_type
+            ? provider.provider_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+            : '';
+        typeEl.textContent = typeOptions[provider.provider_type] || fallbackLabel;
+
         const typeBadge = typeEl.parentElement;
-        typeBadge.classList.remove('bg-primary', 'bg-info', 'bg-warning', 'bg-secondary');
-        typeBadge.classList.add({
-            airline: 'bg-primary',
-            shipping: 'bg-info',
-            bus: 'bg-warning'
-        }[provider.provider_type] || 'bg-secondary');
+        typeBadge.classList.forEach(cls => {
+            if (cls.startsWith('bg-')) typeBadge.classList.remove(cls);
+        });
+        (typeColors[provider.provider_type] || 'bg-secondary').split(/\s+/).forEach(cls => {
+            if (cls) typeBadge.classList.add(cls);
+        });
     }
 
     if (statusSwitch) {

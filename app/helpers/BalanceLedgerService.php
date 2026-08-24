@@ -90,7 +90,7 @@ final class BalanceLedgerService
             }
 
             $wallet = Database::fetch(
-                "SELECT wallet_id, current_balance, branch_id, status
+                "SELECT wallet_id, current_balance, branch_id, status, variant_id
                  FROM provider_wallets
                  WHERE wallet_id = :wallet_id
                    AND status = 'active'
@@ -100,6 +100,9 @@ final class BalanceLedgerService
 
             if (!$wallet) {
                 throw new RuntimeException('Wallet not found or inactive.');
+            }
+            if (!empty($wallet['variant_id'])) {
+                throw new RuntimeException('Variant wallets are stock-managed and cannot receive monetary wallet transactions.');
             }
 
             $balanceBefore = self::amount((float) $wallet['current_balance']);

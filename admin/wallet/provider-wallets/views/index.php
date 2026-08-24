@@ -144,10 +144,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
               <div class="card-body d-flex align-items-center">
                 <div class="w-100">
                   <h6 class="mb-3 text-800">Total Balance</h6>
-                  <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium text-primary" id="walletStatTotalBalance">₱<?php echo number_format(array_sum(array_column($wallets, 'current_balance')), 2); ?></p>
+                  <?php $monetaryWallets = array_values(array_filter($wallets, static fn($wallet) => empty($wallet['variant_id']))); ?>
+                  <p class="font-sans-serif lh-1 mb-1 fs-6 fw-medium text-primary" id="walletStatTotalBalance">₱<?php echo number_format(array_sum(array_column($monetaryWallets, 'current_balance')), 2); ?></p>
                   <div class="progress mb-2 rounded-3" style="height: 8px;">
                     <?php
-                    $totalBalance = array_sum(array_column($wallets, 'current_balance'));
+                    $totalBalance = array_sum(array_column($monetaryWallets, 'current_balance'));
                     $maxBalance = max(10000, $totalBalance); // Minimum scale of 10k
                     $balancePercentage = $maxBalance > 0 ? min(100, round(($totalBalance / $maxBalance) * 100, 1)) : 0;
                     ?>
@@ -318,16 +319,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <div class="d-flex flex-wrap gap-1 mb-2">
                       <?php
                         $providerType = $wallet['provider_type'] ?? '';
-                        $providerTypeClass = 'bg-secondary';
-                        if ($providerType === 'airline') {
-                            $providerTypeClass = 'bg-primary';
-                        } elseif ($providerType === 'shipping') {
-                            $providerTypeClass = 'bg-info';
-                        } elseif ($providerType === 'bus') {
-                            $providerTypeClass = 'bg-warning';
-                        }
+                        $providerTypeClass = $providerTypeColors[$providerType] ?? 'bg-secondary';
+                        $providerTypeLabel = $providerTypeOptions[$providerType] ?? ucwords(str_replace('_', ' ', $providerType ?: 'Unknown'));
                       ?>
-                      <span class="badge <?php echo $providerTypeClass; ?>"><?php echo ucfirst(htmlspecialchars($providerType ?: 'Unknown')); ?></span>
+                      <span class="badge <?php echo $providerTypeClass; ?>"><?php echo htmlspecialchars($providerTypeLabel); ?></span>
                       <?php if (!empty($wallet['parent_provider_id'])): ?>
                         <span class="badge bg-light text-success border border-success" title="This wallet belongs to a sub-provider"><span class="fas fa-sitemap me-1"></span>Sub-provider of <?php echo htmlspecialchars($wallet['parent_provider_name'] ?? 'Main Provider'); ?></span>
                       <?php elseif (!empty($wallet['child_provider_names'])): ?>
@@ -346,7 +341,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       <?php endif; ?>
                     </div>
                     <?php $isVariant = !empty($wallet['variant_id']); ?>
-                    <div class="display-4 fs-5 mb-2 fw-normal font-sans-serif <?php echo $wallet['current_balance'] >= 0 ? 'text-success' : 'text-danger'; ?>" id="walletCardBalance<?php echo $wallet['wallet_id']; ?>">
+                    <div class="display-4 fs-5 mb-2 fw-normal font-sans-serif <?php echo (($isVariant ? ($wallet['on_hand_qty'] ?? 0) : $wallet['current_balance']) >= 0) ? 'text-success' : 'text-danger'; ?>" id="walletCardBalance<?php echo $wallet['wallet_id']; ?>">
                       <?php if ($isVariant): ?>
                         <?php echo (int) ($wallet['on_hand_qty'] ?? 0); ?> tickets
                       <?php else: ?>
@@ -358,7 +353,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     </p>
                     <p class="mb-2 text-muted fs-10" id="walletCardMinBalance<?php echo $wallet['wallet_id']; ?>">
                       <?php if ($isVariant): ?>
-                        <span class="fas fa-exclamation-triangle me-1"></span>Min Stock: <?php echo (int) ($wallet['min_balance'] ?? 0); ?>
+                        <span class="fas fa-exclamation-triangle me-1"></span>Min Stock: <?php echo (int) ($wallet['min_balance'] ?? 0); ?> tickets
                       <?php else: ?>
                         <span class="fas fa-exclamation-triangle me-1"></span>Min: ₱<?php echo number_format($wallet['min_balance'] ?? 1000, 2); ?>
                       <?php endif; ?>
@@ -380,8 +375,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                       <button type="button" class="btn btn-sm btn-outline-success flex-grow-1 flex-sm-grow-0" onclick="editWallet(<?php echo $wallet['wallet_id']; ?>)">
                         <span class="fas fa-edit"></span>
                       </button>
-                      <button type="button" class="btn btn-sm btn-outline-info flex-grow-1 flex-sm-grow-0" onclick="adjustBalance(<?php echo $wallet['wallet_id']; ?>)">
-                        <span class="fas fa-exchange-alt"></span>
+                      <button type="button" class="btn btn-sm btn-outline-info flex-grow-1 flex-sm-grow-0" title="<?php echo $isVariant ? 'Adjust Ticket Stock' : 'Adjust Balance'; ?>" onclick="adjustBalance(<?php echo $wallet['wallet_id']; ?>)">
+                        <span class="fas <?php echo $isVariant ? 'fa-boxes' : 'fa-exchange-alt'; ?>"></span>
                       </button>
                     </div>
                   </div>
@@ -401,8 +396,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <th>Wallet</th>
                     <th>Type</th>
                     <th>Branch</th>
-                    <th>Min Balance</th>
-                    <th>Current Balance</th>
+                    <th>Min Balance / Stock</th>
+                    <th>Current Balance / Stock</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -441,23 +436,21 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                         <td>
                           <?php
                             $providerType = $wallet['provider_type'] ?? '';
-                            $providerTypeClass = 'bg-secondary';
-                            if ($providerType === 'airline') $providerTypeClass = 'bg-primary';
-                            elseif ($providerType === 'shipping') $providerTypeClass = 'bg-info';
-                            elseif ($providerType === 'bus') $providerTypeClass = 'bg-warning';
+                            $providerTypeClass = $providerTypeColors[$providerType] ?? 'bg-secondary';
+                            $providerTypeLabel = $providerTypeOptions[$providerType] ?? ucwords(str_replace('_', ' ', $providerType ?: 'Unknown'));
                           ?>
-                          <span class="badge <?php echo $providerTypeClass; ?>"><?php echo ucfirst(htmlspecialchars($providerType ?: 'Unknown')); ?></span>
+                          <span class="badge <?php echo $providerTypeClass; ?>"><?php echo htmlspecialchars($providerTypeLabel); ?></span>
                         </td>
                         <td><?php echo htmlspecialchars($wallet['branch_name']); ?></td>
                         <?php $isListVariant = !empty($wallet['variant_id']); ?>
                         <td id="walletListMinBalance<?php echo $wallet['wallet_id']; ?>">
                           <?php if ($isListVariant): ?>
-                            <?php echo (int) ($wallet['min_balance'] ?? 0); ?> min
+                            <?php echo (int) ($wallet['min_balance'] ?? 0); ?> tickets
                           <?php else: ?>
                             ₱<?php echo number_format($wallet['min_balance'] ?? 1000, 2); ?>
                           <?php endif; ?>
                         </td>
-                        <td class="fw-medium <?php echo $wallet['current_balance'] >= 0 ? 'text-success' : 'text-danger'; ?>" id="walletListBalance<?php echo $wallet['wallet_id']; ?>">
+                        <td class="fw-medium <?php echo (($isListVariant ? ($wallet['on_hand_qty'] ?? 0) : $wallet['current_balance']) >= 0) ? 'text-success' : 'text-danger'; ?>" id="walletListBalance<?php echo $wallet['wallet_id']; ?>">
                           <?php if ($isListVariant): ?>
                             <?php echo (int) ($wallet['on_hand_qty'] ?? 0); ?> tickets
                           <?php else: ?>
@@ -478,7 +471,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                             <?php endif; ?>
                             <button type="button" class="btn btn-sm btn-outline-primary" title="View wallet" aria-label="View wallet" onclick="viewWallet(<?php echo $wallet['wallet_id']; ?>)"><span class="fas fa-eye"></span></button>
                             <button type="button" class="btn btn-sm btn-outline-success" title="Edit wallet" aria-label="Edit wallet" onclick="editWallet(<?php echo $wallet['wallet_id']; ?>)"><span class="fas fa-edit"></span></button>
-                            <button type="button" class="btn btn-sm btn-outline-info" title="Adjust balance" aria-label="Adjust balance" onclick="adjustBalance(<?php echo $wallet['wallet_id']; ?>)"><span class="fas fa-exchange-alt"></span></button>
+                            <button type="button" class="btn btn-sm btn-outline-info" title="<?php echo $isListVariant ? 'Adjust ticket stock' : 'Adjust balance'; ?>" aria-label="<?php echo $isListVariant ? 'Adjust ticket stock' : 'Adjust balance'; ?>" onclick="adjustBalance(<?php echo $wallet['wallet_id']; ?>)"><span class="fas <?php echo $isListVariant ? 'fa-boxes' : 'fa-exchange-alt'; ?>"></span></button>
                           </div>
                         </td>
                       </tr>
@@ -583,6 +576,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
             tin: '<?php echo htmlspecialchars($systemSettings['company_tin'] ?? ''); ?>',
             logo: '<?php echo !empty($systemSettings['system_logo']) ? BASE_URL . htmlspecialchars($systemSettings['system_logo']) : ''; ?>'
           };
+        </script>
+        <script>
+          window.PROVIDER_TYPE_OPTIONS = <?php echo json_encode($providerTypeOptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+          window.PROVIDER_TYPE_COLORS = <?php echo json_encode($providerTypeColors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
         </script>
         <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/assets/js/provider-wallets.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-wallets.js'); ?>"></script>
 

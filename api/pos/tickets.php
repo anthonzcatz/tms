@@ -260,8 +260,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $variantId = !empty($ticket['variant_id']) ? (int) $ticket['variant_id'] : null;
 
             // Resolve wallet. Prefer the wallet_id already resolved by the POS UI
-            // (it may have fallen back to a parent provider or a different accessible
-            // branch), but validate it is active and matches the selected provider/variant.
+            // (it may have fallen back to a parent provider), but validate it is active,
+            // belongs to this transaction branch, and matches the selected provider/variant.
             $resolvedWallet = null;
             $walletIdFromTicket = !empty($ticket['wallet_id']) ? (int) $ticket['wallet_id'] : null;
             if ($walletIdFromTicket) {
@@ -271,13 +271,14 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 );
 
                 if ($walletFromTicket) {
-                    // Ensure the wallet branch is one the cashier may access
+                    // Ensure the wallet belongs to this transaction branch and is accessible
                     $allowedBranches = !empty($user['branch_id'])
                         ? array_filter(array_map('intval', explode(',', $user['branch_id'])))
                         : [];
-                    $canAccessBranch = ($user['role_code'] === 'SUPER_ADMIN')
+                    $walletMatchesBranch = (int) $walletFromTicket['branch_id'] === (int) $branchId;
+                    $canAccessBranch = $walletMatchesBranch && (($user['role_code'] === 'SUPER_ADMIN')
                         || empty($allowedBranches)
-                        || in_array((int)$walletFromTicket['branch_id'], $allowedBranches, true);
+                        || in_array((int) $walletFromTicket['branch_id'], $allowedBranches, true));
 
                     if ($canAccessBranch) {
                         // Build the operating provider's ancestor chain so parent wallets are accepted
@@ -313,15 +314,16 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 echo json_encode(['success' => false, 'error' => 'No active wallet found for the selected provider, branch and variant.']); exit;
             }
             $walletId = $resolvedWallet['wallet_id'];
-            $isVariantWallet = !empty($resolvedWallet['variant_id']);
 
             // Validate variant belongs to provider and is active
+            $stockControlled = false;
             if ($variantId) {
                 $variant = TicketStockHelper::getVariant($variantId);
                 if (!$variant || (int) $variant['provider_id'] !== (int) $providerId || !(bool) $variant['is_active']) {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Selected ticket variant is invalid, not for this provider, or inactive.']); exit;
                 }
+                $stockControlled = (bool) $variant['stock_controlled'];
             }
 
             // Generate per-ticket transaction code: TKT-YYYYMMDD-HHMM-###
@@ -371,8 +373,8 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             $ticketTxnId = Database::connection()->lastInsertId();
             $ticketTxnIds[] = $ticketTxnId;
 
-            // --- Deduct 1 ticket stock when a variant was selected ---
-            if ($variantId) {
+            // --- Deduct one physical ticket when a stock-controlled variant was selected ---
+            if ($variantId && $stockControlled) {
                 $ticketNumber = $ticket['ticket_number'] ?? $txnCode;
                 try {
                     TicketStockHelper::deductForSale(

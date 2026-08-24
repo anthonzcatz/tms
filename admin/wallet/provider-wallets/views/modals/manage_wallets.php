@@ -29,8 +29,8 @@
               <tr>
                 <th>Variant / Wallet</th>
                 <th>Status</th>
-                <th class="text-end">Current Balance</th>
-                <th class="text-end">Min. Balance</th>
+                <th class="text-end">Current Balance / Stock</th>
+                <th class="text-end">Min. Balance / Stock</th>
                 <th class="text-end">Actions</th>
               </tr>
             </thead>

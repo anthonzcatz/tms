@@ -141,6 +141,16 @@ function showPrintConfirmationModal(transactionCode, changeAmount) {
     });
 }
 
+function hideModalBeforeConfirmation(modal) {
+    const element = modal?._element;
+    if (!element || !element.classList.contains('show')) return Promise.resolve(false);
+
+    return new Promise(resolve => {
+        element.addEventListener('hidden.bs.modal', () => resolve(true), { once: true });
+        modal.hide();
+    });
+}
+
 /**
  * Show a Bootstrap-styled confirmation modal instead of the native alert/confirm.
  * @param {string} title
@@ -211,10 +221,6 @@ function showConfirm(title, message, options = {}) {
             modal.hide();
         };
 
-        const handleDismiss = () => {
-            if (!confirmed) resolve(false);
-        };
-
         document.getElementById('customConfirmBtn').addEventListener('click', handleConfirm, { once: true });
         modalEl.addEventListener('hidden.bs.modal', () => {
             resolve(confirmed);
@@ -222,8 +228,6 @@ function showConfirm(title, message, options = {}) {
                 if (container.parentNode) document.body.removeChild(container);
             }, 300);
         }, { once: true });
-
-        modalEl.addEventListener('hide.bs.modal', handleDismiss, { once: true });
 
         modal.show();
     });
@@ -1347,14 +1351,17 @@ function loadProviders() {
     destroyMainProviderChoices();
     destroySubProviderChoices();
 
+    const branchId = Number(window.POS_BRANCH_ID) > 0 ? parseInt(window.POS_BRANCH_ID, 10) : null;
     const providersPromise = fetch(`${window.BASE_URL}/api/ticket-providers`).then(r => r.json());
-    // Load wallets from all branches the user has access to so the provider dropdown
-    // can show a wallet even when the active session branch does not have one.
-    const walletsUrl = `${window.BASE_URL}/api/wallets?all_branches=1`;
+    const walletsUrl = branchId
+        ? `${window.BASE_URL}/api/wallets?branch_id=${IdEncoder.encode(branchId)}`
+        : null;
 
-    const walletsPromise = fetch(walletsUrl).then(r => r.json());
+    const walletsPromise = branchId
+        ? fetch(walletsUrl).then(r => r.json())
+        : Promise.resolve({ success: true, data: { wallets: [] } });
 
-    console.log('[POS loadProviders] POS_BRANCH_ID:', window.POS_BRANCH_ID, 'walletsUrl:', walletsUrl);
+    console.log('[POS loadProviders] POS_BRANCH_ID:', window.POS_BRANCH_ID, 'walletsUrl:', walletsUrl || 'not loaded');
 
     return Promise.all([providersPromise, walletsPromise])
         .then(([providersData, walletsData]) => {
@@ -1363,6 +1370,7 @@ function loadProviders() {
             window.providerHasVariantWallet = {};
             if (walletsData.success && walletsData.data && Array.isArray(walletsData.data.wallets)) {
                 walletsData.data.wallets.forEach(w => {
+                    if (!branchId || String(w.branch_id) !== String(branchId) || w.status !== 'active') return;
                     const pid = w.ticket_provider_id || w.provider_id;
                     if (pid) {
                         walletBalances[pid] = (walletBalances[pid] || 0) + (parseFloat(w.current_balance) || 0);
@@ -1401,8 +1409,6 @@ function loadProviders() {
                         let balanceText;
                         if (hasWallet) {
                             balanceText = `₱${fmt(totalBalance)}`;
-                        } else if (parseInt(p.variant_count, 10) > 0) {
-                            balanceText = 'Variant wallet';
                         } else {
                             balanceText = 'No wallet';
                         }
@@ -1517,7 +1523,7 @@ function refreshPosProviderOptions() {
                     option.value = provider.provider_id;
                     option.dataset.providerCode = provider.provider_code || '';
                     option.dataset.providerType = provider.provider_type || '';
-                    option.text = provider.provider_name + '\u001F' + (parseInt(provider.variant_count, 10) > 0 ? 'Variant wallet' : 'No wallet');
+                    option.text = provider.provider_name + '\u001F' + 'No wallet';
                     mainSelect.appendChild(option);
                 });
 
@@ -1564,12 +1570,11 @@ function updateDisplayedWalletBalances(wallets) {
     const stockTotals = {};
     const branchId = window.POS_BRANCH_ID || '';
     (wallets || []).forEach(wallet => {
+        if (!branchId || String(wallet.branch_id) !== String(branchId) || wallet.status !== 'active') return;
         const providerId = wallet.ticket_provider_id || wallet.provider_id;
         if (providerId) {
             balances[String(providerId)] = (balances[String(providerId)] || 0) + (parseFloat(wallet.current_balance) || 0);
-            if (String(wallet.branch_id) === String(branchId)) {
-                stockTotals[String(providerId)] = (stockTotals[String(providerId)] || 0) + (parseInt(wallet.on_hand_qty, 10) || 0);
-            }
+            stockTotals[String(providerId)] = (stockTotals[String(providerId)] || 0) + (parseInt(wallet.on_hand_qty, 10) || 0);
         }
     });
 
@@ -1591,9 +1596,9 @@ function updateDisplayedWalletBalances(wallets) {
             }
         });
 
-        const balanceText = parseInt(provider.variant_count, 10) > 0
-            ? `${totalStock} tickets`
-            : (hasWallet ? `₱${fmt(totalBalance)}` : 'No wallet');
+        const balanceText = !hasWallet
+            ? 'No wallet'
+            : (parseInt(provider.variant_count, 10) > 0 ? `${totalStock} tickets` : `₱${fmt(totalBalance)}`);
         option.text = provider.provider_name + '\u001F' + balanceText;
     });
 
@@ -1607,7 +1612,10 @@ function updateDisplayedWalletBalances(wallets) {
 function refreshPosWalletBalances() {
     if (posWalletRefreshInFlight) return posWalletRefreshInFlight;
 
-    const url = `${window.BASE_URL}/api/wallets?all_branches=1&_realtime=${Date.now()}`;
+    const branchId = Number(window.POS_BRANCH_ID) > 0 ? parseInt(window.POS_BRANCH_ID, 10) : null;
+    if (!branchId) return Promise.resolve();
+
+    const url = `${window.BASE_URL}/api/wallets?branch_id=${IdEncoder.encode(branchId)}&_realtime=${Date.now()}`;
     posWalletRefreshInFlight = fetch(url, { cache: 'no-store' })
         .then(response => response.json())
         .then(data => {
@@ -1616,6 +1624,7 @@ function refreshPosWalletBalances() {
             }
             window.providerHasVariantWallet = {};
             data.data.wallets.forEach(wallet => {
+                if (!branchId || String(wallet.branch_id) !== String(branchId)) return;
                 const providerId = wallet.ticket_provider_id || wallet.provider_id;
                 if (providerId && wallet.status === 'active' && wallet.variant_id) {
                     window.providerHasVariantWallet[String(providerId)] = true;
@@ -1873,7 +1882,7 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
     const userBranchId = branchId || window.POS_BRANCH_ID || null;
     const mainProviderBalanceText = document.getElementById('mainProviderBalanceText');
 
-    if (!providerId) {
+    if (!providerId || !userBranchId) {
         select.innerHTML = '<option value="">Select Provider First</option>';
         select.disabled = true;
         if (mainProviderBalanceText) mainProviderBalanceText.textContent = '';
@@ -2269,7 +2278,9 @@ function refreshVariantChoices() {
                 if (data.disabled) div.setAttribute('aria-disabled', 'true');
 
                 const isWalletVariant = (props.hasWallet === true) || (balancePart && /₱/.test(balancePart));
-                const secondaryText = (isWalletVariant ? balancePart : stockPart) || '';
+                const secondaryText = balancePart === 'No wallet'
+                    ? balancePart
+                    : ((isWalletVariant ? balancePart : stockPart) || '');
 
                 if (oneRow) {
                     div.innerHTML = `<div class='vr-selected-row' style='display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${swatch}<span class='vr-row-name' style='flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;'>${escapeHtml(name)}</span>${secondaryText ? `<span class='vr-row-separator' aria-hidden='true' style='flex:0 0 auto;color:#6c757d;'>|</span><span class='vr-row-available' style='flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${escapeHtml(stockColor)};font-weight:600;'>${escapeHtml(secondaryText)}</span>` : ''}</div>`;
@@ -2328,6 +2339,14 @@ function loadTicketVariants() {
     variantSelect.innerHTML = '<option value="">Loading variants...</option>';
 
     const branchId = window.POS_BRANCH_ID || '';
+    if (!branchId) {
+        variantWrapper.classList.add('d-none');
+        variantSelect.innerHTML = '<option value="">No wallet</option>';
+        variantSelect.disabled = true;
+        destroyVariantChoices();
+        return Promise.resolve();
+    }
+
     const variantUrl = `${window.BASE_URL}/api/ticket-variants?provider_id=${encodeURIComponent(providerId)}&branch_id=${encodeURIComponent(branchId)}`;
     console.log('[POS loadTicketVariants] url:', variantUrl);
     return fetch(variantUrl)
@@ -2431,7 +2450,7 @@ function showAlert(type, message) {
     }, 5000);
 }
 
-function loadServiceFeeForProvider(overrideProviderId = null, overrideBranchId = null, tryAllBranches = false) {
+function loadServiceFeeForProvider(overrideProviderId = null, overrideBranchId = null) {
     const providerSelect = document.getElementById('ticketProvider');
     const providerId = overrideProviderId || (providerSelect ? providerSelect.value : null);
     const serviceFeeDisplay = document.getElementById('ticketServiceFeeDisplay');
@@ -2453,12 +2472,12 @@ function loadServiceFeeForProvider(overrideProviderId = null, overrideBranchId =
         ? parseInt(parentProviderId, 10)
         : parseInt(providerId, 10);
 
-    // Use explicit branch first, then resolved wallet branch, then active POS branch
+    // Use the active POS branch as the authoritative branch for service fees.
     let numericBranchId = null;
-    if (overrideBranchId !== null && overrideBranchId !== undefined) {
-        numericBranchId = parseInt(overrideBranchId, 10) || null;
-    } else if (window.POS_BRANCH_ID) {
+    if (window.POS_BRANCH_ID) {
         numericBranchId = parseInt(window.POS_BRANCH_ID, 10);
+    } else if (overrideBranchId !== null && overrideBranchId !== undefined) {
+        numericBranchId = parseInt(overrideBranchId, 10) || null;
     }
 
     if (!numericProviderId || numericProviderId < 1) {
@@ -2475,16 +2494,14 @@ function loadServiceFeeForProvider(overrideProviderId = null, overrideBranchId =
     if (encodedProviderId) {
         url += `?provider_id=${encodedProviderId}`;
     }
-    if (tryAllBranches) {
-        url += (encodedProviderId ? '&' : '?') + 'all_branches=1';
-    } else if (numericBranchId) {
+    if (numericBranchId) {
         const encodedBranchId = IdEncoder.encode(numericBranchId);
         if (encodedBranchId) {
             url += (encodedProviderId ? '&' : '?') + `branch_id=${encodedBranchId}`;
         }
     }
 
-    console.log('[POS loadServiceFeeForProvider] url:', url, 'tryAllBranches:', tryAllBranches);
+    console.log('[POS loadServiceFeeForProvider] url:', url);
 
     return fetch(url)
         .then(response => response.json())
@@ -2520,9 +2537,6 @@ function loadServiceFeeForProvider(overrideProviderId = null, overrideBranchId =
                 baseAmountDisplay.textContent = currentBaseAmount > 0 ? '₱' + currentBaseAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '₱0.00';
 
                 computeTicketTotal();
-            } else if (!tryAllBranches) {
-                // Try again across all user branches
-                return loadServiceFeeForProvider(overrideProviderId, null, true);
             } else {
                 serviceFeeDisplay.textContent = 'No service fee configured';
                 serviceFeeInput.value = 0;
@@ -2768,12 +2782,7 @@ async function loadCashierTransportAccess() {
 }
 
 function renderCashierTransportAccessSection(access, section, form, status, mode, editable) {
-    const labels = access.labels || {
-        airline: 'Airlines',
-        shipping: 'Shipping',
-        bus: 'Bus Lines',
-        other: 'Other'
-    };
+    const labels = access.allowed_types || access.labels || {};
     const selectedTypes = Array.isArray(access.transport_types) ? access.transport_types : [];
     const modeLabel = access.mode === 'provider'
         ? 'Specific Providers'
@@ -2813,12 +2822,7 @@ function renderCashierTransportAccessClose(access) {
     const typesEl = document.getElementById('closeTransportAccessTypes');
     if (!section || !status || !mode || !typesEl) return;
 
-    const labels = access.labels || {
-        airline: 'Airlines',
-        shipping: 'Shipping',
-        bus: 'Bus Lines',
-        other: 'Other'
-    };
+    const labels = access.allowed_types || access.labels || {};
     const selectedTypes = Array.isArray(access.transport_types) ? access.transport_types : [];
 
     mode.textContent = access.mode === 'provider'
@@ -2829,7 +2833,7 @@ function renderCashierTransportAccessClose(access) {
 
     if (!access.restricted || access.mode === 'all') {
         status.textContent = 'You currently have access to all transportation types.';
-        typesEl.innerHTML = renderTransportAccessBadges(['airline', 'shipping', 'bus', 'other'], labels);
+        typesEl.innerHTML = renderTransportAccessBadges(Object.keys(labels), labels);
     } else if (access.mode === 'provider') {
         status.textContent = 'Your access is assigned by specific provider.';
         typesEl.innerHTML = '';
@@ -2940,12 +2944,19 @@ async function submitOpenSession() {
     }
 
     const branchName = document.getElementById('sessionBranchId').selectedOptions[0]?.text?.trim() || 'this branch';
+    const shouldRestoreOpenModal = await hideModalBeforeConfirmation(openSessionModal);
+    const restoreOpenModal = () => {
+        if (shouldRestoreOpenModal) openSessionModal.show();
+    };
     const confirmed = await showConfirm(
         'Open Cashier Session',
         `Open cashier session for ${branchName} with opening cash ₱${fmt(openingCash)}?\n\nMake sure the amount is correct before proceeding.`,
         { icon: 'play-circle', iconColor: 'text-success', confirmBtnColor: 'btn-success', confirmBtnText: 'Open Session' }
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+        restoreOpenModal();
+        return;
+    }
 
     const btn = document.querySelector('#openSessionModal .btn-success');
     const originalText = btn.innerHTML;
@@ -2965,9 +2976,11 @@ async function submitOpenSession() {
             setTimeout(() => location.reload(), 1200);
         } else {
             showToast('danger', 'Error', result.error || 'Failed to open session.');
+            restoreOpenModal();
         }
     } catch (e) {
         showToast('danger', 'Error', 'An unexpected error occurred.');
+        restoreOpenModal();
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -3509,12 +3522,19 @@ async function submitCloseSession() {
                     `Expected cash: ₱${fmt(expectedCash)}\n` +
                     `${varianceLine}\n\n` +
                     `Make sure the physical cash count is correct before confirming.`;
+    const shouldRestoreCloseModal = await hideModalBeforeConfirmation(closeSessionModal);
+    const restoreCloseModal = () => {
+        if (shouldRestoreCloseModal) closeSessionModal.show();
+    };
     const confirmed = await showConfirm(
         'Close Cashier Session',
         message,
         { icon: 'stop-circle', iconColor: 'text-danger', confirmBtnColor: 'btn-danger', confirmBtnText: 'Close Session', html: true }
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+        restoreCloseModal();
+        return;
+    }
 
     const btn = document.querySelector('#closeSessionModal .btn-danger');
     const originalText = btn.innerHTML;
@@ -3546,9 +3566,11 @@ async function submitCloseSession() {
             setTimeout(() => location.reload(), 1200);
         } else {
             showToast('danger', 'Error', result.error || 'Failed to close session.');
+            restoreCloseModal();
         }
     } catch (e) {
         showToast('danger', 'Error', 'An unexpected error occurred.');
+        restoreCloseModal();
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -4451,6 +4473,7 @@ function addTicketToCart() {
         variantId,
         variantName,
         variantCode,
+        stockControlled: variantOption ? variantOption.dataset.stockControlled !== '0' : false,
         ...providerDetails,
         total,
         providerId,
@@ -5067,7 +5090,7 @@ function backToCart() {
 // =============================================
 
 async function reservePosTicketStock(ticket) {
-    if (!ticket?.variantId || window.selectedResolvedWallet?.variant_id) {
+    if (!ticket?.variantId || ticket.stockControlled === false) {
         return null;
     }
 
@@ -5135,8 +5158,7 @@ async function confirmOrder() {
         showToast('danger', 'Insufficient Payment', 'Total paid is less than the amount due.'); return;
     }
 
-    // Reserve physical stock before checkout. Wallet-backed variants are
-    // balance-controlled and intentionally skip the physical reservation.
+    // Reserve physical stock before checkout for stock-controlled variants.
     const hasTicket = cart.some(item => item.type === 'ticket');
     let reservedStock = null;
     if (hasTicket) {

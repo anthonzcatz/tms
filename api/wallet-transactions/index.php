@@ -322,10 +322,12 @@ function handleGet() {
 
     // Get stats
     $statsSql = "SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN direction = 'IN' THEN amount ELSE 0 END) as totalInflow,
-                    SUM(CASE WHEN direction = 'OUT' THEN amount ELSE 0 END) as totalOutflow,
-                    SUM(CASE WHEN direction = 'IN' THEN amount ELSE -amount END) as netBalance
+                    SUM(CASE WHEN pw.variant_id IS NULL THEN 1 ELSE 0 END) as total,
+                    SUM(CASE WHEN pw.variant_id IS NULL AND direction = 'IN' THEN amount ELSE 0 END) as totalInflow,
+                    SUM(CASE WHEN pw.variant_id IS NULL AND direction = 'OUT' THEN amount ELSE 0 END) as totalOutflow,
+                    SUM(CASE WHEN pw.variant_id IS NULL AND direction = 'IN' THEN amount
+                             WHEN pw.variant_id IS NULL AND direction = 'OUT' THEN -amount
+                             ELSE 0 END) as netBalance
                  FROM wallet_transactions wt
                  LEFT JOIN provider_wallets pw ON wt.wallet_id = pw.wallet_id
                  LEFT JOIN ticket_transactions tt ON (wt.reference_table = 'ticket_transactions' AND wt.reference_id = tt.transaction_id)
@@ -413,7 +415,7 @@ function handlePost() {
     }
 
     $walletAccess = Database::fetch(
-        "SELECT wallet_id, branch_id
+        "SELECT wallet_id, branch_id, variant_id
          FROM provider_wallets
          WHERE wallet_id = :wallet_id AND status = 'active'",
         ['wallet_id' => (int) $walletId]
@@ -427,6 +429,15 @@ function handlePost() {
     if (!canAccessBranch($walletAccess['branch_id'] ?? null)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Access denied: wallet does not belong to your branch']);
+        return;
+    }
+
+    if (!empty($walletAccess['variant_id'])) {
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'error' => 'This wallet represents ticket stock. Use Ticket Stock Balances or Stock Requests to top up quantities; wallet transactions are monetary only.'
+        ]);
         return;
     }
 

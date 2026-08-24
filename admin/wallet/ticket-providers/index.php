@@ -47,16 +47,22 @@ $sql = "SELECT tp.*, ptp.provider_name as parent_provider_name, ptp.provider_cod
         ORDER BY COALESCE(ptp.provider_name, tp.provider_name), tp.parent_provider_id IS NOT NULL ASC, tp.provider_name";
 $providers = Database::fetchAll($sql);
 
-// Build filter dropdown data
-$types = array_values(array_unique(array_filter(
-    array_column($providers, 'provider_type'),
-    static fn($type) => is_string($type) && $type !== ''
-)));
-sort($types);
-
+// Build filter dropdown data from the database enum so new types appear
+// immediately when the `provider_type` enum is extended.
+$providerTypeValues = Database::getEnumValues('ticket_providers', 'provider_type');
 $providerTypeOptions = [];
-foreach ($types as $type) {
-    $providerTypeOptions[$type] = ucfirst($type);
+foreach ($providerTypeValues as $typeValue) {
+    $providerTypeOptions[$typeValue] = ucwords(str_replace('_', ' ', $typeValue));
+}
+
+$types = array_keys($providerTypeOptions);
+
+// Deterministic badge color map for provider types.
+$badgePalette = ['bg-primary', 'bg-info', 'bg-warning text-dark', 'bg-success', 'bg-danger', 'bg-dark', 'bg-secondary'];
+$providerTypeColors = [];
+$sortedTypeValues = array_keys($providerTypeOptions);
+foreach ($sortedTypeValues as $index => $typeValue) {
+    $providerTypeColors[$typeValue] = $badgePalette[$index % count($badgePalette)];
 }
 
 $mainProviders = [];

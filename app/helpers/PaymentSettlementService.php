@@ -103,7 +103,9 @@ final class PaymentSettlementService
             ['idempotency_key' => 'pos-sale:' . $ticketId]
         );
         $baseAmount = round((float) ($ticket['base_amount'] ?? 0), 2);
-        if ($baseAmount > 0) {
+        // POS variant tickets use the separate ticket-stock ledger and do not
+        // create a monetary wallet debit, so there is no wallet amount to restore.
+        if (empty($ticket['variant_id']) && $baseAmount > 0) {
             BalanceLedgerService::walletMovement(
                 (int) $wallet['wallet_id'],
                 'REFUND',
@@ -119,9 +121,13 @@ final class PaymentSettlementService
             );
         }
 
-        // Provider-level wallets use physical branch stock. Variant-specific
-        // wallets are balance-controlled and must not touch stock.
-        if (!empty($ticket['variant_id']) && empty($wallet['variant_id'])) {
+        // A rejected payment means the POS sale did not complete. Restore the
+        // physical stock consumed by a stock-controlled variant, regardless of
+        // whether a variant-specific wallet identity was selected.
+        $variant = !empty($ticket['variant_id'])
+            ? TicketStockHelper::getVariant((int) $ticket['variant_id'])
+            : null;
+        if ($variant && (bool) $variant['stock_controlled']) {
             $providerId = (int) ($ticket['provider_id'] ?? 0);
             if (!$providerId) {
                 $providerIdRow = Database::fetch(
