@@ -56,13 +56,10 @@ function cashierTransportAccessPayload(int $userId): array
     $allowedTypes = CashierTransportAccess::getSupportedTransportTypes();
     $allowedTypeLabels = [];
     foreach ($allowedTypes as $type) {
-        $allowedTypeLabels[$type] = match ($type) {
-            'airline' => 'Airlines',
-            'shipping' => 'Shipping',
-            'bus' => 'Bus Lines',
-            'other' => 'Other',
-            default => ucwords(str_replace('_', ' ', $type))
-        };
+        $allowedTypeLabels[$type] = $type;
+    }
+    foreach (Database::getProviderTypes() as $row) {
+        $allowedTypeLabels[$row['type_code']] = $row['type_label'];
     }
 
     return [

@@ -196,10 +196,10 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
           <div class="col-12 col-sm-6 col-md-3">
             <div class="card h-100">
-              <div class="card-header pb-0"><h6 class="mb-0 mt-2 small">Net Profit</h6></div>
+              <div class="card-header pb-0"><h6 class="mb-0 mt-2 small">Net Sale</h6></div>
               <div class="card-body d-flex flex-column justify-content-end">
                 <div class="row justify-content-between align-items-end">
-                  <div class="col-auto"><div class="fs-4 fs-md-5 fw-bold text-info" id="statProfit">—</div></div>
+                  <div class="col-auto"><div class="fs-4 fs-md-5 fw-bold text-info" id="statNetSale">—</div></div>
                   <div class="col-auto ps-0"><span class="fas fa-chart-line text-info fs-3 fs-md-4 opacity-75"></span></div>
                 </div>
               </div>
@@ -241,13 +241,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <th>Payment</th>
                     <th class="text-end">Cost</th>
                     <th class="text-end">Service Fee</th>
+                    <th class="text-end">Add-ons</th>
                     <th class="text-end">Amount</th>
                     <th>Status</th>
                     <th class="text-end pe-3">Date</th>
                   </tr>
                 </thead>
                 <tbody id="transactionsTableBody">
-                  <tr><td colspan="13" class="text-center py-5 text-muted">
+                  <tr><td colspan="14" class="text-center py-5 text-muted">
                     <span class="fas fa-spinner fa-spin me-2"></span>Loading...
                   </td></tr>
                 </tbody>
@@ -386,7 +387,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
       isSuperAdmin: <?php echo ($userRoleCode === 'SUPER_ADMIN') ? 'true' : 'false'; ?>,
       isManager: <?php echo ($userRoleCode === 'MANAGER') ? 'true' : 'false'; ?>,
       canManageSignatories: <?php echo $canManageFinancialReportSignatories ? 'true' : 'false'; ?>,
-      currentUserName: <?php echo json_encode((string)($user['full_name'] ?? $user['username'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+      currentUserName: <?php echo json_encode((string)($currentUserName ?: ($user['fullname'] ?? $user['username'] ?? '')), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+      currentUserPosition: <?php echo json_encode((string)($currentUserPosition ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
       currentUserBranchId: <?php echo json_encode($currentUserBranchId, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>
     };
 

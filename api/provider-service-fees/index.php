@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -57,8 +58,19 @@ if (!$canView) {
 }
 
 // Get user branch for filtering
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+
+function requireServiceFeeBranchAccess(?int $branchId): void {
+    global $user;
+    try {
+        PosAccess::assertBranchAccess($user, (int) $branchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+}
 
 /**
  * Check if a provider is a main (top-level) provider.
@@ -131,6 +143,7 @@ function handleGet() {
         $fee = Database::fetch($sql, ['fee_id' => (int)$feeId]);
 
         if ($fee) {
+            requireServiceFeeBranchAccess((int) $fee['branch_id']);
             echo json_encode(['success' => true, 'data' => $fee]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Service fee not found']);
@@ -142,33 +155,10 @@ function handleGet() {
     $where = [];
     $params = [];
 
-    global $user, $userRoleCode, $userBranchId;
-
-    // Build the list of branches this user may access.
-    $allowedBranchIds = [];
-    if ($userRoleCode !== 'SUPER_ADMIN') {
-        if (!empty($userBranchId)) {
-            $allowedBranchIds = array_values(array_filter(array_map('intval', explode(',', $userBranchId))));
-        }
-        if ($userRoleCode === 'CASHIER' && !empty($user['user_id'])) {
-            $activeSession = Database::fetch(
-                "SELECT branch_id FROM cashier_sessions
-                 WHERE cashier_user_id = :user_id
-                   AND status = 'OPEN'
-                   AND ended_at IS NULL
-                 ORDER BY started_at DESC
-                 LIMIT 1",
-                ['user_id' => (int)$user['user_id']]
-            );
-            if (!empty($activeSession['branch_id'])) {
-                $allowedBranchIds[] = (int)$activeSession['branch_id'];
-            }
-        }
-        $allowedBranchIds = array_values(array_unique($allowedBranchIds));
-    }
+    global $user;
 
     // SUPER_ADMIN can see all fees, others are restricted to their branch(es)
-    $allBranches = isset($_GET['all_branches']) && $_GET['all_branches'] == '1';
+    PosAccess::applyBranchScope($where, $params, 'psf.branch_id', $user, 'service_fee_branch');
 
     // Filter by branch_id if provided
     $branchId = $_GET['branch_id'] ?? null;
@@ -178,46 +168,9 @@ function handleGet() {
             echo json_encode(['success' => false, 'error' => 'Invalid branch ID']);
             return;
         }
-        if ($userRoleCode !== 'SUPER_ADMIN' && !in_array((int)$decodedBranchId, $allowedBranchIds, true)) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Access denied: branch not allowed']);
-            return;
-        }
+        requireServiceFeeBranchAccess((int) $decodedBranchId);
         $where[] = "psf.branch_id = :branch_id";
-        $params['branch_id'] = (int)$decodedBranchId;
-    } elseif ($allBranches) {
-        if ($userRoleCode !== 'SUPER_ADMIN' && !empty($allowedBranchIds)) {
-            $branchPlaceholders = [];
-            foreach ($allowedBranchIds as $i => $allowedBranchId) {
-                $branchPlaceholders[] = ':user_branch_' . $i;
-                $params['user_branch_' . $i] = $allowedBranchId;
-            }
-            $where[] = "psf.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
-        }
-    } else {
-        // Default to the active cashier session branch, or the first assigned branch.
-        $effectiveBranchId = null;
-        if ($userRoleCode === 'CASHIER' && !empty($user['user_id'])) {
-            $activeSession = Database::fetch(
-                "SELECT branch_id FROM cashier_sessions
-                 WHERE cashier_user_id = :user_id
-                   AND status = 'OPEN'
-                   AND ended_at IS NULL
-                 ORDER BY started_at DESC
-                 LIMIT 1",
-                ['user_id' => (int)$user['user_id']]
-            );
-            if (!empty($activeSession['branch_id'])) {
-                $effectiveBranchId = (int)$activeSession['branch_id'];
-            }
-        }
-        if (!$effectiveBranchId && !empty($allowedBranchIds)) {
-            $effectiveBranchId = $allowedBranchIds[0];
-        }
-        if ($effectiveBranchId) {
-            $where[] = "psf.branch_id = :effective_branch_id";
-            $params['effective_branch_id'] = $effectiveBranchId;
-        }
+        $params['branch_id'] = (int) $decodedBranchId;
     }
 
     // Filter by provider_id if provided
@@ -325,6 +278,7 @@ function handlePost() {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
         return;
     }
+    requireServiceFeeBranchAccess((int) $branchId);
 
     // Service fees can only be assigned to main (top-level) providers
     if (!isMainProvider($providerId)) {
@@ -347,14 +301,12 @@ function handlePost() {
     if ($existing) {
         // Update existing fee instead of creating new one
         $feeId = $existing['fee_id'];
-        $sql = "UPDATE provider_service_fees SET fee_value = :fee_value, is_active = :is_active, updated_by = :updated_by, updated_at = :updated_at WHERE fee_id = :fee_id";
+        $sql = "UPDATE provider_service_fees SET fee_value = :fee_value, is_active = :is_active WHERE fee_id = :fee_id";
 
         Database::execute($sql, [
             'fee_id' => (int)$feeId,
             'fee_value' => (float)$feeAmount,
-            'is_active' => $status === 'active' ? 1 : 0,
-            'updated_by' => $user['user_id'],
-            'updated_at' => date('Y-m-d H:i:s')
+            'is_active' => $status === 'active' ? 1 : 0
         ]);
 
         // Log activity
@@ -493,6 +445,8 @@ function handlePut() {
     $effectiveProviderId = $providerId !== null ? $providerId : $currentFee['provider_id'];
     $effectiveBranchId = $branchId !== null ? $branchId : $currentFee['branch_id'];
     $effectiveFeeType = $feeType !== null ? $feeType : $currentFee['fee_type'];
+    requireServiceFeeBranchAccess((int) $currentFee['branch_id']);
+    requireServiceFeeBranchAccess((int) $effectiveBranchId);
 
     $duplicate = Database::fetch(
         "SELECT fee_id FROM provider_service_fees
@@ -629,6 +583,7 @@ function handleDelete() {
         echo json_encode(['success' => false, 'error' => 'Service fee not found']);
         return;
     }
+    requireServiceFeeBranchAccess((int) $currentFee['branch_id']);
     
     // Delete service fee
     Database::execute(

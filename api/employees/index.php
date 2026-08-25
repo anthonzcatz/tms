@@ -2,11 +2,15 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 if (!Auth::check()) { http_response_code(401); echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
-$user = Auth::user(); $userRoleCode = $user['role_code'] ?? '';
+$user = Auth::user(); $userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+
+// Main branch ID that all users can view for employees (legacy/default branch).
+const EMPLOYEE_MAIN_BRANCH_ID = 1;
 $canView = ($userRoleCode === 'SUPER_ADMIN') || Auth::can('MANAGE_EMPLOYEES');
 if (!$canView) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Permission denied']); exit; }
 
@@ -21,7 +25,46 @@ try {
     }
 } catch (Exception $e) { error_log('Employees API Error: ' . $e->getMessage()); http_response_code(500); echo json_encode(['success' => false, 'error' => 'Internal server error']); }
 
+function enforceEmployeeBranchAccess(?int $branchId): void
+{
+    global $user;
+    // Legacy employee records may not have a branch assigned yet.
+    if ($branchId === null) {
+        return;
+    }
+    // Main branch is shared across all users.
+    if ($branchId === EMPLOYEE_MAIN_BRANCH_ID) {
+        return;
+    }
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($allowedBranchIds === null) {
+        return;
+    }
+    try {
+        PosAccess::assertBranchAccess($user, $branchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+}
+
+function defaultEmployeeBranch(?int $branchId): int
+{
+    if ($branchId !== null && $branchId > 0) {
+        return $branchId;
+    }
+    global $user;
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if (!empty($allowedBranchIds)) {
+        return (int) $allowedBranchIds[0];
+    }
+    // Fallback to main branch
+    return EMPLOYEE_MAIN_BRANCH_ID;
+}
+
 function handleGet() {
+    global $user;
     $id = $_GET['id'] ?? null;
     if ($id) {
         $emp = Database::fetch(
@@ -36,9 +79,20 @@ function handleGet() {
              WHERE e.emp_id = :id",
             ['id' => (int)$id]
         );
+        if ($emp) {
+            enforceEmployeeBranchAccess($emp['branch_id'] !== null ? (int) $emp['branch_id'] : null);
+        }
         echo json_encode($emp ? ['success' => true, 'data' => $emp] : ['success' => false, 'error' => 'Employee not found']);
         return;
     }
+    $employeeWhere = [];
+    $employeeParams = [];
+    PosAccess::applyBranchScope($employeeWhere, $employeeParams, 'e.branch_id', $user, 'employee_api_branch');
+    // Always include the main branch employees so legacy records are visible to all users.
+    if ($employeeWhere) {
+        $employeeWhere[0] = '(' . $employeeWhere[0] . ' OR e.branch_id = ' . EMPLOYEE_MAIN_BRANCH_ID . ')';
+    }
+    $employeeFilter = $employeeWhere ? 'WHERE ' . implode(' AND ', $employeeWhere) : '';
     $employees = Database::fetchAll(
         "SELECT e.*, p.position_name, d.department_name, sd.sub_department_name, c.comp_name AS company_name, es.emp_stat_name, bb.branch_name
          FROM employees e
@@ -48,7 +102,9 @@ function handleGet() {
          LEFT JOIN companies c ON e.b_company_id = c.comp_id
          LEFT JOIN employment_status es ON e.b_employment_status_id = es.emp_stat_id
          LEFT JOIN business_branches bb ON e.branch_id = bb.branch_id
-         ORDER BY e.first_name, e.last_name"
+         {$employeeFilter}
+         ORDER BY e.first_name, e.last_name",
+        $employeeParams
     );
     echo json_encode(['success' => true, 'data' => ['employees' => $employees]]);
 }
@@ -62,6 +118,8 @@ function handlePost() {
     foreach ($required as $field) {
         if (empty($input[$field])) { echo json_encode(['success' => false, 'error' => ucfirst(str_replace('_', ' ', $field)) . ' is required']); return; }
     }
+    $branchId = defaultEmployeeBranch(!empty($input['branch_id']) ? (int) $input['branch_id'] : null);
+    enforceEmployeeBranchAccess($branchId);
     $params = [
         'first_name' => trim($input['first_name']),
         'last_name' => trim($input['last_name'] ?? ''),
@@ -98,7 +156,7 @@ function handlePost() {
         'emergency_contact_relationship' => trim($input['emergency_contact_relationship'] ?? ''),
         'emergency_contact_number' => trim($input['emergency_contact_number'] ?? ''),
         'remarks' => trim($input['remarks'] ?? ''),
-        'branch_id' => !empty($input['branch_id']) ? (int)$input['branch_id'] : null,
+        'branch_id' => $branchId,
         'user_img' => 'male.jpg',
         'type' => '',
         'notifications' => 0,
@@ -118,6 +176,15 @@ function handlePut() {
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['emp_id'] ?? null;
     if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing employee ID']); return; }
+    $currentEmployee = Database::fetch("SELECT branch_id FROM employees WHERE emp_id = :id", ['id' => (int) $id]);
+    if (!$currentEmployee) { echo json_encode(['success' => false, 'error' => 'Employee not found']); return; }
+    enforceEmployeeBranchAccess($currentEmployee['branch_id'] !== null ? (int) $currentEmployee['branch_id'] : null);
+    $branchId = defaultEmployeeBranch(
+        array_key_exists('branch_id', $input) && $input['branch_id'] !== ''
+            ? (int) $input['branch_id']
+            : (array_key_exists('branch_id', $input) ? null : ($currentEmployee['branch_id'] !== null ? (int) $currentEmployee['branch_id'] : null))
+    );
+    enforceEmployeeBranchAccess($branchId);
     $fields = [];
     $params = ['id' => (int)$id];
     $mappings = [
@@ -143,7 +210,7 @@ function handlePut() {
     if (isset($input['b_sub_department_id'])) { $fields[] = "b_sub_department_id = :b_sub_department_id"; $params['b_sub_department_id'] = (int)$input['b_sub_department_id']; }
     if (isset($input['b_company_id'])) { $fields[] = "b_company_id = :b_company_id"; $params['b_company_id'] = (int)$input['b_company_id']; }
     if (isset($input['b_employment_status_id'])) { $fields[] = "b_employment_status_id = :b_employment_status_id"; $params['b_employment_status_id'] = (int)$input['b_employment_status_id']; }
-    if (isset($input['branch_id'])) { $fields[] = "branch_id = :branch_id"; $params['branch_id'] = !empty($input['branch_id']) ? (int)$input['branch_id'] : null; }
+    if (isset($input['branch_id'])) { $fields[] = "branch_id = :branch_id"; $params['branch_id'] = $branchId; }
     if (isset($input['emp_province_code'])) { $fields[] = "emp_province_code = :emp_province_code"; $params['emp_province_code'] = !empty($input['emp_province_code']) ? $input['emp_province_code'] : null; }
     if (isset($input['emp_city_code'])) { $fields[] = "emp_city_code = :emp_city_code"; $params['emp_city_code'] = !empty($input['emp_city_code']) ? $input['emp_city_code'] : null; }
     if (isset($input['emp_barangay_code'])) { $fields[] = "emp_barangay_code = :emp_barangay_code"; $params['emp_barangay_code'] = !empty($input['emp_barangay_code']) ? $input['emp_barangay_code'] : null; }
@@ -159,6 +226,9 @@ function handleDelete() {
     if (!$canDelete) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Permission denied']); exit; }
     $id = $_GET['id'] ?? null;
     if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing employee ID']); return; }
+    $currentEmployee = Database::fetch("SELECT branch_id FROM employees WHERE emp_id = :id", ['id' => (int) $id]);
+    if (!$currentEmployee) { echo json_encode(['success' => false, 'error' => 'Employee not found']); return; }
+    enforceEmployeeBranchAccess($currentEmployee['branch_id'] !== null ? (int) $currentEmployee['branch_id'] : null);
     Database::execute("DELETE FROM employees WHERE emp_id = :id", ['id' => (int)$id]);
     echo json_encode(['success' => true, 'message' => 'Employee deleted successfully']);
 }

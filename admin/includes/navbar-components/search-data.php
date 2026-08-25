@@ -140,15 +140,15 @@ try {
     }
 
     // 5. Members — employees
-    $employees = navbarSearchSql(
-        "SELECT emp_id, first_name, last_name, emp_code
+    $navbarEmployees = navbarSearchSql(
+        "SELECT emp_id, first_name, last_name
          FROM employees
          ORDER BY last_name, first_name
          LIMIT 5"
     );
-    if (!empty($employees)) {
+    if (!empty($navbarEmployees)) {
         $html = sectionHeader('Members');
-        foreach ($employees as $e) {
+        foreach ($navbarEmployees as $e) {
             $name = trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? ''));
             $html .=
                 '<a class="dropdown-item px-x1 py-2 navbar-search-real" href="' . escapeNav($baseUrl . '/admin/settings/employees') . '">' .
@@ -160,7 +160,7 @@ try {
                 '    </div>' .
                 '    <div class="flex-1">' .
                 '      <h6 class="mb-0 title">' . escapeNav($name) . '</h6>' .
-                '      <p class="fs-11 mb-0 d-flex">' . escapeNav($e['emp_code'] ?: 'Employee') . '</p>' .
+                '      <p class="fs-11 mb-0 d-flex">Employee #' . escapeNav((string) $e['emp_id']) . '</p>' .
                 '    </div>' .
                 '  </div>' .
                 '</a>';

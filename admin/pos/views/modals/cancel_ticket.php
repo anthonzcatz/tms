@@ -159,7 +159,7 @@
               </div>
             </div>
 
-            <div class="mb-3">
+            <div class="mb-3" id="cancelReasonCategoryRow">
               <label class="form-label fw-semibold" for="cancelReasonCategory">Reason Category <span class="text-danger">*</span></label>
               <select class="form-select" id="cancelReasonCategory" onchange="syncTicketResponsibilityFromReason(); toggleTicketAdjustmentFields()">
                 <option value="CUSTOMER_REQUEST">Customer requested</option>
@@ -169,7 +169,7 @@
               </select>
             </div>
 
-            <div class="mb-3">
+            <div class="mb-3" id="cancelResponsibilityRow">
               <label class="form-label fw-semibold" for="cancelResponsibility">Responsibility <span class="text-danger">*</span></label>
               <select class="form-select" id="cancelResponsibility" onchange="toggleTicketAdjustmentFields()">
                 <option value="NONE">No responsibility charge</option>

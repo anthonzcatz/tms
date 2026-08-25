@@ -21,6 +21,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/RefundService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
@@ -135,9 +136,11 @@ if ($serviceTxn['status'] === 'cancelled' || $serviceTxn['status'] === 'refunded
     echo json_encode(['success' => false, 'error' => 'Service transaction is already cancelled/refunded.']); exit;
 }
 
-if ($user['role_code'] !== 'SUPER_ADMIN' && (int)$user['branch_id'] !== (int)$serviceTxn['branch_id']) {
+try {
+    PosAccess::assertBranchAccess($user, (int) $serviceTxn['branch_id']);
+} catch (Throwable $e) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Access denied: transaction does not belong to your branch']); exit;
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]); exit;
 }
 
 $serviceTxnId = (int) $serviceTxn['service_txn_id'];

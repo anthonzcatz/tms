@@ -6,12 +6,56 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(__DIR__) . '/_guard.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
 
 $user = Auth::user();
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+
+function birBranchFilter(?int $branchId, array &$params, string $column = 'po.branch_id'): string
+{
+    global $allowedBranchIds;
+    if ($branchId !== null) {
+        $params[] = $branchId;
+        return ' AND ' . $column . ' = ?';
+    }
+    if ($allowedBranchIds === null) {
+        return '';
+    }
+    if (!$allowedBranchIds) {
+        return ' AND 1 = 0';
+    }
+
+    $params = array_merge($params, $allowedBranchIds);
+    return ' AND ' . $column . ' IN (' . implode(',', array_fill(0, count($allowedBranchIds), '?')) . ')';
+}
+
+function birReportAccessible(array $report): bool
+{
+    global $user, $allowedBranchIds;
+    if ($allowedBranchIds === null) {
+        return true;
+    }
+
+    $branchId = (int) ($report['branch_id'] ?? 0);
+    return ($branchId > 0 && in_array($branchId, $allowedBranchIds, true))
+        || ($branchId <= 0 && (int) ($report['generated_by'] ?? 0) === (int) ($user['user_id'] ?? 0));
+}
+
+function fetchAccessibleBirReport(int $reportId): ?array
+{
+    $report = Database::fetch(
+        "SELECT r.*, b.branch_name
+         FROM bir_reports r
+         LEFT JOIN business_branches b ON r.branch_id = b.branch_id
+         WHERE r.report_id = ?",
+        [$reportId]
+    );
+    return $report && birReportAccessible($report) ? $report : null;
+}
 
 $allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT'];
 if (!in_array($userRoleCode, $allowedRoles)) {
@@ -33,6 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if ($rawReportId) {
                 $reportId = is_numeric($rawReportId) ? (int)$rawReportId : IdEncoder::decode($rawReportId);
                 if ($reportId) {
+                    if (!fetchAccessibleBirReport($reportId)) {
+                        throw new RuntimeException('Report not found or access denied.');
+                    }
                     Database::execute("DELETE FROM bir_reports WHERE report_id = ?", [$reportId]);
                     header('Location: ' . BASE_URL . '/admin/bir/reports/?success=' . urlencode('Report deleted successfully!'));
                     exit;
@@ -40,7 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         } else {
             $reportType = $_POST['report_type'] ?? '';
-            $branchId = !empty($_POST['branch_id']) ? (int)$_POST['branch_id'] : null;
+            $branchId = !empty($_POST['branch_id']) ? (int) $_POST['branch_id'] : null;
+            if ($branchId !== null) {
+                PosAccess::assertBranchAccess($user, $branchId);
+            }
             $dateFrom = $_POST['date_from'] ?? date('Y-m-d');
             $dateTo = $_POST['date_to'] ?? date('Y-m-d');
 
@@ -91,10 +141,7 @@ if ($viewReportId) {
     $isAjax = !empty($_GET['ajax']);
     $decodedReportId = is_numeric($viewReportId) ? (int)$viewReportId : IdEncoder::decode($viewReportId);
     if ($decodedReportId) {
-        $viewReport = Database::fetch(
-            "SELECT r.*, b.branch_name FROM bir_reports r LEFT JOIN business_branches b ON r.branch_id = b.branch_id WHERE r.report_id = ?",
-            [$decodedReportId]
-        );
+        $viewReport = fetchAccessibleBirReport($decodedReportId);
         if ($viewReport) {
             $decoded = json_decode($viewReport['data_json'], true);
             if (json_last_error() !== JSON_ERROR_NONE) {
@@ -477,10 +524,7 @@ $downloadFormat = $_GET['format'] ?? 'json';
 if ($downloadReportId) {
     $decodedReportId = is_numeric($downloadReportId) ? (int)$downloadReportId : IdEncoder::decode($downloadReportId);
     if ($decodedReportId) {
-        $downloadReport = Database::fetch(
-            "SELECT r.*, b.branch_name FROM bir_reports r LEFT JOIN business_branches b ON r.branch_id = b.branch_id WHERE r.report_id = ?",
-            [$decodedReportId]
-        );
+        $downloadReport = fetchAccessibleBirReport($decodedReportId);
         if ($downloadReport) {
             $reportData = json_decode($downloadReport['data_json'], true);
             if (json_last_error() !== JSON_ERROR_NONE) {
@@ -662,13 +706,32 @@ if ($downloadReportId) {
 }
 
 // Fetch generated reports
+$reportWhere = [];
+$reportParams = [];
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $reportWhere[] = '1 = 0';
+    } else {
+        $reportPlaceholders = [];
+        foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+            $key = 'report_branch_' . $index;
+            $reportPlaceholders[] = ':' . $key;
+            $reportParams[$key] = $allowedBranchId;
+        }
+        $reportParams['report_user_id'] = (int) $user['user_id'];
+        $reportWhere[] = '(r.branch_id IN (' . implode(',', $reportPlaceholders) . ') OR (r.branch_id IS NULL AND r.generated_by = :report_user_id))';
+    }
+}
+$reportFilter = $reportWhere ? 'WHERE ' . implode(' AND ', $reportWhere) : '';
 $reports = Database::fetchAll(
     "SELECT r.*, b.branch_name, u.username as generated_by_name
      FROM bir_reports r
      LEFT JOIN business_branches b ON r.branch_id = b.branch_id
      LEFT JOIN user_accounts u ON r.generated_by = u.user_id
+     {$reportFilter}
      ORDER BY r.created_at DESC
-     LIMIT 50"
+     LIMIT 50",
+    $reportParams
 );
 
 // Encode report IDs for URL security
@@ -679,18 +742,21 @@ foreach ($reports as &$report) {
 unset($report);
 
 // Fetch branches
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'bir_report_dropdown_branch');
 $branches = Database::fetchAll(
-    "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
 );
 
 // Helper functions for report generation
 function generateDSR($branchId, $date) {
     $params = [$date];
-    $branchFilter = "";
-    if ($branchId) {
-        $branchFilter = "AND po.branch_id = ?";
-        $params[] = $branchId;
-    }
+    $branchFilter = birBranchFilter($branchId, $params);
 
     $summary = Database::fetch(
         "SELECT
@@ -740,11 +806,7 @@ function generateDSR($branchId, $date) {
 
 function generateMonthlyReport($branchId, $dateFrom, $dateTo) {
     $params = [$dateFrom, $dateTo];
-    $branchFilter = "";
-    if ($branchId) {
-        $branchFilter = "AND po.branch_id = ?";
-        $params[] = $branchId;
-    }
+    $branchFilter = birBranchFilter($branchId, $params);
 
     $summary = Database::fetch(
         "SELECT
@@ -784,11 +846,7 @@ function generateMonthlyReport($branchId, $dateFrom, $dateTo) {
 
 function generateSLS($branchId, $dateFrom, $dateTo) {
     $params = [$dateFrom, $dateTo];
-    $branchFilter = "";
-    if ($branchId) {
-        $branchFilter = "AND po.branch_id = ?";
-        $params[] = $branchId;
-    }
+    $branchFilter = birBranchFilter($branchId, $params);
 
     $transactions = Database::fetchAll(
         "SELECT
@@ -831,11 +889,7 @@ function generateSLS($branchId, $dateFrom, $dateTo) {
 
 function generate2550M($branchId, $dateFrom, $dateTo) {
     $params = [$dateFrom, $dateTo];
-    $branchFilter = "";
-    if ($branchId) {
-        $branchFilter = "AND po.branch_id = ?";
-        $params[] = $branchId;
-    }
+    $branchFilter = birBranchFilter($branchId, $params);
 
     $outputVat = Database::fetch(
         "SELECT COALESCE(SUM(vt.vat_amount), 0) as output_vat
@@ -871,11 +925,7 @@ function generate2550M($branchId, $dateFrom, $dateTo) {
 function generateAlphalist($branchId, $dateFrom, $dateTo) {
     // Alphalist of Purchases - based on bank transactions (disbursements/expenses)
     $params = [$dateFrom, $dateTo];
-    $branchFilter = "";
-    if ($branchId) {
-        $branchFilter = "AND bt.bank_account_id IN (SELECT bank_account_id FROM bank_accounts WHERE branch_id = ?)";
-        $params[] = $branchId;
-    }
+    $branchFilter = birBranchFilter($branchId, $params, 'ba.branch_id');
 
     // Get all disbursement transactions (purchases/expenses)
     $purchases = Database::fetchAll(

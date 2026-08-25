@@ -580,6 +580,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
         <script>
           window.PROVIDER_TYPE_OPTIONS = <?php echo json_encode($providerTypeOptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
           window.PROVIDER_TYPE_COLORS = <?php echo json_encode($providerTypeColors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+          window.PROVIDER_TYPE_ICONS = <?php echo json_encode($providerTypeIcons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
         </script>
         <script src="<?php echo BASE_URL; ?>/admin/wallet/provider-wallets/assets/js/provider-wallets.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/provider-wallets.js'); ?>"></script>
 

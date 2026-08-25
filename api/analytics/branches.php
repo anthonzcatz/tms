@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 
 header('Content-Type: application/json');
 
@@ -17,32 +18,27 @@ try {
         exit;
     }
 
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
+    $userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 
     // Get branches for filter dropdown
-    $branches = [];
-    if ($userRoleCode === 'SUPER_ADMIN') {
-        $branches = Database::fetchAll(
-            "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
-        );
-    } elseif ($userBranchId) {
-        $branchIds = array_map('trim', explode(',', $userBranchId));
-        $namedParams = [];
-        foreach ($branchIds as $i => $bid) {
-            $namedParams['bid_' . $i] = $bid;
-        }
-        $placeholders = implode(',', array_keys($namedParams));
-        $branches = Database::fetchAll(
-            "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders) AND status = 'active' ORDER BY branch_name",
-            $namedParams
-        );
-    }
+    $branchWhere = ["status = 'active'"];
+    $branchParams = [];
+    PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'analytics_branch');
+    $branches = Database::fetchAll(
+        "SELECT branch_id, branch_name
+         FROM business_branches
+         WHERE " . implode(' AND ', $branchWhere) . "
+         ORDER BY branch_name",
+        $branchParams
+    );
 
     $branches = array_map(static function (array $branch): array {
+        $encodedId = IdEncoder::encode($branch['branch_id']);
         return [
-            'id' => IdEncoder::encode($branch['branch_id']),
-            'name' => $branch['branch_name']
+            'id' => $encodedId,
+            'name' => $branch['branch_name'],
+            'branch_id' => $encodedId,
+            'branch_name' => $branch['branch_name']
         ];
     }, $branches);
 

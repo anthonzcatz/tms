@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 
@@ -16,6 +17,27 @@ if (!$user) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
+}
+
+function requireBankTransactionAccountAccess(int $bankAccountId): array
+{
+    global $user;
+    $account = Database::fetch(
+        "SELECT bank_account_id, branch_id
+         FROM bank_accounts
+         WHERE bank_account_id = :bank_account_id",
+        ['bank_account_id' => $bankAccountId]
+    );
+    if (!$account) {
+        throw new RuntimeException('Bank account not found.');
+    }
+
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($allowedBranchIds !== null
+        && ($account['branch_id'] === null || !in_array((int) $account['branch_id'], $allowedBranchIds, true))) {
+        throw new RuntimeException('You are not authorized to use this bank account.');
+    }
+    return $account;
 }
 
 // Get request method
@@ -67,8 +89,7 @@ function handleGet() {
     $dateTo = $_GET['date_to'] ?? null;
     
     $user = Auth::user();
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
+    $userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
     
     // Build WHERE clause
     $where = [];
@@ -81,10 +102,7 @@ function handleGet() {
     }
     
     // Non-SUPER_ADMIN can only see transactions for their branch's bank accounts
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $where[] = "ba.branch_id = :user_branch_id";
-        $params['user_branch_id'] = $userBranchId;
-    }
+    PosAccess::applyBranchScope($where, $params, 'ba.branch_id', $user, 'bank_transaction_branch');
     
     // Filter by transaction type
     if ($txnType && in_array($txnType, ['RECEIPT', 'DEPOSIT', 'DISBURSEMENT', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT', 'REFUND'])) {
@@ -197,6 +215,7 @@ function handlePost() {
     
     $user = Auth::user();
     $bankAccountId = (int)$data['bank_account_id'];
+    requireBankTransactionAccountAccess($bankAccountId);
     $amount = (float)$data['amount'];
     $direction = $data['direction'];
     $remarks = $data['remarks'] ?? null;

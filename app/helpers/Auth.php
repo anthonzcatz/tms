@@ -82,7 +82,10 @@ final class Auth
 
         try {
             $user = Database::fetch(
-                "SELECT role_code FROM user_accounts WHERE user_id = :uid",
+                "SELECT ur.role_code
+                 FROM user_accounts ua
+                 LEFT JOIN user_roles ur ON ur.role_id = ua.role_id
+                 WHERE ua.user_id = :uid",
                 ['uid' => $userId]
             );
             $cachedRoleCode = $user['role_code'] ?? null;
@@ -132,6 +135,25 @@ final class Auth
     public static function login(array $user, ?float $browserLatitude = null, ?float $browserLongitude = null, bool $rememberMe = false): bool
     {
         unset($user['password_hash']);
+
+        // Resolve full employee name when it is not already present in the user record
+        if (empty($user['fullname']) && !empty($user['user_id'])) {
+            $userInfo = Database::fetch(
+                "SELECT CONCAT_WS(' ',
+                    e.first_name,
+                    IF(e.middle_name IS NOT NULL AND e.middle_name != '',
+                        CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), NULL),
+                    e.last_name
+                ) AS fullname
+                 FROM user_accounts u
+                 LEFT JOIN employees e ON e.emp_id = u.emp_id
+                 WHERE u.user_id = :uid",
+                ['uid' => (int)$user['user_id']]
+            );
+            if (!empty($userInfo['fullname'])) {
+                $user['fullname'] = $userInfo['fullname'];
+            }
+        }
 
         session_regenerate_id(true);
         $sessionToken = session_id();

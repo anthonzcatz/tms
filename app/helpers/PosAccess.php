@@ -8,7 +8,8 @@ final class PosAccess
 {
     public static function allowedBranchIds(array $user): ?array
     {
-        if (($user['role_code'] ?? '') === 'SUPER_ADMIN') {
+        $roleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+        if ($roleCode === 'SUPER_ADMIN') {
             return null;
         }
 
@@ -21,6 +22,33 @@ final class PosAccess
             array_map('intval', explode(',', (string) $branchValue)),
             static fn (int $branchId): bool => $branchId > 0
         )));
+    }
+
+    public static function applyBranchScope(
+        array &$where,
+        array &$params,
+        string $column,
+        array $user,
+        string $prefix = 'branch_scope'
+    ): void {
+        $allowedBranchIds = self::allowedBranchIds($user);
+        if ($allowedBranchIds === null) {
+            return;
+        }
+
+        if (!$allowedBranchIds) {
+            $where[] = '1 = 0';
+            return;
+        }
+
+        $prefix = preg_replace('/[^a-zA-Z0-9_]/', '_', $prefix) ?: 'branch_scope';
+        $placeholders = [];
+        foreach (array_values($allowedBranchIds) as $index => $branchId) {
+            $key = $prefix . '_' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $branchId;
+        }
+        $where[] = $column . ' IN (' . implode(',', $placeholders) . ')';
     }
 
     public static function assertBranchAccess(array $user, int $branchId): void
@@ -88,7 +116,7 @@ final class PosAccess
 
     /**
      * Total cash change given to customers during the session.
-     * Only counts change for orders that include at least one CASH payment,
+     * Only counts change for orders that include at least one active CASH payment,
      * because change is physically disbursed from the cash drawer.
      */
     public static function sessionTotalCashChange(int $sessionId, string $startedAt, ?string $endedAt = null): float
@@ -115,6 +143,14 @@ final class PosAccess
                          OR (oi.item_type = 'SERVICE' AND tp.source_type = 'SERVICE_TRANSACTION')
                      )
                      AND pm.method_type = 'CASH'
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM ticket_cancellations tc_void
+                         WHERE tp.source_type = 'TICKET_TRANSACTION'
+                           AND tc_void.transaction_id = tp.source_id
+                           AND tc_void.operation_type = 'VOID'
+                           AND tc_void.status = 'completed'
+                     )
                )",
             $params
         );

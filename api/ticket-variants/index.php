@@ -9,6 +9,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
@@ -111,36 +112,13 @@ function getAllowedBranchIds(): array {
         return [];
     }
 
-    if ($user['role_code'] === 'SUPER_ADMIN') {
-        return [];
-    }
-
-    $branchIds = [];
-    if (!empty($user['branch_id'])) {
-        $branchIds = array_values(array_filter(array_map('intval', explode(',', $user['branch_id']))));
-    }
-
-    if (($user['role_code'] === 'CASHIER') && !empty($user['user_id'])) {
-        $activeSession = Database::fetch(
-            "SELECT branch_id FROM cashier_sessions
-             WHERE cashier_user_id = :user_id
-               AND status = 'OPEN'
-               AND ended_at IS NULL
-             ORDER BY started_at DESC
-             LIMIT 1",
-            ['user_id' => (int)$user['user_id']]
-        );
-        if (!empty($activeSession['branch_id'])) {
-            $branchIds[] = (int)$activeSession['branch_id'];
-        }
-    }
-
-    return array_values(array_unique($branchIds));
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    return $allowedBranchIds === null ? [] : $allowedBranchIds;
 }
 
 function getWalletBranchIds(?int $branchId): array {
     $user = Auth::user();
-    if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+    if ($user && (Auth::userRoleCode() ?? ($user['role_code'] ?? '')) === 'SUPER_ADMIN') {
         $allBranches = Database::fetchAll(
             "SELECT branch_id FROM business_branches WHERE status = 'active' OR status IS NULL"
         );
@@ -166,7 +144,7 @@ function validateBranchAccess(?int $branchId): void {
         exit;
     }
 
-    if ($user['role_code'] === 'SUPER_ADMIN' || !$branchId) {
+    if (!$branchId || PosAccess::allowedBranchIds($user) === null) {
         return;
     }
 
@@ -180,11 +158,51 @@ function validateBranchAccess(?int $branchId): void {
     exit;
 }
 
+function stockAggregationSql(?int $branchId, array &$params, string $prefix): string {
+    $where = [];
+    if ($branchId !== null) {
+        $key = $prefix . '_branch';
+        $where[] = 's.branch_id = :' . $key;
+        $params[$key] = $branchId;
+    } else {
+        $allowedBranchIds = getAllowedBranchIds();
+        if (Auth::userRoleCode() !== 'SUPER_ADMIN') {
+            if (!$allowedBranchIds) {
+                $where[] = '1 = 0';
+            } else {
+                $placeholders = [];
+                foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+                    $key = $prefix . '_branch_' . $index;
+                    $placeholders[] = ':' . $key;
+                    $params[$key] = $allowedBranchId;
+                }
+                $where[] = 's.branch_id IN (' . implode(',', $placeholders) . ')';
+            }
+        }
+    }
+
+    $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    return "(
+        SELECT s.variant_id,
+               COALESCE(SUM(s.on_hand_qty), 0) AS on_hand_qty,
+               COALESCE(SUM(s.reserved_qty), 0) AS reserved_qty,
+               COALESCE(SUM(s.on_hand_qty - s.reserved_qty), 0) AS available_qty
+        FROM branch_ticket_stocks s
+        {$whereSql}
+        GROUP BY s.variant_id
+    )";
+}
+
 function handleGet(): void {
     $providerId = $_GET['provider_id'] ?? null;
     $variantId  = $_GET['variant_id']  ?? null;
     $branchId   = $_GET['branch_id']   ?? null;
     $includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] == '1';
+    $allowedBranchIds = getAllowedBranchIds();
+    if (Auth::userRoleCode() !== 'SUPER_ADMIN' && !$allowedBranchIds) {
+        echo json_encode(['success' => true, 'data' => []]);
+        exit;
+    }
 
     // Enforce branch access based on the user's assigned branches and active cashier session.
     validateBranchAccess($branchId ? (int)$branchId : null);
@@ -234,6 +252,8 @@ function handleGet(): void {
             exit;
         }
 
+        $stockParams = [];
+        $stockAggregation = stockAggregationSql(null, $stockParams, 'variant_list_stock');
         $sql = "SELECT
                     v.variant_id,
                     v.provider_id,
@@ -246,17 +266,12 @@ function handleGet(): void {
                     v.stock_controlled,
                     v.requires_ticket_number,
                     v.is_active,
-                    COALESCE((SELECT SUM(s.on_hand_qty)
-                              FROM branch_ticket_stocks s
-                              WHERE s.variant_id = v.variant_id), 0) AS on_hand_qty,
-                    COALESCE((SELECT SUM(s.reserved_qty)
-                              FROM branch_ticket_stocks s
-                              WHERE s.variant_id = v.variant_id), 0) AS reserved_qty,
-                    COALESCE((SELECT SUM(s.on_hand_qty - s.reserved_qty)
-                              FROM branch_ticket_stocks s
-                              WHERE s.variant_id = v.variant_id), 0) AS available_qty
+                    COALESCE(stock.on_hand_qty, 0) AS on_hand_qty,
+                    COALESCE(stock.reserved_qty, 0) AS reserved_qty,
+                    COALESCE(stock.available_qty, 0) AS available_qty
                 FROM provider_ticket_variants v
                 LEFT JOIN ticket_providers p ON p.provider_id = v.provider_id
+                LEFT JOIN {$stockAggregation} stock ON stock.variant_id = v.variant_id
                 WHERE v.deleted_at IS NULL";
 
         if (!$includeInactive) {
@@ -265,7 +280,7 @@ function handleGet(): void {
 
         $sql .= " ORDER BY p.provider_name, v.variant_name";
 
-        $data = Database::fetchAll($sql);
+        $data = Database::fetchAll($sql, $stockParams);
         echo json_encode(['success' => true, 'data' => $data]);
         exit;
     }
@@ -280,6 +295,8 @@ function handleGet(): void {
 
     // Fetch variants with branch-specific stock; wallet data is resolved separately
     // and remains branch-scoped when a branch is requested.
+    $stockParams = [];
+    $stockAggregation = stockAggregationSql($branchId, $stockParams, 'variant_provider_stock');
     $sql = "SELECT
                 v.variant_id,
                 v.provider_id,
@@ -291,15 +308,12 @@ function handleGet(): void {
                 v.stock_controlled,
                 v.requires_ticket_number,
                 v.is_active,
-                COALESCE(s.on_hand_qty, 0) AS on_hand_qty,
-                COALESCE(s.reserved_qty, 0) AS reserved_qty,
-                (COALESCE(s.on_hand_qty, 0) - COALESCE(s.reserved_qty, 0)) AS available_qty
+                COALESCE(stock.on_hand_qty, 0) AS on_hand_qty,
+                COALESCE(stock.reserved_qty, 0) AS reserved_qty,
+                COALESCE(stock.available_qty, 0) AS available_qty
             FROM provider_ticket_variants v
             LEFT JOIN ticket_providers p ON p.provider_id = v.provider_id
-            LEFT JOIN branch_ticket_stocks s
-                ON s.variant_id = v.variant_id
-               AND s.provider_id = v.provider_id
-               AND s.branch_id = :stock_branch_id
+            LEFT JOIN {$stockAggregation} stock ON stock.variant_id = v.variant_id
             WHERE v.provider_id = :provider_id
               AND v.deleted_at IS NULL";
 
@@ -309,10 +323,10 @@ function handleGet(): void {
 
     $sql .= " ORDER BY v.variant_name ASC";
 
-    $data = Database::fetchAll($sql, [
-        'provider_id'     => $providerId,
-        'stock_branch_id' => $branchId ?? 0,
-    ]);
+    $data = Database::fetchAll($sql, array_merge(
+        ['provider_id' => $providerId],
+        $stockParams
+    ));
 
     // Resolve the best active wallet for each variant, scoped to the requested branch when provided.
     // Priority is given to the requested branch, then to any other allowed branch when no branch was requested.

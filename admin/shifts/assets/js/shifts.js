@@ -202,7 +202,7 @@ async function loadSessionDetails() {
         const varLabel = Math.abs(variance) < 0.005 ? 'Balanced' : variance < 0 ? 'Short' : 'Over';
 
         // Calculate expected cash if not set (for OPEN sessions)
-        const expectedCash = parseFloat(s.expected_cash) > 0 ? s.expected_cash : (parseFloat(s.starting_cash) + parseFloat(s.total_sales));
+        const expectedCash = s.expected_cash != null ? parseFloat(s.expected_cash) || 0 : 0;
 
         html += `
         <div class="row g-3 mb-4">
@@ -226,7 +226,7 @@ async function loadSessionDetails() {
                   <div class="icon-circle icon-circle-success me-3"><span class="fas fa-chart-line text-success"></span></div>
                   <div>
                     <div class="text-muted small mb-1">Total Sales</div>
-                    <div class="fw-bold fs-5 text-success">₱${fmt(s.total_sales)}</div>
+                    <div class="fw-bold fs-5 text-success">₱${fmt(s.net_sales ?? s.total_sales)}</div>
                   </div>
                 </div>
               </div>
@@ -253,7 +253,9 @@ async function loadSessionDetails() {
         </div>`;
 
         // Payment type breakdown with include_in_expected_cash indicator
-        if (payments && payments.length > 0) {
+        if ((payments && payments.length > 0)
+            || parseFloat(s.void_income || 0) > 0
+            || parseFloat(s.technical_lost_sales_amount || 0) > 0) {
             html += '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
             html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-hover table-borderless fs-10 mb-0">';
 
@@ -267,26 +269,50 @@ async function loadSessionDetails() {
               </tr>`;
 
             // Calculate refunds and cash change first for use in loop
-            const totalRefunds = parseFloat(s.total_refunds || 0);
+            const refundedSalesAmount = parseFloat(s.refunded_sales_amount || 0);
+            const approvedRefundsAmount = parseFloat(s.approved_refunds_amount ?? refundedSalesAmount);
             const totalCashChange = parseFloat(s.total_cash_change || 0);
             const totalCashAdjustments = parseFloat(s.total_cash_adjustments || 0);
+            const voidIncome = parseFloat(s.void_income || 0);
+            const voidLostSalesAmount = parseFloat(s.technical_lost_sales_amount || 0);
 
             // Payment methods from API with include_in_expected_cash indicator
             payments.forEach((p, index) => {
-                const isLast = index === payments.length - 1 && totalRefunds <= 0 && totalCashChange <= 0 && totalCashAdjustments <= 0;
+                const isLast = index === payments.length - 1 && approvedRefundsAmount <= 0 && totalCashChange <= 0 && totalCashAdjustments <= 0;
                 const borderClass = !isLast ? 'border-bottom' : '';
-                const inCashBadge = p.include_in_expected_cash
+                const totalAmount = parseFloat(p.total_amount ?? p.active_amount ?? 0);
+                const inCashBadge = Number(p.include_in_expected_cash) === 1
                     ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
                     : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
 
                 html += `
                   <tr class="${borderClass}">
-                    <td class="ps-0">${p.method_name}${inCashBadge}
+                    <td class="ps-0">
+                      <div class="fw-semibold">${p.method_name} ${inCashBadge}</div>
                       <div class="text-400 fw-normal fs-11 text-uppercase">${p.method_type}</div>
                     </td>
-                    <td class="pe-0 text-end">₱${fmt(p.total_amount)}</td>
+                    <td class="pe-0 text-end"><strong>₱${fmt(totalAmount)}</strong></td>
                   </tr>`;
             });
+
+            if (voidIncome > 0) {
+                html += `
+                  <tr class="border-bottom">
+                    <td class="ps-0"><strong>Void Income</strong>
+                      <div class="text-400 fw-normal fs-11 text-success">VOID FEE + SERVICE FEE</div>
+                    </td>
+                    <td class="pe-0 text-end text-success"><strong>+₱${fmt(voidIncome)}</strong></td>
+                  </tr>`;
+            }
+            if (voidLostSalesAmount > 0) {
+                html += `
+                  <tr class="border-bottom">
+                    <td class="ps-0"><strong>Void Lost Sales</strong>
+                      <div class="text-400 fw-normal fs-11 text-danger">DEDUCTED FROM EXPECTED CASH</div>
+                    </td>
+                    <td class="pe-0 text-end text-danger"><strong>-₱${fmt(voidLostSalesAmount)}</strong></td>
+                  </tr>`;
+            }
 
             // Show cash change row if any
             if (totalCashChange > 0) {
@@ -300,13 +326,13 @@ async function loadSessionDetails() {
             }
 
             // Show refunds row if there are refunds
-            if (totalRefunds > 0) {
+            if (approvedRefundsAmount > 0) {
                 html += `
                   <tr class="border-bottom">
-                    <td class="ps-0"><strong>Refunds (Cash Out)</strong>
-                      <div class="text-400 fw-normal fs-11 text-danger">CASH OUT</div>
+                    <td class="ps-0"><strong>Approved Refunds</strong>
+                      <div class="text-400 fw-normal fs-11 text-danger">PAYMENT TOTALS</div>
                     </td>
-                    <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
+                    <td class="pe-0 text-end text-danger"><strong>-₱${fmt(approvedRefundsAmount)}</strong></td>
                   </tr>`;
             }
             if (totalCashAdjustments > 0) {
@@ -321,13 +347,21 @@ async function loadSessionDetails() {
 
             // Show expected cash calculation
             const expectedCashCalc = payments
-                .filter(p => p.include_in_expected_cash)
-                .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
+                .filter(p => Number(p.include_in_expected_cash) === 1)
+                .reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+            const expectedCalcFormula = [
+                'STARTING + IN CASH',
+                approvedRefundsAmount > 0 ? '- REFUNDS' : null,
+                voidIncome > 0 ? '+ VOID INCOME' : null,
+                voidLostSalesAmount > 0 ? '- VOID LOST SALES' : null,
+                '- CHANGE',
+                '- CASHIER DEDUCTIONS'
+            ].filter(Boolean).join(' ');
 
             html += `
               <tr class="table-light">
                 <td class="ps-0 pb-0 pt-2"><strong>Expected Cash</strong>
-                  <div class="text-400 fw-normal fs-11 text-success">STARTING + IN CASH - CHANGE - REFUNDS - CASHIER DEDUCTIONS</div>
+                  <div class="text-400 fw-normal fs-11 text-success">${expectedCalcFormula}</div>
                 </td>
                 <td class="pe-0 text-end pb-0 pt-2 text-success"><strong>₱${fmt(s.expected_cash || 0)}</strong></td>
               </tr>
@@ -336,8 +370,12 @@ async function loadSessionDetails() {
         </div>`;
 
             // Add collapsible info note about expected cash calculation
+            const approvedRefundsText = approvedRefundsAmount > 0
+                ? ' - Approved Refunds (₱' + fmt(approvedRefundsAmount) + ')'
+                : '';
             const changeText = totalCashChange > 0 ? ' - Cash Change (₱' + fmt(totalCashChange) + ')' : '';
-            const refundText = totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : '';
+            const voidIncomeText = voidIncome > 0 ? ' + Void Fee / Service Fee Income (₱' + fmt(voidIncome) + ')' : '';
+            const voidLostSalesText = voidLostSalesAmount > 0 ? ' - Void Lost Sales (₱' + fmt(voidLostSalesAmount) + ')' : '';
             const adjustmentText = totalCashAdjustments > 0 ? ' - Cashier Deductions (₱' + fmt(totalCashAdjustments) + ')' : '';
             html += `
             <div class="alert alert-info fs-10 mb-4">
@@ -349,7 +387,7 @@ async function loadSessionDetails() {
                 </button>
               </div>
               <div class="collapse mt-2" id="expectedCashInfo${s.session_id}">
-                <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${changeText}${refundText}${adjustmentText}</small>
+                <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${approvedRefundsText}${voidIncomeText}${voidLostSalesText}${changeText}${adjustmentText}</small>
               </div>
             </div>`;
         } else {
@@ -772,7 +810,7 @@ async function onCloseSessionSelect(select) {
         });
         document.getElementById('closeSummaryBranch').textContent = s.branch_name || '—';
         document.getElementById('closeSummaryOpening').textContent = '₱' + fmt(s.starting_cash);
-        document.getElementById('closeSummarySales').textContent = '₱' + fmt(s.total_sales || 0);
+        document.getElementById('closeSummarySales').textContent = '₱' + fmt(s.net_sales ?? s.total_sales ?? 0);
         document.getElementById('closeSummaryExpected').textContent = '₱' + fmt(s.expected_cash || 0);
         document.getElementById('closeSummaryTxns').textContent = s.txn_count || 0;
         
@@ -793,13 +831,16 @@ async function onCloseSessionSelect(select) {
 
 function renderPaymentBreakdown(payments, session) {
     const container = document.getElementById('closePaymentBreakdown');
+    const voidIncome = parseFloat(session.void_income || 0);
+    const voidLostSalesAmount = parseFloat(session.technical_lost_sales_amount || 0);
     
-    if (!payments || payments.length === 0) {
+    if ((!payments || payments.length === 0) && voidIncome <= 0 && voidLostSalesAmount <= 0) {
         container.innerHTML = '<div class="alert alert-info fs-10">No payments recorded in this session.</div>';
         return;
     }
     
-    const totalRefunds = parseFloat(session.total_refunds || 0);
+    const refundedSalesAmount = parseFloat(session.refunded_sales_amount || 0);
+    const approvedRefundsAmount = parseFloat(session.approved_refunds_amount ?? refundedSalesAmount);
     const pendingRefundsCash = parseFloat(session.pending_refunds_cash || 0);
     const showPendingRefunds = Boolean(session.show_pending_refunds_in_close_session) ||
         Boolean(window.CANCELLATION_SETTINGS?.show_pending_refunds_in_close_session);
@@ -807,8 +848,8 @@ function renderPaymentBreakdown(payments, session) {
     const totalCashChange = parseFloat(session.total_cash_change || 0);
     const totalCashAdjustments = parseFloat(session.total_cash_adjustments || 0);
     const expectedCashCalc = payments
-        .filter(p => p.include_in_expected_cash)
-        .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
+        .filter(p => Number(p.include_in_expected_cash) === 1)
+        .reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
     
     let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
     html += '<div class="card mb-3"><div class="card-body py-3"><table class="table table-hover table-borderless fs-10 mb-0">';
@@ -824,22 +865,43 @@ function renderPaymentBreakdown(payments, session) {
     
     // Payment methods
     payments.forEach((p, index) => {
-        const hasDeductions = totalCashChange > 0 || totalRefunds > 0 || displayedPendingRefunds > 0 || totalCashAdjustments > 0;
+        const hasDeductions = totalCashChange > 0 || approvedRefundsAmount > 0 || displayedPendingRefunds > 0 || totalCashAdjustments > 0;
         const isLast = index === payments.length - 1 && !hasDeductions;
         const borderClass = !isLast || hasDeductions ? 'border-bottom' : '';
-        const inCashBadge = p.include_in_expected_cash
+        const totalAmount = parseFloat(p.total_amount ?? p.active_amount ?? 0);
+        const inCashBadge = Number(p.include_in_expected_cash) === 1
             ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
             : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
         
         html += `
           <tr class="${borderClass}">
-            <td class="ps-0">${p.method_name}${inCashBadge}
+            <td class="ps-0">
+              <div class="fw-semibold">${p.method_name} ${inCashBadge}</div>
               <div class="text-400 fw-normal fs-11 text-uppercase">${p.method_type}</div>
             </td>
-            <td class="pe-0 text-end">₱${fmt(p.total_amount)}</td>
+            <td class="pe-0 text-end"><strong>₱${fmt(totalAmount)}</strong></td>
           </tr>`;
     });
-    
+
+    if (voidIncome > 0) {
+        html += `
+          <tr class="border-bottom">
+            <td class="ps-0"><strong>Void Income</strong>
+              <div class="text-400 fw-normal fs-11 text-success">VOID FEE + SERVICE FEE</div>
+            </td>
+            <td class="pe-0 text-end text-success"><strong>+₱${fmt(voidIncome)}</strong></td>
+          </tr>`;
+    }
+    if (voidLostSalesAmount > 0) {
+        html += `
+          <tr class="border-bottom">
+            <td class="ps-0"><strong>Void Lost Sales</strong>
+              <div class="text-400 fw-normal fs-11 text-danger">DEDUCTED FROM EXPECTED CASH</div>
+            </td>
+            <td class="pe-0 text-end text-danger"><strong>-₱${fmt(voidLostSalesAmount)}</strong></td>
+          </tr>`;
+    }
+
     // Cash change if any
     if (totalCashChange > 0) {
         html += `
@@ -852,15 +914,13 @@ function renderPaymentBreakdown(payments, session) {
     }
 
     // Refunds if any
-    if (totalRefunds > 0) {
-        const refundLabel = showPendingRefunds ? 'Approved Refunds' : 'Refunds (Cash Out)';
-        const refundSubLabel = showPendingRefunds ? 'APPROVED CASH OUT' : 'CASH OUT';
+    if (approvedRefundsAmount > 0) {
         html += `
           <tr class="border-bottom">
-            <td class="ps-0"><strong>${refundLabel}</strong>
-              <div class="text-400 fw-normal fs-11 text-danger">${refundSubLabel}</div>
+            <td class="ps-0"><strong>Approved Refunds</strong>
+              <div class="text-400 fw-normal fs-11 text-danger">PAYMENT TOTALS</div>
             </td>
-            <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
+            <td class="pe-0 text-end text-danger"><strong>-₱${fmt(approvedRefundsAmount)}</strong></td>
           </tr>`;
     }
 
@@ -887,11 +947,13 @@ function renderPaymentBreakdown(payments, session) {
     // Expected cash row
     const expectedCalcFormula = [
         'STARTING + IN CASH',
-        'CHANGE',
-        'REFUNDS',
-        showPendingRefunds && displayedPendingRefunds > 0 ? 'PENDING REFUNDS' : null,
-        totalCashAdjustments > 0 ? 'CASHIER DEDUCTIONS' : null
-    ].filter(Boolean).join(' - ');
+        approvedRefundsAmount > 0 ? '- REFUNDS' : null,
+        voidIncome > 0 ? '+ VOID INCOME' : null,
+        voidLostSalesAmount > 0 ? '- VOID LOST SALES' : null,
+        '- CHANGE',
+        showPendingRefunds && displayedPendingRefunds > 0 ? '- PENDING REFUNDS' : null,
+        totalCashAdjustments > 0 ? '- CASHIER DEDUCTIONS' : null
+    ].filter(Boolean).join(' ');
 
     html += `
       <tr class="table-light">
@@ -903,10 +965,18 @@ function renderPaymentBreakdown(payments, session) {
     </table></div></div>`;
 
     // Collapsible info note
+    const approvedRefundsText = approvedRefundsAmount > 0
+        ? ' - Approved Refunds (₱' + fmt(approvedRefundsAmount) + ')'
+        : '';
     const changeText = totalCashChange > 0 ? ' - Cash Change (₱' + fmt(totalCashChange) + ')' : '';
-    const refundText = totalRefunds > 0 ? ' - Refunds (₱' + fmt(totalRefunds) + ')' : '';
     const pendingRefundsCalcNote = showPendingRefunds && displayedPendingRefunds > 0
         ? ' - Pending Refunds (₱' + fmt(displayedPendingRefunds) + ')'
+        : '';
+    const voidIncomeCalcNote = voidIncome > 0
+        ? ' + Void Fee / Service Fee Income (₱' + fmt(voidIncome) + ')'
+        : '';
+    const voidLostSalesCalcNote = voidLostSalesAmount > 0
+        ? ' - Void Lost Sales (₱' + fmt(voidLostSalesAmount) + ')'
         : '';
     const adjustmentCalcNote = totalCashAdjustments > 0
         ? ' - Cashier Deductions (₱' + fmt(totalCashAdjustments) + ')'
@@ -921,7 +991,7 @@ function renderPaymentBreakdown(payments, session) {
         </button>
       </div>
       <div class="collapse mt-2" id="expectedCashInfoMgr${session.session_id}">
-        <small>Starting Cash (₱${fmt(session.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${changeText}${refundText}${pendingRefundsCalcNote}${adjustmentCalcNote}</small>
+        <small>Starting Cash (₱${fmt(session.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${approvedRefundsText}${voidIncomeCalcNote}${voidLostSalesCalcNote}${changeText}${pendingRefundsCalcNote}${adjustmentCalcNote}</small>
       </div>
     </div>`;
     

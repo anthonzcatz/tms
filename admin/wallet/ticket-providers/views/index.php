@@ -158,7 +158,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
           </div>
           <div class="card-body how-it-works-content" id="howItWorksContent" style="display:none;">
             <ul class="mb-0">
-              <li>Manage ticket providers for different transportation services (airline, shipping, bus, etc.).</li>
+              <li>Manage ticket providers for different transportation services.</li>
               <li>Each provider can have <strong>multiple wallets</strong> across different branches — set them up in <em>Provider Wallets</em>.</li>
               <li>Each provider can have <strong>service fees</strong> per branch — configure them in <em>Provider Service Fees</em>.</li>
               <li>Active providers appear in POS; inactive providers are paused and hidden from cashiers.</li>
@@ -384,6 +384,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
     <script>
       window.PROVIDER_TYPE_OPTIONS = <?php echo json_encode($providerTypeOptions, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
       window.PROVIDER_TYPE_COLORS = <?php echo json_encode($providerTypeColors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+      window.PROVIDER_TYPE_ICONS = <?php echo json_encode($providerTypeIcons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
     </script>
     <script src="<?php echo BASE_URL; ?>/admin/wallet/ticket-providers/assets/js/ticket-providers.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/ticket-providers.js'); ?>"></script>
 

@@ -674,6 +674,10 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
   <?php if (PusherService::isConfigured()): ?>
   <script src="https://js.pusher.com/8.4.0/pusher.min.js"></script>
   <?php endif; ?>
+  <script>
+    window.PROVIDER_TYPE_OPTIONS = <?php echo json_encode($cashierTransportTypeLabels ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+    window.PROVIDER_TYPE_ICONS = <?php echo json_encode($cashierTransportTypeIcons ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+  </script>
   <script src="<?php echo BASE_URL; ?>/admin/pos/assets/js/pos.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/pos.js'); ?>"></script>
   <?php include dirname(dirname(__DIR__)) . '/includes/body-top.php'; ?>
 </body>

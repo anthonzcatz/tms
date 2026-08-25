@@ -62,6 +62,8 @@ $routes['reports'] = 'reports/index.php';
 $routes['reports/'] = 'reports/index.php';
 $routes['reports/financial'] = 'reports/financial/index.php';
 $routes['reports/financial/'] = 'reports/financial/index.php';
+$routes['refund-confirmations/history'] = 'refund-confirmations/history.php';
+$routes['refund-confirmations/history/'] = 'refund-confirmations/history.php';
 
 // Manual routes (for special cases or files not in standard folders)
 // Add manual routes here if needed for special handling

@@ -34,7 +34,7 @@ if ((!preg_match('/^private-user-(\d+)$/', $channelName)
 }
 
 $user = Auth::user() ?: [];
-$roleCode = (string) ($user['role_code'] ?? '');
+$roleCode = (string) (Auth::userRoleCode() ?? ($user['role_code'] ?? ''));
 
 if (preg_match('/^private-user-(\d+)$/', $channelName, $matches)) {
     if ((int) $matches[1] !== (int) Auth::id()) {
@@ -66,7 +66,6 @@ if (preg_match('/^private-user-(\d+)$/', $channelName, $matches)) {
     )));
 
     if ($roleCode !== 'SUPER_ADMIN'
-        && !Auth::can('VIEW_ALL_TICKET_STOCK')
         && !in_array($branchId, $assignedBranches, true)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'You are not authorized for this branch.']);

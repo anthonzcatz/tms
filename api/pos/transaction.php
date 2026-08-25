@@ -152,17 +152,20 @@ if ($useOrdersTable) {
                     dt.code as discount_code,
                     tp_op.provider_name as provider_name,
                     tp_op.provider_type as provider_type,
+                    pt_op.type_label as provider_type_label,
                     tp_parent.provider_name as parent_provider_name,
                     v.variant_name,
                     v.variant_code,
                     tp_wallet.provider_name as wallet_provider_name,
-                    pv_wallet.variant_name as wallet_variant_name
+                    pv_wallet.variant_name as wallet_variant_name,
+                    pv_wallet.variant_code as wallet_variant_code
              FROM pos_order_items oi
              LEFT JOIN passenger_accounts p ON oi.passenger_id = p.passenger_id
              LEFT JOIN service_types st ON oi.service_type_id = st.service_type_id
              LEFT JOIN accommodation_types at ON oi.accommodation_id = at.accommodation_id
              LEFT JOIN discount_types dt ON oi.discount_id = dt.discount_id
              LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN provider_types pt_op ON pt_op.type_code = tp_op.provider_type
              LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
              LEFT JOIN provider_ticket_variants v ON oi.variant_id = v.variant_id
              LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
@@ -181,18 +184,40 @@ if ($useOrdersTable) {
                     ta.approved_at, ta.settled_at, ta.created_at,
                     tc.cancellation_id, tc.operation_type, tc.reason_category,
                     tc.cancellation_type, tc.status AS cancellation_status,
+                    tc.processed_at AS cancellation_processed_at,
+                    tr.processed_at AS refund_processed_at,
+                    COALESCE(tr.processed_by, tc.approved_by, tc.requested_by) AS refund_processed_by,
+                    COALESCE(
+                        NULLIF(CONCAT_WS(' ',
+                            NULLIF(TRIM(e_refund.first_name), ''),
+                            IF(e_refund.middle_name IS NOT NULL AND e_refund.middle_name != '', CONCAT(UPPER(LEFT(e_refund.middle_name, 1)), '.'), NULL),
+                            NULLIF(TRIM(e_refund.last_name), '')
+                        ), ''),
+                        ua_refund.username,
+                        'Unassigned'
+                    ) AS refund_processed_by_name,
                     CASE
-                        WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
-                        ELSE COALESCE(tc.void_fee, 0)
+                        WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                        WHEN tc.responsibility IN ('CUSTOMER', 'CASHIER')
+                          OR tc.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                            THEN COALESCE(tc.void_fee, 0)
+                        ELSE 0
                     END AS void_fee,
                     CASE
-                        WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
-                        ELSE COALESCE(tc.void_service_fee, 0)
+                        WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                        WHEN tc.responsibility IN ('CUSTOMER', 'CASHIER')
+                          OR tc.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                            THEN COALESCE(tc.void_service_fee, 0)
+                        ELSE 0
                     END AS void_service_fee,
-                    COALESCE(tc.lost_sales_void_fee, 0) AS lost_sales_void_fee,
+                    CASE
+                        WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+                            THEN COALESCE(NULLIF(tc.lost_sales_void_fee, 0), tc.void_fee, 0)
+                        ELSE 0
+                    END AS lost_sales_void_fee,
                     COALESCE(tc.lost_sales_service_fee, 0) AS lost_sales_service_fee,
                     CASE
-                        WHEN tc.reason_category = 'PRINTER_ERROR'
+                        WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
                          AND tc.status = 'completed' THEN COALESCE(tt_adj.total_amount, 0)
                         ELSE 0
                     END AS technical_void_amount
@@ -200,9 +225,13 @@ if ($useOrdersTable) {
              JOIN pos_order_items oi ON oi.reference_id = ta.transaction_id AND oi.item_type = 'TICKET'
              JOIN ticket_transactions tt_adj ON tt_adj.transaction_id = ta.transaction_id
              LEFT JOIN ticket_cancellations tc ON tc.cancellation_id = ta.cancellation_id
+             LEFT JOIN ticket_refunds tr ON tr.cancellation_id = tc.cancellation_id
              LEFT JOIN passenger_accounts pa ON pa.passenger_id = ta.charged_to_passenger_id
              LEFT JOIN user_accounts ua ON ua.user_id = ta.responsible_user_id
              LEFT JOIN employees e ON e.emp_id = ua.emp_id
+             LEFT JOIN user_accounts ua_refund
+                ON ua_refund.user_id = COALESCE(tr.processed_by, tc.approved_by, tc.requested_by)
+             LEFT JOIN employees e_refund ON e_refund.emp_id = ua_refund.emp_id
              WHERE oi.order_id = :order_id
              ORDER BY ta.created_at DESC",
             ['order_id' => $transaction['order_id']]
@@ -330,31 +359,71 @@ if ($transaction && ($transaction['type'] ?? '') === 'TICKET' && !isset($transac
                 ta.approved_at, ta.settled_at, ta.created_at,
                 tc.cancellation_id, tc.operation_type, tc.reason_category,
                 tc.cancellation_type, tc.status AS cancellation_status,
+                tc.processed_at AS cancellation_processed_at,
+                tr.processed_at AS refund_processed_at,
+                COALESCE(tr.processed_by, tc.approved_by, tc.requested_by) AS refund_processed_by,
+                COALESCE(
+                    NULLIF(CONCAT_WS(' ',
+                        NULLIF(TRIM(e_refund.first_name), ''),
+                        IF(e_refund.middle_name IS NOT NULL AND e_refund.middle_name != '', CONCAT(UPPER(LEFT(e_refund.middle_name, 1)), '.'), NULL),
+                        NULLIF(TRIM(e_refund.last_name), '')
+                    ), ''),
+                    ua_refund.username,
+                    'Unassigned'
+                ) AS refund_processed_by_name,
                 CASE
-                    WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
-                    ELSE COALESCE(tc.void_fee, 0)
+                    WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                    WHEN tc.responsibility IN ('CUSTOMER', 'CASHIER')
+                      OR tc.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                        THEN COALESCE(tc.void_fee, 0)
+                    ELSE 0
                 END AS void_fee,
                 CASE
-                    WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0
-                    ELSE COALESCE(tc.void_service_fee, 0)
+                    WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                    WHEN tc.responsibility IN ('CUSTOMER', 'CASHIER')
+                      OR tc.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                        THEN COALESCE(tc.void_service_fee, 0)
+                    ELSE 0
                 END AS void_service_fee,
-                COALESCE(tc.lost_sales_void_fee, 0) AS lost_sales_void_fee,
+                CASE
+                        WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+                            THEN COALESCE(NULLIF(tc.lost_sales_void_fee, 0), tc.void_fee, 0)
+                        ELSE 0
+                    END AS lost_sales_void_fee,
                 COALESCE(tc.lost_sales_service_fee, 0) AS lost_sales_service_fee,
                 CASE
-                    WHEN tc.reason_category = 'PRINTER_ERROR'
+                    WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
                      AND tc.status = 'completed' THEN COALESCE(tt_adj.total_amount, 0)
                     ELSE 0
                 END AS technical_void_amount
          FROM ticket_adjustments ta
          LEFT JOIN ticket_cancellations tc ON tc.cancellation_id = ta.cancellation_id
+         LEFT JOIN ticket_refunds tr ON tr.cancellation_id = tc.cancellation_id
          LEFT JOIN ticket_transactions tt_adj ON tt_adj.transaction_id = ta.transaction_id
          LEFT JOIN passenger_accounts pa ON pa.passenger_id = ta.charged_to_passenger_id
          LEFT JOIN user_accounts ua ON ua.user_id = ta.responsible_user_id
          LEFT JOIN employees e ON e.emp_id = ua.emp_id
+         LEFT JOIN user_accounts ua_refund
+            ON ua_refund.user_id = COALESCE(tr.processed_by, tc.approved_by, tc.requested_by)
+         LEFT JOIN employees e_refund ON e_refund.emp_id = ua_refund.emp_id
          WHERE ta.transaction_id = :transaction_id
          ORDER BY ta.created_at DESC",
         ['transaction_id' => (int) $transaction['transaction_id']]
     );
+}
+
+if ($transaction && !empty($transaction['adjustments'])) {
+    foreach ($transaction['adjustments'] as $adjustment) {
+        if (strtoupper((string)($adjustment['type'] ?? '')) !== 'REFUND' || empty($adjustment['refund_processed_at'])) {
+            continue;
+        }
+        if (empty($transaction['refund_processed_at'])
+            || strcmp((string)$adjustment['refund_processed_at'], (string)$transaction['refund_processed_at']) > 0) {
+            $transaction['refund_processed_at'] = $adjustment['refund_processed_at'];
+            $transaction['refund_processed_by'] = $adjustment['refund_processed_by'] ?? null;
+            $transaction['refund_processed_by_name'] = $adjustment['refund_processed_by_name'] ?? 'Unassigned';
+        }
+    }
 }
 
 if (!$transaction) {

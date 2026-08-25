@@ -5,11 +5,13 @@
  */
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(__DIR__) . '/_guard.php';
 
 $user = Auth::user();
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 // Check permission
 $allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT'];
@@ -25,7 +27,11 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     try {
         if ($_POST['action'] === 'create_series') {
-            $branchId = $_POST['branch_id'] ?? null;
+            $branchId = !empty($_POST['branch_id']) ? (int) $_POST['branch_id'] : null;
+            if ($branchId === null) {
+                throw new InvalidArgumentException('Branch is required.');
+            }
+            PosAccess::assertBranchAccess($user, $branchId);
             $year = $_POST['year'] ?? date('Y');
             $startNumber = $_POST['start_number'] ?? 1;
             $endNumber = $_POST['end_number'] ?? 999999;
@@ -60,6 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 header('Location: ' . BASE_URL . '/admin/bir/or-numbers/?error=' . urlencode('Void reason is required.'));
                 exit;
             } else {
+                $orToVoid = Database::fetch(
+                    "SELECT branch_id FROM bir_or_numbers WHERE or_id = ? AND status = 'issued'",
+                    [$orId]
+                );
+                if (!$orToVoid) {
+                    throw new RuntimeException('OR number not found or already voided.');
+                }
+                PosAccess::assertBranchAccess($user, (int) $orToVoid['branch_id']);
                 Database::execute(
                     "UPDATE bir_or_numbers
                      SET status = 'void', voided_at = NOW(), voided_by = ?, void_reason = ?
@@ -96,6 +110,16 @@ $query = "
     WHERE 1=1
 ";
 $params = [];
+$orBranchFilter = '';
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $orBranchFilter = ' AND 1 = 0';
+    } else {
+        $orBranchFilter = ' AND orn.branch_id IN (' . implode(',', array_fill(0, count($allowedBranchIds), '?')) . ')';
+        $params = array_merge($params, $allowedBranchIds);
+    }
+}
+$query .= $orBranchFilter;
 
 if ($branchFilter) {
     $query .= " AND orn.branch_id = ?";
@@ -128,28 +152,58 @@ $query .= " ORDER BY orn.issued_at DESC LIMIT 100";
 $orNumbers = Database::fetchAll($query, $params);
 
 // Fetch OR series
+$seriesWhere = '';
+$seriesParams = [];
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $seriesWhere = 'WHERE 1 = 0';
+    } else {
+        $seriesWhere = 'WHERE s.branch_id IN (' . implode(',', array_fill(0, count($allowedBranchIds), '?')) . ')';
+        $seriesParams = $allowedBranchIds;
+    }
+}
 $orSeries = Database::fetchAll(
     "SELECT s.*, bb.branch_name, u.username as created_by_name
      FROM bir_or_series s
      LEFT JOIN business_branches bb ON s.branch_id = bb.branch_id
      LEFT JOIN user_accounts u ON s.created_by = u.user_id
-     ORDER BY s.year DESC, bb.branch_name ASC"
+     {$seriesWhere}
+     ORDER BY s.year DESC, bb.branch_name ASC",
+    $seriesParams
 );
 
 // Fetch branches for filter
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'bir_or_dropdown_branch');
 $branches = Database::fetchAll(
-    "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
 );
 
 // Statistics
+$statsWhere = ['DATE(created_at) = CURDATE()'];
+$statsParams = [];
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $statsWhere[] = '1 = 0';
+    } else {
+        $statsWhere[] = 'branch_id IN (' . implode(',', array_fill(0, count($allowedBranchIds), '?')) . ')';
+        $statsParams = $allowedBranchIds;
+    }
+}
 $stats = Database::fetch(
-    "SELECT 
+    "SELECT
         COUNT(*) as total_or,
         SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued_count,
         SUM(CASE WHEN status = 'void' THEN 1 ELSE 0 END) as void_count,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count
      FROM bir_or_numbers
-     WHERE DATE(created_at) = CURDATE()"
+     WHERE " . implode(' AND ', $statsWhere),
+    $statsParams
 );
 
 $viewData = [

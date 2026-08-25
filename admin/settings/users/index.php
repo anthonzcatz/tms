@@ -6,6 +6,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/_guard.php';
@@ -20,7 +21,8 @@ header('Expires: 0');
 Auth::requireLogin();
 // SUPER_ADMIN has access to everything
 $user = Auth::user();
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+if ($user && $userRoleCode === 'SUPER_ADMIN') {
     // Allow
 } elseif (!Auth::canAccessModule('admin/settings/users/')) {
     http_response_code(403);
@@ -30,7 +32,7 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 
 // Check if user is SUPER_ADMIN
 $currentUser = Auth::user();
-$isSuperAdmin = ($currentUser['role_code'] === 'SUPER_ADMIN');
+$isSuperAdmin = ($userRoleCode === 'SUPER_ADMIN');
 
 // Get all roles for dropdown
 $roles = Database::fetchAll(
@@ -40,11 +42,15 @@ $roles = Database::fetchAll(
 );
 
 // Get all branches for dropdown
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'user_branch_dropdown');
 $branches = Database::fetchAll(
-    "SELECT branch_id, branch_name 
-     FROM business_branches 
-     WHERE status = 'active' 
-     ORDER BY branch_name"
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
 );
 
 // Get all ticket providers for cashier assignments (filtered by supported transport types)
@@ -87,14 +93,12 @@ $supportedTypes = $allowedTypes;
 $providerTypeOptions = [];
 $providerTypeIcons = [];
 foreach ($allowedTypes as $type) {
-    $providerTypeOptions[$type] = ucwords(str_replace('_', ' ', $type));
-    $providerTypeIcons[$type] = match ($type) {
-        'airline' => 'fa-plane',
-        'shipping' => 'fa-ship',
-        'bus' => 'fa-bus',
-        'other' => 'fa-question-circle',
-        default => 'fa-circle'
-    };
+    $providerTypeOptions[$type] = $type;
+    $providerTypeIcons[$type] = 'fa-circle';
+}
+foreach (Database::getProviderTypes() as $row) {
+    $providerTypeOptions[$row['type_code']] = $row['type_label'];
+    $providerTypeIcons[$row['type_code']] = $row['type_icon'] ?: 'fa-circle';
 }
 
 // Include the main view

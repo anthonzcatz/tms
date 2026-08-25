@@ -5,6 +5,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 
@@ -21,8 +22,9 @@ Auth::requireLogin();
 
 // Check permission with proper access-denied page
 $user = Auth::user();
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 // SUPER_ADMIN has access to everything
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+if ($user && $userRoleCode === 'SUPER_ADMIN') {
     // Allow access
 } elseif (!Auth::canAccessModule('admin/settings/branches/')) {
     $message = 'You do not have permission to access the Branch Management module.';
@@ -33,17 +35,14 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 
 // Get current user
 $user = Auth::user();
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 
 // Fetch branches based on user role
-$branchFilter = "";
+$branchWhere = [];
 $params = [];
-
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchFilter = "WHERE bb.branch_id = :user_branch_id";
-    $params['user_branch_id'] = $userBranchId;
-}
+PosAccess::applyBranchScope($branchWhere, $params, 'bb.branch_id', $user, 'branch_management');
+$branchFilter = $branchWhere ? 'WHERE ' . implode(' AND ', $branchWhere) : '';
 
 $sql = "SELECT bb.*
     FROM business_branches bb

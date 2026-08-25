@@ -10,6 +10,48 @@
     background: #f8f9fa;
 }
 
+.cashier-entry-row {
+    transition: background-color .12s ease;
+}
+
+.cashier-entry-row:hover > td {
+    background: #f8f9fa;
+}
+
+.cashier-entry-details-row > td {
+    border-top: 0;
+}
+
+.cashier-entry-details {
+    background: #f8f9fa;
+}
+
+.cashier-detail-label {
+    color: #6c757d;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.cashier-detail-value {
+    margin-top: .2rem;
+    word-break: break-word;
+}
+
+.cashier-detail-status-badge {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.cashier-details-icon {
+    transition: transform .15s ease;
+}
+
+.cashier-details-toggle[aria-expanded="true"] .cashier-details-icon {
+    transform: rotate(180deg);
+}
+
 .cashier-avatar {
     width: 42px;
     height: 42px;

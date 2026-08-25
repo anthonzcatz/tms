@@ -1,4 +1,6 @@
 const ticketStockPage = window.TICKET_STOCK_PAGE || '';
+let currentStockRequest = null;
+let stockRequestActionMode = null;
 
 function ticketStockCsrf() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.CSRF_TOKEN || '';
@@ -545,23 +547,229 @@ function requestStatusColor(status) {
 async function viewStockRequest(requestId) {
     try {
         const request = await ticketStockGet('request', { id: requestId });
-        const items = (request.items || []).map(item => `<tr><td>${ticketStockEscape(item.variant_name)}</td><td>${ticketStockQty(item.requested_qty)}</td><td>${ticketStockQty(item.approved_qty)}</td><td>${ticketStockQty(item.dispatched_qty)}</td><td>${ticketStockQty(item.received_qty)}</td></tr>`).join('');
-        document.getElementById('stockRequestDetails').innerHTML = `<div class="row g-2 mb-3"><div class="col-md-6"><strong>${ticketStockEscape(request.request_code)}</strong></div><div class="col-md-6 text-md-end"><span class="badge bg-${requestStatusColor(request.status)}">${ticketStockEscape(request.status)}</span></div><div class="col-md-6">Source Wallet: ${ticketStockEscape(request.wallet_name || 'External')}</div><div class="col-md-6">From: ${ticketStockEscape(request.source_branch_name || 'External')}</div><div class="col-md-6">To: ${ticketStockEscape(request.destination_branch_name)}</div><div class="col-md-6">Provider: ${ticketStockEscape(request.provider_name)}</div><div class="col-md-6">Reason: ${ticketStockEscape(request.request_reason)}</div></div><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Variant</th><th>Requested</th><th>Approved</th><th>Dispatched</th><th>Received</th></tr></thead><tbody>${items}</tbody></table></div>`;
+        currentStockRequest = request;
         document.getElementById('requestActionId').value = request.stock_request_id;
         document.getElementById('requestActionStatus').value = request.status;
+        document.getElementById('requestActionReason').value = '';
+        renderStockRequestDetails(request);
+        renderStockRequestActionButtons(request);
+        hideStockRequestActionForm();
         bootstrap.Modal.getOrCreateInstance(document.getElementById('stockRequestModal')).show();
     } catch (error) { ticketStockToast('error', error.message); }
 }
 
-async function transitionStockRequest(status) {
-    const requestId = document.getElementById('requestActionId').value;
+function renderStockRequestDetails(request) {
+    const statusColor = requestStatusColor(request.status);
+    const infoRows = [
+        { label: 'Source Wallet', value: request.wallet_name ? `<span class="fas fa-wallet text-primary me-1"></span>${ticketStockEscape(request.wallet_name)}` : '<span class="text-muted">External</span>' },
+        { label: 'From', value: ticketStockEscape(request.source_branch_name || 'External') },
+        { label: 'To', value: ticketStockEscape(request.destination_branch_name) },
+        { label: 'Provider', value: ticketStockEscape(request.provider_name) },
+        { label: 'Reason', value: ticketStockEscape(request.request_reason) },
+    ];
+    if (request.remarks) {
+        infoRows.push({ label: 'Remarks', value: ticketStockEscape(request.remarks) });
+    }
+    const infoHtml = infoRows.map(row => `<div class="col-md-6"><small class="text-muted d-block">${ticketStockEscape(row.label)}</small><div>${row.value}</div></div>`).join('');
+    const items = (request.items || []).map(item => `
+        <tr data-request-item-id="${item.request_item_id}">
+            <td>${ticketStockEscape(item.variant_name)}</td>
+            <td class="text-end">${ticketStockQty(item.requested_qty)}</td>
+            <td class="text-end">${ticketStockQty(item.approved_qty)}</td>
+            <td class="text-end">${ticketStockQty(item.dispatched_qty)}</td>
+            <td class="text-end">${ticketStockQty(item.received_qty)}</td>
+        </tr>
+    `).join('');
+    document.getElementById('stockRequestDetails').innerHTML = `
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6"><strong class="fs-6">${ticketStockEscape(request.request_code)}</strong></div>
+                    <div class="col-md-6 text-md-end"><span class="badge bg-${statusColor}">${ticketStockEscape(request.status)}</span></div>
+                </div>
+                <div class="row g-2 mb-3">${infoHtml}</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>Variant</th><th class="text-end">Requested</th><th class="text-end">Approved</th><th class="text-end">Dispatched</th><th class="text-end">Received</th></tr>
+                        </thead>
+                        <tbody>${items || '<tr><td colspan="5" class="text-center text-muted py-3">No items.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStockRequestActionButtons(request) {
+    const status = request.status;
+    const buttons = [];
+    if (status === 'DRAFT') {
+        buttons.push({ label: 'Submit', status: 'SUBMITTED', color: 'primary', icon: 'fa-paper-plane' });
+        buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'danger', icon: 'fa-ban' });
+    }
+    if (status === 'SUBMITTED') {
+        buttons.push({ label: 'Approve', mode: 'approve', color: 'success', icon: 'fa-check' });
+        buttons.push({ label: 'Reject', status: 'REJECTED', color: 'danger', icon: 'fa-times' });
+        buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'secondary', icon: 'fa-ban' });
+    }
+    if (status === 'APPROVED') {
+        buttons.push({ label: 'Dispatch', mode: 'dispatch', color: 'primary', icon: 'fa-truck' });
+        buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'danger', icon: 'fa-ban' });
+    }
+    if (['DISPATCHED', 'PARTIALLY_RECEIVED'].includes(status)) {
+        buttons.push({ label: 'Receive', mode: 'receive', color: 'info', icon: 'fa-box-open' });
+        buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'danger', icon: 'fa-ban' });
+    }
+    if (['RECEIVED', 'PARTIALLY_RECEIVED', 'DISPUTED'].includes(status)) {
+        buttons.push({ label: 'Close', status: 'CLOSED', color: 'dark', icon: 'fa-lock' });
+    }
+    const html = buttons.map(b => {
+        if (b.mode) {
+            return `<button class="btn btn-${b.color}" onclick="setStockRequestActionMode('${b.mode}')"><span class="fas ${b.icon} me-1"></span>${ticketStockEscape(b.label)}</button>`;
+        }
+        return `<button class="btn btn-${b.color}" onclick="confirmStockRequestTransition('${b.status}', '${ticketStockEscape(b.label)}')"><span class="fas ${b.icon} me-1"></span>${ticketStockEscape(b.label)}</button>`;
+    }).join('') + `<button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>`;
+    document.getElementById('stockRequestActionButtons').innerHTML = html;
+    document.getElementById('stockRequestActionButtons').classList.remove('d-none');
+    document.getElementById('stockRequestActionConfirm').classList.add('d-none');
+}
+
+function setStockRequestActionMode(mode) {
+    stockRequestActionMode = mode;
+    document.getElementById('stockRequestActionButtons').classList.add('d-none');
+    document.getElementById('stockRequestActionConfirm').classList.remove('d-none');
+    document.getElementById('stockRequestActionForm').classList.remove('d-none');
+    renderStockRequestActionForm(mode);
+}
+
+function hideStockRequestActionForm() {
+    stockRequestActionMode = null;
+    document.getElementById('stockRequestActionForm').innerHTML = '';
+    document.getElementById('stockRequestActionForm').classList.add('d-none');
+    document.getElementById('stockRequestActionButtons').classList.remove('d-none');
+    document.getElementById('stockRequestActionConfirm').classList.add('d-none');
+}
+
+function renderStockRequestActionForm(mode) {
+    const request = currentStockRequest;
+    const titles = { approve: 'Approve request quantities', dispatch: 'Dispatch quantities to destination', receive: 'Receive quantities at destination' };
+    const labels = { approve: 'Approve', dispatch: 'Dispatch', receive: 'Receive' };
+    const showSeries = mode === 'dispatch' || mode === 'receive';
+    const rows = (request.items || []).map(item => {
+        let max, current, defaultVal;
+        if (mode === 'approve') {
+            max = Math.max(0, Number(item.requested_qty));
+            current = Number(item.approved_qty);
+            defaultVal = max;
+        } else if (mode === 'dispatch') {
+            max = Math.max(0, Number(item.approved_qty) - Number(item.dispatched_qty));
+            current = Number(item.dispatched_qty);
+            defaultVal = max;
+        } else {
+            max = Math.max(0, Number(item.dispatched_qty) - Number(item.received_qty));
+            current = Number(item.received_qty);
+            defaultVal = max;
+        }
+        return `
+            <tr data-request-item-id="${item.request_item_id}">
+                <td>${ticketStockEscape(item.variant_name)}</td>
+                <td class="text-end">${ticketStockQty(mode === 'approve' ? item.requested_qty : (mode === 'dispatch' ? item.approved_qty : item.dispatched_qty))}</td>
+                <td class="text-end">${ticketStockQty(current)}</td>
+                <td><input type="number" class="form-control form-control-sm request-action-qty" min="0" max="${max}" value="${defaultVal}" data-max="${max}" style="min-width:80px"></td>
+                ${showSeries ? `<td><input type="text" class="form-control form-control-sm request-action-series-from" placeholder="From" style="min-width:90px"></td><td><input type="text" class="form-control form-control-sm request-action-series-to" placeholder="To" style="min-width:90px"></td>` : ''}
+            </tr>
+        `;
+    }).join('');
+    const headers = `<tr><th>Variant</th><th class="text-end">${mode === 'approve' ? 'Requested' : (mode === 'dispatch' ? 'Approved' : 'Dispatched')}</th><th class="text-end">${mode === 'approve' ? 'Current Approved' : (mode === 'dispatch' ? 'Dispatched' : 'Received')}</th><th>${mode === 'approve' ? 'Approve Qty' : (mode === 'dispatch' ? 'Dispatch Qty' : 'Receive Qty')}</th>${showSeries ? '<th>Series From</th><th>Series To</th>' : ''}</tr>`;
+    document.getElementById('stockRequestActionForm').innerHTML = `
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light border-0 py-2">
+                <h6 class="mb-0 fw-bold">${ticketStockEscape(titles[mode] || '')}</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">${headers}</thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('stockRequestActionConfirm').innerHTML = `
+        <button class="btn btn-secondary" onclick="hideStockRequestActionForm()">Back</button>
+        <button class="btn btn-${mode === 'approve' ? 'success' : (mode === 'receive' ? 'info' : 'primary')}" onclick="submitStockRequestAction('${mode}')"><span class="fas fa-check me-1"></span>${ticketStockEscape(labels[mode] || 'Confirm')}</button>
+    `;
+}
+
+function confirmStockRequestTransition(status, label) {
     const reason = document.getElementById('requestActionReason').value.trim();
+    if (['REJECTED', 'CANCELLED'].includes(status) && !reason) {
+        ticketStockToast('error', 'Please enter a reason.');
+        return;
+    }
+    if (!window.confirm(`Are you sure you want to ${label.toLowerCase()} this stock request?`)) return;
+    const requestId = document.getElementById('requestActionId').value;
+    ticketStockMutate({ action: 'request_transition', stock_request_id: requestId, status, reason })
+        .then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('stockRequestModal'))?.hide();
+            ticketStockToast('success', `Request ${label.toLowerCase()}ed.`);
+            loadTicketStockRequests();
+        })
+        .catch(error => ticketStockToast('error', error.message));
+}
+
+async function submitStockRequestAction(mode) {
+    const requestId = document.getElementById('requestActionId').value;
+    const rows = document.querySelectorAll('#stockRequestActionForm tbody tr');
+    const items = [];
+    let positiveCount = 0;
+    for (const row of rows) {
+        const requestItemId = row.dataset.requestItemId;
+        const qtyInput = row.querySelector('.request-action-qty');
+        const qty = Math.max(0, Number(qtyInput?.value || 0));
+        const max = Number(qtyInput?.dataset.max || 0);
+        if (qty > max) {
+            ticketStockToast('error', 'Quantity cannot exceed the remaining amount.');
+            return;
+        }
+        const from = row.querySelector('.request-action-series-from')?.value?.trim() || null;
+        const to = row.querySelector('.request-action-series-to')?.value?.trim() || null;
+        if (qty > 0) positiveCount++;
+        items.push({ request_item_id: requestItemId, qty, from, to });
+    }
+    if (positiveCount === 0) {
+        ticketStockToast('error', 'At least one item must have a positive quantity.');
+        return;
+    }
     try {
-        await ticketStockMutate({ action: 'request_transition', stock_request_id: requestId, status, reason });
+        if (mode === 'approve') {
+            await ticketStockMutate({
+                action: 'request_transition',
+                status: 'APPROVED',
+                stock_request_id: requestId,
+                items: items.map(i => ({ request_item_id: i.request_item_id, approved_qty: i.qty }))
+            });
+        } else if (mode === 'dispatch') {
+            await ticketStockMutate({
+                action: 'request_dispatch',
+                stock_request_id: requestId,
+                items: items.filter(i => i.qty > 0).map(i => ({ request_item_id: i.request_item_id, dispatch_qty: i.qty, ticket_series_from: i.from, ticket_series_to: i.to }))
+            });
+        } else if (mode === 'receive') {
+            await ticketStockMutate({
+                action: 'request_receive',
+                stock_request_id: requestId,
+                items: items.filter(i => i.qty > 0).map(i => ({ request_item_id: i.request_item_id, received_qty: i.qty, ticket_series_from: i.from, ticket_series_to: i.to }))
+            });
+        }
         bootstrap.Modal.getInstance(document.getElementById('stockRequestModal'))?.hide();
-        ticketStockToast('success', 'Stock request updated.');
+        ticketStockToast('success', `Request ${mode}d successfully.`);
         loadTicketStockRequests();
-    } catch (error) { ticketStockToast('error', error.message); }
+    } catch (error) {
+        ticketStockToast('error', error.message);
+    }
 }
 
 async function loadTicketStockDiscrepancies() {

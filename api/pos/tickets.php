@@ -59,6 +59,8 @@ if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No p
 // Verify the active session and branch against current server-side access.
 try {
     $session = PosAccess::assertSessionForTransaction((int) $sessionId, (int) $branchId, $user);
+    $sessionId = (int) $sessionId;
+    $branchId = (int) $branchId;
 } catch (Throwable $e) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -272,13 +274,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
 
                 if ($walletFromTicket) {
                     // Ensure the wallet belongs to this transaction branch and is accessible
-                    $allowedBranches = !empty($user['branch_id'])
-                        ? array_filter(array_map('intval', explode(',', $user['branch_id'])))
-                        : [];
+                    $allowedBranches = PosAccess::allowedBranchIds($user);
                     $walletMatchesBranch = (int) $walletFromTicket['branch_id'] === (int) $branchId;
-                    $canAccessBranch = $walletMatchesBranch && (($user['role_code'] === 'SUPER_ADMIN')
-                        || empty($allowedBranches)
-                        || in_array((int) $walletFromTicket['branch_id'], $allowedBranches, true));
+                    $canAccessBranch = $walletMatchesBranch
+                        && ($allowedBranches === null
+                            || in_array((int) $walletFromTicket['branch_id'], $allowedBranches, true));
 
                     if ($canAccessBranch) {
                         // Build the operating provider's ancestor chain so parent wallets are accepted
@@ -489,6 +489,19 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 if (in_array($methodType, ['BANK_TRANSFER', 'E_WALLET'], true) && !$bankAcctId) {
                     Database::connection()->rollBack();
                     echo json_encode(['success' => false, 'error' => 'Please select a bank account for ' . ($methodInfo['method_name'] ?? 'this payment method') . '.']); exit;
+                }
+                if ($bankAcctId) {
+                    $bankAccount = Database::fetch(
+                        "SELECT bank_account_id, branch_id, is_active
+                         FROM bank_accounts
+                         WHERE bank_account_id = :bank_account_id",
+                        ['bank_account_id' => (int) $bankAcctId]
+                    );
+                    if (!$bankAccount || !(int) $bankAccount['is_active']
+                        || ($bankAccount['branch_id'] !== null && (int) $bankAccount['branch_id'] !== (int) $branchId)) {
+                        Database::connection()->rollBack();
+                        echo json_encode(['success' => false, 'error' => 'Selected bank account is not available for this branch.']); exit;
+                    }
                 }
 
                 // Auto-resolve passenger_id: use payment passenger_id or fall back to ticket's passenger

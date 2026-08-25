@@ -5,6 +5,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 
 header('Content-Type: application/json');
 
@@ -53,6 +54,14 @@ try {
         }
     }
     
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($branchId === null && $allowedBranchIds !== null) {
+        throw new InvalidArgumentException('A branch is required for this user.');
+    }
+    if ($branchId !== null) {
+        PosAccess::assertBranchAccess($user, (int) $branchId);
+    }
+
     if (!$targetDate || $targetAmount <= 0) {
         echo json_encode(['success' => false, 'error' => 'Invalid input']);
         exit;

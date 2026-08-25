@@ -93,7 +93,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/head.php';
                 <label class="form-label fw-semibold mb-1 small">Date</label>
                 <input type="date" class="form-control" name="date" value="<?php echo htmlspecialchars($filterDate); ?>" onchange="this.form.submit()">
               </div>
-              <?php if ($userRoleCode === 'SUPER_ADMIN'): ?>
+              <?php if ($userRoleCode === 'SUPER_ADMIN' || count($branches) > 1): ?>
               <div class="col-md-3">
                 <label class="form-label fw-semibold mb-1 small">Branch</label>
                 <select class="form-select" name="branch" onchange="this.form.submit()">

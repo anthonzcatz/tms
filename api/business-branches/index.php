@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -57,8 +58,20 @@ if (!$canView) {
 }
 
 // Get user branch for filtering
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+
+function requireBusinessBranchAccess(int $branchId): void
+{
+    global $user;
+    try {
+        PosAccess::assertBranchAccess($user, $branchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+}
 
 // Get request method
 $method = $_SERVER['REQUEST_METHOD'];
@@ -115,6 +128,7 @@ function handleGet() {
         $branch = Database::fetch($sql, ['branch_id' => (int)$branchId]);
         
         if ($branch) {
+            requireBusinessBranchAccess((int) $branch['branch_id']);
             echo json_encode(['success' => true, 'data' => $branch]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Branch not found']);
@@ -123,19 +137,13 @@ function handleGet() {
     }
 
     // List all branches
-    $branchFilter = "";
+    $where = [];
     $params = [];
 
     // SUPER_ADMIN can see all branches, others are restricted to their assigned branches
-    global $userRoleCode, $userBranchId;
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchIds = array_filter(array_map('trim', explode(',', $userBranchId)));
-        if (!empty($branchIds)) {
-            $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-            $branchFilter = "WHERE bb.branch_id IN ($placeholders)";
-            $params = $branchIds;
-        }
-    }
+    global $user;
+    PosAccess::applyBranchScope($where, $params, 'bb.branch_id', $user, 'business_branch_scope');
+    $branchFilter = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
     $sql = "SELECT bb.*
             FROM business_branches bb
@@ -367,6 +375,7 @@ function handlePut() {
         echo json_encode(['success' => false, 'error' => 'Branch not found']);
         return;
     }
+    requireBusinessBranchAccess((int) $currentBranch['branch_id']);
     
     // Build update query
     $updateFields = [];
@@ -668,6 +677,7 @@ function handleDelete() {
         echo json_encode(['success' => false, 'error' => 'Branch not found']);
         return;
     }
+    requireBusinessBranchAccess((int) $currentBranch['branch_id']);
     
     // Check if branch has employees
     $hasEmployees = Database::fetch(

@@ -53,9 +53,9 @@
           </div>
         </div>
 
-        <div id="closeAdjustmentCards" class="row g-2 mb-3 d-none"></div>
+        <div id="closeSummaryCards" class="row g-2 mb-3">
+          <div id="closeAdjustmentCards" class="d-none" style="display: contents;"></div>
 
-        <div class="row g-2 mb-3">
           <div class="col-6">
             <div class="card border-success" style="min-height: 80px;">
               <div class="card-body py-3 px-3">

@@ -13,6 +13,10 @@ function escapeHtml(value) {
     return element.innerHTML;
 }
 
+function isTechnicalIssueReason(reasonCategory) {
+    return ['PRINTER_ERROR', 'SYSTEM_ERROR'].includes(String(reasonCategory || '').toUpperCase());
+}
+
 function getTicketProviderDetails(providerId, mainProviderId) {
     const providers = window.allTicketProviders || [];
     const operatingProvider = providers.find(provider => String(provider.provider_id) === String(providerId));
@@ -57,7 +61,9 @@ function buildTransactionProviderWallet(item) {
 
     let html = escapeHtml(providerDisplay);
     if (providerType) {
-        html += ` <span class="badge bg-soft-info text-info" style="font-size:0.75em;">${escapeHtml(providerType)}</span>`;
+        const typeOptions = window.PROVIDER_TYPE_OPTIONS || {};
+        const typeLabel = item.provider_type_label || typeOptions[providerType] || providerType;
+        html += ` <span class="badge bg-soft-info text-info" style="font-size:0.75em;">${escapeHtml(typeLabel)}</span>`;
     }
     if (walletDisplay && walletDisplay !== providerDisplay) {
         html += ` <span class="text-muted">(${escapeHtml(walletDisplay)})</span>`;
@@ -3056,23 +3062,25 @@ async function openCloseSession() {
             const s = result.data.session;
             const payments = result.data.payments || [];
             const expected = parseFloat(s.expected_cash || 0);
-            const totalRefunds = parseFloat(s.total_refunds || 0);
             const refundedSalesAmount = parseFloat(s.refunded_sales_amount || 0);
-            const voidedTicketAmount = parseFloat(s.voided_ticket_amount || 0);
-            const technicalVoidAmount = parseFloat(s.technical_void_amount || 0);
-            const voidedCashAmount = parseFloat(s.voided_cash_amount || 0);
+            const approvedRefundsAmount = parseFloat(s.approved_refunds_amount ?? refundedSalesAmount);
             const voidFee = parseFloat(s.void_fee || 0);
             const voidServiceFee = parseFloat(s.void_service_fee || 0);
             const lostSalesVoidFee = parseFloat(s.lost_sales_void_fee || 0);
+            const lostSalesServiceFee = parseFloat(s.lost_sales_service_fee || 0);
             const voidFeeTotal = voidFee + voidServiceFee;
             const voidIncome = parseFloat(s.void_income ?? voidFeeTotal);
-            const technicalLostSalesAmount = parseFloat(s.technical_lost_sales_amount ?? lostSalesVoidFee);
-            const regularVoidedTicketAmount = Math.max(0, voidedTicketAmount - technicalVoidAmount);
-            const voidedSalesAmount = parseFloat(s.voided_sales_amount
-                ?? (regularVoidedTicketAmount + technicalLostSalesAmount));
+            const technicalLostSalesAmount = parseFloat(
+                s.technical_lost_sales_amount ?? (lostSalesVoidFee + lostSalesServiceFee)
+            );
+            const includedPaymentSales = payments
+                .filter(p => Number(p.include_in_expected_cash) === 1)
+                .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
+            const grossSales = s.total_sales != null ? (parseFloat(s.total_sales) || 0) : includedPaymentSales;
+            const voidedSalesAmount = parseFloat(s.voided_sales_amount || 0);
             const netSales = parseFloat(s.net_sales ?? Math.max(
                 0,
-                parseFloat(s.total_sales || 0)
+                grossSales
                     - refundedSalesAmount
                     - voidedSalesAmount
                     + voidIncome
@@ -3089,14 +3097,14 @@ async function openCloseSession() {
             if (totalSalesEl) totalSalesEl.textContent = '₱' + fmt(netSales);
 
             const adjustmentCards = [
-                { label: 'Refunded Sales', amount: refundedSalesAmount, borderClass: 'border-warning', iconClass: 'icon-circle-warning', icon: 'fa-receipt', textClass: 'text-warning' },
+                { label: 'Refunded', amount: approvedRefundsAmount, borderClass: 'border-warning', iconClass: 'icon-circle-warning', icon: 'fa-receipt', textClass: 'text-warning' },
                 { label: 'Void Income', amount: voidIncome, borderClass: 'border-success', iconClass: 'icon-circle-success', icon: 'fa-coins', textClass: 'text-success' },
-                { label: 'Technical Lost Sales', amount: technicalLostSalesAmount, borderClass: 'border-danger', iconClass: 'icon-circle-danger', icon: 'fa-exclamation-triangle', textClass: 'text-danger' }
+                { label: 'Void Lost Sales', amount: technicalLostSalesAmount, borderClass: 'border-danger', iconClass: 'icon-circle-danger', icon: 'fa-exclamation-triangle', textClass: 'text-danger' }
             ].filter(card => card.amount > 0);
 
             if (closeAdjustmentCardsEl) {
                 closeAdjustmentCardsEl.innerHTML = adjustmentCards.map(card => `
-                  <div class="col-6">
+                  <div class="col-6 p-1">
                     <div class="card h-100 ${card.borderClass}" style="min-height: 80px;">
                       <div class="card-body py-3 px-3">
                         <div class="d-flex align-items-center h-100">
@@ -3160,7 +3168,7 @@ async function openCloseSession() {
             const pendingVoidAmount = parseFloat(s.pending_void_amount || 0);
             const expectedCashFromAPI = parseFloat(s.expected_cash || 0);
 
-            if (payments.length > 0 || voidedTicketCount > 0 || technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0) {
+            if (payments.length > 0 || voidedTicketCount > 0 || technicalVoidCount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0) {
                 let html = '<h6 class="fw-bold mb-3"><span class="fas fa-wallet me-2 text-primary"></span>Payment Type Breakdown</h6>';
                 html += '<div class="card mb-4"><div class="card-body py-3"><table class="table table-borderless fs-10 mb-0 table-hover">';
 
@@ -3176,19 +3184,21 @@ async function openCloseSession() {
                 // Payment methods from API with include_in_expected_cash indicator
                 payments.forEach((p, index) => {
                     const isLast = index === payments.length - 1;
-                    const hasDeductions = totalCashChange > 0 || totalRefunds > 0 || displayedPendingRefunds > 0 || totalCashAdjustments > 0
-                        || voidedTicketCount > 0 || technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0;
+                    const hasDeductions = totalCashChange > 0 || approvedRefundsAmount > 0 || displayedPendingRefunds > 0 || totalCashAdjustments > 0
+                        || voidedTicketCount > 0 || technicalVoidCount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0;
                     const borderClass = !isLast || hasDeductions ? 'border-bottom' : '';
-                    const inCashBadge = p.include_in_expected_cash
+                    const totalAmount = parseFloat(p.total_amount ?? p.active_amount ?? 0);
+                    const inCashBadge = Number(p.include_in_expected_cash) === 1
                         ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
                         : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
 
                     html += `
                       <tr class="${borderClass}" style="cursor: default;">
-                        <td class="ps-0">${p.method_name}${inCashBadge}
+                        <td class="ps-0">
+                          <div class="fw-semibold">${p.method_name} ${inCashBadge}</div>
                           <div class="text-400 fw-normal fs-11 text-uppercase">${p.method_type}</div>
                         </td>
-                        <td class="pe-0 text-end">₱${fmt(p.total_amount)}</td>
+                        <td class="pe-0 text-end"><strong>₱${fmt(totalAmount)}</strong></td>
                       </tr>`;
                 });
 
@@ -3204,15 +3214,13 @@ async function openCloseSession() {
                 }
 
                 // Show refunds if any
-                if (totalRefunds > 0) {
-                    const refundLabel = showPendingRefunds ? 'Approved Refunds' : 'Refunds (Cash Out)';
-                    const refundSubLabel = showPendingRefunds ? 'APPROVED CASH OUT' : 'CASH OUT';
+                if (approvedRefundsAmount > 0) {
                     html += `
                       <tr class="border-bottom">
-                        <td class="ps-0"><strong>${refundLabel}</strong>
-                          <div class="text-400 fw-normal fs-11 text-danger">${refundSubLabel}</div>
+                        <td class="ps-0"><strong>Approved Refunds</strong>
+                          <div class="text-400 fw-normal fs-11 text-danger">PAYMENT TOTALS</div>
                         </td>
-                        <td class="pe-0 text-end text-danger"><strong>-₱${fmt(totalRefunds)}</strong></td>
+                        <td class="pe-0 text-end text-danger"><strong>-₱${fmt(approvedRefundsAmount)}</strong></td>
                       </tr>`;
                 }
 
@@ -3237,8 +3245,8 @@ async function openCloseSession() {
                       </tr>`;
                 }
 
-                const hasVoidBreakdown = technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0
-                    || lostSalesVoidFee > 0 || pendingVoidCount > 0;
+                const hasVoidBreakdown = technicalVoidCount > 0 || voidFeeTotal > 0
+                    || technicalLostSalesAmount > 0 || pendingVoidCount > 0;
                 if (hasVoidBreakdown) {
                     const voidBreakdownRows = [];
                     const voidAmountRows = [];
@@ -3248,15 +3256,7 @@ async function openCloseSession() {
                           <div class="d-flex align-items-center gap-2">
                             <span><span class="fas fa-exclamation-triangle me-1 text-danger"></span>Technical Issue Lost Sales <span class="text-muted">(${technicalVoidCount})</span></span>
                           </div>`);
-                        voidAmountRows.push(`<div class="text-danger">Void Fee <span class="small">-₱${fmt(technicalLostSalesAmount)}</span> <small class="text-muted">(Lost Sales)</small></div>`);
-                    }
-
-                    if (voidedCashAmount > 0) {
-                        voidBreakdownRows.push(`
-                          <div class="d-flex align-items-center gap-2">
-                            <span><span class="fas fa-money-bill-wave me-1 text-danger"></span>Cash not received</span>
-                          </div>`);
-                        voidAmountRows.push(`<div class="text-danger">-₱${fmt(voidedCashAmount)} cash <small class="text-muted">(deducted)</small></div>`);
+                        voidAmountRows.push(`<div class="text-danger">Void Lost Sales <span class="small">-₱${fmt(technicalLostSalesAmount)}</span></div>`);
                     }
 
                     if (voidFeeTotal > 0) {
@@ -3297,17 +3297,18 @@ async function openCloseSession() {
 
                 // Show expected cash calculation
                 const expectedCashCalc = payments
-                    .filter(p => p.include_in_expected_cash)
-                    .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
+                    .filter(p => Number(p.include_in_expected_cash) === 1)
+                    .reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
 
                 const expectedCalcFormula = [
                     'STARTING + IN CASH',
-                    'CHANGE',
-                    'REFUNDS',
-                    voidedCashAmount > 0 ? 'VOIDED CASH' : null,
-                    showPendingRefunds && displayedPendingRefunds > 0 ? 'PENDING REFUNDS' : null,
-                    totalCashAdjustments > 0 ? 'CASHIER DEDUCTIONS' : null
-                ].filter(Boolean).join(' - ');
+                    approvedRefundsAmount > 0 ? '- REFUNDS' : null,
+                    voidIncome > 0 ? '+ VOID INCOME' : null,
+                    technicalLostSalesAmount > 0 ? '- VOID LOST SALES' : null,
+                    '- CHANGE',
+                    showPendingRefunds && displayedPendingRefunds > 0 ? '- PENDING REFUNDS' : null,
+                    totalCashAdjustments > 0 ? '- CASHIER DEDUCTIONS' : null
+                ].filter(Boolean).join(' ');
 
                 html += `
                   <tr class="table-light">
@@ -3321,14 +3322,20 @@ async function openCloseSession() {
             </div>`;
 
                 // Add collapsible info note about expected cash calculation
+                const approvedRefundsCalcNote = approvedRefundsAmount > 0
+                    ? ` - Approved Refunds (₱${fmt(approvedRefundsAmount)})`
+                    : '';
                 const pendingRefundsCalcNote = showPendingRefunds && displayedPendingRefunds > 0
                     ? ` - Pending Refunds (₱${fmt(displayedPendingRefunds)})`
                     : '';
+                const voidIncomeCalcNote = voidIncome > 0
+                    ? ` + Void Fee / Service Fee Income (₱${fmt(voidIncome)})`
+                    : '';
+                const voidLostSalesCalcNote = technicalLostSalesAmount > 0
+                    ? ` - Void Lost Sales (₱${fmt(technicalLostSalesAmount)})`
+                    : '';
                 const cashAdjustmentsCalcNote = totalCashAdjustments > 0
                     ? ` - Cashier Deductions (₱${fmt(totalCashAdjustments)})`
-                    : '';
-                const voidsCalcNote = voidedCashAmount > 0
-                    ? ` - Voided Cash Not Received (₱${fmt(voidedCashAmount)})`
                     : '';
 
                 html += `
@@ -3339,7 +3346,7 @@ async function openCloseSession() {
                   <div class="collapse mt-2" id="expectedCashCalcInfo">
                     <div class="alert alert-info fs-10 mb-0">
                       <strong>How Expected Cash is calculated:</strong><br>
-                      <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)}) - Cash Change (₱${fmt(totalCashChange)}) - Refunds (₱${fmt(totalRefunds)})${pendingRefundsCalcNote}${cashAdjustmentsCalcNote}${voidsCalcNote}</small>
+                      <small>Starting Cash (₱${fmt(s.starting_cash)}) + Payments marked "In Cash" (₱${fmt(expectedCashCalc)})${approvedRefundsCalcNote}${voidIncomeCalcNote}${voidLostSalesCalcNote} - Cash Change (₱${fmt(totalCashChange)})${pendingRefundsCalcNote}${cashAdjustmentsCalcNote}</small>
                     </div>
                   </div>
                 </div>`;
@@ -3354,11 +3361,11 @@ async function openCloseSession() {
                 }
 
                 // Add refund info note if there are refunds
-                if (totalRefunds > 0) {
+                if (approvedRefundsAmount > 0) {
                     html += `
                     <div class="alert alert-warning fs-10 mb-4">
                       <span class="fas fa-exclamation-triangle me-2"></span>
-                      <strong>Note:</strong> Approved refunds of ₱${fmt(totalRefunds)} have been processed from your cash drawer.
+                      <strong>Note:</strong> Approved refunds of ₱${fmt(approvedRefundsAmount)} are deducted from Expected Cash.
                     </div>`;
                 }
 
@@ -3377,14 +3384,11 @@ async function openCloseSession() {
                       <strong>Note:</strong> Cashier responsibility deductions of ₱${fmt(totalCashAdjustments)} are included in expected cash.
                     </div>`;
                 }
-                if (technicalVoidCount > 0 || voidedCashAmount > 0 || voidFeeTotal > 0
-                    || lostSalesVoidFee > 0 || pendingVoidCount > 0) {
+                if (technicalVoidCount > 0 || voidFeeTotal > 0
+                    || technicalLostSalesAmount > 0 || pendingVoidCount > 0) {
                     const voidNotes = [];
-                    if (technicalVoidCount > 0 && technicalLostSalesAmount > 0) {
-                        voidNotes.push(`Technical Issue Lost Sales of ₱${fmt(technicalLostSalesAmount)} are deducted from sales.`);
-                    }
-                    if (voidedCashAmount > 0) {
-                        voidNotes.push(`Completed void cash payments of ₱${fmt(voidedCashAmount)} are deducted from expected cash because the cashier had not received that money.`);
+                    if (technicalLostSalesAmount > 0) {
+                        voidNotes.push(`Void Lost Sales of ₱${fmt(technicalLostSalesAmount)} are deducted from expected cash and sales.`);
                     }
                     if (voidFeeTotal > 0) {
                         const feeParts = [];
@@ -5513,15 +5517,17 @@ let totalPages = 1;
 let totalItems = 0;
 
 const isApprovedVoid = txn => txn.adjustment_type === 'VOID' && txn.adjustment_approval_status === 'APPROVED';
-const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && txn.adjustment_reason_category === 'PRINTER_ERROR';
+const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && isTechnicalIssueReason(txn.adjustment_reason_category);
 const getTechnicalLostSalesAmount = txn => Number(txn.lost_sales_void_fee) || 0;
 const isCashierResponsibilityVoid = txn => txn.adjustment_type === 'VOID'
     && String(txn.adjustment_responsibility || '').toUpperCase() === 'CASHIER';
-const getTransactionDisplayAmount = txn => isCashierResponsibilityVoid(txn)
-    ? (Number(txn.adjustment_amount) || 0)
-    : isApprovedVoid(txn)
-        ? (isTechnicalIssueVoid(txn) ? 0 : (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0))
-        : txn.total_amount;
+const getTransactionDisplayAmount = txn => isTechnicalIssueVoid(txn)
+    ? 0
+    : isCashierResponsibilityVoid(txn)
+        ? (Number(txn.adjustment_amount) || 0)
+        : isApprovedVoid(txn)
+            ? (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0)
+            : txn.total_amount;
 
 function loadRecentTransactions(page = 1, showLoading = true) {
     currentPage = page;
@@ -5777,7 +5783,7 @@ function renderTransactionsTable(transactions) {
         }
 
         // Cancel button - for legacy single-ticket or orders containing tickets
-        let cancelButton = '<span class="text-muted small">N/A</span>';
+        let adjustmentActions = '';
         // Only count active tickets (not cancelled/refunded)
         const hasActiveTicketsInOrder = isOrderBased && orderItems.some(i =>
             i.item_type === 'TICKET' && !['cancelled', 'refunded'].includes(i.ticket_status)
@@ -5786,7 +5792,7 @@ function renderTransactionsTable(transactions) {
 
         if (canCancelTicket && (txn.status === 'booked' || txn.status === 'completed')) {
             if (hasPendingCancellation) {
-                cancelButton = `<span class="badge bg-soft-warning text-warning small" title="Cancellation requested by ${txn.cancellation_requested_by || 'Unknown'}"><i class="fas fa-clock me-1"></i>Cancel Pending</span>`;
+                adjustmentActions = `<span class="badge bg-soft-warning text-warning small" title="Cancellation requested by ${txn.cancellation_requested_by || 'Unknown'}"><i class="fas fa-clock me-1"></i>Cancel Pending</span>`;
             } else {
                 // For orders, use the first active (non-cancelled) ticket's transaction code
                 const ticketItem = hasActiveTicketsInOrder
@@ -5837,15 +5843,8 @@ function renderTransactionsTable(transactions) {
                     <span class="fas ${iconClass} me-2"></span>${label}
                 </button>`;
 
-                cancelButton = `<div class="dropdown d-inline-block pos-adjust-dropdown">
-                    <button class="btn btn-sm btn-outline-danger dropdown-toggle pos-adjust-dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
-                        <span class="fas fa-edit me-1"></span>Adjust
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-end">
-                        ${buildAdjustmentAction('REFUND', 'Refund', 'fa-hand-holding-usd', 'text-danger')}
-                        ${buildAdjustmentAction('VOID', 'Void', 'fa-ban', 'text-warning')}
-                    </div>
-                </div>`;
+                adjustmentActions = `${buildAdjustmentAction('REFUND', 'Refund', 'fa-hand-holding-usd', 'text-danger')}
+                    ${buildAdjustmentAction('VOID', 'Void', 'fa-ban', 'text-warning')}`;
             }
         }
 
@@ -5857,13 +5856,25 @@ function renderTransactionsTable(transactions) {
         // Reprint receipt button - only if printing is enabled
         let reprintButton = '';
         if (window.PRINTER_SETTINGS && window.PRINTER_SETTINGS.enabled && window.PosPrinter) {
-            reprintButton = `<button class="btn btn-sm btn-outline-info me-1"
+            reprintButton = `<button type="button" class="dropdown-item text-info"
                     data-txn-id="${txn.id || txn.order_id}"
                     data-txn-code="${txn.transaction_code}"
-                    onclick="reprintTransactionReceipt(this)">
-                <span class="fas fa-print"></span>
+                    onclick="event.stopPropagation(); closePosAdjustmentDropdownFromButton(this); reprintTransactionReceipt(this)">
+                <span class="fas fa-print me-2"></span>Print
             </button>`;
         }
+
+        const actionItems = `${reprintButton}${adjustmentActions}`;
+        const actionButton = actionItems
+            ? `<div class="dropdown d-inline-block pos-adjust-dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle pos-adjust-dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" aria-label="Transaction actions">
+                    <span class="fas fa-ellipsis-v me-1"></span>Actions
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    ${actionItems}
+                </div>
+            </div>`
+            : '<span class="text-muted small">N/A</span>';
 
         // Display amount - show original amount and pending/refunded amount if applicable
         // Use stored cash_refund_amount from database
@@ -5944,7 +5955,7 @@ function renderTransactionsTable(transactions) {
                     <div>${createdAt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
                     <div class="text-muted" style="font-size:0.85em;">${createdAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
                 </td>
-                <td class="text-end">${reprintButton}${cancelButton}</td>
+                <td class="text-end">${actionButton}</td>
             </tr>
             ${itemsBreakdown}
         `;
@@ -6400,13 +6411,14 @@ function syncTicketResponsibilityFromReason() {
 function toggleTicketAdjustmentFields() {
     const operation = document.getElementById('cancelOperationType')?.value || 'REFUND';
     updateCancellationReasonOptions(operation);
-    const reasonCategory = document.getElementById('cancelReasonCategory')?.value || 'OTHER';
+    const reasonCategorySelect = document.getElementById('cancelReasonCategory');
     const responsibilitySelect = document.getElementById('cancelResponsibility');
-    const responsibility = responsibilitySelect?.value || 'NONE';
     const refundRow = document.getElementById('cancelRefundAmountRow');
     const refundInput = document.getElementById('cancelRefundAmount');
     const refundBreakdown = document.getElementById('cancelRefundBreakdown');
     const operationHint = document.getElementById('cancelOperationHint');
+    const reasonCategoryRow = document.getElementById('cancelReasonCategoryRow');
+    const responsibilitySelectRow = document.getElementById('cancelResponsibilityRow');
     const responsibilityRow = document.getElementById('cancelResponsibilityAmountRow');
     const responsibilityInput = document.getElementById('cancelResponsibilityAmount');
     const responsibilityHint = document.getElementById('cancelResponsibilityHint');
@@ -6423,7 +6435,20 @@ function toggleTicketAdjustmentFields() {
     const cancellationSettings = window.CANCELLATION_SETTINGS || {};
 
     const isVoid = operation === 'VOID';
-    const isTechnicalIssueVoid = isVoid && reasonCategory === 'PRINTER_ERROR';
+    if (!isVoid) {
+        if (reasonCategorySelect) {
+            reasonCategorySelect.value = 'OTHER';
+            reasonCategorySelect.disabled = true;
+        }
+        if (responsibilitySelect) {
+            responsibilitySelect.value = 'NONE';
+            responsibilitySelect.disabled = true;
+        }
+        if (responsibilityInput) responsibilityInput.value = '0.00';
+    }
+    const reasonCategory = isVoid ? (reasonCategorySelect?.value || 'OTHER') : 'OTHER';
+    const responsibility = isVoid ? (responsibilitySelect?.value || 'NONE') : 'NONE';
+    const isTechnicalIssueVoid = isVoid && isTechnicalIssueReason(reasonCategory);
     displayCancellationPolicy(operation);
     const voidFeeAvailable = cancellationSettings.void_fee_enabled !== false;
     const voidServiceFeeAvailable = cancellationSettings.void_service_fee_enabled !== false;
@@ -6431,6 +6456,8 @@ function toggleTicketAdjustmentFields() {
     if (refundBreakdown) refundBreakdown.style.display = isVoid ? 'none' : refundBreakdown.style.display;
     if (refundInput && isVoid) refundInput.value = '0';
     if (refundInput && !isVoid) refundInput.dispatchEvent(new Event('input'));
+    if (reasonCategoryRow) reasonCategoryRow.style.display = isVoid ? '' : 'none';
+    if (responsibilitySelectRow) responsibilitySelectRow.style.display = isVoid ? '' : 'none';
     if (voidFeeSection) voidFeeSection.style.display = isVoid && voidFeeAvailable ? '' : 'none';
     if (voidFeeToggle) {
         const voidFeeBlocked = !isVoid || !voidFeeAvailable;
@@ -6466,15 +6493,16 @@ function toggleTicketAdjustmentFields() {
                 : 'Refund the eligible amount through the original payment sources.';
     }
 
-    const hasResponsibility = responsibility !== 'NONE';
+    const hasResponsibility = isVoid && responsibility !== 'NONE';
     if (responsibilityRow) responsibilityRow.style.display = hasResponsibility ? '' : 'none';
-    if (cashierRow) cashierRow.style.display = responsibility === 'CASHIER' ? '' : 'none';
+    if (cashierRow) cashierRow.style.display = isVoid && responsibility === 'CASHIER' ? '' : 'none';
 
     // Responsibility select is only user-editable when the reason implies a chargeable party.
     const reasonLockedResponsibility = ['PRINTER_ERROR', 'SYSTEM_ERROR', 'OTHER'];
     const customerRequestLocked = reasonCategory === 'CUSTOMER_REQUEST' && !isVoid;
+    if (reasonCategorySelect) reasonCategorySelect.disabled = !isVoid;
     if (responsibilitySelect) {
-        responsibilitySelect.disabled = customerRequestLocked || reasonLockedResponsibility.includes(reasonCategory);
+        responsibilitySelect.disabled = !isVoid || customerRequestLocked || reasonLockedResponsibility.includes(reasonCategory);
     }
 
     if (responsibilityHint) {
@@ -6496,9 +6524,6 @@ function toggleTicketAdjustmentFields() {
                     : 'Optional amount for this adjustment.';
     }
 
-    if (responsibility === 'CASHIER' && !isVoid && responsibilityInput && (parseFloat(responsibilityInput.value) || 0) <= 0) {
-        responsibilityInput.value = (parseFloat(refundInput?.value) || 0).toFixed(2);
-    }
     if (isVoid && hasResponsibility && responsibilityInput) {
         responsibilityInput.value = voidResponsibilityAmount.toFixed(2);
         responsibilityInput.dataset.calculatedFromVoidFees = 'true';
@@ -6506,6 +6531,7 @@ function toggleTicketAdjustmentFields() {
     } else if (responsibilityInput) {
         responsibilityInput.readOnly = false;
         delete responsibilityInput.dataset.calculatedFromVoidFees;
+        responsibilityInput.value = '0.00';
     }
     if (reasonCategory === 'CASHIER_ERROR' && responsibility === 'NONE') {
         if (responsibilityHint) responsibilityHint.textContent = 'Select Cashier responsibility and a target cashier.';
@@ -6890,22 +6916,27 @@ async function confirmCancelTicket() {
     const txnCode = document.getElementById('cancelTicketCode').value.trim();
     const txnType = (document.getElementById('cancelTxnType')?.value || 'TICKET').toUpperCase();
     const operationType = document.getElementById('cancelOperationType')?.value || 'REFUND';
-    const reasonCategory = document.getElementById('cancelReasonCategory')?.value || 'OTHER';
-    const isTechnicalIssueVoid = operationType === 'VOID' && reasonCategory === 'PRINTER_ERROR';
-    const responsibility = document.getElementById('cancelResponsibility')?.value || 'NONE';
-    const grossRefundAmount = operationType === 'VOID'
+    const isVoid = operationType === 'VOID';
+    const reasonCategory = isVoid ? (document.getElementById('cancelReasonCategory')?.value || 'OTHER') : 'OTHER';
+    const isTechnicalIssueVoid = isVoid && isTechnicalIssueReason(reasonCategory);
+    const responsibility = isVoid ? (document.getElementById('cancelResponsibility')?.value || 'NONE') : 'NONE';
+    const grossRefundAmount = isVoid
         ? 0
         : parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
-    const voidFeeEnabled = operationType === 'VOID' && Boolean(document.getElementById('cancelVoidFeeEnabled')?.checked);
-    const voidServiceFeeEnabled = operationType === 'VOID'
+    const voidFeeEnabled = isVoid && Boolean(document.getElementById('cancelVoidFeeEnabled')?.checked);
+    const voidServiceFeeEnabled = isVoid
         && !isTechnicalIssueVoid
         && Boolean(document.getElementById('cancelVoidServiceFeeEnabled')?.checked);
     const rawVoidFee = parseFloat(document.getElementById('cancelVoidFee')?.value);
     const rawVoidServiceFee = parseFloat(document.getElementById('cancelVoidServiceFee')?.value);
     const voidFee = voidFeeEnabled && Number.isFinite(rawVoidFee) ? Math.max(0, rawVoidFee) : 0;
     const voidServiceFee = voidServiceFeeEnabled && Number.isFinite(rawVoidServiceFee) ? Math.max(0, rawVoidServiceFee) : 0;
-    const responsibilityAmount = parseFloat(document.getElementById('cancelResponsibilityAmount')?.value) || 0;
-    const responsibleUserId = document.getElementById('cancelResponsibleCashier')?.value || null;
+    const responsibilityAmount = isVoid
+        ? parseFloat(document.getElementById('cancelResponsibilityAmount')?.value) || 0
+        : 0;
+    const responsibleUserId = isVoid && responsibility === 'CASHIER'
+        ? (document.getElementById('cancelResponsibleCashier')?.value || null)
+        : null;
     const netRefundAmount = operationType === 'REFUND'
         ? Math.max(0, grossRefundAmount - (responsibility === 'CUSTOMER' ? responsibilityAmount : 0))
         : 0;
@@ -7014,7 +7045,7 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
     const responsibilityAmount = parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0;
     const responsibleUserId = adjustmentOptions.responsibleUserId || null;
     const isVoid = operationType === 'VOID';
-    const isTechnicalIssueVoid = isVoid && adjustmentOptions.reasonCategory === 'PRINTER_ERROR';
+    const isTechnicalIssueVoid = isVoid && isTechnicalIssueReason(adjustmentOptions.reasonCategory);
     const enteredVoidFee = isVoid ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0) : 0;
     const enteredVoidServiceFee = isVoid ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0) : 0;
     const voidFee = isTechnicalIssueVoid ? 0 : enteredVoidFee;
@@ -7274,6 +7305,9 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
 }
 
 function executeTicketCancellation(txnCode, refundAmount, reason, adjustmentOptions = {}) {
+    const operationType = adjustmentOptions.operationType || 'REFUND';
+    const isVoid = operationType === 'VOID';
+
     // Hide the confirmation modal first
     restoreCancelTicketModal = false;
     const refundConfirmModalEl = document.getElementById('refundConfirmModal');
@@ -7294,15 +7328,17 @@ function executeTicketCancellation(txnCode, refundAmount, reason, adjustmentOpti
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             transaction_code: txnCode,
-            operation_type: adjustmentOptions.operationType || 'REFUND',
-            reason_category: adjustmentOptions.reasonCategory || 'OTHER',
-            responsibility: adjustmentOptions.responsibility || 'NONE',
-            responsibility_amount: parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0,
-            responsible_user_id: adjustmentOptions.responsibleUserId || null,
-            void_fee: adjustmentOptions.operationType === 'VOID'
+            operation_type: operationType,
+            reason_category: isVoid ? (adjustmentOptions.reasonCategory || 'OTHER') : 'OTHER',
+            responsibility: isVoid ? (adjustmentOptions.responsibility || 'NONE') : 'NONE',
+            responsibility_amount: isVoid
+                ? parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0
+                : 0,
+            responsible_user_id: isVoid ? (adjustmentOptions.responsibleUserId || null) : null,
+            void_fee: isVoid
                 ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0)
                 : 0,
-            void_service_fee: adjustmentOptions.operationType === 'VOID'
+            void_service_fee: isVoid
                 ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0)
                 : 0,
             refund_amount: refundAmount,

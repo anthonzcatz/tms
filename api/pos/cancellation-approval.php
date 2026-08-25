@@ -19,6 +19,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/CancellationService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -193,9 +194,11 @@ if (!$ticketTxn) {
 }
 
 // Branch access control
-if ($user['role_code'] !== 'SUPER_ADMIN' && (int)$user['branch_id'] !== (int)$ticketTxn['branch_id']) {
+try {
+    PosAccess::assertBranchAccess($user, (int) $ticketTxn['branch_id']);
+} catch (Throwable $e) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Access denied: ticket does not belong to your branch']); exit;
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]); exit;
 }
 
 // Identify the operating provider for wallet resolution

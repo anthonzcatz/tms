@@ -5,6 +5,7 @@
 
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
@@ -19,8 +20,9 @@ header('Expires: 0');
 Auth::requireLogin();
 
 $user = Auth::user();
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 // Fetch active payment methods
 $paymentMethods = Database::fetchAll(
@@ -34,20 +36,18 @@ $addonServiceTypes = Database::fetchAll(
 
 // Fetch active branches for this user
 // Support multiple branch_ids (comma-separated like "1,2" or single "2")
-$hasValidBranchId = !empty($userBranchId) && $userBranchId !== '0' && $userBranchId !== '';
-if ($userRoleCode === 'SUPER_ADMIN' || !$hasValidBranchId) {
-    $branches = Database::fetchAll(
-        "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
-    );
-} else {
-    // Handle comma-separated branch_ids
-    $branchIds = array_map('trim', explode(',', $userBranchId));
-    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-    $branches = Database::fetchAll(
-        "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders) AND status = 'active' ORDER BY branch_name",
-        $branchIds
-    );
-}
+$hasValidBranchId = $allowedBranchIds === null || !empty($allowedBranchIds);
+// Handle comma-separated branch_ids
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'pos_branch');
+$branches = Database::fetchAll(
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
+);
 
 // Fetch open session for this cashier (any date) - BEFORE determining activeBranchId
 $todaySessions = Database::fetchAll(
@@ -65,11 +65,11 @@ $activeSession = $todaySessions[0] ?? null;
 
 // Determine active branch for receipt address
 $activeBranchId = null;
-if (!empty($activeSession) && !empty($activeSession['branch_id'])) {
-    $activeBranchId = (int)$activeSession['branch_id'];
-} elseif ($hasValidBranchId) {
-    $assignedBranchIds = array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
-    $activeBranchId = count($assignedBranchIds) === 1 ? $assignedBranchIds[0] : null;
+if (!empty($activeSession) && !empty($activeSession['branch_id'])
+    && ($allowedBranchIds === null || in_array((int) $activeSession['branch_id'], $allowedBranchIds, true))) {
+    $activeBranchId = (int) $activeSession['branch_id'];
+} elseif ($allowedBranchIds !== null && count($allowedBranchIds) === 1) {
+    $activeBranchId = $allowedBranchIds[0];
 }
 
 error_log('[POS Controller] userBranchId: ' . var_export($userBranchId, true));
@@ -93,12 +93,28 @@ if ($activeBranchId) {
 }
 
 // Fetch active bank accounts for bank transfer/e-wallet methods
+$bankAccountWhere = ['ba.is_active = 1'];
+$bankAccountParams = [];
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $bankAccountWhere[] = '1 = 0';
+    } else {
+        $bankBranchPlaceholders = [];
+        foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+            $key = 'pos_bank_branch_' . $index;
+            $bankBranchPlaceholders[] = ':' . $key;
+            $bankAccountParams[$key] = $allowedBranchId;
+        }
+        $bankAccountWhere[] = '(ba.branch_id IS NULL OR ba.branch_id IN (' . implode(',', $bankBranchPlaceholders) . '))';
+    }
+}
 $bankAccounts = Database::fetchAll(
     "SELECT ba.*, pm.method_code, pm.method_name, pm.method_type
      FROM bank_accounts ba
      LEFT JOIN payment_methods pm ON ba.payment_method_id = pm.method_id
-     WHERE ba.is_active = 1
-     ORDER BY ba.bank_name ASC"
+     WHERE " . implode(' AND ', $bankAccountWhere) . "
+     ORDER BY ba.bank_name ASC",
+    $bankAccountParams
 );
 
 // Passenger records are loaded on demand by the POS search API.
@@ -208,20 +224,12 @@ $printerSettings = Database::fetch(
 $cashierTransportTypeLabels = [];
 $cashierTransportTypeIcons = [];
 foreach (CashierTransportAccess::getSupportedTransportTypes() as $type) {
-    $cashierTransportTypeLabels[$type] = match ($type) {
-        'airline' => 'Airlines',
-        'shipping' => 'Shipping',
-        'bus' => 'Bus Lines',
-        'other' => 'Other',
-        default => ucwords(str_replace('_', ' ', $type))
-    };
-    $cashierTransportTypeIcons[$type] = match ($type) {
-        'airline' => 'fa-plane',
-        'shipping' => 'fa-ship',
-        'bus' => 'fa-bus',
-        'other' => 'fa-question-circle',
-        default => 'fa-circle'
-    };
+    $cashierTransportTypeLabels[$type] = $type;
+    $cashierTransportTypeIcons[$type] = 'fa-circle';
+}
+foreach (Database::getProviderTypes() as $row) {
+    $cashierTransportTypeLabels[$row['type_code']] = $row['type_label'];
+    $cashierTransportTypeIcons[$row['type_code']] = $row['type_icon'] ?: 'fa-circle';
 }
 
 // Pass user to view

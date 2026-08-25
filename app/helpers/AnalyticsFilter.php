@@ -179,12 +179,14 @@ final class AnalyticsFilter
 
     private static function accessibleBranchIds(array $user): array
     {
-        if (($user['role_code'] ?? '') === 'SUPER_ADMIN') {
+        $roleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+        if ($roleCode === 'SUPER_ADMIN') {
             $rows = Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active'");
             return array_values(array_filter(array_map('intval', array_column($rows, 'branch_id')), static fn (int $id): bool => $id > 0));
         }
 
-        $branchIds = array_map('intval', explode(',', (string)($user['branch_id'] ?? '')));
+        $branchValue = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+        $branchIds = array_map('intval', explode(',', (string) $branchValue));
         return array_values(array_unique(array_filter($branchIds, static fn (int $id): bool => $id > 0)));
     }
 }

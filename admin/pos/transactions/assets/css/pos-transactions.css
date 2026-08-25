@@ -24,7 +24,16 @@
 .status-badge-completed { background-color: rgba(0,200,83,.15); color: #00c853; }
 .status-badge-pending   { background-color: rgba(255,193,7,.15);  color: #d4a017; }
 .status-badge-cancelled { background-color: rgba(255,77,79,.15);  color: #ff4d4f; }
-.status-badge-refunded  { background-color: rgba(108,117,125,.15);color: #6c757d; }
+.status-badge-refunded  { background-color: rgba(13,110,253,.15); color: #0d6efd; }
+.status-badge-partially-refunded { background-color: rgba(255,193,7,.15); color: #a66a00; }
+
+.transaction-refund-date {
+    border-top: 1px solid rgba(220, 53, 69, 0.18);
+    font-size: 0.68rem;
+    margin-top: 0.2rem;
+    padding-top: 0.2rem;
+    white-space: nowrap;
+}
 
 .type-pill-ticket  { background-color: rgba(13,110,253,.1); color: #0d6efd; }
 .type-pill-service { background-color: rgba(32,201,151,.1); color: #20c997; }
@@ -48,18 +57,18 @@
 
 /* Responsive table tweaks */
 @media (max-width: 768px) {
-    .table th:nth-child(4),
-    .table td:nth-child(4),
-    .table th:nth-child(5),
-    .table td:nth-child(5) {
+    #transactionsTable th:nth-child(4),
+    #transactionsTable td:nth-child(4),
+    #transactionsTable th:nth-child(5),
+    #transactionsTable td:nth-child(5) {
         display: none;
     }
 }
 @media (max-width: 576px) {
-    .table th:nth-child(3),
-    .table td:nth-child(3),
-    .table th:nth-child(6),
-    .table td:nth-child(6) {
+    #transactionsTable th:nth-child(3),
+    #transactionsTable td:nth-child(3),
+    #transactionsTable th:nth-child(6),
+    #transactionsTable td:nth-child(6) {
         display: none;
     }
 }
@@ -128,7 +137,7 @@
 
     /* Badge styling for print */
     #print-container .status-badge-completed, #print-container .status-badge-pending,
-    #print-container .status-badge-cancelled, #print-container .status-badge-refunded {
+    #print-container .status-badge-cancelled, #print-container .status-badge-refunded, #print-container .status-badge-partially-refunded {
         background: none !important; color: #000 !important; border: 1px solid #000; padding: 1px 4px; font-size: 8pt;
     }
     #print-container .type-pill-ticket, #print-container .type-pill-service {
@@ -247,6 +256,10 @@
     overflow-wrap: anywhere;
 }
 
+.financial-report-company-address {
+    font-size: 0.65rem;
+}
+
 .financial-report-heading-text {
     min-width: 0;
     text-align: right;
@@ -281,6 +294,32 @@
     color: #6c7a8c;
     font-size: 0.72rem;
     margin-top: 0.25rem;
+}
+
+.financial-report-prepared-by {
+    margin-top: 0.75rem;
+    text-align: right;
+}
+
+.financial-report-prepared-label {
+    font-size: 0.65rem;
+    color: #6c7a8c;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+}
+
+.financial-report-prepared-name {
+    font-size: 0.85rem;
+    color: #183b56;
+    font-weight: 700;
+    display: block;
+}
+
+.financial-report-prepared-position {
+    font-size: 0.7rem;
+    color: #52606d;
+    display: block;
 }
 
 .financial-report-section,
@@ -914,11 +953,17 @@
         font-size: 10pt;
     }
 
+    body.printing-financial-report .financial-report-company-address {
+        font-size: 7.5pt;
+    }
+
     body.printing-financial-report .financial-report-company-meta,
     body.printing-financial-report .financial-report-kicker,
     body.printing-financial-report .financial-report-date,
     body.printing-financial-report .financial-report-scope,
-    body.printing-financial-report .financial-report-generated {
+    body.printing-financial-report .financial-report-generated,
+    body.printing-financial-report .financial-report-prepared-label,
+    body.printing-financial-report .financial-report-prepared-position {
         color: #000 !important;
     }
 
@@ -932,6 +977,15 @@
 
     body.printing-financial-report .financial-report-date {
         font-size: 8.5pt;
+    }
+
+    body.printing-financial-report .financial-report-prepared-by {
+        margin-top: 0.4rem;
+    }
+
+    body.printing-financial-report .financial-report-prepared-name {
+        font-size: 9pt;
+        color: #000 !important;
     }
 
     body.printing-financial-report .financial-report-section {
@@ -986,6 +1040,7 @@
 
     body.printing-financial-report .financial-report-table th,
     body.printing-financial-report .financial-report-table td {
+        display: table-cell !important;
         color: #000 !important;
         border: 1px solid #000 !important;
         padding: 0.28rem 0.35rem;

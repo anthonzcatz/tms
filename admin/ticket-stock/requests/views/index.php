@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html data-bs-theme="light" lang="en-US" dir="ltr">
-<?php require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php'; ?><link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/ticket-stock/assets/css/ticket-stock.css">
+<?php require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php'; ?>
+<link rel="stylesheet" href="<?php echo BASE_URL; ?>/admin/ticket-stock/assets/css/ticket-stock.css">
 <body>
 <main class="main" id="top">
   <div class="container" data-layout="container">
@@ -21,22 +22,314 @@
       <div class="content">
         <?php include NAVBAR_POSITION === 'combo' ? dirname(dirname(dirname(__DIR__))) . '/includes/navbar-top.php' : dirname(dirname(dirname(__DIR__))) . '/includes/navbar.php'; ?>
     <?php endif; ?>
-<div class="row g-4 mb-4"><div class="col-12"><div class="card border-0 shadow-sm"><div class="card-header d-flex justify-content-between align-items-center"><div><h4 class="mb-1 text-primary">Ticket Stock <span class="text-info">Requests</span></h4><small class="text-muted">Request, approve, dispatch, receive, and close branch stock transfers.</small></div><button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createStockRequestModal"><span class="fas fa-plus me-1"></span>New Request</button></div></div></div></div>
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <h4 class="mb-1 text-primary">Ticket Stock <span class="text-info">Requests</span></h4>
+          <small class="text-muted">Request, approve, dispatch, receive, and close branch stock transfers.</small>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createStockRequestModal"><span class="fas fa-plus me-1"></span>New Request</button>
+      </div>
+    </div>
+  </div>
+</div>
 <?php $activeTicketStockModule = 'requests'; include dirname(dirname(__DIR__)) . '/_partials/ticket_stock_nav.php'; ?>
-<div class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end"><div class="col-md-3"><label class="form-label small">Status</label><select class="form-select" id="requestStatus"><option value="">All statuses</option><option>DRAFT</option><option>SUBMITTED</option><option>APPROVED</option><option>DISPATCHED</option><option>PARTIALLY_RECEIVED</option><option>RECEIVED</option><option>REJECTED</option><option>CLOSED</option><option>CANCELLED</option></select></div><div class="col-md-2"><button class="btn btn-primary w-100" onclick="loadTicketStockRequests()"><span class="fas fa-filter me-1"></span>Apply</button></div></div></div></div>
-<div class="card"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover table-sm ticket-stock-table mb-0" id="ticketStockRequests"><thead class="table-light"><tr><th>Request</th><th>Source Wallet</th><th>Source</th><th>Destination</th><th>Provider</th><th>Reason</th><th>Qty Requested/Received</th><th>Status</th><th>Requested By</th><th class="text-end">Action</th></tr></thead><tbody><tr><td colspan="10" class="text-center py-4">Loading...</td></tr></tbody></table></div></div></div>
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small">Status</label>
+        <select class="form-select" id="requestStatus">
+          <option value="">All statuses</option>
+          <option>DRAFT</option>
+          <option>SUBMITTED</option>
+          <option>APPROVED</option>
+          <option>DISPATCHED</option>
+          <option>PARTIALLY_RECEIVED</option>
+          <option>RECEIVED</option>
+          <option>REJECTED</option>
+          <option>CLOSED</option>
+          <option>CANCELLED</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" onclick="loadTicketStockRequests()"><span class="fas fa-filter me-1"></span>Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm ticket-stock-table mb-0" id="ticketStockRequests">
+        <thead class="table-light">
+          <tr>
+            <th>Request</th>
+            <th>Source Wallet</th>
+            <th>Source</th>
+            <th>Destination</th>
+            <th>Provider</th>
+            <th>Reason</th>
+            <th>Qty Requested/Received</th>
+            <th>Status</th>
+            <th>Requested By</th>
+            <th class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="10" class="text-center py-4">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 <?php if (NAVBAR_POSITION === 'vertical' || NAVBAR_POSITION === 'combo'): ?>
       </div>
     <?php endif; ?>
   </div>
 </main>
-<div class="modal fade" id="createStockRequestModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">New Stock Request</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="card border-0 shadow-sm mb-3 d-none"><div class="card-header bg-light border-0 py-2"><h6 class="mb-0 fw-bold"><span class="fas fa-wallet text-primary me-2"></span>Source Wallet</h6></div><div class="card-body"><label class="form-label fw-bold" for="createSourceWallet">Wallet <span class="text-muted fw-normal">(optional)</span></label><select class="form-select" id="createSourceWallet"><option value="">No wallet / external provider source</option><?php foreach ($wallets as $wallet): ?><option value="<?php echo (int) $wallet['wallet_id']; ?>" data-provider-id="<?php echo (int) $wallet['provider_id']; ?>" data-branch-id="<?php echo (int) $wallet['branch_id']; ?>" data-variant-id="<?php echo $wallet['variant_id'] ? (int) $wallet['variant_id'] : ''; ?>" data-balance="<?php echo htmlspecialchars((string) $wallet['current_balance']); ?>" data-on-hand-qty="<?php echo (int) ($wallet['on_hand_qty'] ?? 0); ?>" data-available-qty="<?php echo (int) ($wallet['available_qty'] ?? 0); ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>"><?php echo htmlspecialchars($wallet['wallet_name']); ?></option><?php endforeach; ?></select><div class="alert alert-info py-2 mt-3 mb-0 d-none" id="sourceWalletInfo"><div class="d-flex align-items-center justify-content-between"><div><strong id="sourceWalletBalanceLabel">Current Balance:</strong> <span id="sourceWalletBalance">₱0.00</span><small class="d-block text-muted" id="sourceWalletName">-</small></div><span class="fas fa-wallet fs-4"></span></div></div></div></div><div class="row g-2"><div class="col-md-6"><label class="form-label">Source Branch</label><select class="form-select" id="createSourceBranch"><option value="">External/provider source</option><?php foreach ($branches as $branch): ?><option value="<?php echo (int) $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option><?php endforeach; ?></select></div><div class="col-md-6"><label class="form-label">Destination Branch</label><select class="form-select" id="createDestinationBranch"><option value="">Select branch</option><?php foreach ($branches as $branch): ?><option value="<?php echo (int) $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option><?php endforeach; ?></select></div><div class="col-md-6"><label class="form-label">Provider</label><select class="form-select" id="createProvider"><option value="">Select provider</option><?php foreach ($providers as $provider): ?><option value="<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_code'] . ' - ' . $provider['provider_name']); ?></option><?php endforeach; ?></select></div><div class="col-md-6"><label class="form-label">Reason</label><select class="form-select" id="createReason"><option>REPLENISHMENT</option><option>OPENING_BALANCE</option><option>TRANSFER</option><option>EMERGENCY</option><option>RETURN_REPLACEMENT</option><option>OTHER</option></select></div></div><div class="mt-3"><label class="form-label">Items</label><div id="createRequestItems"><div class="row g-2 request-item-row mb-2"><div class="col-7"><select class="form-select request-item-variant"><option value="">Select variant</option><?php foreach ($variants as $variant): ?><option value="<?php echo (int) $variant['variant_id']; ?>" data-provider-id="<?php echo (int) $variant['provider_id']; ?>"><?php echo htmlspecialchars($variant['variant_code'] . ' - ' . $variant['variant_name']); ?></option><?php endforeach; ?></select><span class="form-control-plaintext request-item-wallet-label d-none small fw-bold text-primary py-2"></span></div><div class="col-3"><input type="number" class="form-control request-item-qty" min="1" placeholder="Qty"></div><div class="col-2 text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRequestItemRow(this)"><span class="fas fa-times"></span></button></div></div></div><button class="btn btn-sm btn-outline-secondary" type="button" onclick="addRequestItemRow()"><span class="fas fa-plus me-1"></span>Add item</button></div><textarea class="form-control mt-3" id="createRequestRemarks" rows="2" placeholder="Remarks"></textarea></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-outline-primary" onclick="submitStockRequest(false)">Save Draft</button><button class="btn btn-primary" onclick="submitStockRequest(true)">Submit Request</button></div></div></div></div>
-<div class="modal fade" id="stockRequestModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Stock Request Details</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="stockRequestDetails"></div><input type="hidden" id="requestActionId"><input type="hidden" id="requestActionStatus"><textarea class="form-control" id="requestActionReason" rows="2" placeholder="Reason / remarks"></textarea></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-success" onclick="transitionStockRequest('APPROVED')">Approve</button><button class="btn btn-danger" onclick="transitionStockRequest('REJECTED')">Reject</button><button class="btn btn-primary" onclick="dispatchSelectedRequest()">Dispatch</button><button class="btn btn-info" onclick="receiveSelectedRequest()">Receive</button><button class="btn btn-dark" onclick="transitionStockRequest('CLOSED')">Close Request</button></div></div></div></div>
-<script>window.TICKET_STOCK_PAGE = 'requests'; window.DEFAULT_DESTINATION_BRANCH_ID = <?php echo $defaultDestinationBranchId ? (int) $defaultDestinationBranchId : 'null'; ?>; window.DESTINATION_BRANCH_IDS = <?php echo ($user['role_code'] ?? '') === 'SUPER_ADMIN' ? 'null' : json_encode($userBranchIds); ?>;</script><script src="<?php echo BASE_URL; ?>/admin/ticket-stock/assets/js/ticket-stock.js"></script>
+
+<div class="modal fade" id="createStockRequestModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">New Stock Request</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header bg-light border-0 py-2">
+            <h6 class="mb-0 fw-bold"><span class="fas fa-wallet text-primary me-2"></span>Source Wallet</h6>
+          </div>
+          <div class="card-body">
+            <label class="form-label fw-bold" for="createSourceWallet">Wallet <span class="text-muted fw-normal">(optional)</span></label>
+            <select class="form-select" id="createSourceWallet">
+              <option value="">No wallet / external provider source</option>
+              <?php foreach ($wallets as $wallet): ?>
+              <option value="<?php echo (int) $wallet['wallet_id']; ?>" data-provider-id="<?php echo (int) $wallet['provider_id']; ?>" data-branch-id="<?php echo (int) $wallet['branch_id']; ?>" data-variant-id="<?php echo $wallet['variant_id'] ? (int) $wallet['variant_id'] : ''; ?>" data-balance="<?php echo htmlspecialchars((string) $wallet['current_balance']); ?>" data-on-hand-qty="<?php echo (int) ($wallet['on_hand_qty'] ?? 0); ?>" data-available-qty="<?php echo (int) ($wallet['available_qty'] ?? 0); ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>"><?php echo htmlspecialchars($wallet['wallet_name']); ?></option>
+              <?php endforeach; ?>
+            </select>
+            <div class="alert alert-info py-2 mt-3 mb-0 d-none" id="sourceWalletInfo">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <strong id="sourceWalletBalanceLabel">Current Balance:</strong> <span id="sourceWalletBalance">₱0.00</span>
+                  <small class="d-block text-muted" id="sourceWalletName">-</small>
+                </div>
+                <span class="fas fa-wallet fs-4"></span>
+              </div>
+            </div>
+            <small class="text-muted d-block mt-2">If no wallet is selected, the request will use an external provider source. The destination branch will receive stock directly.</small>
+          </div>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Source Branch</label>
+            <select class="form-select" id="createSourceBranch">
+              <option value="">External/provider source</option>
+              <?php foreach ($branches as $branch): ?>
+              <option value="<?php echo (int) $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Destination Branch <span class="text-danger">*</span></label>
+            <select class="form-select" id="createDestinationBranch">
+              <option value="">Select branch</option>
+              <?php foreach ($branches as $branch): ?>
+              <option value="<?php echo (int) $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Provider <span class="text-danger">*</span></label>
+            <select class="form-select" id="createProvider">
+              <option value="">Select provider</option>
+              <?php foreach ($providers as $provider): ?>
+              <option value="<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_code'] . ' - ' . $provider['provider_name']); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Reason</label>
+            <select class="form-select" id="createReason">
+              <option>REPLENISHMENT</option>
+              <option>OPENING_BALANCE</option>
+              <option>TRANSFER</option>
+              <option>EMERGENCY</option>
+              <option>RETURN_REPLACEMENT</option>
+              <option>OTHER</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label">Items <span class="text-danger">*</span></label>
+          <div id="createRequestItems">
+            <div class="row g-2 request-item-row mb-2">
+              <div class="col-7">
+                <select class="form-select request-item-variant">
+                  <option value="">Select variant</option>
+                  <?php foreach ($variants as $variant): ?>
+                  <option value="<?php echo (int) $variant['variant_id']; ?>" data-provider-id="<?php echo (int) $variant['provider_id']; ?>"><?php echo htmlspecialchars($variant['variant_code'] . ' - ' . $variant['variant_name']); ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <span class="form-control-plaintext request-item-wallet-label d-none small fw-bold text-primary py-2"></span>
+              </div>
+              <div class="col-3">
+                <input type="number" class="form-control request-item-qty" min="1" placeholder="Qty">
+              </div>
+              <div class="col-2 text-end">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRequestItemRow(this)"><span class="fas fa-times"></span></button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addRequestItemRow()"><span class="fas fa-plus me-1"></span>Add item</button>
+        </div>
+
+        <textarea class="form-control mt-3" id="createRequestRemarks" rows="2" placeholder="Remarks"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-outline-primary" onclick="submitStockRequest(false)"><span class="fas fa-save me-1"></span>Save as Draft</button>
+        <button class="btn btn-primary" onclick="submitStockRequest(true)"><span class="fas fa-paper-plane me-1"></span>Submit Request</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="stockRequestModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Stock Request Details</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="stockRequestDetails"></div>
+        <div id="stockRequestActionForm" class="d-none mt-3"></div>
+        <div class="mt-3">
+          <label class="form-label small" for="requestActionReason">Reason / remarks <span class="text-muted">(used for reject, cancel, close)</span></label>
+          <textarea class="form-control" id="requestActionReason" rows="2" placeholder="Enter reason or remarks"></textarea>
+        </div>
+        <input type="hidden" id="requestActionId">
+        <input type="hidden" id="requestActionStatus">
+      </div>
+      <div class="modal-footer">
+        <div id="stockRequestActionButtons" class="d-flex gap-2"></div>
+        <div id="stockRequestActionConfirm" class="d-none d-flex gap-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-function addRequestItemRow() { const first = document.querySelector('.request-item-row'); if (!first) return; const providerId = document.getElementById('createProvider').value; const selectedVariantIds = new Set([...document.querySelectorAll('.request-item-variant')].map(select => select.value).filter(Boolean)); const hasAvailableVariant = [...first.querySelector('.request-item-variant').options].some(option => option.value && !selectedVariantIds.has(option.value) && (!providerId || option.dataset.providerId === String(providerId))); if (!hasAvailableVariant) { ticketStockToast('error', 'All available variants have already been added.'); return; } const clone = first.cloneNode(true); const variantSelect = clone.querySelector('.request-item-variant'); variantSelect.value = ''; variantSelect.disabled = false; const label = clone.querySelector('.request-item-wallet-label'); if (label) { label.textContent = ''; label.classList.add('d-none'); } clone.querySelector('.request-item-qty').value = ''; document.getElementById('createRequestItems').appendChild(clone); const walletSelect = document.getElementById('createSourceWallet'); const walletOption = walletSelect.options[walletSelect.selectedIndex]; const walletProviderId = walletSelect.value ? walletOption.dataset.providerId : providerId; const walletVariantId = walletSelect.value ? (walletOption.dataset.variantId || '') : ''; updateRequestVariantOptions(walletProviderId || '', walletVariantId); }
-function removeRequestItemRow(btn) { const row = btn.closest('.request-item-row'); if (!row) return; const container = document.getElementById('createRequestItems'); if (container.querySelectorAll('.request-item-row').length <= 1) { row.querySelector('.request-item-qty').value = ''; const sel = row.querySelector('.request-item-variant'); if (sel) sel.value = ''; const lbl = row.querySelector('.request-item-wallet-label'); if (lbl) { lbl.textContent = ''; lbl.classList.add('d-none'); } return; } row.remove(); }
-async function submitStockRequest(submit) { const rawItems = [...document.querySelectorAll('.request-item-row')].map(row => ({ variant_id: row.querySelector('.request-item-variant').value, requested_qty: row.querySelector('.request-item-qty').value })).filter(item => item.variant_id && item.requested_qty); if (new Set(rawItems.map(item => item.variant_id)).size !== rawItems.length) { ticketStockToast('error', 'Each variant can only be added once.'); return; } const items = rawItems.map(item => ({ ...item, requested_qty: Number(item.requested_qty) })); if (!items.length) { ticketStockToast('error', 'Please add at least one valid item with a variant and quantity.'); return; } if (items.some(item => !Number.isFinite(item.requested_qty) || item.requested_qty <= 0)) { ticketStockToast('error', 'Requested quantity must be greater than 0.'); return; } items.forEach(item => item.requested_qty = String(item.requested_qty)); try { await ticketStockMutate({ action: 'request_create', wallet_id: document.getElementById('createSourceWallet').value || null, source_branch_id: document.getElementById('createSourceBranch').value || null, destination_branch_id: document.getElementById('createDestinationBranch').value, provider_id: document.getElementById('createProvider').value, request_reason: document.getElementById('createReason').value, remarks: document.getElementById('createRequestRemarks').value.trim(), items, submit }); bootstrap.Modal.getInstance(document.getElementById('createStockRequestModal'))?.hide(); ticketStockToast('success', submit ? 'Stock request submitted.' : 'Stock request saved as draft.'); loadTicketStockRequests(); } catch (error) { ticketStockToast('error', error.message); } }
-async function dispatchSelectedRequest() { try { await ticketStockMutate({ action: 'request_dispatch', stock_request_id: document.getElementById('requestActionId').value }); bootstrap.Modal.getInstance(document.getElementById('stockRequestModal'))?.hide(); ticketStockToast('success', 'Stock request dispatched.'); loadTicketStockRequests(); } catch (error) { ticketStockToast('error', error.message); } }
-async function receiveSelectedRequest() { try { await ticketStockMutate({ action: 'request_receive', stock_request_id: document.getElementById('requestActionId').value, items: [] }); bootstrap.Modal.getInstance(document.getElementById('stockRequestModal'))?.hide(); ticketStockToast('success', 'Stock request received.'); loadTicketStockRequests(); } catch (error) { ticketStockToast('error', error.message); } }
-</script><?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?><?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?></body></html>
+  window.TICKET_STOCK_PAGE = 'requests';
+  window.DEFAULT_DESTINATION_BRANCH_ID = <?php echo $defaultDestinationBranchId ? (int) $defaultDestinationBranchId : 'null'; ?>;
+  window.DESTINATION_BRANCH_IDS = <?php echo ($userRoleCode ?? ($user['role_code'] ?? '')) === 'SUPER_ADMIN' ? 'null' : json_encode($userBranchIds); ?>;
+</script>
+<script src="<?php echo BASE_URL; ?>/admin/ticket-stock/assets/js/ticket-stock.js"></script>
+<script>
+function addRequestItemRow() {
+  const container = document.getElementById('createRequestItems');
+  const first = container.querySelector('.request-item-row');
+  if (!first) return;
+  const providerId = document.getElementById('createProvider').value;
+  const selectedVariantIds = new Set([...container.querySelectorAll('.request-item-variant')].map(select => select.value).filter(Boolean));
+  const hasAvailableVariant = [...first.querySelector('.request-item-variant').options].some(option => option.value && !selectedVariantIds.has(option.value) && (!providerId || option.dataset.providerId === String(providerId)));
+  if (!hasAvailableVariant) {
+    ticketStockToast('error', 'All available variants have already been added.');
+    return;
+  }
+  const clone = first.cloneNode(true);
+  const variantSelect = clone.querySelector('.request-item-variant');
+  variantSelect.value = '';
+  variantSelect.disabled = false;
+  const label = clone.querySelector('.request-item-wallet-label');
+  if (label) {
+    label.textContent = '';
+    label.classList.add('d-none');
+  }
+  const qtyInput = clone.querySelector('.request-item-qty');
+  if (qtyInput) qtyInput.value = '';
+  container.appendChild(clone);
+  const walletSelect = document.getElementById('createSourceWallet');
+  const walletOption = walletSelect.options[walletSelect.selectedIndex];
+  const walletProviderId = walletSelect.value ? walletOption.dataset.providerId : providerId;
+  const walletVariantId = walletSelect.value ? (walletOption.dataset.variantId || '') : '';
+  updateRequestVariantOptions(walletProviderId || '', walletVariantId);
+}
+
+function removeRequestItemRow(btn) {
+  const row = btn.closest('.request-item-row');
+  if (!row) return;
+  const container = document.getElementById('createRequestItems');
+  if (container.querySelectorAll('.request-item-row').length <= 1) {
+    const qtyInput = row.querySelector('.request-item-qty');
+    if (qtyInput) qtyInput.value = '';
+    const sel = row.querySelector('.request-item-variant');
+    if (sel) sel.value = '';
+    const lbl = row.querySelector('.request-item-wallet-label');
+    if (lbl) {
+      lbl.textContent = '';
+      lbl.classList.add('d-none');
+    }
+    return;
+  }
+  row.remove();
+}
+
+async function submitStockRequest(submit) {
+  const destinationBranchId = document.getElementById('createDestinationBranch').value;
+  if (!destinationBranchId) {
+    ticketStockToast('error', 'Please select a destination branch.');
+    return;
+  }
+  const walletSelect = document.getElementById('createSourceWallet');
+  const walletOption = walletSelect.options[walletSelect.selectedIndex];
+  const rawItems = [...document.querySelectorAll('.request-item-row')].map(row => ({
+    variant_id: row.querySelector('.request-item-variant').value,
+    requested_qty: row.querySelector('.request-item-qty').value
+  })).filter(item => item.variant_id && item.requested_qty);
+  if (new Set(rawItems.map(item => item.variant_id)).size !== rawItems.length) {
+    ticketStockToast('error', 'Each variant can only be added once.');
+    return;
+  }
+  const items = rawItems.map(item => ({ ...item, requested_qty: Number(item.requested_qty) }));
+  if (!items.length) {
+    ticketStockToast('error', 'Please add at least one valid item with a variant and quantity.');
+    return;
+  }
+  if (items.some(item => !Number.isFinite(item.requested_qty) || item.requested_qty <= 0)) {
+    ticketStockToast('error', 'Requested quantity must be greater than 0.');
+    return;
+  }
+  if (!walletSelect.value && !document.getElementById('createProvider').value) {
+    ticketStockToast('error', 'Please select a provider or source wallet.');
+    return;
+  }
+  try {
+    await ticketStockMutate({
+      action: 'request_create',
+      wallet_id: walletSelect.value || null,
+      source_branch_id: document.getElementById('createSourceBranch').value || null,
+      destination_branch_id: destinationBranchId,
+      provider_id: document.getElementById('createProvider').value,
+      request_reason: document.getElementById('createReason').value,
+      remarks: document.getElementById('createRequestRemarks').value.trim(),
+      items: items.map(item => ({ ...item, requested_qty: String(item.requested_qty) })),
+      submit
+    });
+    bootstrap.Modal.getInstance(document.getElementById('createStockRequestModal'))?.hide();
+    ticketStockToast('success', submit ? 'Stock request submitted.' : 'Stock request saved as draft.');
+    loadTicketStockRequests();
+  } catch (error) {
+    ticketStockToast('error', error.message);
+  }
+}
+</script>
+<?php include dirname(dirname(dirname(__DIR__))) . '/includes/footer.php'; ?>
+<?php include dirname(dirname(dirname(__DIR__))) . '/includes/scripts.php'; ?>
+<?php include dirname(dirname(dirname(__DIR__))) . '/includes/body-top.php'; ?>
+</body>
+</html>

@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/ChargeService.php';
@@ -25,6 +26,8 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
 
 Auth::requireLogin();
 $user = Auth::user();
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -70,6 +73,7 @@ if ($method === 'GET') {
                     END AS transaction_passenger_name,
                     CASE WHEN tp.source_type = 'TICKET_TRANSACTION' THEN 'Ticket' ELSE stype.name END AS item_label,
                     pm.method_name,
+                    COALESCE(tt.branch_id, st.branch_id, cs.branch_id) AS branch_id,
                     bb.branch_name,
                     {$empNameConcat} AS cashier_name,
                     NULL AS reference_number,
@@ -104,6 +108,7 @@ if ($method === 'GET') {
                     NULL AS transaction_passenger_name,
                     'Payment Collection' AS item_label,
                     pm.method_name,
+                    cp.branch_id AS branch_id,
                     bb.branch_name,
                     {$empNameConcat} AS cashier_name,
                     cp.reference_number,
@@ -240,6 +245,7 @@ if ($method === 'GET') {
                         ELSE 'Ticket Cancellation'
                     END AS item_label,
                     NULL AS method_name,
+                    COALESCE(tt.branch_id, cs.branch_id) AS branch_id,
                     bb.branch_name,
                     {$empNameConcat} AS cashier_name,
                     NULL AS reference_number,
@@ -283,6 +289,7 @@ if ($method === 'GET') {
                         NULL AS transaction_passenger_name,
                         'Service Cancellation' AS item_label,
                         NULL AS method_name,
+                        cs.branch_id AS branch_id,
                         bb.branch_name,
                         {$empNameConcat} AS cashier_name,
                         NULL AS reference_number,
@@ -309,6 +316,16 @@ if ($method === 'GET') {
 
         // Build filter SQL (outer WHERE)
         $outerWhere = [];
+        $scopeParams = [];
+        if ($allowedBranchIds !== null) {
+            if (!$allowedBranchIds) {
+                $outerWhere[] = '1 = 0';
+            } else {
+                $scopePlaceholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
+                $outerWhere[] = 'h.branch_id IN (' . $scopePlaceholders . ')';
+                $scopeParams = $allowedBranchIds;
+            }
+        }
         if ($branch !== '') {
             $outerWhere[] = 'h.branch_name = ?';
         }
@@ -319,6 +336,7 @@ if ($method === 'GET') {
 
         // Count total rows matching filters
         $countParams = array_pad([], $unionParamCount, $passengerId);
+        $countParams = array_merge($countParams, $scopeParams);
         if ($branch !== '') $countParams[] = $branch;
         if ($entryType !== '') $countParams[] = $entryType;
         $countSql = "SELECT COUNT(*) AS total FROM ({$wrappedUnion}) AS h {$whereSql}";
@@ -332,7 +350,16 @@ if ($method === 'GET') {
 
         // Distinct branches for the filter dropdown
         $branchParams = array_pad([], $unionParamCount, $passengerId);
-        $branchesSql = "SELECT DISTINCT h.branch_name FROM ({$wrappedUnion}) AS h WHERE h.branch_name IS NOT NULL AND h.branch_name != '' ORDER BY h.branch_name";
+        $branchWhere = ['h.branch_name IS NOT NULL', "h.branch_name != ''"];
+        if ($allowedBranchIds !== null) {
+            if (!$allowedBranchIds) {
+                $branchWhere[] = '1 = 0';
+            } else {
+                $branchWhere[] = 'h.branch_id IN (' . implode(',', array_fill(0, count($allowedBranchIds), '?')) . ')';
+                $branchParams = array_merge($branchParams, $allowedBranchIds);
+            }
+        }
+        $branchesSql = "SELECT DISTINCT h.branch_name FROM ({$wrappedUnion}) AS h WHERE " . implode(' AND ', $branchWhere) . " ORDER BY h.branch_name";
         $branchRows = Database::fetchAll($branchesSql, $branchParams);
         $branches = array_column($branchRows, 'branch_name');
 
@@ -367,14 +394,43 @@ if ($method === 'POST') {
     $bankAcctId  = $input['bank_account_id'] ?? null;
     $refNum      = $input['reference_number'] ?? null;
     $notes       = $input['notes'] ?? null;
-    $branchId    = $input['branch_id'] ?? $user['branch_id'] ?? null;
+    $branchId    = $input['branch_id'] ?? null;
 
     if (!$passengerId || $amountPaid <= 0 || !$methodId) {
         echo json_encode(['success' => false, 'error' => 'passenger_id, amount_paid, and payment_method_id are required.']); return;
     }
 
-    if (!$branchId) {
-        echo json_encode(['success' => false, 'error' => 'branch_id is required.']); return;
+    $branchId = filter_var($branchId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($branchId === false) {
+        echo json_encode(['success' => false, 'error' => 'A valid branch_id is required.']); return;
+    }
+    try {
+        PosAccess::assertBranchAccess($user, (int) $branchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        return;
+    }
+    if ($bankAcctId) {
+        $bankAccount = Database::fetch(
+            "SELECT bank_account_id, branch_id
+             FROM bank_accounts
+             WHERE bank_account_id = :bank_account_id AND is_active = 1",
+            ['bank_account_id' => (int) $bankAcctId]
+        );
+        if (!$bankAccount) {
+            echo json_encode(['success' => false, 'error' => 'Selected bank account is not active.']);
+            return;
+        }
+        if ($bankAccount['branch_id'] !== null) {
+            try {
+                PosAccess::assertBranchAccess($user, (int) $bankAccount['branch_id']);
+            } catch (Throwable $e) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                return;
+            }
+        }
     }
 
     $payCode = 'CP-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));

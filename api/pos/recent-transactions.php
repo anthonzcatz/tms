@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 Auth::requireLogin();
@@ -47,11 +48,9 @@ if ($date || $startDate || $endDate) {
 }
 
 // Get user branch for filtering
-$branchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
-$branchIds = $branchId
-    ? array_values(array_filter(array_map('intval', explode(',', (string)$branchId))))
-    : [];
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+$branchIds = $allowedBranchIds === null ? [] : $allowedBranchIds;
 $canViewBranchTransactions = in_array($userRoleCode, ['SUPER_ADMIN', 'MANAGER', 'CASHIER'], true);
 
 // ---------------------------------------------------------------
@@ -75,22 +74,23 @@ if ($useOrdersTable) {
     $where  = [];
     $params = [];
 
-    if ($userRoleCode !== 'SUPER_ADMIN' && !empty($branchIds)) {
-        $branchPlaceholders = [];
-        foreach ($branchIds as $index => $allowedBranchId) {
-            $placeholder = ':branch_id_' . $index;
-            $branchPlaceholders[] = $placeholder;
-            $params['branch_id_' . $index] = $allowedBranchId;
-        }
-        $where[] = 'o.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
+    if ($allowedBranchIds !== null) {
+        if (!$allowedBranchIds) {
+            $where[] = '1 = 0';
+        } else {
+            $branchPlaceholders = [];
+            foreach ($allowedBranchIds as $index => $allowedBranchId) {
+                $placeholder = ':branch_id_' . $index;
+                $branchPlaceholders[] = $placeholder;
+                $params['branch_id_' . $index] = $allowedBranchId;
+            }
+            $where[] = 'o.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
 
-        if (!$canViewBranchTransactions) {
-            $where[] = 'o.created_by = :created_by';
-            $params['created_by'] = $user['user_id'];
+            if (!$canViewBranchTransactions) {
+                $where[] = 'o.created_by = :created_by';
+                $params['created_by'] = $user['user_id'];
+            }
         }
-    } elseif ($userRoleCode !== 'SUPER_ADMIN') {
-        $where[] = 'o.created_by = :created_by';
-        $params['created_by'] = $user['user_id'];
     }
 
     if ($search) {
@@ -245,21 +245,37 @@ if ($useOrdersTable) {
              WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
              ORDER BY ta.created_at DESC
              LIMIT 1) as adjustment_amount,
-            (SELECT CASE WHEN tc_adj.reason_category = 'PRINTER_ERROR' THEN 0 ELSE COALESCE(tc_adj.void_fee, 0) END
+            (SELECT CASE
+                        WHEN tc_adj.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                        WHEN tc_adj.responsibility IN ('CUSTOMER', 'CASHIER')
+                          OR tc_adj.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                            THEN COALESCE(tc_adj.void_fee, 0)
+                        ELSE 0
+                    END
              FROM pos_order_items oi_adj
              JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
              LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
              WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
              ORDER BY ta_adj.created_at DESC
              LIMIT 1) as void_fee,
-            (SELECT CASE WHEN tc_adj.reason_category = 'PRINTER_ERROR' THEN 0 ELSE COALESCE(tc_adj.void_service_fee, 0) END
+            (SELECT CASE
+                        WHEN tc_adj.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                        WHEN tc_adj.responsibility IN ('CUSTOMER', 'CASHIER')
+                          OR tc_adj.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                            THEN COALESCE(tc_adj.void_service_fee, 0)
+                        ELSE 0
+                    END
              FROM pos_order_items oi_adj
              JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
              LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
              WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
              ORDER BY ta_adj.created_at DESC
              LIMIT 1) as void_service_fee,
-            (SELECT COALESCE(SUM(tc_adj.lost_sales_void_fee), 0)
+            (SELECT COALESCE(SUM(
+                        CASE WHEN tc_adj.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+                             THEN COALESCE(NULLIF(tc_adj.lost_sales_void_fee, 0), tc_adj.void_fee, 0)
+                             ELSE 0 END
+                    ), 0)
              FROM pos_order_items oi_adj
              JOIN ticket_adjustments ta_adj ON ta_adj.transaction_id = oi_adj.reference_id
              LEFT JOIN ticket_cancellations tc_adj ON tc_adj.cancellation_id = ta_adj.cancellation_id
@@ -283,7 +299,7 @@ if ($useOrdersTable) {
              ORDER BY ta_adj.created_at DESC
              LIMIT 1) as adjustment_reason_category,
             (SELECT COALESCE(SUM(
-                        CASE WHEN tc_void.reason_category = 'PRINTER_ERROR' THEN COALESCE(tt_void.total_amount, 0) ELSE 0 END
+                        CASE WHEN tc_void.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN COALESCE(tt_void.total_amount, 0) ELSE 0 END
                     ), 0)
              FROM pos_order_items oi_void
              JOIN ticket_transactions tt_void ON tt_void.transaction_id = oi_void.reference_id
@@ -359,6 +375,7 @@ if ($useOrdersTable) {
                     st.description as service_name, st_type.name as service_type_name, st.status as service_status,
                     pa.fullname as passenger_name,
                     tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
+                    pt_op.type_label as provider_type_label,
                     tp_parent.provider_name as parent_provider_name,
                     pv.variant_name as variant_name, pv.variant_code as variant_code,
                     tp_wallet.provider_name as wallet_provider_name,
@@ -370,6 +387,7 @@ if ($useOrdersTable) {
              LEFT JOIN service_types st_type ON st.service_type_id = st_type.service_type_id
              LEFT JOIN passenger_accounts pa ON COALESCE(tt.passenger_id, st.passenger_id) = pa.passenger_id
              LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN provider_types pt_op ON pt_op.type_code = tp_op.provider_type
              LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
              LEFT JOIN provider_ticket_variants pv ON oi.variant_id = pv.variant_id
              LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
@@ -444,22 +462,23 @@ if ($useOrdersTable) {
         $where  = [];
         $params = [];
 
-        if ($userRoleCode !== 'SUPER_ADMIN' && !empty($branchIds)) {
-            $branchPlaceholders = [];
-            foreach ($branchIds as $index => $allowedBranchId) {
-                $placeholder = ':ticket_branch_id_' . $index;
-                $branchPlaceholders[] = $placeholder;
-                $params['ticket_branch_id_' . $index] = $allowedBranchId;
-            }
-            $where[] = 'tt.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
+        if ($allowedBranchIds !== null) {
+            if (!$allowedBranchIds) {
+                $where[] = '1 = 0';
+            } else {
+                $branchPlaceholders = [];
+                foreach ($allowedBranchIds as $index => $allowedBranchId) {
+                    $placeholder = ':ticket_branch_id_' . $index;
+                    $branchPlaceholders[] = $placeholder;
+                    $params['ticket_branch_id_' . $index] = $allowedBranchId;
+                }
+                $where[] = 'tt.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
 
-            if (!$canViewBranchTransactions) {
-                $where[] = 'tt.created_by = :created_by';
-                $params['created_by'] = $user['user_id'];
+                if (!$canViewBranchTransactions) {
+                    $where[] = 'tt.created_by = :created_by';
+                    $params['created_by'] = $user['user_id'];
+                }
             }
-        } elseif ($userRoleCode !== 'SUPER_ADMIN') {
-            $where[] = 'tt.created_by = :created_by';
-            $params['created_by'] = $user['user_id'];
         }
         if ($search) {
             $where[] = '(tt.transaction_code LIKE :ticket_search_code OR pa.fullname LIKE :ticket_search_passenger)';
@@ -480,6 +499,7 @@ if ($useOrdersTable) {
                     'TICKET' as transaction_type,
                     pa.fullname as passenger_name, b.branch_name,
                     tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
+                    pt_op.type_label as provider_type_label,
                     tp_parent.provider_name as parent_provider_name,
                     pv.variant_name as variant_name, pv.variant_code as variant_code,
                     tp_wallet.provider_name as wallet_provider_name,
@@ -516,22 +536,23 @@ if ($useOrdersTable) {
         $whereS  = [];
         $paramsS = [];
 
-        if ($userRoleCode !== 'SUPER_ADMIN' && !empty($branchIds)) {
-            $branchPlaceholders = [];
-            foreach ($branchIds as $index => $allowedBranchId) {
-                $placeholder = ':service_branch_id_' . $index;
-                $branchPlaceholders[] = $placeholder;
-                $paramsS['service_branch_id_' . $index] = $allowedBranchId;
-            }
-            $whereS[] = 'st.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
+        if ($allowedBranchIds !== null) {
+            if (!$allowedBranchIds) {
+                $whereS[] = '1 = 0';
+            } else {
+                $branchPlaceholders = [];
+                foreach ($allowedBranchIds as $index => $allowedBranchId) {
+                    $placeholder = ':service_branch_id_' . $index;
+                    $branchPlaceholders[] = $placeholder;
+                    $paramsS['service_branch_id_' . $index] = $allowedBranchId;
+                }
+                $whereS[] = 'st.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
 
-            if (!$canViewBranchTransactions) {
-                $whereS[] = 'st.created_by = :created_by';
-                $paramsS['created_by'] = $user['user_id'];
+                if (!$canViewBranchTransactions) {
+                    $whereS[] = 'st.created_by = :created_by';
+                    $paramsS['created_by'] = $user['user_id'];
+                }
             }
-        } elseif ($userRoleCode !== 'SUPER_ADMIN') {
-            $whereS[] = 'st.created_by = :created_by';
-            $paramsS['created_by'] = $user['user_id'];
         }
         if ($search) {
             $whereS[] = '(st.transaction_code LIKE :service_search_code OR st.description LIKE :service_search_description)';

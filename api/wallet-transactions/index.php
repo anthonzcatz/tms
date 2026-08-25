@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -62,15 +63,14 @@ if (!$canViewTransactions) {
 }
 
 // Get user branch for filtering
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 
 function canAccessBranch($branchId) {
-    global $userRoleCode, $userBranchId;
-    if ($userRoleCode === 'SUPER_ADMIN') return true;
-    if (!$branchId || !$userBranchId) return false;
-    $allowed = array_filter(array_map('intval', explode(',', $userBranchId)));
-    return in_array((int)$branchId, $allowed);
+    global $user;
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    return $allowedBranchIds === null
+        || ($branchId && in_array((int) $branchId, $allowedBranchIds, true));
 }
 
 // CSRF protection for POST/PUT/DELETE requests
@@ -165,8 +165,8 @@ function handleGet() {
                        ua.username as created_by_username,
                        CONCAT(
                            COALESCE(e.first_name, 'System'),
-                           CASE 
-                               WHEN e.middle_name IS NOT NULL AND e.middle_name != '' 
+                           CASE
+                               WHEN e.middle_name IS NOT NULL AND e.middle_name != ''
                                THEN CONCAT(' ', UPPER(LEFT(e.middle_name, 1)), '.')
                                ELSE ''
                            END,
@@ -200,7 +200,7 @@ function handleGet() {
                 LEFT JOIN passenger_accounts pa ON tt.passenger_id = pa.passenger_id
                 LEFT JOIN provider_ticket_variants pv ON tt.variant_id = pv.variant_id
                 WHERE wt.wallet_txn_id = :txn_id";
-        
+
         $txn = Database::fetch($sql, ['txn_id' => (int)$txnId]);
 
         if (!$txn) {
@@ -223,18 +223,8 @@ function handleGet() {
     $params = [];
 
     // SUPER_ADMIN can see all transactions, others are restricted to their branch
-    global $userRoleCode, $userBranchId;
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        $branchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
-        if (!empty($branchIds)) {
-            $branchPlaceholders = [];
-            foreach ($branchIds as $i => $branchId) {
-                $branchPlaceholders[] = ':user_branch_' . $i;
-                $params['user_branch_' . $i] = $branchId;
-            }
-            $where[] = "pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
-        }
-    }
+    global $user;
+    PosAccess::applyBranchScope($where, $params, 'pw.branch_id', $user, 'wallet_transaction_branch');
 
     if ($walletId) {
         $where[] = 'wt.wallet_id = :wallet_id';
@@ -489,7 +479,7 @@ function handlePost() {
 
         // Get wallet details for threshold check
         $wallet = Database::fetch(
-            "SELECT pw.*, tp.provider_name, bb.branch_name 
+            "SELECT pw.*, tp.provider_name, bb.branch_name
              FROM provider_wallets pw
              LEFT JOIN ticket_providers tp ON pw.provider_id = tp.provider_id
              LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
@@ -504,10 +494,10 @@ function handlePost() {
             if ($balanceAfter < $lowBalanceThreshold && $direction === 'OUT') {
                 // Notify wallet owner / branch admin users (SUPER_ADMIN handled separately below)
                 $providerAdmins = Database::fetchAll(
-                    "SELECT ua.user_id 
+                    "SELECT ua.user_id
                      FROM user_accounts ua
                      JOIN user_roles r ON ua.role_id = r.role_id
-                     WHERE ua.branch_id = :branch_id 
+                     WHERE ua.branch_id = :branch_id
                      AND r.role_code = 'ADMIN'
                      AND ua.status = 'active'",
                     ['branch_id' => $wallet['branch_id']]

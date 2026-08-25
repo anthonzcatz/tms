@@ -2,6 +2,7 @@
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 
 header('Content-Type: application/json');
 
@@ -33,30 +34,27 @@ try {
     // and every chart bucket use the exact same branch scope.
     $branchWhere = '';
     $branchParams = [];
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
     if ($branchId !== null) {
-        if ($user['role_code'] !== 'SUPER_ADMIN') {
-            $allowedBranchIds = array_map('intval', array_filter(explode(',', $user['branch_id'] ?? ''), function ($id) {
-                return trim($id) !== '';
-            }));
-            if (!in_array((int)$branchId, $allowedBranchIds, true)) {
-                echo json_encode(['success' => false, 'error' => 'Access denied for this branch']);
-                exit;
-            }
+        try {
+            PosAccess::assertBranchAccess($user, (int) $branchId);
+        } catch (Throwable $e) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
         }
-
         $branchWhere = ' AND po.branch_id = :branch_id';
-        $branchParams['branch_id'] = (int)$branchId;
-    } elseif ($user['role_code'] !== 'SUPER_ADMIN' && !empty($user['branch_id'])) {
-        $branchIds = array_filter(explode(',', $user['branch_id']), function ($id) {
-            return trim($id) !== '';
-        });
-        $branchPlaceholders = [];
-        foreach ($branchIds as $index => $id) {
-            $key = 'user_branch_' . $index;
-            $branchPlaceholders[] = ':' . $key;
-            $branchParams[$key] = trim($id);
-        }
-        if ($branchPlaceholders) {
+        $branchParams['branch_id'] = (int) $branchId;
+    } elseif ($allowedBranchIds !== null) {
+        if (!$allowedBranchIds) {
+            $branchWhere = ' AND 1 = 0';
+        } else {
+            $branchPlaceholders = [];
+            foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+                $key = 'user_branch_' . $index;
+                $branchPlaceholders[] = ':' . $key;
+                $branchParams[$key] = $allowedBranchId;
+            }
             $branchWhere = ' AND po.branch_id IN (' . implode(',', $branchPlaceholders) . ')';
         }
     }

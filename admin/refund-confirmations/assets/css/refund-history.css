@@ -1,0 +1,85 @@
+.refund-history-summary-card {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.refund-history-summary-card:hover {
+    box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+}
+
+.search-box {
+    position: relative;
+}
+
+.search-input {
+    padding-left: 2.5rem;
+}
+
+.search-icon {
+    color: #9da9bb;
+    left: 0.9rem;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.refund-history-table {
+    min-width: 1150px;
+}
+
+.refund-history-table th {
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.refund-history-table td {
+    font-size: 0.82rem;
+}
+
+.refund-history-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.detail-row {
+    align-items: flex-start;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: 0.55rem 0;
+}
+
+.detail-row:last-child {
+    border-bottom: 0;
+}
+
+.detail-row strong {
+    text-align: right;
+}
+
+#refundHistoryDetailModal .modal-header.bg-primary .modal-title {
+    color: #ffffff !important;
+}
+
+@media (max-width: 576px) {
+    .refund-history-table {
+        min-width: 1050px;
+    }
+
+    .refund-history-table th,
+    .refund-history-table td {
+        padding: 0.55rem 0.65rem;
+    }
+
+    .detail-row {
+        display: block;
+    }
+
+    .detail-row strong {
+        display: block;
+        margin-top: 0.15rem;
+        text-align: left;
+    }
+}

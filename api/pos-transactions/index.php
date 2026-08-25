@@ -101,7 +101,23 @@ if ($filterBranchId) {
     $params['branch_filter_id'] = (int) $filterBranchId;
 }
 
-if ($filterStatus !== 'all') {
+if ($filterStatus === 'refunded') {
+    $where[] = "(
+        COALESCE(o.total_refunded_amount, 0) > 0
+        OR EXISTS (
+            SELECT 1
+            FROM pos_order_items oi_refund_filter
+            INNER JOIN ticket_transactions tt_refund_filter
+                ON tt_refund_filter.transaction_id = oi_refund_filter.reference_id
+            INNER JOIN ticket_cancellations tc_refund_filter
+                ON tc_refund_filter.transaction_id = tt_refund_filter.transaction_id
+            WHERE oi_refund_filter.order_id = o.order_id
+              AND oi_refund_filter.item_type = 'TICKET'
+              AND tc_refund_filter.operation_type = 'REFUND'
+              AND tc_refund_filter.status = 'completed'
+        )
+    )";
+} elseif ($filterStatus !== 'all') {
     $where[]          = 'o.status = :status';
     $params['status'] = $filterStatus;
 }
@@ -194,12 +210,72 @@ if ($filterSearch) {
 
 $whereClause = implode(' AND ', $where);
 
+$refundWhere = [];
+$refundParams = $params;
+unset($refundParams['date_from'], $refundParams['date_to_exclusive'], $refundParams['cashier_id']);
+foreach ($where as $condition) {
+    if (in_array($condition, ['o.created_at >= :date_from', 'o.created_at < :date_to_exclusive'], true)) {
+        continue;
+    }
+    if ($condition === 'o.created_by = :cashier_id') {
+        $refundWhere[] = 'COALESCE(tr.processed_by, tc.approved_by, tc.requested_by) = :refund_cashier_id';
+        $refundParams['refund_cashier_id'] = (int)($params['cashier_id'] ?? 0);
+        continue;
+    }
+    $refundWhere[] = $condition;
+}
+$refundProcessedAtExpression = 'COALESCE(tc.processed_at, tr.processed_at)';
+if ($filterDateFrom) {
+    $refundWhere[] = $refundProcessedAtExpression . ' >= :refund_date_from';
+    $refundParams['refund_date_from'] = $filterDateFrom . ' 00:00:00';
+}
+if ($filterDateTo) {
+    $refundWhere[] = $refundProcessedAtExpression . ' < :refund_date_to_exclusive';
+    $refundParams['refund_date_to_exclusive'] = DateTimeImmutable::createFromFormat('!Y-m-d', $filterDateTo)
+        ->modify('+1 day')
+        ->format('Y-m-d H:i:s');
+}
+$refundWhereClause = implode(' AND ', $refundWhere);
+
 $baseFrom = "FROM pos_orders o
     LEFT JOIN business_branches b ON o.branch_id = b.branch_id
     LEFT JOIN user_accounts ua ON o.created_by = ua.user_id
     LEFT JOIN employees e ON ua.emp_id = e.emp_id
     LEFT JOIN bir_or_numbers orn ON o.or_number_id = orn.or_id
-    LEFT JOIN bir_vat_transactions vt ON o.order_id = vt.order_id";
+    LEFT JOIN bir_vat_transactions vt ON o.order_id = vt.order_id
+    LEFT JOIN (
+        SELECT
+            oi_refund.order_id,
+            COUNT(DISTINCT tc_refund.cancellation_id) AS refund_count,
+            MAX(COALESCE(tc_refund.processed_at, tr_refund.processed_at)) AS refund_processed_at,
+            COALESCE(SUM(COALESCE(
+                NULLIF(tr_refund.refund_amount, 0),
+                NULLIF(tc_refund.refund_amount, 0),
+                NULLIF(tc_refund.gross_refund_amount, 0),
+                0
+            )), 0) AS refund_amount,
+            GROUP_CONCAT(DISTINCT COALESCE(
+                NULLIF(CONCAT_WS(' ',
+                    NULLIF(TRIM(e_refund.first_name), ''),
+                    IF(e_refund.middle_name IS NOT NULL AND e_refund.middle_name != '', CONCAT(UPPER(LEFT(e_refund.middle_name, 1)), '.'), NULL),
+                    NULLIF(TRIM(e_refund.last_name), '')
+                ), ''),
+                ua_refund.username,
+                'Unassigned'
+            ) SEPARATOR ', ') AS refund_processor_names
+        FROM pos_order_items oi_refund
+        INNER JOIN ticket_transactions tt_refund ON tt_refund.transaction_id = oi_refund.reference_id
+        INNER JOIN ticket_cancellations tc_refund ON tc_refund.transaction_id = tt_refund.transaction_id
+        LEFT JOIN ticket_refunds tr_refund ON tr_refund.cancellation_id = tc_refund.cancellation_id
+        LEFT JOIN user_accounts ua_refund
+            ON ua_refund.user_id = COALESCE(tr_refund.processed_by, tc_refund.approved_by, tc_refund.requested_by)
+        LEFT JOIN employees e_refund ON e_refund.emp_id = ua_refund.emp_id
+        WHERE oi_refund.item_type = 'TICKET'
+          AND tc_refund.operation_type = 'REFUND'
+          AND tc_refund.status = 'completed'
+          AND COALESCE(tc_refund.processed_at, tr_refund.processed_at) IS NOT NULL
+        GROUP BY oi_refund.order_id
+    ) refund_summary ON refund_summary.order_id = o.order_id";
 
 $markerFrom = "FROM pos_orders o
     LEFT JOIN business_branches b ON o.branch_id = b.branch_id
@@ -220,7 +296,15 @@ $markerRow = Database::fetch(
         MAX(marker_ta.approved_at) AS latest_adjustment_approved_at,
         MAX(marker_tc.requested_at) AS latest_cancellation_requested_at,
         MAX(marker_tc.approved_at) AS latest_cancellation_approved_at,
-        MAX(marker_tc.processed_at) AS latest_cancellation_processed_at
+        MAX(marker_tc.processed_at) AS latest_cancellation_processed_at,
+        (SELECT MAX(COALESCE(marker_refund_tc.processed_at, marker_refund_tr.processed_at))
+         FROM ticket_cancellations marker_refund_tc
+         LEFT JOIN ticket_refunds marker_refund_tr
+           ON marker_refund_tr.cancellation_id = marker_refund_tc.cancellation_id
+         WHERE marker_refund_tc.operation_type = 'REFUND'
+           AND marker_refund_tc.status = 'completed'
+           AND COALESCE(marker_refund_tc.processed_at, marker_refund_tr.processed_at) IS NOT NULL
+        ) AS latest_refund_processed_at
      $markerFrom
      WHERE $whereClause",
     $params
@@ -236,6 +320,7 @@ $marker = [
     'latest_cancellation_requested_at' => (string)($markerRow['latest_cancellation_requested_at'] ?? ''),
     'latest_cancellation_approved_at' => (string)($markerRow['latest_cancellation_approved_at'] ?? ''),
     'latest_cancellation_processed_at' => (string)($markerRow['latest_cancellation_processed_at'] ?? ''),
+    'latest_refund_processed_at' => (string)($markerRow['latest_refund_processed_at'] ?? ''),
 ];
 
 if ($checkOnly) {
@@ -266,7 +351,11 @@ $rows = Database::fetchAll(
         o.discount_total,
         o.total_cost,
         o.total_service_fees,
-        COALESCE(o.total_refunded_amount, 0) AS total_refunded_amount,
+        o.total_add_ons,
+        GREATEST(COALESCE(o.total_refunded_amount, 0), COALESCE(refund_summary.refund_amount, 0)) AS total_refunded_amount,
+        COALESCE(refund_summary.refund_count, 0) AS refund_count,
+        refund_summary.refund_processed_at,
+        refund_summary.refund_processor_names,
         o.amount_paid,
         o.change_amount,
         o.total_profit,
@@ -278,7 +367,12 @@ $rows = Database::fetchAll(
         o.created_by,
         b.branch_name,
         b.branch_code,
-        COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username, o.cashier_name) AS cashier_full_name,
+        COALESCE(CONCAT_WS(' ',
+            e.first_name,
+            IF(e.middle_name IS NOT NULL AND e.middle_name != '',
+                CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), NULL),
+            e.last_name
+        ), ua.username, o.cashier_name) AS cashier_full_name,
         (SELECT COUNT(*) FROM pos_order_items oi2 WHERE oi2.order_id = o.order_id AND oi2.item_type = 'TICKET') AS ticket_count,
         (SELECT COUNT(*) FROM pos_order_items oi3 WHERE oi3.order_id = o.order_id AND oi3.item_type = 'SERVICE') AS service_count,
         (SELECT GROUP_CONCAT(DISTINCT pa2.fullname SEPARATOR ', ')
@@ -298,19 +392,20 @@ $rows = Database::fetchAll(
            AND (oi4.ticket_number IS NOT NULL OR tt4.ticket_number IS NOT NULL)) AS ticket_numbers,
         (SELECT GROUP_CONCAT(DISTINCT COALESCE(
             CASE
-                WHEN pv.variant_name IS NOT NULL AND pv.variant_name != '' THEN CONCAT(pv.variant_name, IF(tp_op.provider_type IS NOT NULL AND tp_op.provider_type != '', CONCAT(' (', tp_op.provider_type, ')'), ''))
-                WHEN tp_parent.provider_name IS NOT NULL AND tp_parent.provider_name != '' THEN CONCAT(tp_parent.provider_name, ' - ', tp_op.provider_name, IF(tp_op.provider_type IS NOT NULL AND tp_op.provider_type != '', CONCAT(' (', tp_op.provider_type, ')'), ''))
-                ELSE CONCAT(tp_op.provider_name, IF(tp_op.provider_type IS NOT NULL AND tp_op.provider_type != '', CONCAT(' (', tp_op.provider_type, ')'), ''))
+                WHEN pv.variant_id IS NOT NULL THEN CONCAT(COALESCE(NULLIF(pv.variant_code, ''), pv.variant_name, ''), IF(pt_op.type_label IS NOT NULL AND pt_op.type_label != '', CONCAT(' (', pt_op.type_label, ')'), ''))
+                WHEN tp_parent.provider_name IS NOT NULL AND tp_parent.provider_name != '' THEN CONCAT(tp_parent.provider_name, ' - ', tp_op.provider_name, IF(pt_op.type_label IS NOT NULL AND pt_op.type_label != '', CONCAT(' (', pt_op.type_label, ')'), ''))
+                ELSE CONCAT(tp_op.provider_name, IF(pt_op.type_label IS NOT NULL AND pt_op.type_label != '', CONCAT(' (', pt_op.type_label, ')'), ''))
             END, ''
          ) SEPARATOR ', ')
          FROM pos_order_items oi5
          LEFT JOIN ticket_transactions tt5 ON oi5.reference_id = tt5.transaction_id AND oi5.item_type = 'TICKET'
          LEFT JOIN ticket_providers tp_op ON tt5.provider_id = tp_op.provider_id
          LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
+         LEFT JOIN provider_types pt_op ON pt_op.type_code = tp_op.provider_type
          LEFT JOIN provider_ticket_variants pv ON tt5.variant_id = pv.variant_id
          WHERE oi5.order_id = o.order_id) AS provider_names,
         (SELECT GROUP_CONCAT(DISTINCT COALESCE(
-            CONCAT_WS(' - ', wallet_tp2.provider_name, pv_wallet.variant_name), ''
+            CONCAT_WS(' - ', wallet_tp2.provider_name, NULLIF(COALESCE(NULLIF(pv_wallet.variant_code, ''), pv_wallet.variant_name), '')), ''
          ) SEPARATOR ', ')
          FROM pos_order_items oi5_wallet
          LEFT JOIN ticket_transactions tt5_wallet ON oi5_wallet.reference_id = tt5_wallet.transaction_id AND oi5_wallet.item_type = 'TICKET'
@@ -362,7 +457,7 @@ $rows = Database::fetchAll(
          ORDER BY ta.created_at DESC
          LIMIT 1) AS adjustment_reason_category,
         (SELECT COALESCE(SUM(
-                    CASE WHEN tc.reason_category = 'PRINTER_ERROR' THEN COALESCE(tt.total_amount, 0) ELSE 0 END
+                    CASE WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN COALESCE(tt.total_amount, 0) ELSE 0 END
                 ), 0)
          FROM pos_order_items oi_technical_void
          JOIN ticket_transactions tt ON tt.transaction_id = oi_technical_void.reference_id
@@ -372,7 +467,13 @@ $rows = Database::fetchAll(
            AND tc.operation_type = 'VOID'
            AND tc.status = 'completed') AS technical_void_amount,
         (SELECT COALESCE(SUM(
-                    CASE WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0 ELSE COALESCE(tc.void_fee, 0) END
+                    CASE
+                                WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                                WHEN tc.responsibility IN ('CUSTOMER', 'CASHIER')
+                                  OR tc.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                                    THEN COALESCE(tc.void_fee, 0)
+                                ELSE 0
+                            END
                 ), 0)
          FROM pos_order_items oi_adj
          JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
@@ -382,7 +483,13 @@ $rows = Database::fetchAll(
            AND tc.operation_type = 'VOID'
            AND tc.status = 'completed') AS void_fee,
         (SELECT COALESCE(SUM(
-                    CASE WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0 ELSE tc.void_service_fee END
+                    CASE
+                                WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                                WHEN tc.responsibility IN ('CUSTOMER', 'CASHIER')
+                                  OR tc.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                                    THEN COALESCE(tc.void_service_fee, 0)
+                                ELSE 0
+                            END
                 ), 0)
          FROM pos_order_items oi_adj
          JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
@@ -392,8 +499,8 @@ $rows = Database::fetchAll(
            AND tc.operation_type = 'VOID'
            AND tc.status = 'completed') AS void_service_fee,
         (SELECT COALESCE(SUM(
-                    CASE WHEN tc.reason_category = 'PRINTER_ERROR'
-                         THEN COALESCE(tc.lost_sales_void_fee, 0)
+                    CASE WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+                         THEN COALESCE(NULLIF(tc.lost_sales_void_fee, 0), tc.void_fee, 0)
                          ELSE 0 END
                 ), 0)
          FROM pos_order_items oi_adj
@@ -404,7 +511,7 @@ $rows = Database::fetchAll(
            AND tc.operation_type = 'VOID'
            AND tc.status = 'completed') AS lost_sales_void_fee,
         (SELECT COALESCE(SUM(
-                    CASE WHEN tc.reason_category = 'PRINTER_ERROR'
+                    CASE WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
                          THEN COALESCE(tc.lost_sales_service_fee, 0) + COALESCE(tc.void_service_fee, 0)
                          ELSE 0 END
                 ), 0)
@@ -415,7 +522,12 @@ $rows = Database::fetchAll(
            AND oi_adj.item_type = 'TICKET'
            AND tc.operation_type = 'VOID'
            AND tc.status = 'completed') AS lost_sales_service_fee,
-        (SELECT COALESCE(CONCAT_WS(' ', e_adj.first_name, e_adj.last_name), ua_adj.username)
+        (SELECT COALESCE(CONCAT_WS(' ',
+            e_adj.first_name,
+            IF(e_adj.middle_name IS NOT NULL AND e_adj.middle_name != '',
+                CONCAT(UPPER(LEFT(e_adj.middle_name, 1)), '.'), NULL),
+            e_adj.last_name
+        ), ua_adj.username)
          FROM pos_order_items oi_adj
          JOIN ticket_adjustments ta ON ta.transaction_id = oi_adj.reference_id
          LEFT JOIN user_accounts ua_adj ON ua_adj.user_id = ta.responsible_user_id
@@ -455,6 +567,7 @@ foreach ($rows as &$row) {
     unset($row['payment_methods_json']);
     $row['ticket_count']  = (int)$row['ticket_count'];
     $row['service_count'] = (int)$row['service_count'];
+    $row['refund_count'] = (int)($row['refund_count'] ?? 0);
     $row['has_cancellation'] = (int)$row['has_cancellation'] > 0;
     
     // Encode order_id if encryption is enabled
@@ -470,21 +583,27 @@ $stats = Database::fetch(
         COUNT(DISTINCT o.order_id) AS total_orders,
         SUM(CASE WHEN o.status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
         SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count,
-        SUM(CASE WHEN o.status = 'refunded'  THEN 1 ELSE 0 END) AS refunded_count,
+        SUM(CASE WHEN o.status = 'refunded' OR COALESCE(refund_summary.refund_amount, 0) > 0 THEN 1 ELSE 0 END) AS refunded_count,
         COALESCE(SUM(
             GREATEST(
                 0,
                 COALESCE(o.original_grand_total, o.grand_total)
-                - COALESCE(o.total_refunded_amount, 0)
+                - GREATEST(COALESCE(o.total_refunded_amount, 0), COALESCE(refund_summary.refund_amount, 0))
                 - COALESCE((
                     SELECT SUM(
-                        CASE
-                            WHEN tc_void.reason_category = 'PRINTER_ERROR'
-                            THEN COALESCE(tc_void.lost_sales_void_fee, 0)
-                            ELSE COALESCE(tt_void.total_amount, 0)
-                                - COALESCE(tc_void.void_fee, 0)
-                                - COALESCE(tc_void.void_service_fee, 0)
-                        END
+                        COALESCE(tt_void.total_amount, 0)
+                        + CASE
+                            WHEN tc_void.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+                            THEN COALESCE(NULLIF(tc_void.lost_sales_void_fee, 0), tc_void.void_fee, 0)
+                            ELSE 0
+                          END
+                        - CASE
+                            WHEN tc_void.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                            WHEN tc_void.responsibility IN ('CUSTOMER', 'CASHIER')
+                              OR tc_void.reason_category IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                                THEN COALESCE(tc_void.void_fee, 0) + COALESCE(tc_void.void_service_fee, 0)
+                            ELSE 0
+                          END
                     )
                     FROM pos_order_items oi_void
                     JOIN ticket_transactions tt_void
@@ -498,10 +617,10 @@ $stats = Database::fetch(
                 ), 0)
             )
         ), 0) AS total_revenue,
-        SUM(COALESCE(o.total_refunded_amount, 0))            AS total_refunded,
-        SUM(COALESCE(o.total_profit, 0))                     AS total_profit
-     FROM pos_orders o
-     LEFT JOIN business_branches b ON o.branch_id = b.branch_id
+        SUM(COALESCE(o.original_grand_total, o.grand_total)) AS total_gross,
+        SUM(GREATEST(COALESCE(o.total_refunded_amount, 0), COALESCE(refund_summary.refund_amount, 0))) AS total_refunded,
+        SUM(COALESCE(o.total_service_fees, 0) + COALESCE(o.total_add_ons, 0)) AS total_profit
+     $baseFrom
      WHERE $whereClause",
     $params
 );
@@ -650,6 +769,7 @@ if ($includeFinancialReport) {
     $totalTickets = 0;
     $totalCost = 0.0;
     $totalServiceFeeIncome = 0.0;
+    $totalAddOns = 0.0;
     $totalAmount = 0.0;
     foreach ($providerSalesRows as $providerSalesRow) {
         $providerRow = [
@@ -658,6 +778,7 @@ if ($includeFinancialReport) {
             'tickets' => (int)($providerSalesRow['tickets'] ?? 0),
             'total_cost' => round((float)($providerSalesRow['total_cost'] ?? 0), 2),
             'service_fee_income' => round((float)($providerSalesRow['service_fee_income'] ?? 0), 2),
+            'add_ons' => 0.0,
             'total_amount' => round((float)($providerSalesRow['total_amount'] ?? 0), 2)
         ];
         $providerSales[] = $providerRow;
@@ -674,11 +795,12 @@ if ($includeFinancialReport) {
             'provider_name' => 'Services / Add-ons',
             'tickets' => 0,
             'total_cost' => 0.0,
-            'service_fee_income' => $serviceAmount,
+            'service_fee_income' => 0.0,
+            'add_ons' => $serviceAmount,
             'total_amount' => $serviceAmount,
             'is_service' => true
         ];
-        $totalServiceFeeIncome += $serviceAmount;
+        $totalAddOns += $serviceAmount;
         $totalAmount += $serviceAmount;
     }
 
@@ -687,19 +809,26 @@ if ($includeFinancialReport) {
             COALESCE(tp.provider_id, 0) AS provider_id,
             COALESCE(NULLIF(tp.provider_name, ''), 'Unassigned') AS provider_name,
             COUNT(DISTINCT tc.cancellation_id) AS refund_count,
-            COALESCE(SUM(COALESCE(NULLIF(tc.gross_refund_amount, 0), tc.refund_amount)), 0) AS amount
+            COALESCE(SUM(COALESCE(
+                NULLIF(tr.refund_amount, 0),
+                NULLIF(tc.refund_amount, 0),
+                NULLIF(tc.gross_refund_amount, 0),
+                0
+            )), 0) AS amount
          $financialFrom
          INNER JOIN pos_order_items oi
             ON oi.order_id = o.order_id AND oi.item_type = 'TICKET'
          INNER JOIN ticket_transactions tt ON tt.transaction_id = oi.reference_id
          INNER JOIN ticket_cancellations tc ON tc.transaction_id = tt.transaction_id
+         LEFT JOIN ticket_refunds tr ON tr.cancellation_id = tc.cancellation_id
          LEFT JOIN ticket_providers tp ON tp.provider_id = COALESCE(tt.provider_id, oi.provider_id)
-         WHERE $financialSaleWhere
+         WHERE $refundWhereClause
            AND tc.status = 'completed'
            AND tc.operation_type = 'REFUND'
+           AND $refundProcessedAtExpression IS NOT NULL
          GROUP BY tp.provider_id, tp.provider_name
          ORDER BY provider_name",
-        $params
+        $refundParams
     );
 
     $salesRefunds = [];
@@ -722,6 +851,7 @@ if ($includeFinancialReport) {
         'total_tickets' => $totalTickets,
         'total_cost' => round($totalCost, 2),
         'total_service_fee_income' => round($totalServiceFeeIncome, 2),
+        'total_add_ons' => round($totalAddOns, 2),
         'total_amount' => round($totalAmount, 2),
         'service_units' => (int)($serviceSalesRow['service_units'] ?? 0),
         'service_amount' => $serviceAmount,
@@ -750,22 +880,27 @@ if ($allowedBranchIds !== null) {
     }
 }
 $branches = Database::fetchAll(
-    "SELECT branch_id, branch_name FROM business_branches $branchFilterSql ORDER BY branch_name",
+    "SELECT branch_id, branch_name,
+            street_address, barangay_name, city_municipality_name,
+            province_name, region_name, zip_code, contact_number
+     FROM business_branches $branchFilterSql ORDER BY branch_name",
     $branchFilterParams
 );
 
 $providers = Database::fetchAll(
-    "SELECT provider_id, provider_name, provider_type
-     FROM ticket_providers
-     WHERE status = 'active'
-     ORDER BY provider_name"
+    "SELECT tp.provider_id, tp.provider_name, tp.provider_type,
+            pt.type_label AS provider_type_label
+     FROM ticket_providers tp
+     LEFT JOIN provider_types pt ON pt.type_code = tp.provider_type
+     WHERE tp.status = 'active'
+     ORDER BY tp.provider_name"
 );
 
 $providerTypes = Database::fetchAll(
-    "SELECT DISTINCT provider_type
-     FROM ticket_providers
-     WHERE provider_type IS NOT NULL AND provider_type != ''
-     ORDER BY provider_type"
+    "SELECT type_code AS provider_type, type_label
+     FROM provider_types
+     WHERE is_active = 1
+     ORDER BY type_label"
 );
 
 $cashierWhere = '';
@@ -785,10 +920,17 @@ if ($allowedBranchIds !== null) {
 }
 $cashiers = Database::fetchAll(
     "SELECT DISTINCT o.created_by AS user_id,
-            COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username, o.cashier_name) AS cashier_name
+            COALESCE(CONCAT_WS(' ',
+                e.first_name,
+                IF(e.middle_name IS NOT NULL AND e.middle_name != '',
+                    CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), NULL),
+                e.last_name
+            ), ua.username, o.cashier_name) AS cashier_name,
+            p.position_name AS cashier_position
      FROM pos_orders o
      LEFT JOIN user_accounts ua ON o.created_by = ua.user_id
      LEFT JOIN employees e ON ua.emp_id = e.emp_id
+     LEFT JOIN position p ON p.pos_id = e.job_title
      $cashierWhere
      ORDER BY cashier_name",
     $cashierParams
@@ -822,7 +964,8 @@ function resolveFinancialReportSignatoryNames(array $signatories, int $branchId)
                     e.job_title AS position_id,
                     CONCAT_WS(' ',
                         NULLIF(TRIM(e.first_name), ''),
-                        NULLIF(TRIM(e.middle_name), ''),
+                        IF(e.middle_name IS NOT NULL AND e.middle_name != '',
+                            CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), NULL),
                         NULLIF(TRIM(e.last_name), '')
                     ) AS full_name,
                     p.position_name

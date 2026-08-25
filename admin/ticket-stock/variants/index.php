@@ -13,7 +13,8 @@ header('Expires: ' . gmdate('D, d M Y H:i:s') . ' GMT');
 
 // Check permission
 $user = Auth::user();
-if ($user && $user['role_code'] === 'SUPER_ADMIN') {
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+if ($user && $userRoleCode === 'SUPER_ADMIN') {
     // Allow access
 } elseif (!Auth::canAccessModule('admin/ticket-stock/variants/')) {
     $message = 'You do not have permission to access the Ticket Variants module.';

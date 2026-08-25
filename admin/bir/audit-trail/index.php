@@ -5,10 +5,12 @@
  */
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(__DIR__) . '/_guard.php';
 
 $user = Auth::user();
-$userRoleCode = $user['role_code'] ?? '';
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 $allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT'];
 if (!in_array($userRoleCode, $allowedRoles)) {
@@ -23,27 +25,34 @@ $userFilter = $_GET['user_id'] ?? '';
 $dateFrom = $_GET['date_from'] ?? date('Y-m-d', strtotime('-7 days'));
 $dateTo = $_GET['date_to'] ?? date('Y-m-d');
 
+$branchWhere = [];
+$params = [
+    'audit_date_from' => $dateFrom,
+    'audit_date_to' => $dateTo,
+];
+PosAccess::applyBranchScope($branchWhere, $params, 'po.branch_id', $user, 'bir_audit_branch');
+$branchFilter = $branchWhere ? ' AND ' . implode(' AND ', $branchWhere) : '';
 $query = "
     SELECT at.*, u.username as user_name, po.order_code, bb.branch_name
     FROM bir_audit_trail at
     LEFT JOIN user_accounts u ON at.user_id = u.user_id
     LEFT JOIN pos_orders po ON at.order_id = po.order_id
     LEFT JOIN business_branches bb ON po.branch_id = bb.branch_id
-    WHERE DATE(at.created_at) BETWEEN ? AND ?
+    WHERE DATE(at.created_at) BETWEEN :audit_date_from AND :audit_date_to
+    {$branchFilter}
 ";
-$params = [$dateFrom, $dateTo];
 
 if ($actionFilter) {
-    $query .= " AND at.action = ?";
-    $params[] = $actionFilter;
+    $query .= " AND at.action = :audit_action";
+    $params['audit_action'] = $actionFilter;
 }
 if ($tableFilter) {
-    $query .= " AND at.table_name = ?";
-    $params[] = $tableFilter;
+    $query .= " AND at.table_name = :audit_table";
+    $params['audit_table'] = $tableFilter;
 }
 if ($userFilter) {
-    $query .= " AND at.user_id = ?";
-    $params[] = $userFilter;
+    $query .= " AND at.user_id = :audit_user";
+    $params['audit_user'] = $userFilter;
 }
 
 $query .= " ORDER BY at.created_at DESC LIMIT 200";

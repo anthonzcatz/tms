@@ -1,34 +1,26 @@
 <?php
 require_once dirname(dirname(__DIR__)) . '/_guard.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 $user = Auth::user();
-if (($user['role_code'] ?? '') !== 'SUPER_ADMIN' && !Auth::can('VIEW_TICKET_STOCK_REQUESTS') && !Auth::canAccessModule('admin/ticket-stock/requests/')) {
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+if ($userRoleCode !== 'SUPER_ADMIN' && !Auth::can('VIEW_TICKET_STOCK_REQUESTS') && !Auth::canAccessModule('admin/ticket-stock/requests/')) {
     $message = 'You do not have permission to access Ticket Stock Requests.';
     include dirname(dirname(__DIR__)) . '/includes/access-denied.php';
     exit;
 }
-$userBranchIds = array_values(array_filter(array_map('intval', explode(',', (string) (Auth::userBranchId() ?? '')))));
-if (($user['role_code'] ?? '') === 'SUPER_ADMIN') {
-    $branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name");
-} elseif ($userBranchIds) {
-    $branchPlaceholders = [];
-    $branchParams = [];
-    foreach ($userBranchIds as $index => $branchId) {
-        $key = 'user_branch_' . $index;
-        $branchPlaceholders[] = ':' . $key;
-        $branchParams[$key] = $branchId;
-    }
-    $branches = Database::fetchAll(
-        "SELECT branch_id, branch_name
-         FROM business_branches
-         WHERE status = 'active'
-           AND branch_id IN (" . implode(',', $branchPlaceholders) . ")
-         ORDER BY branch_name",
-        $branchParams
-    );
-} else {
-    $branches = [];
-}
+$userBranchIds = $allowedBranchIds === null ? [] : $allowedBranchIds;
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'request_branch');
+$branches = Database::fetchAll(
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
+);
 $defaultDestinationBranchId = null;
 foreach ($branches as $branch) {
     if (in_array((int) $branch['branch_id'], $userBranchIds, true)) {
@@ -53,20 +45,7 @@ $variants = Database::fetchAll("SELECT variant_id, provider_id, variant_code, va
 
 $walletWhere = ["pw.status = 'active'"];
 $walletParams = [];
-if (($user['role_code'] ?? '') !== 'SUPER_ADMIN' && !empty($user['branch_id'])) {
-    $branchIds = array_values(array_filter(array_map('intval', explode(',', (string) $user['branch_id']))));
-    if ($branchIds) {
-        $walletPlaceholders = [];
-        foreach ($branchIds as $index => $branchId) {
-            $key = 'wallet_branch_' . $index;
-            $walletPlaceholders[] = ':' . $key;
-            $walletParams[$key] = $branchId;
-        }
-        $walletWhere[] = 'pw.branch_id IN (' . implode(',', $walletPlaceholders) . ')';
-    } else {
-        $walletWhere[] = '1 = 0';
-    }
-}
+PosAccess::applyBranchScope($walletWhere, $walletParams, 'pw.branch_id', $user, 'request_wallet_branch');
 $wallets = Database::fetchAll(
     "SELECT pw.wallet_id, pw.provider_id, pw.branch_id, pw.variant_id,
             pw.current_balance, tp.provider_name,

@@ -11,13 +11,13 @@ final class CashierTransportAccess
 
     /**
      * Return the transportation/provider types that may be assigned to cashiers.
-     * Driven by the live ticket_providers.provider_type enum so new types are
+     * Driven by the active provider_types lookup table so new types are
      * automatically supported without code changes.
      */
     public static function getSupportedTransportTypes(): array
     {
         if (self::$supportedTransportTypes === null) {
-            self::$supportedTransportTypes = Database::getEnumValues('ticket_providers', 'provider_type');
+            self::$supportedTransportTypes = array_column(Database::getProviderTypes(), 'type_code');
         }
         return self::$supportedTransportTypes;
     }

@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PaymentSettlementService.php';
@@ -26,7 +27,19 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
 
 Auth::requireLogin();
 $user = Auth::user();
-$userRoleCode = $user['role_code'] ?? '';
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+
+function requireBankConfirmationBranchAccess(?int $branchId): void
+{
+    global $user;
+    try {
+        PosAccess::assertBranchAccess($user, (int) $branchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -45,8 +58,24 @@ if ($method === 'GET') {
     
     if ($id) {
         $p = Database::fetch("SELECT * FROM transaction_payments WHERE payment_id = :id", ['id' => $id]);
-        if (!$p) {
+        if ($p) {
+            $paymentBranch = Database::fetch(
+                "SELECT COALESCE(tt.branch_id, st.branch_id, cs.branch_id) AS branch_id
+                 FROM transaction_payments tp
+                 LEFT JOIN ticket_transactions tt
+                   ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
+                 LEFT JOIN service_transactions st
+                   ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
+                 LEFT JOIN cashier_sessions cs ON tp.cashier_session_id = cs.session_id
+                 WHERE tp.payment_id = :id",
+                ['id' => $id]
+            );
+            requireBankConfirmationBranchAccess(isset($paymentBranch['branch_id']) ? (int) $paymentBranch['branch_id'] : null);
+        } else {
             $p = Database::fetch("SELECT * FROM charge_payments WHERE charge_payment_id = :id", ['id' => $id]);
+            if ($p) {
+                requireBankConfirmationBranchAccess(isset($p['branch_id']) ? (int) $p['branch_id'] : null);
+            }
         }
         echo json_encode($p ? ['success' => true, 'data' => $p] : ['success' => false, 'error' => 'Not found']);
         return;
@@ -54,6 +83,15 @@ if ($method === 'GET') {
     $status = $_GET['status'] ?? 'PENDING';
     
     // Get transaction_payments with pending confirmation
+    $transactionWhere = ['pm.requires_confirmation = 1', 'tp.confirmation_status = :transaction_status'];
+    $transactionParams = ['transaction_status' => $status];
+    PosAccess::applyBranchScope(
+        $transactionWhere,
+        $transactionParams,
+        'COALESCE(tt.branch_id, st.branch_id)',
+        $user,
+        'bank_confirmation_transaction_branch'
+    );
     $transactionPayments = Database::fetchAll(
         "SELECT tp.*, pm.method_name, pm.method_type,
                 ba.bank_name, ba.account_name, ba.account_number,
@@ -74,20 +112,23 @@ if ($method === 'GET') {
             ON ((tp.source_type = 'TICKET_TRANSACTION' AND oi.item_type = 'TICKET' AND oi.reference_id = tt.transaction_id)
              OR (tp.source_type = 'SERVICE_TRANSACTION' AND oi.item_type = 'SERVICE' AND oi.reference_id = st.service_txn_id))
          LEFT JOIN pos_orders po ON oi.order_id = po.order_id
-         WHERE pm.requires_confirmation = 1 AND tp.confirmation_status = :status
+         WHERE " . implode(' AND ', $transactionWhere) . "
          ORDER BY tp.created_at DESC",
-        ['status' => $status]
+        $transactionParams
     );
     
     // Get charge_payments with pending confirmation
+    $chargeWhere = ['cp.confirmation_status = :charge_status', 'cp.bank_account_id IS NOT NULL'];
+    $chargeParams = ['charge_status' => $status];
+    PosAccess::applyBranchScope($chargeWhere, $chargeParams, 'cp.branch_id', $user, 'bank_confirmation_charge_branch');
     $chargePayments = Database::fetchAll(
         "SELECT cp.*, pm.method_name, ba.bank_name, 'charge' AS source_type
          FROM charge_payments cp
          JOIN payment_methods pm ON cp.payment_method_id = pm.method_id
          LEFT JOIN bank_accounts ba ON cp.bank_account_id = ba.bank_account_id
-         WHERE cp.confirmation_status = :status AND cp.bank_account_id IS NOT NULL
+         WHERE " . implode(' AND ', $chargeWhere) . "
          ORDER BY cp.created_at DESC",
-        ['status' => $status]
+        $chargeParams
     );
     
     // Merge and sort by date
@@ -141,6 +182,9 @@ if ($method === 'PUT') {
                      LEFT JOIN cashier_sessions cs ON tp.cashier_session_id = cs.session_id
                      WHERE tp.payment_id = :id",
                     ['id' => $payId]
+                );
+                requireBankConfirmationBranchAccess(
+                    isset($paymentBranch['branch_id']) ? (int) $paymentBranch['branch_id'] : null
                 );
                 if (!empty($paymentBranch['branch_id'])) {
                     $realtimeBranchIds[] = (int) $paymentBranch['branch_id'];
@@ -268,6 +312,9 @@ if ($method === 'PUT') {
                     "SELECT branch_id FROM bank_accounts WHERE bank_account_id = :bank_account_id",
                     ['bank_account_id' => $existing['bank_account_id']]
                 );
+                requireBankConfirmationBranchAccess(
+                    isset($depositBranch['branch_id']) ? (int) $depositBranch['branch_id'] : null
+                );
                 if (!empty($depositBranch['branch_id'])) {
                     $realtimeBranchIds[] = (int) $depositBranch['branch_id'];
                 }
@@ -325,6 +372,9 @@ if ($method === 'PUT') {
                     return;
                 }
 
+                requireBankConfirmationBranchAccess(
+                    isset($existing['branch_id']) ? (int) $existing['branch_id'] : null
+                );
                 if (!empty($existing['branch_id'])) {
                     $realtimeBranchIds[] = (int) $existing['branch_id'];
                 }

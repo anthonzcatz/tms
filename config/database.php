@@ -25,6 +25,7 @@ if (class_exists('Database')) {
 final class Database
 {
     private static ?PDO $instance = null;
+    private static ?array $providerTypesCache = null;
 
     private function __construct() {}
     private function __clone() {}
@@ -117,6 +118,22 @@ final class Database
         }
 
         return $values;
+    }
+
+    /**
+     * Return active provider types from the provider_types lookup table.
+     */
+    public static function getProviderTypes(): array
+    {
+        if (self::$providerTypesCache === null) {
+            self::$providerTypesCache = self::fetchAll(
+                'SELECT type_code, type_label, type_icon, is_active
+                 FROM provider_types
+                 WHERE is_active = 1
+                 ORDER BY type_label'
+            ) ?: [];
+        }
+        return self::$providerTypesCache;
     }
 }
 

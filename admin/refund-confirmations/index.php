@@ -5,6 +5,7 @@
 
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -29,22 +30,32 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode  = $user['role_code'] ?? '';
-$userBranchId  = $user['branch_id'] ?? null;
-$realtimeBranchIds = $userRoleCode === 'SUPER_ADMIN'
-    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches"), 'branch_id'))
-    : array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
+$userRoleCode  = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId  = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+$realtimeBranchIds = $allowedBranchIds === null
+    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active'"), 'branch_id'))
+    : $allowedBranchIds;
 $pusherConfigured = PusherService::isConfigured();
 $pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';
 $pusherCluster = $pusherConfigured ? env('PUSHER_CLUSTER', 'ap1') : 'ap1';
 
 // Dropdown data for filter selects
-$allBranches = ($userRoleCode === 'SUPER_ADMIN')
-    ? Database::fetchAll("SELECT branch_id, branch_name FROM business_branches ORDER BY branch_name")
-    : [];
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'refund_dropdown_branch');
+$allBranches = Database::fetchAll(
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
+);
 
-$walletBranchFilter = ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) ? "WHERE pw.branch_id = :bid" : "";
-$walletBranchParams = ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) ? ['bid' => $userBranchId] : [];
+$walletWhere = [];
+$walletParams = [];
+PosAccess::applyBranchScope($walletWhere, $walletParams, 'pw.branch_id', $user, 'refund_wallet_branch');
+$walletBranchFilter = $walletWhere ? 'WHERE ' . implode(' AND ', $walletWhere) : '';
 $allWallets = Database::fetchAll(
     "SELECT pw.wallet_id, CONCAT(tp.provider_name, ' - ', bb.branch_name) as wallet_label
      FROM provider_wallets pw
@@ -52,7 +63,7 @@ $allWallets = Database::fetchAll(
      LEFT JOIN business_branches bb ON pw.branch_id = bb.branch_id
      $walletBranchFilter
      ORDER BY tp.provider_name, bb.branch_name",
-    $walletBranchParams
+    $walletParams
 );
 
 include __DIR__ . '/views/index.php';

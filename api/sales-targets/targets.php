@@ -70,8 +70,8 @@ try {
     $startDate = $filter['start_date'];
     $endDate = $filter['end_date'];
     $branchId = $filter['branch_id'];
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
+    $userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+    $userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
 
     $salesStartDate = $startDate;
     $salesEndDate = $endDate;
@@ -146,7 +146,7 @@ try {
         }
         $query .= $allowedPlaceholders
             ? " AND (st.branch_id IS NULL OR st.branch_id IN (" . implode(', ', $allowedPlaceholders) . "))"
-            : ' AND st.branch_id IS NULL';
+            : ' AND 1 = 0';
     }
     
     $query .= " ORDER BY st.target_date DESC, st.branch_id";

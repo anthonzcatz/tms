@@ -5,6 +5,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 
@@ -29,17 +30,15 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode = Auth::userRoleCode() ?? '';
-$userBranchId = Auth::userBranchId();
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
 
 // Fetch bank accounts with branch and payment method info
-$branchFilter = '';
+$accountWhere = [];
 $params = [];
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    // Show company-wide accounts (branch_id IS NULL) AND accounts assigned to user's branch
-    $branchFilter = 'WHERE (ba.branch_id IS NULL OR ba.branch_id = :branch_id)';
-    $params['branch_id'] = $userBranchId;
-}
+PosAccess::applyBranchScope($accountWhere, $params, 'ba.branch_id', $user, 'bank_account_branch');
+$branchFilter = $accountWhere ? 'WHERE ' . implode(' AND ', $accountWhere) : '';
+
 
 $accounts = Database::fetchAll(
     "SELECT ba.*,
@@ -55,8 +54,15 @@ $accounts = Database::fetchAll(
 , $params);
 
 // Fetch branches and payment methods for dropdowns
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'bank_account_dropdown_branch');
 $branches = Database::fetchAll(
-    "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
 );
 $paymentMethods = Database::fetchAll(
     "SELECT method_id, method_name, method_code, method_type

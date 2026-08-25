@@ -42,14 +42,14 @@ function isDescendantOf($descendantId, $ancestorId) {
 }
 
 /**
- * Return true if the supplied value is a valid provider_type enum value.
+ * Return true if the supplied value is a valid provider_type lookup value.
  */
 function isValidProviderType(?string $type): bool
 {
     if ($type === null || $type === '') {
         return false;
     }
-    return in_array($type, Database::getEnumValues('ticket_providers', 'provider_type'), true);
+    return in_array($type, array_column(Database::getProviderTypes(), 'type_code'), true);
 }
 
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
@@ -275,7 +275,7 @@ function handlePost() {
     }
 
     if (!isValidProviderType($providerType)) {
-        echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', Database::getEnumValues('ticket_providers', 'provider_type'))]);
+        echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', array_column(Database::getProviderTypes(), 'type_code'))]);
         return;
     }
 
@@ -370,7 +370,7 @@ function handlePut() {
     $status = $input['status'] ?? null;
 
     if ($providerType !== null && !isValidProviderType($providerType)) {
-        echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', Database::getEnumValues('ticket_providers', 'provider_type'))]);
+        echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', array_column(Database::getProviderTypes(), 'type_code'))]);
         return;
     }
 

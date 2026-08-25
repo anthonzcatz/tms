@@ -4,6 +4,7 @@
  */
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -28,16 +29,21 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
-$realtimeBranchIds = $userRoleCode === 'SUPER_ADMIN'
-    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches"), 'branch_id'))
-    : array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+$realtimeBranchIds = $allowedBranchIds === null
+    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active'"), 'branch_id'))
+    : $allowedBranchIds;
 $pusherConfigured = PusherService::isConfigured();
 $pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';
 $pusherCluster = $pusherConfigured ? env('PUSHER_CLUSTER', 'ap1') : 'ap1';
 
 // Fetch all customer charges with passenger details and branch from latest charge
+$chargeWhere = [];
+$chargeParams = [];
+PosAccess::applyBranchScope($chargeWhere, $chargeParams, 'cs.branch_id', $user, 'charge_branch');
+$chargeFilter = $chargeWhere ? 'WHERE ' . implode(' AND ', $chargeWhere) : '';
 $charges = Database::fetchAll(
     "SELECT cc.*,
             pa.fullname AS passenger_name,
@@ -57,17 +63,29 @@ $charges = Database::fetchAll(
      ) latest ON latest.charged_to_passenger_id = cc.passenger_id AND latest.rn = 1
      LEFT JOIN cashier_sessions cs ON latest.cashier_session_id = cs.session_id
      LEFT JOIN business_branches bb ON cs.branch_id = bb.branch_id
-     ORDER BY cc.balance DESC, cc.last_charge_date DESC"
+     $chargeFilter
+     ORDER BY cc.balance DESC, cc.last_charge_date DESC",
+    $chargeParams
 );
 
 // Stats
 $stats = Database::fetch(
     "SELECT
         COUNT(*) AS total_customers,
-        SUM(balance) AS total_outstanding,
-        SUM(CASE WHEN status = 'OUTSTANDING' THEN 1 ELSE 0 END) AS outstanding_count,
-        SUM(CASE WHEN status = 'OVERDUE' THEN 1 ELSE 0 END) AS overdue_count
-     FROM customer_charges"
+        SUM(cc.balance) AS total_outstanding,
+        SUM(CASE WHEN cc.status = 'OUTSTANDING' THEN 1 ELSE 0 END) AS outstanding_count,
+        SUM(CASE WHEN cc.status = 'OVERDUE' THEN 1 ELSE 0 END) AS overdue_count
+     FROM customer_charges cc
+     LEFT JOIN (
+         SELECT tp.charged_to_passenger_id, tp.cashier_session_id,
+                ROW_NUMBER() OVER (PARTITION BY tp.charged_to_passenger_id ORDER BY tp.created_at DESC) AS rn
+         FROM transaction_payments tp
+         JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
+         WHERE pm.tracks_credit = 1 AND tp.charged_to_passenger_id IS NOT NULL
+     ) latest ON latest.charged_to_passenger_id = cc.passenger_id AND latest.rn = 1
+     LEFT JOIN cashier_sessions cs ON latest.cashier_session_id = cs.session_id
+     $chargeFilter",
+    $chargeParams
 );
 
 // Payment methods for collect payment modal (exclude credit tracking methods)
@@ -76,8 +94,27 @@ $paymentMethods = Database::fetchAll(
 );
 
 // Bank accounts for collect payment modal
+$bankAccountWhere = ['ba.is_active = 1'];
+$bankAccountParams = [];
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $bankAccountWhere[] = '1 = 0';
+    } else {
+        $bankBranchPlaceholders = [];
+        foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+            $key = 'charge_bank_branch_' . $index;
+            $bankBranchPlaceholders[] = ':' . $key;
+            $bankAccountParams[$key] = $allowedBranchId;
+        }
+        $bankAccountWhere[] = '(ba.branch_id IS NULL OR ba.branch_id IN (' . implode(',', $bankBranchPlaceholders) . '))';
+    }
+}
 $bankAccounts = Database::fetchAll(
-    "SELECT * FROM bank_accounts WHERE is_active = 1 ORDER BY bank_name ASC"
+    "SELECT ba.*
+     FROM bank_accounts ba
+     WHERE " . implode(' AND ', $bankAccountWhere) . "
+     ORDER BY ba.bank_name ASC",
+    $bankAccountParams
 );
 
 // System settings for charge payment confirmation

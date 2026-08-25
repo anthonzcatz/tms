@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -32,7 +33,50 @@ function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldV
 
 Auth::requireLogin();
 $user = Auth::user();
-$userRoleCode = $user['role_code'] ?? '';
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+
+function applyBankAccountScope(array &$where, array &$params, array $user, string $prefix = 'bank_account_branch'): void
+{
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($allowedBranchIds === null) {
+        return;
+    }
+    if (!$allowedBranchIds) {
+        $where[] = '1 = 0';
+        return;
+    }
+
+    $placeholders = [];
+    foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+        $key = $prefix . '_' . $index;
+        $placeholders[] = ':' . $key;
+        $params[$key] = $allowedBranchId;
+    }
+    $where[] = '(ba.branch_id IS NULL OR ba.branch_id IN (' . implode(',', $placeholders) . '))';
+}
+
+function requireBankAccountBranchAccess(?int $branchId): void
+{
+    global $user;
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($allowedBranchIds === null) {
+        if ($branchId !== null) {
+            try {
+                PosAccess::assertBranchAccess($user, $branchId);
+            } catch (Throwable $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                exit;
+            }
+        }
+        return;
+    }
+    if (($branchId !== null && !in_array($branchId, $allowedBranchIds, true)) || ($branchId === null && !$allowedBranchIds)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Access denied: bank account branch is not assigned to you.']);
+        exit;
+    }
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 switch ($method) {
@@ -46,6 +90,7 @@ switch ($method) {
 }
 
 function handleGet() {
+    global $user;
     $id = $_GET['id'] ?? null;
     
     // Decode ID if it's encrypted (not numeric)
@@ -68,6 +113,7 @@ function handleGet() {
             ['id' => $id]
         );
         if (!$account) { echo json_encode(['success' => false, 'error' => 'Not found']); return; }
+        requireBankAccountBranchAccess($account['branch_id'] !== null ? (int) $account['branch_id'] : null);
         echo json_encode(['success' => true, 'data' => $account]);
         return;
     }
@@ -84,15 +130,18 @@ function handleGet() {
         $methodId = $decodedMethodId;
     }
 
+    $where = [];
+    $params = [];
+    applyBankAccountScope($where, $params, $user, 'bank_account_list_branch');
+    if ($activeOnly) { $where[] = 'ba.is_active = 1'; }
+    if ($methodId) { $where[] = 'ba.payment_method_id = :method_id'; $params['method_id'] = $methodId; }
+    $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
     $sql = "SELECT ba.*, bb.branch_name, pm.method_name, pm.method_type
             FROM bank_accounts ba
             LEFT JOIN business_branches bb ON ba.branch_id = bb.branch_id
             LEFT JOIN payment_methods pm ON ba.payment_method_id = pm.method_id
-            WHERE 1=1";
-    $params = [];
-    if ($activeOnly) { $sql .= " AND ba.is_active = 1"; }
-    if ($methodId) { $sql .= " AND ba.payment_method_id = :method_id"; $params['method_id'] = $methodId; }
-    $sql .= " ORDER BY bb.branch_name ASC, ba.bank_name ASC";
+            {$whereClause}
+            ORDER BY bb.branch_name ASC, ba.bank_name ASC";
 
     echo json_encode(['success' => true, 'data' => Database::fetchAll($sql, $params)]);
 }
@@ -107,6 +156,9 @@ function handlePost() {
     $bankName = trim($input['bank_name'] ?? '');
     $accountName = trim($input['account_name'] ?? '');
     $accountNumber = trim($input['account_number'] ?? '');
+    $branchId = $input['branch_id'] ?? null;
+    $branchId = $branchId === null || $branchId === '' ? null : (int) $branchId;
+    requireBankAccountBranchAccess($branchId);
 
     if (!$bankName || !$accountName || !$accountNumber) {
         echo json_encode(['success' => false, 'error' => 'Bank name, account name, and account number are required.']); return;
@@ -118,7 +170,7 @@ function handlePost() {
          VALUES
             (:branch_id, :bank_name, :account_name, :account_number, :account_type, :payment_method_id, :current_balance, :is_active, :notes, :created_at)",
         [
-            'branch_id' => $input['branch_id'] ?: null,
+            'branch_id' => $branchId,
             'bank_name' => $bankName,
             'account_name' => $accountName,
             'account_number' => $accountNumber,
@@ -150,6 +202,11 @@ function handlePut() {
 
     $existing = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $accountId]);
     if (!$existing) { echo json_encode(['success' => false, 'error' => 'Account not found.']); return; }
+    requireBankAccountBranchAccess($existing['branch_id'] !== null ? (int) $existing['branch_id'] : null);
+    $branchId = array_key_exists('branch_id', $input) && $input['branch_id'] !== ''
+        ? (int) $input['branch_id']
+        : (array_key_exists('branch_id', $input) ? null : ($existing['branch_id'] !== null ? (int) $existing['branch_id'] : null));
+    requireBankAccountBranchAccess($branchId);
 
     // Status-only toggle
     if (count($input) === 2 && isset($input['is_active'])) {
@@ -176,7 +233,7 @@ function handlePut() {
             is_active = :is_active, notes = :notes, updated_at = :updated_at
          WHERE bank_account_id = :id",
         [
-            'branch_id' => $input['branch_id'] ?: null,
+            'branch_id' => $branchId,
             'bank_name' => $bankName,
             'account_name' => $accountName,
             'account_number' => $accountNumber,
@@ -207,6 +264,7 @@ function handleDelete() {
 
     $existing = Database::fetch("SELECT * FROM bank_accounts WHERE bank_account_id = :id", ['id' => $accountId]);
     if (!$existing) { echo json_encode(['success' => false, 'error' => 'Account not found.']); return; }
+    requireBankAccountBranchAccess($existing['branch_id'] !== null ? (int) $existing['branch_id'] : null);
 
     // Check if used in payments
     $inUse = Database::fetch("SELECT payment_id FROM transaction_payments WHERE bank_account_id = :id LIMIT 1", ['id' => $accountId]);

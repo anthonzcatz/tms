@@ -2,6 +2,8 @@ let addEmployeeModal, editEmployeeModal, viewEmployeeModal, deleteEmployeeModal,
 let addWizardCurrentStep = 1;
 let editWizardCurrentStep = 1;
 const WIZARD_TOTAL_STEPS = 5;
+let currentPage = 1;
+let rowsPerPage = 25;
 
 document.addEventListener('DOMContentLoaded', function() {
     addEmployeeModal = new bootstrap.Modal(document.getElementById('addEmployeeModal'));
@@ -10,11 +12,16 @@ document.addEventListener('DOMContentLoaded', function() {
     deleteEmployeeModal = new bootstrap.Modal(document.getElementById('deleteEmployeeModal'));
     toast = new bootstrap.Toast(document.getElementById('toast'));
 
-    document.getElementById('employeeSearch').addEventListener('input', filterEmployees);
-    document.getElementById('departmentFilter').addEventListener('change', filterEmployees);
-    document.getElementById('positionFilter').addEventListener('change', filterEmployees);
-    document.getElementById('subDepartmentFilter').addEventListener('change', filterEmployees);
-    document.getElementById('employmentStatusFilter').addEventListener('change', filterEmployees);
+    document.getElementById('employeeSearch').addEventListener('input', function() { currentPage = 1; filterEmployees(); });
+    document.getElementById('departmentFilter').addEventListener('change', function() { currentPage = 1; filterEmployees(); });
+    document.getElementById('positionFilter').addEventListener('change', function() { currentPage = 1; filterEmployees(); });
+    document.getElementById('subDepartmentFilter').addEventListener('change', function() { currentPage = 1; filterEmployees(); });
+    document.getElementById('employmentStatusFilter').addEventListener('change', function() { currentPage = 1; filterEmployees(); });
+    document.getElementById('rowsPerPage').addEventListener('change', function() {
+        rowsPerPage = parseInt(this.value, 10) || 25;
+        currentPage = 1;
+        filterEmployees();
+    });
 
     // Pre-select filters from URL query parameters
     const params = new URLSearchParams(window.location.search);
@@ -26,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (posParam) { document.getElementById('positionFilter').value = posParam; }
     if (subDeptParam) { document.getElementById('subDepartmentFilter').value = subDeptParam; }
     if (empStatusParam) { document.getElementById('employmentStatusFilter').value = empStatusParam; }
-    if (deptParam || posParam || subDeptParam || empStatusParam) { filterEmployees(); }
+    if (deptParam || posParam || subDeptParam || empStatusParam) { currentPage = 1; filterEmployees(); }
     document.getElementById('addEmployeeModal').addEventListener('show.bs.modal', function() {
         loadRegions('add');
     });
@@ -131,7 +138,7 @@ function filterEmployees() {
     const subDept = document.getElementById('subDepartmentFilter').value;
     const empStatus = document.getElementById('employmentStatusFilter').value;
     const rows = document.querySelectorAll('#employeesTableBody tr');
-    let visible = 0;
+    const visibleRows = [];
     rows.forEach(row => {
         const name = row.getAttribute('data-name') || '';
         const rowDept = row.getAttribute('data-dept') || '';
@@ -143,12 +150,67 @@ function filterEmployees() {
             (!pos || rowPos === pos) &&
             (!subDept || rowSubDept === subDept) &&
             (!empStatus || rowEmpStatus === empStatus);
-        row.classList.toggle('d-none', !show);
-        if (show) visible++;
+        row.classList.toggle('d-none', true);
+        if (show) visibleRows.push(row);
     });
-    document.getElementById('emptyState').classList.toggle('d-none', visible > 0);
+
+    const total = visibleRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = Math.min(startIndex + rowsPerPage, total);
+    for (let i = startIndex; i < endIndex; i++) {
+        visibleRows[i].classList.remove('d-none');
+    }
+
+    document.getElementById('emptyState').classList.toggle('d-none', total > 0);
     const totalEl = document.getElementById('totalEmployees');
-    if (totalEl) totalEl.textContent = visible;
+    if (totalEl) totalEl.textContent = total;
+    renderPagination(total, totalPages, startIndex + 1, endIndex);
+}
+
+function renderPagination(total, totalPages, start, end) {
+    document.getElementById('showingStart').textContent = total ? start : 0;
+    document.getElementById('showingEnd').textContent = end;
+    document.getElementById('showingTotal').textContent = total;
+
+    const paginationEl = document.getElementById('employeePagination');
+    let html = '';
+
+    // Previous button
+    if (currentPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" data-page="${currentPage - 1}" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a></li>`;
+    } else {
+        html += '<li class="page-item disabled"><span class="page-link" aria-label="Previous"><span aria-hidden="true">&laquo;</span></span></li>';
+    }
+
+    // Page numbers
+    const maxWindow = 2;
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - maxWindow && i <= currentPage + maxWindow)) {
+            html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+        } else if (i === currentPage - maxWindow - 1 || i === currentPage + maxWindow + 1) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+
+    // Next button
+    if (currentPage < totalPages) {
+        html += `<li class="page-item"><a class="page-link" href="#" data-page="${currentPage + 1}" aria-label="Next"><span aria-hidden="true">&raquo;</span></a></li>`;
+    } else {
+        html += '<li class="page-item disabled"><span class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></span></li>';
+    }
+
+    paginationEl.innerHTML = html;
+    paginationEl.querySelectorAll('a[data-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            currentPage = parseInt(this.dataset.page, 10);
+            filterEmployees();
+        });
+    });
 }
 
 function loadSubDepartments(mode) {

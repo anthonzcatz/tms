@@ -49,7 +49,8 @@ if (!Auth::check()) {
 
 // Check permission - SUPER_ADMIN or users with VIEW_WALLETS / VIEW_WALLET_TRANSACTIONS permission
 $user = Auth::user();
-$canView = ($user['role_code'] === 'SUPER_ADMIN');
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$canView = ($userRoleCode === 'SUPER_ADMIN');
 
 if (!$canView) {
     $canView = Auth::can('VIEW_WALLETS') || Auth::can('VIEW_WALLET_TRANSACTIONS') || Auth::canAccessModule('admin/pos/');
@@ -62,8 +63,19 @@ if (!$canView) {
 }
 
 // Get user branch for filtering
-$userBranchId = $user['branch_id'] ?? null;
-$userRoleCode = $user['role_code'] ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+
+function requireWalletBranchAccess(?int $branchId): void
+{
+    global $user;
+    try {
+        PosAccess::assertBranchAccess($user, (int) $branchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+}
 
 // Get request method
 $method = $_SERVER['REQUEST_METHOD'];
@@ -115,22 +127,11 @@ function handleGet() {
 
     // Get wallet stats
     if ($action === 'stats') {
-        $branchFilter = "";
+        $statsWhere = [];
         $params = [];
-
-        // SUPER_ADMIN can see all wallets, others are restricted to their branch
-        global $userRoleCode, $userBranchId;
-        if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-            $userBranchIds = array_filter(array_map('intval', explode(',', $userBranchId)));
-            if (!empty($userBranchIds)) {
-                $branchPlaceholders = [];
-                foreach ($userBranchIds as $i => $branchId) {
-                    $branchPlaceholders[] = ':user_branch_' . $i;
-                    $params['user_branch_' . $i] = $branchId;
-                }
-                $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
-            }
-        }
+        global $user;
+        PosAccess::applyBranchScope($statsWhere, $params, 'pw.branch_id', $user, 'wallet_stats_branch');
+        $branchFilter = $statsWhere ? 'WHERE ' . implode(' AND ', $statsWhere) : '';
 
         $sql = "SELECT 
                     COUNT(*) as total_wallets,
@@ -201,6 +202,7 @@ function handleGet() {
         $wallet = Database::fetch($sql, ['wallet_id' => (int)$walletId]);
 
         if ($wallet) {
+            requireWalletBranchAccess((int) $wallet['branch_id']);
             echo json_encode(['success' => true, 'data' => $wallet]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Wallet not found']);
@@ -209,53 +211,31 @@ function handleGet() {
     }
 
     // List all wallets
-    $branchFilter = "";
+    $branchWhere = [];
     $params = [];
-
-    // SUPER_ADMIN can see all wallets, others are restricted to their branch
     global $userRoleCode, $userBranchId, $user;
-    
-    // Check if user has an active cashier session - use session's branch_id if available
+
     $sessionBranchId = null;
-    if ($userRoleCode === 'CASHIER' && $user['user_id']) {
+    if ($userRoleCode === 'CASHIER' && !empty($user['user_id'])) {
         $activeSession = Database::fetch(
-            "SELECT branch_id FROM cashier_sessions 
-             WHERE cashier_user_id = :user_id 
-             AND status = 'OPEN' 
-             AND ended_at IS NULL 
-             ORDER BY started_at DESC 
+            "SELECT branch_id FROM cashier_sessions
+             WHERE cashier_user_id = :user_id
+             AND status = 'OPEN'
+             AND ended_at IS NULL
+             ORDER BY started_at DESC
              LIMIT 1",
             ['user_id' => $user['user_id']]
         );
-        if ($activeSession && $activeSession['branch_id']) {
-            $sessionBranchId = $activeSession['branch_id'];
+        $sessionAllowedBranchIds = PosAccess::allowedBranchIds($user);
+        if ($activeSession && !empty($activeSession['branch_id'])
+            && ($sessionAllowedBranchIds === null
+                || in_array((int) $activeSession['branch_id'], $sessionAllowedBranchIds, true))) {
+            $sessionBranchId = (int) $activeSession['branch_id'];
         }
     }
-    
-    // Use session branch_id if active session exists, otherwise use user's assigned branch
-    $effectiveBranchId = $sessionBranchId ?: $userBranchId;
-    $allBranches = isset($_GET['all_branches']) && $_GET['all_branches'] == '1';
 
-    if ($userRoleCode !== 'SUPER_ADMIN') {
-        // When all_branches is requested, use all branches assigned to the user;
-        // otherwise use the single effective branch (active session or default).
-        $allowedBranchIdStr = $allBranches ? $userBranchId : $effectiveBranchId;
-
-        if ($allowedBranchIdStr) {
-            // Parse comma-separated branch IDs
-            $userBranchIds = array_map('intval', explode(',', $allowedBranchIdStr));
-            $userBranchIds = array_filter($userBranchIds);
-
-            if (!empty($userBranchIds)) {
-                $branchPlaceholders = [];
-                foreach ($userBranchIds as $i => $branchId) {
-                    $branchPlaceholders[] = ':user_branch_' . $i;
-                    $params['user_branch_' . $i] = $branchId;
-                }
-                $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
-            }
-        }
-    }
+    PosAccess::applyBranchScope($branchWhere, $params, 'pw.branch_id', $user, 'wallet_list_branch');
+    $branchFilter = $branchWhere ? 'WHERE ' . implode(' AND ', $branchWhere) : '';
 
     // Filter by provider_id if provided
     $providerId = $_GET['provider_id'] ?? null;
@@ -304,13 +284,7 @@ function handleGet() {
             }
                 $branchId = $decodedId;
         }
-        try {
-            PosAccess::assertBranchAccess($user, (int) $branchId);
-        } catch (Throwable $e) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-            exit;
-        }
+        requireWalletBranchAccess((int) $branchId);
         $branchFilter = ($branchFilter ? $branchFilter . " AND " : "WHERE ") . "pw.branch_id = :branch_id";
         $params['branch_id'] = (int)$branchId;
     }
@@ -585,6 +559,7 @@ function handlePost() {
         echo json_encode(['success' => false, 'error' => 'Missing required fields']);
         return;
     }
+    requireWalletBranchAccess((int) $branchId);
     if ($initialBalance < 0 || $minBalance < 0 || !in_array($status, ['active', 'inactive'], true)) {
         echo json_encode(['success' => false, 'error' => 'Invalid wallet balance or status.']);
         return;
@@ -787,6 +762,7 @@ function handlePut() {
         echo json_encode(['success' => false, 'error' => 'Wallet not found']);
         return;
     }
+    requireWalletBranchAccess((int) $currentWallet['branch_id']);
     
     // Update wallet status and/or min_balance
     $updateFields = [];
@@ -896,6 +872,7 @@ function handleDelete() {
         echo json_encode(['success' => false, 'error' => 'Wallet not found']);
         return;
     }
+    requireWalletBranchAccess((int) $currentWallet['branch_id']);
     
     // Check if wallet has wallet transactions
     $hasWalletTransactions = Database::fetch(

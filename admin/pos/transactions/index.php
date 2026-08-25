@@ -60,6 +60,29 @@ if (!empty($userBranchId) && $userBranchId !== '0' && $userBranchId !== '') {
     );
 }
 
+// Fetch current user's name and position for financial report signature
+$currentUserName = '';
+$currentUserPosition = '';
+if (!empty($user['user_id'])) {
+    $currentUserRow = Database::fetch(
+        "SELECT
+            CONCAT_WS(' ',
+                e.first_name,
+                IF(e.middle_name IS NOT NULL AND e.middle_name != '',
+                    CONCAT(UPPER(LEFT(e.middle_name, 1)), '.'), NULL),
+                e.last_name
+            ) AS full_name,
+            COALESCE(p.position_name, '') AS position_name
+         FROM user_accounts u
+         LEFT JOIN employees e ON e.emp_id = u.emp_id
+         LEFT JOIN position p ON p.pos_id = e.job_title
+         WHERE u.user_id = :uid",
+        ['uid' => (int)$user['user_id']]
+    );
+    $currentUserName = trim($currentUserRow['full_name'] ?? '');
+    $currentUserPosition = $currentUserRow['position_name'] ?? '';
+}
+
 // Validate logo URL
 if ($systemLogo) {
     $systemLogo = trim($systemLogo);

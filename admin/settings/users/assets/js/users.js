@@ -441,7 +441,13 @@ function renderUsersTable() {
                     if (a.provider_name) {
                         return `<span class="badge bg-100 text-600 fs-10" title="Wallet Owner: ${a.parent_provider_name || 'Self'}"><span class="fas fa-plane me-1"></span>${a.provider_name}${a.parent_provider_name ? ' <span class="text-muted">(' + a.parent_provider_name + ')</span>' : ''}</span>`;
                     }
-                    if (a.transport_type) return `<span class="badge bg-100 text-600 fs-10"><span class="fas fa-plane me-1"></span>${a.transport_type.toUpperCase()}</span>`;
+                    if (a.transport_type) {
+                        const typeOptions = window.PROVIDER_TYPE_OPTIONS || {};
+                        const typeIcons = window.PROVIDER_TYPE_ICONS || {};
+                        const typeLabel = typeOptions[a.transport_type] || a.transport_type;
+                        const typeIcon = typeIcons[a.transport_type] || 'fa-circle';
+                        return `<span class="badge bg-100 text-600 fs-10"><span class="fas ${typeIcon} me-1"></span>${typeLabel}</span>`;
+                    }
                     return '';
                 }).filter(t => t);
                 

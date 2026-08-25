@@ -53,7 +53,7 @@ try {
                 $placeholders[] = ':' . $key;
                 $branchParams[$key] = $branchId;
             }
-            $branchWhere = '(cs.branch_id IN (' . implode(', ', $placeholders) . ') OR cs.branch_id IS NULL)';
+            $branchWhere = 'cs.branch_id IN (' . implode(', ', $placeholders) . ')';
         }
     }
 

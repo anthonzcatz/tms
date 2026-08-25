@@ -87,12 +87,12 @@ $summaryStatusColors = [
         <?php endif; ?>
 
         <div class="row g-3 mb-3">
-          <div class="col-6 col-xl-3">
+          <div class="col-6 col-xl-4">
             <div class="card h-100 cashier-stat-card">
               <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
-                    <div class="text-muted small">Cashiers with Charges</div>
+                    <div class="text-muted small">Cashiers with Cashier Charges</div>
                     <div class="fs-4 fw-bold text-primary"><?php echo number_format((int) ($stats['total_cashiers'] ?? 0)); ?></div>
                   </div>
                   <span class="fas fa-users text-primary fs-3"></span>
@@ -100,12 +100,12 @@ $summaryStatusColors = [
               </div>
             </div>
           </div>
-          <div class="col-6 col-xl-3">
+          <div class="col-6 col-xl-4">
             <div class="card h-100 cashier-stat-card">
               <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
-                    <div class="text-muted small">Charge Transactions</div>
+                    <div class="text-muted small">Cashier Charge Entries</div>
                     <div class="fs-4 fw-bold text-warning"><?php echo number_format((int) ($stats['total_charges'] ?? 0)); ?></div>
                   </div>
                   <span class="fas fa-file-invoice-dollar text-warning fs-3"></span>
@@ -113,25 +113,12 @@ $summaryStatusColors = [
               </div>
             </div>
           </div>
-          <div class="col-6 col-xl-3">
+          <div class="col-6 col-xl-4">
             <div class="card h-100 cashier-stat-card">
               <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
-                    <div class="text-muted small">Customers Charged</div>
-                    <div class="fs-4 fw-bold text-info"><?php echo number_format((int) ($stats['total_customers'] ?? 0)); ?></div>
-                  </div>
-                  <span class="fas fa-user-tag text-info fs-3"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-6 col-xl-3">
-            <div class="card h-100 cashier-stat-card">
-              <div class="card-body py-3">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="text-muted small">Total Charged</div>
+                    <div class="text-muted small">Total Cashier Charge</div>
                     <div class="fs-5 fw-bold text-danger">₱<?php echo number_format((float) ($stats['total_amount'] ?? 0), 2); ?></div>
                   </div>
                   <span class="fas fa-money-bill-wave text-danger fs-3"></span>
@@ -157,8 +144,8 @@ $summaryStatusColors = [
           <div class="card-header py-2 bg-body-tertiary">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div>
-                <h6 class="mb-0 fw-bold"><span class="fas fa-users me-2 text-success"></span>All Cashiers with Charge &amp; VOID Activity</h6>
-                <span class="text-muted small">All-time charge activity grouped by cashier. This table is not affected by the filters below.</span>
+                <h6 class="mb-0 fw-bold"><span class="fas fa-users me-2 text-success"></span>All Cashiers with Cashier Charge &amp; VOID Activity</h6>
+                <span class="text-muted small">All-time cashier-responsibility activity grouped by cashier. This table is not affected by the filters below.</span>
               </div>
               <span class="text-muted small"><?php echo number_format(count($allCashierCharges)); ?> cashier<?php echo count($allCashierCharges) === 1 ? '' : 's'; ?></span>
             </div>
@@ -168,7 +155,7 @@ $summaryStatusColors = [
               <div class="empty-state py-4">
                 <div class="empty-state-icon fs-2"><span class="fas fa-users"></span></div>
                 <div class="empty-state-text fs-6">No Cashier Charge Activity Found</div>
-                <div class="empty-state-subtext">Cashiers appear here after a CHARGE transaction, REFUND responsibility, or VOID responsibility is assigned.</div>
+                <div class="empty-state-subtext">Cashiers appear here after a REFUND or VOID responsibility is assigned to them.</div>
               </div>
             <?php else: ?>
               <div class="table-responsive">
@@ -177,21 +164,19 @@ $summaryStatusColors = [
                     <tr>
                       <th class="ps-3">Cashier</th>
                       <th>Branches</th>
-                      <th class="text-end">Charges</th>
-                      <th class="text-end">Customers</th>
-                      <th class="text-end">Charge Amount</th>
+                      <th class="text-end">Cashier Entries</th>
+                      <th class="text-end">Refund Responsibility</th>
                       <th class="text-end">VOID Duties</th>
                       <th class="text-end">VOID Amount</th>
                       <th class="text-end">Service Amount</th>
-                      <th class="text-end">Total Charge</th>
+                      <th class="text-end">Total Cashier Charge</th>
                       <th>Last Activity</th>
                     </tr>
                   </thead>
                   <tbody>
                     <?php foreach ($allCashierCharges as $row): ?>
                       <?php
-                      $totalCharge = (float) ($row['total_charged'] ?? 0)
-                          + (float) ($row['charge_amount'] ?? 0)
+                      $totalCashierCharge = (float) ($row['charge_amount'] ?? 0)
                           + (float) ($row['void_amount'] ?? 0)
                           + (float) ($row['service_amount'] ?? 0);
                       ?>
@@ -209,12 +194,11 @@ $summaryStatusColors = [
                         </td>
                         <td class="py-3"><?php echo $escape($row['branch_names']); ?></td>
                         <td class="py-3 text-end fw-semibold"><?php echo number_format((int) $row['charge_count']); ?></td>
-                        <td class="py-3 text-end"><?php echo number_format((int) $row['customer_count']); ?></td>
                         <td class="py-3 text-end fw-bold text-info">₱<?php echo number_format((float) ($row['charge_amount'] ?? 0), 2); ?></td>
                         <td class="py-3 text-end fw-semibold text-warning"><?php echo number_format((int) ($row['void_count'] ?? 0)); ?></td>
                         <td class="py-3 text-end fw-bold text-warning">₱<?php echo number_format((float) ($row['void_amount'] ?? 0), 2); ?></td>
                         <td class="py-3 text-end fw-bold text-warning">₱<?php echo number_format((float) ($row['service_amount'] ?? 0), 2); ?></td>
-                        <td class="py-3 text-end fw-bold text-danger">₱<?php echo number_format($totalCharge, 2); ?></td>
+                        <td class="py-3 text-end fw-bold text-danger">₱<?php echo number_format($totalCashierCharge, 2); ?></td>
                         <td class="py-3 text-muted small"><?php echo $escape($formatDateTime($row['last_charge_at'])); ?></td>
                       </tr>
                     <?php endforeach; ?>
@@ -234,7 +218,7 @@ $summaryStatusColors = [
               <div class="col-12 col-lg-3">
                 <label class="form-label small fw-semibold mb-1" for="filterSearch">Search</label>
                 <div class="search-box">
-                  <input type="text" class="form-control search-input" id="filterSearch" name="search" value="<?php echo $escape($filterSearch); ?>" placeholder="Cashier, customer, transaction...">
+                  <input type="text" class="form-control search-input" id="filterSearch" name="search" value="<?php echo $escape($filterSearch); ?>" placeholder="Cashier, ticket, transaction...">
                   <span class="fas fa-search search-icon"></span>
                 </div>
               </div>
@@ -264,15 +248,6 @@ $summaryStatusColors = [
                   <?php foreach ($cashierOptions as $cashier): ?>
                     <option value="<?php echo (int) $cashier['cashier_user_id']; ?>" <?php echo (int) $filterCashier === (int) $cashier['cashier_user_id'] ? 'selected' : ''; ?>><?php echo $escape($cashier['cashier_name']); ?></option>
                   <?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-6 col-md-3 col-lg-2">
-                <label class="form-label small fw-semibold mb-1" for="filterSource">Charge Source</label>
-                <select class="form-select" id="filterSource" name="source">
-                  <option value="">All Sources</option>
-                  <option value="TICKET_TRANSACTION" <?php echo $filterSource === 'TICKET_TRANSACTION' ? 'selected' : ''; ?>>Ticket</option>
-                  <option value="SERVICE_TRANSACTION" <?php echo $filterSource === 'SERVICE_TRANSACTION' ? 'selected' : ''; ?>>Service</option>
-                  <option value="POS_ORDER" <?php echo $filterSource === 'POS_ORDER' ? 'selected' : ''; ?>>POS Order</option>
                 </select>
               </div>
               <div class="col-6 col-md-3 col-lg-2">
@@ -308,8 +283,8 @@ $summaryStatusColors = [
           <div class="card-header py-2 bg-body-tertiary">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div>
-                <h6 class="mb-0 fw-bold"><span class="fas fa-users me-2 text-primary"></span>Cashiers with Charge &amp; VOID Activity</h6>
-                <span class="text-muted small">Normal CHARGE activity stays with the payment cashier; REFUND responsibility is shown as Charge Amount, while VOID responsibility is split into VOID and Service Amount.</span>
+                <h6 class="mb-0 fw-bold"><span class="fas fa-users me-2 text-primary"></span>Cashiers with Cashier Charge &amp; VOID Activity</h6>
+                <span class="text-muted small">Only CASHIER responsibility activity is shown. REFUND responsibility is shown separately, while VOID responsibility is split into VOID and Service Amount.</span>
               </div>
               <span class="text-muted small"><?php echo number_format(count($cashierCharges)); ?> cashier group<?php echo count($cashierCharges) === 1 ? '' : 's'; ?></span>
             </div>
@@ -319,7 +294,7 @@ $summaryStatusColors = [
               <div class="empty-state">
                 <div class="empty-state-icon"><span class="fas fa-file-invoice-dollar"></span></div>
                 <div class="empty-state-text">No Cashier Charges Found</div>
-                <div class="empty-state-subtext">No CHARGE, REFUND responsibility, or VOID activity matched the selected filters.</div>
+                <div class="empty-state-subtext">No cashier REFUND responsibility or VOID activity matched the selected filters.</div>
               </div>
             <?php else: ?>
               <div class="table-responsive">
@@ -328,13 +303,12 @@ $summaryStatusColors = [
                     <tr>
                       <th class="ps-3">Cashier</th>
                       <th>Branch</th>
-                      <th class="text-end">Charges</th>
-                      <th class="text-end">Customers</th>
-                      <th class="text-end">Charge Amount</th>
+                      <th class="text-end">Cashier Entries</th>
+                      <th class="text-end">Refund Responsibility</th>
                       <th class="text-end">VOID Duties</th>
                       <th class="text-end">VOID Amount</th>
                       <th class="text-end">Service Amount</th>
-                      <th class="text-end">Total Charge</th>
+                      <th class="text-end">Total Cashier Charge</th>
                       <th>Sessions</th>
                       <th>Last Activity</th>
                     </tr>
@@ -343,8 +317,7 @@ $summaryStatusColors = [
                     <?php foreach ($cashierCharges as $row): ?>
                       <?php
                       $sessionStatuses = array_values(array_filter(array_map('trim', explode(',', (string) ($row['session_statuses'] ?? '')))));
-                      $totalCharge = (float) ($row['total_charged'] ?? 0)
-                          + (float) ($row['charge_amount'] ?? 0)
+                      $totalCashierCharge = (float) ($row['charge_amount'] ?? 0)
                           + (float) ($row['void_amount'] ?? 0)
                           + (float) ($row['service_amount'] ?? 0);
                       ?>
@@ -362,12 +335,11 @@ $summaryStatusColors = [
                         </td>
                         <td class="py-3"><?php echo $escape($row['branch_name']); ?></td>
                         <td class="py-3 text-end fw-semibold"><?php echo number_format((int) $row['charge_count']); ?></td>
-                        <td class="py-3 text-end"><?php echo number_format((int) $row['customer_count']); ?></td>
                         <td class="py-3 text-end fw-bold text-info">₱<?php echo number_format((float) ($row['charge_amount'] ?? 0), 2); ?></td>
                         <td class="py-3 text-end fw-semibold text-warning"><?php echo number_format((int) ($row['void_count'] ?? 0)); ?></td>
                         <td class="py-3 text-end fw-bold text-warning">₱<?php echo number_format((float) ($row['void_amount'] ?? 0), 2); ?></td>
                         <td class="py-3 text-end fw-bold text-warning">₱<?php echo number_format((float) ($row['service_amount'] ?? 0), 2); ?></td>
-                        <td class="py-3 text-end fw-bold text-danger">₱<?php echo number_format($totalCharge, 2); ?></td>
+                        <td class="py-3 text-end fw-bold text-danger">₱<?php echo number_format($totalCashierCharge, 2); ?></td>
                         <td class="py-3">
                           <div class="small mb-1"><?php echo number_format((int) $row['session_count']); ?> session<?php echo (int) $row['session_count'] === 1 ? '' : 's'; ?></div>
                           <?php if ($sessionStatuses): ?>
@@ -393,19 +365,19 @@ $summaryStatusColors = [
           <div class="card-header py-2 bg-body-tertiary">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div>
-                <h6 class="mb-0 fw-bold"><span class="fas fa-list me-2 text-info"></span>Charge, Refund &amp; VOID Entries</h6>
+                <h6 class="mb-0 fw-bold"><span class="fas fa-list me-2 text-info"></span>Cashier Ticket / Transaction Activity</h6>
                 <span class="text-muted small">
-                  <?php if ($detailCount > 0): ?>Showing <?php echo number_format(($detailPage - 1) * $detailPerPage + 1); ?>–<?php echo number_format(min($detailPage * $detailPerPage, $detailCount)); ?> of <?php echo number_format($detailCount); ?><?php else: ?>No entries to display<?php endif; ?>
+                  <?php if ($detailCount > 0): ?>Showing <?php echo number_format(($detailPage - 1) * $detailPerPage + 1); ?>–<?php echo number_format(min($detailPage * $detailPerPage, $detailCount)); ?> of <?php echo number_format($detailCount); ?> · Transaction customer name, Main Provider, and Ticket Variant are under Details<?php else: ?>No entries to display<?php endif; ?>
                 </span>
               </div>
-              <span class="badge bg-soft-warning text-warning">CHARGE / REFUND / VOID RESPONSIBILITY</span>
+              <span class="badge bg-soft-warning text-warning">CASHIER REFUND / VOID RESPONSIBILITY</span>
             </div>
           </div>
           <div class="card-body p-0">
             <?php if (empty($chargeEntries)): ?>
               <div class="empty-state py-4">
                 <div class="empty-state-icon fs-2"><span class="fas fa-search"></span></div>
-                <div class="empty-state-text fs-6">No CHARGE, REFUND, or VOID responsibility entries for this filter.</div>
+                <div class="empty-state-text fs-6">No cashier REFUND or VOID responsibility entries for this filter.</div>
               </div>
             <?php else: ?>
               <div class="table-responsive">
@@ -414,15 +386,20 @@ $summaryStatusColors = [
                     <tr>
                       <th class="ps-3">Date</th>
                       <th>Cashier</th>
-                      <th>Charged To</th>
-                      <th>Transaction</th>
-                      <th>Source</th>
+                      <th>Ticket / Transaction</th>
+                      <th>Activity</th>
                       <th>Branch</th>
-                      <th class="text-end pe-3">Amount</th>
+                      <th class="text-end">Amount</th>
+                      <th class="text-end pe-3">Details</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <?php foreach ($chargeEntries as $entry): ?>
+                    <?php
+                    $sourceLabels = [
+                        'TICKET_TRANSACTION' => 'Ticket'
+                    ];
+                    ?>
+                    <?php foreach ($chargeEntries as $entryIndex => $entry): ?>
                       <?php
                       $isVoidEntry = ($entry['entry_type'] ?? '') === 'void_responsibility';
                       $isRefundEntry = ($entry['entry_type'] ?? '') === 'refund_responsibility';
@@ -431,42 +408,136 @@ $summaryStatusColors = [
                           ? strtoupper((string) ($entry['responsibility_status'] ?? ''))
                           : strtoupper((string) ($entry['session_status'] ?? ''));
                       $entryStatusColor = $summaryStatusColors[$entryStatus] ?? 'secondary';
-                      $sourceBadgeColor = $isVoidEntry ? 'warning' : ($isRefundEntry ? 'primary' : 'info');
-                      $entryRowClass = $isVoidEntry ? 'table-warning' : ($isRefundEntry ? 'table-primary' : '');
+                      $sourceBadgeColor = $isVoidEntry ? 'warning' : 'primary';
+                      $entryRowClass = $isVoidEntry ? 'table-warning' : 'table-primary';
+                      $activityLabel = $isVoidEntry ? 'VOID Responsibility' : 'Refund Responsibility';
+                      $sourceType = (string) ($entry['source_type'] ?? '');
+                      $sourceLabel = $sourceLabels[$sourceType] ?? ((string) ($entry['transaction_type'] ?? 'Transaction'));
+                      $transactionCode = trim((string) ($entry['transaction_code'] ?? ''));
+                      $ticketNumber = trim((string) ($entry['ticket_number'] ?? ''));
+                      $customerName = trim((string) ($entry['customer_name'] ?? ''));
+                      $mainProviderName = trim((string) ($entry['main_provider_name'] ?? ''));
+                      $ticketVariantName = trim((string) ($entry['ticket_variant_name'] ?? ''));
+                      $transactionLabel = $transactionCode !== ''
+                          ? $transactionCode
+                          : ($ticketNumber !== '' ? $ticketNumber : 'Transaction #' . (int) ($entry['entry_id'] ?? 0));
+                      $detailId = 'cashierTransactionDetails' . (int) $entryIndex;
+                      $confirmationStatus = strtoupper(trim((string) ($entry['confirmation_status'] ?? '')));
+                      $settlementStatus = trim((string) ($entry['settlement_status'] ?? ''));
+                      $amountClass = $isVoidEntry ? 'text-warning' : ($isRefundEntry ? 'text-primary' : 'text-danger');
                       ?>
-                      <tr class="<?php echo $entryRowClass; ?>">
+                      <tr class="cashier-entry-row <?php echo $entryRowClass; ?>">
                         <td class="ps-3 py-3 text-muted small text-nowrap"><?php echo $escape($formatDateTime($entry['created_at'])); ?></td>
                         <td class="py-3">
                           <div class="fw-semibold"><?php echo $escape($entry['cashier_name']); ?></div>
                           <?php if (!empty($entry['cashier_username'])): ?><div class="text-muted small">@<?php echo $escape($entry['cashier_username']); ?></div><?php endif; ?>
-                          <?php if (!empty($entry['session_code'])): ?><div class="text-muted small"><?php echo $escape($entry['session_code']); ?></div><?php endif; ?>
                         </td>
                         <td class="py-3">
-                          <?php if ($isVoidEntry): ?>
-                            <div class="fw-semibold text-warning">Cashier Responsibility</div>
-                            <div class="text-muted small">Selected Responsible Cashier</div>
-                          <?php elseif ($isRefundEntry): ?>
-                            <div class="fw-semibold text-primary">Refund Responsibility</div>
-                            <div class="text-muted small">Refund for <?php echo $escape($entry['passenger_name'] ?: 'Customer'); ?></div>
-                          <?php else: ?>
-                            <div class="fw-semibold"><?php echo $escape($entry['charge_account_name'] ?: '—'); ?></div>
-                            <?php if (!empty($entry['charge_account_mobile'])): ?><div class="text-muted small"><?php echo $escape($entry['charge_account_mobile']); ?></div><?php endif; ?>
-                          <?php endif; ?>
+                          <div class="fw-semibold"><?php echo $escape($transactionLabel); ?></div>
+                          <?php if ($ticketNumber !== '' && $ticketNumber !== $transactionLabel): ?><div class="text-muted small"><span class="fas fa-ticket-alt me-1"></span><?php echo $escape($ticketNumber); ?></div><?php endif; ?>
                         </td>
                         <td class="py-3">
-                          <div class="fw-semibold"><?php echo $escape($entry['transaction_code'] ?: '—'); ?></div>
-                          <?php if (!empty($entry['ticket_number'])): ?><div class="text-muted small"><?php echo $escape($entry['ticket_number']); ?></div><?php elseif (!empty($entry['passenger_name'])): ?><div class="text-muted small"><?php echo $escape($entry['passenger_name']); ?></div><?php endif; ?>
-                        </td>
-                        <td class="py-3">
-                          <span class="badge bg-soft-<?php echo $sourceBadgeColor; ?> text-<?php echo $sourceBadgeColor; ?>"><?php echo $escape($entry['transaction_type'] ?: $entry['source_type']); ?></span>
-                          <?php if ($isVoidEntry): ?><div class="text-warning small mt-1">VOID Responsibility Amount</div><?php elseif ($isRefundEntry): ?><div class="text-primary small mt-1">Refund Responsibility Amount</div><?php elseif (!empty($entry['confirmation_status']) && $entry['confirmation_status'] !== 'NOT_REQUIRED'): ?><div class="text-muted small mt-1"><?php echo $escape($entry['confirmation_status']); ?></div><?php endif; ?>
+                          <span class="badge bg-soft-<?php echo $sourceBadgeColor; ?> text-<?php echo $sourceBadgeColor; ?>"><?php echo $escape($sourceLabel); ?></span>
+                          <div class="text-muted small mt-1"><?php echo $escape($activityLabel); ?></div>
+                          <?php if (!$isResponsibilityEntry && $confirmationStatus !== '' && $confirmationStatus !== 'NOT_REQUIRED'): ?><div class="text-muted small mt-1"><?php echo $escape($confirmationStatus); ?></div><?php endif; ?>
                         </td>
                         <td class="py-3">
                           <?php echo $escape($entry['branch_name']); ?>
                           <?php if ($entryStatus !== ''): ?><div><span class="badge bg-soft-<?php echo $entryStatusColor; ?> text-<?php echo $entryStatusColor; ?> mt-1"><?php echo $escape($entryStatus); ?></span></div><?php endif; ?>
-                          <?php if ($isVoidEntry && !empty($entry['settlement_status'])): ?><div class="text-muted small mt-1">Settlement: <?php echo $escape($entry['settlement_status']); ?></div><?php endif; ?>
                         </td>
-                        <td class="py-3 text-end pe-3 fw-bold <?php echo $isVoidEntry ? 'text-warning' : ($isRefundEntry ? 'text-primary' : 'text-danger'); ?> text-nowrap">₱<?php echo number_format((float) $entry['amount'], 2); ?></td>
+                        <td class="py-3 text-end fw-bold <?php echo $amountClass; ?> text-nowrap">₱<?php echo number_format((float) $entry['amount'], 2); ?></td>
+                        <td class="py-3 text-end pe-3">
+                          <button class="btn btn-sm btn-outline-secondary cashier-details-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo $detailId; ?>" aria-expanded="false" aria-controls="<?php echo $detailId; ?>" title="View transaction details">
+                            <span class="fas fa-chevron-down cashier-details-icon" aria-hidden="true"></span><span class="ms-1 d-none d-md-inline">View</span>
+                          </button>
+                        </td>
+                      </tr>
+                      <tr class="cashier-entry-details-row">
+                        <td colspan="7" class="p-0">
+                          <div class="collapse" id="<?php echo $detailId; ?>">
+                            <div class="cashier-entry-details p-3">
+                              <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div class="fw-semibold text-primary"><span class="fas fa-info-circle me-2"></span>Transaction Information</div>
+                                <span class="badge bg-soft-<?php echo $sourceBadgeColor; ?> text-<?php echo $sourceBadgeColor; ?>"><?php echo $escape($activityLabel); ?></span>
+                              </div>
+                              <div class="row g-3">
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Transaction Code</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($transactionCode !== '' ? $transactionCode : '—'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Ticket Number</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($ticketNumber !== '' ? $ticketNumber : '—'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Customer Name</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($customerName !== '' ? $customerName : '—'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Main Provider</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($mainProviderName !== '' ? $mainProviderName : '—'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Ticket Variant</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($ticketVariantName !== '' ? $ticketVariantName : '—'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Source</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($sourceLabel); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Activity</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($activityLabel); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Cashier</div>
+                                  <div class="cashier-detail-value">
+                                    <?php echo $escape($entry['cashier_name']); ?>
+                                    <?php if (!empty($entry['cashier_username'])): ?><div class="text-muted small">@<?php echo $escape($entry['cashier_username']); ?></div><?php endif; ?>
+                                  </div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Session</div>
+                                  <div class="cashier-detail-value"><?php echo $escape(!empty($entry['session_code']) ? $entry['session_code'] : 'Not linked'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Branch</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($entry['branch_name']); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Date and Time</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($formatDateTime($entry['created_at'])); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Payment Method</div>
+                                  <div class="cashier-detail-value"><?php echo $escape(!empty($entry['method_name']) ? $entry['method_name'] : 'Not applicable'); ?></div>
+                                </div>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label"><?php echo $isResponsibilityEntry ? 'Responsibility Status' : 'Confirmation Status'; ?></div>
+                                  <div class="cashier-detail-value">
+                                    <?php if ($isResponsibilityEntry && $entryStatus !== ''): ?>
+                                      <span class="badge cashier-detail-status-badge bg-soft-<?php echo $entryStatusColor; ?> text-<?php echo $entryStatusColor; ?>"><?php echo $escape($entryStatus); ?></span>
+                                    <?php elseif (!$isResponsibilityEntry && $confirmationStatus !== '' && $confirmationStatus !== 'NOT_REQUIRED'): ?>
+                                      <span class="badge cashier-detail-status-badge bg-soft-secondary text-secondary"><?php echo $escape($confirmationStatus); ?></span>
+                                    <?php else: ?>
+                                      <span class="text-muted">Not applicable</span>
+                                    <?php endif; ?>
+                                  </div>
+                                </div>
+                                <?php if ($settlementStatus !== ''): ?>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Settlement Status</div>
+                                  <div class="cashier-detail-value"><?php echo $escape($settlementStatus); ?></div>
+                                </div>
+                                <?php endif; ?>
+                                <div class="col-12 col-md-6 col-xl-3">
+                                  <div class="cashier-detail-label">Amount</div>
+                                  <div class="cashier-detail-value fw-bold <?php echo $amountClass; ?>">₱<?php echo number_format((float) $entry['amount'], 2); ?></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
                       </tr>
                     <?php endforeach; ?>
                   </tbody>

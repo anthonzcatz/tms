@@ -21,6 +21,8 @@ let financialReportSignatoryLoading = false;
 let financialReportSignatoryLoadError = '';
 let selectingSignatoryEmployee = false;
 let signatorySettingsTrigger = null;
+let cashierPositions = {};
+let branchInfoMap = {};
 
 const defaultSignatoryLabels = [
     'Prepared by',
@@ -34,20 +36,22 @@ const defaultSignatoryLabels = [
 
 const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isTechnicalIssueReason = reasonCategory => ['PRINTER_ERROR', 'SYSTEM_ERROR']
+    .includes(String(reasonCategory || '').toUpperCase());
 const isApprovedVoid = txn => txn.adjustment_type === 'VOID' && txn.adjustment_approval_status === 'APPROVED';
-const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && txn.adjustment_reason_category === 'PRINTER_ERROR';
-const getTechnicalLostSalesAmount = txn => (Number(txn.lost_sales_void_fee) || 0)
-    + (Number(txn.lost_sales_service_fee) || 0);
+const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && isTechnicalIssueReason(txn.adjustment_reason_category);
+const getTechnicalLostSalesAmount = txn => Number(txn.technical_void_amount || txn.lost_sales_void_fee) || 0;
 const isCashierResponsibilityVoid = txn => txn.adjustment_type === 'VOID'
     && String(txn.adjustment_responsibility || '').toUpperCase() === 'CASHIER';
 const getTransactionDisplayAmount = txn => {
+    if (isTechnicalIssueVoid(txn)) {
+        return -getTechnicalLostSalesAmount(txn);
+    }
     if (isCashierResponsibilityVoid(txn)) {
         return Number(txn.adjustment_amount) || 0;
     }
     if (isApprovedVoid(txn)) {
-        return isTechnicalIssueVoid(txn)
-            ? -getTechnicalLostSalesAmount(txn)
-            : (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0);
+        return (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0);
     }
     const total = Number(txn.total_amount) || 0;
     const refunded = Number(txn.total_refunded_amount) || 0;
@@ -57,9 +61,9 @@ const getTransactionDisplayAmount = txn => {
 function buildProviderWallet(item) {
     const providerName = item.provider_name || '';
     const parentName = item.parent_provider_name || '';
-    const variantName = item.variant_name || '';
+    const variantName = item.variant_code || item.variant_name || '';
     const walletProvider = item.wallet_provider_name || '';
-    const walletVariant = item.wallet_variant_name || '';
+    const walletVariant = item.wallet_variant_code || item.wallet_variant_name || '';
 
     let providerDisplay = providerName;
     if (variantName) {
@@ -238,7 +242,7 @@ async function loadTransactions(page, options = {}) {
     const tbody = document.getElementById('transactionsTableBody');
     if (!isBackgroundRefresh) {
         txnRealtimeMarker = null;
-        tbody.innerHTML = `<tr><td colspan="13" class="text-center py-5 text-muted">
+        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-5 text-muted">
             <span class="fas fa-spinner fa-spin me-2"></span>Loading...</td></tr>`;
         document.getElementById('tableInfo').textContent = 'Loading...';
     }
@@ -268,7 +272,7 @@ async function loadTransactions(page, options = {}) {
         }
     } catch (e) {
         if (!isBackgroundRefresh) {
-            tbody.innerHTML = `<tr><td colspan="13" class="text-center py-4 text-danger">
+            tbody.innerHTML = `<tr><td colspan="14" class="text-center py-4 text-danger">
                 <span class="fas fa-exclamation-triangle me-2"></span>${esc(e.message)}</td></tr>`;
             document.getElementById('tableInfo').textContent = 'Error loading data';
         }
@@ -295,7 +299,8 @@ function transactionMarkersEqual(left, right) {
         'latest_adjustment_approved_at',
         'latest_cancellation_requested_at',
         'latest_cancellation_approved_at',
-        'latest_cancellation_processed_at'
+        'latest_cancellation_processed_at',
+        'latest_refund_processed_at'
     ];
     return fields.every(field => String(left?.[field] ?? '') === String(right?.[field] ?? ''));
 }
@@ -395,11 +400,22 @@ function resetFilters() {
 function populateDropdowns(filters) {
     const branchEl = document.getElementById('filterBranch');
     if (branchEl && filters.branches) {
+        branchInfoMap = {};
         filters.branches.forEach(b => {
             const opt = document.createElement('option');
             opt.value = b.branch_id;
             opt.textContent = b.branch_name;
             branchEl.appendChild(opt);
+            branchInfoMap[b.branch_id] = {
+                branch_name: b.branch_name || '',
+                street_address: b.street_address || '',
+                barangay_name: b.barangay_name || '',
+                city_municipality_name: b.city_municipality_name || '',
+                province_name: b.province_name || '',
+                region_name: b.region_name || '',
+                zip_code: b.zip_code || '',
+                contact_number: b.contact_number || ''
+            };
         });
     }
 
@@ -420,7 +436,8 @@ function populateDropdowns(filters) {
         filters.providers.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.provider_id;
-            opt.textContent = p.provider_type ? `${p.provider_name} (${p.provider_type.toLowerCase()})` : p.provider_name;
+            const typeLabel = p.provider_type_label || (p.provider_type ? p.provider_type.toLowerCase() : '');
+            opt.textContent = p.provider_type ? `${p.provider_name} (${typeLabel})` : p.provider_name;
             providerEl.appendChild(opt);
         });
     }
@@ -430,7 +447,7 @@ function populateDropdowns(filters) {
         filters.provider_types.forEach(pt => {
             const opt = document.createElement('option');
             opt.value = pt.provider_type;
-            opt.textContent = pt.provider_type ? (pt.provider_type.charAt(0).toUpperCase() + pt.provider_type.slice(1)) : pt.provider_type;
+            opt.textContent = pt.type_label || pt.provider_type || '';
             providerTypeEl.appendChild(opt);
         });
 
@@ -445,7 +462,8 @@ function populateDropdowns(filters) {
                 if (!selectedType || p.provider_type === selectedType) {
                     const opt = document.createElement('option');
                     opt.value = p.provider_id;
-                    opt.textContent = selectedType ? p.provider_name : (p.provider_type ? `${p.provider_name} (${p.provider_type.toLowerCase()})` : p.provider_name);
+                    const typeLabel = p.provider_type_label || (p.provider_type ? p.provider_type.toLowerCase() : '');
+                    opt.textContent = selectedType ? p.provider_name : (p.provider_type ? `${p.provider_name} (${typeLabel})` : p.provider_name);
                     provEl.appendChild(opt);
                 }
             });
@@ -458,11 +476,15 @@ function populateDropdowns(filters) {
 
     const cashierEl = document.getElementById('filterCashier');
     if (cashierEl && filters.cashiers) {
+        cashierPositions = {};
         filters.cashiers.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.user_id;
             opt.textContent = c.cashier_name;
             cashierEl.appendChild(opt);
+            if (c.cashier_position) {
+                cashierPositions[c.user_id] = c.cashier_position;
+            }
         });
     }
 }
@@ -475,7 +497,7 @@ const statusIcons  = { completed:'fa-check-circle', pending:'fa-clock', cancelle
 function renderTable(rows) {
     const tbody = document.getElementById('transactionsTableBody');
     if (!rows || rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="13"><div class="text-center py-5 text-muted d-flex flex-column align-items-center justify-content-center">
+        tbody.innerHTML = `<tr><td colspan="14"><div class="text-center py-5 text-muted d-flex flex-column align-items-center justify-content-center">
             <span class="fas fa-receipt fs-2 d-block mb-2 opacity-25"></span>
             <div>No transactions found</div>
             <small>Try adjusting your filters</small>
@@ -487,12 +509,18 @@ function renderTable(rows) {
         const isTicket  = txn.ticket_count > 0;
         const isService = txn.service_count > 0;
 
+        const refunded = Number(txn.total_refunded_amount) || 0;
+        const hasRefund = refunded > 0
+            || Number(txn.refund_count || 0) > 0
+            || (txn.adjustment_type === 'REFUND' && txn.adjustment_approval_status === 'APPROVED');
+        const totalAmount = Number(txn.total_amount) || 0;
+        const isPartialRefund = hasRefund && totalAmount > 0 && refunded < totalAmount - 0.01;
+
         // Resolve a single, non-conflicting final status.
         const hasPending = txn.adjustment_approval_status === 'PENDING' ||
             (txn.has_cancellation && (txn.cancellation_status || '').toLowerCase() === 'pending');
         const isVoid = isApprovedVoid(txn);
-        const isRefund = (txn.adjustment_type === 'REFUND' && txn.adjustment_approval_status === 'APPROVED') ||
-            txn.status === 'refunded';
+        const isRefund = hasRefund || txn.status === 'refunded';
 
         let finalStatus = txn.status || 'completed';
         if (hasPending) {
@@ -500,30 +528,33 @@ function renderTable(rows) {
         } else if (isVoid) {
             finalStatus = 'voided';
         } else if (isRefund) {
-            finalStatus = 'refunded';
+            finalStatus = isPartialRefund ? 'partially-refunded' : 'refunded';
         } else if (txn.status === 'cancelled') {
             finalStatus = 'cancelled';
         }
 
         const statusMap = {
-            pending:   { color: 'warning', icon: 'fa-clock',             text: 'Pending Cancel' },
-            voided:    { color: 'warning', icon: 'fa-ban',               text: 'Voided' },
-            refunded:  { color: 'info',    icon: 'fa-hand-holding-usd',  text: 'Refunded' },
-            cancelled: { color: 'danger',  icon: 'fa-times-circle',      text: 'Cancelled' },
-            completed: { color: 'primary', icon: 'fa-check-circle',      text: 'Completed' },
-            booked:    { color: 'success', icon: 'fa-check-circle',      text: 'Booked' }
+            pending:            { color: 'warning', icon: 'fa-clock',             text: 'Pending Cancel' },
+            voided:             { color: 'warning', icon: 'fa-ban',               text: 'Voided' },
+            'partially-refunded': { color: 'info', icon: 'fa-hand-holding-usd',  text: 'Partially Refunded' },
+            refunded:           { color: 'info',    icon: 'fa-hand-holding-usd',  text: 'Refunded' },
+            cancelled:          { color: 'danger',  icon: 'fa-times-circle',      text: 'Cancelled' },
+            completed:          { color: 'primary', icon: 'fa-check-circle',      text: 'Completed' },
+            booked:             { color: 'success', icon: 'fa-check-circle',      text: 'Booked' }
         };
         const statusInfo = statusMap[finalStatus] || { color: 'secondary', icon: 'fa-circle', text: finalStatus };
         const isPartiallyCancelled = finalStatus === 'completed' && txn.has_cancellation && !isRefund && !isVoid;
 
-        // Type pill
+        // Type pill (stacked rows when both ticket and service)
         let typePill = '';
+        const ticketBadge = `<span class="badge type-pill-ticket">Ticket</span>`;
+        const serviceBadge = `<span class="badge type-pill-service">Service</span>`;
         if (isTicket && isService) {
-            typePill = `<span class="badge type-pill-ticket me-1">Ticket</span><span class="badge type-pill-service">Service</span>`;
+            typePill = `<div class="d-flex flex-column gap-1">${ticketBadge}${serviceBadge}</div>`;
         } else if (isTicket) {
-            typePill = `<span class="badge type-pill-ticket">Ticket</span>`;
+            typePill = ticketBadge;
         } else {
-            typePill = `<span class="badge type-pill-service">Service</span>`;
+            typePill = serviceBadge;
         }
 
         // Passenger / Provider
@@ -565,6 +596,10 @@ function renderTable(rows) {
         const serviceFeeHtml = serviceFeeAmount > 0
             ? `<span class="fw-semibold">₱${fmt(serviceFeeAmount)}</span>`
             : '<span class="text-muted">—</span>';
+        const addOnsAmount = Number(txn.total_add_ons) || 0;
+        const addOnsHtml = (!isVoid && addOnsAmount > 0)
+            ? `<span class="fw-semibold">₱${fmt(addOnsAmount)}</span>`
+            : '<span class="text-muted">—</span>';
         const technicalVoidAmount = getTechnicalLostSalesAmount(txn);
         const displayAmount = getTransactionDisplayAmount(txn);
         let amountHtml = displayAmount < 0
@@ -579,12 +614,11 @@ function renderTable(rows) {
             if (voidFee > 0) voidParts.push(`Void Fee ₱${fmt(voidFee)}`);
             if (voidServiceFee > 0) voidParts.push(`service fee ₱${fmt(voidServiceFee)}`);
             if (voidParts.length > 0) {
-                amountHtml += `<div class="text-muted" style="font-size:.72rem">${voidParts.join(' + ')}</div>`;
+                amountHtml += `<div class="text-muted" style="font-size:.72rem" data-void-fee="${voidFee}">${voidParts.join(' + ')}</div>`;
             }
         }
-        const refunded = parseFloat(txn.total_refunded_amount || 0);
         if (refunded > 0) {
-            amountHtml += `<div class="text-danger" style="font-size:.72rem">-₱${fmt(refunded)} refund</div>`;
+            amountHtml += `<div class="text-danger" style="font-size:.72rem" data-refunded-amount="${refunded}">-₱${fmt(refunded)} refund</div>`;
         }
 
         // Extra badges beside the ticket number (responsibility / partial cancellation only).
@@ -604,6 +638,11 @@ function renderTable(rows) {
 
         const dateStr = txn.created_at ? formatDate(txn.created_at) : '—';
         const timeStr = txn.created_at ? formatTime(txn.created_at) : '—';
+        const refundDateHtml = hasRefund && txn.refund_processed_at
+            ? `<div class="transaction-refund-date text-danger" title="Refund processed by ${esc(txn.refund_processor_names || 'Unassigned')}">
+                <span class="fas fa-undo me-1"></span>Refunded ${esc(formatDateTime(txn.refund_processed_at))}
+              </div>`
+            : '';
 
         return `<tr class="txn-row" data-passenger-number="${esc(txn.passenger_numbers || '')}" data-ticket-number="${esc(txn.ticket_numbers || '')}" onclick="viewTxnDetail('${esc(txn.order_id)}')" title="Click to view details">
             <td class="ps-3 py-2">
@@ -630,6 +669,7 @@ function renderTable(rows) {
             <td class="py-2">${payDisplay}</td>
             <td class="py-2 text-end">${costHtml}</td>
             <td class="py-2 text-end">${serviceFeeHtml}</td>
+            <td class="py-2 text-end">${addOnsHtml}</td>
             <td class="py-2 text-end">${amountHtml}</td>
             <td class="py-2">
                 <span class="badge bg-soft-${statusInfo.color} text-${statusInfo.color}">
@@ -637,8 +677,9 @@ function renderTable(rows) {
                 </span>
             </td>
             <td class="py-2 text-end pe-3">
-                <div style="font-size:.75rem; white-space:nowrap">${dateStr}</div>
+                <div class="transaction-sale-date" style="font-size:.75rem; white-space:nowrap">Sale ${dateStr}</div>
                 <div style="font-size:.7rem; color:#6c757d; white-space:nowrap">${timeStr}</div>
+                ${refundDateHtml}
             </td>
         </tr>`;
     }).join('');
@@ -675,9 +716,9 @@ function renderPagination(pg) {
 function updateStats(stats) {
     if (!stats) return;
     document.getElementById('statTotal').textContent    = stats.total_orders    || 0;
-    document.getElementById('statRevenue').textContent  = '₱' + fmt(stats.total_revenue);
+    document.getElementById('statRevenue').textContent  = '₱' + fmt(stats.total_gross);
     document.getElementById('statRefunded').textContent = '₱' + fmt(stats.total_refunded);
-    document.getElementById('statProfit').textContent   = '₱' + fmt(stats.total_profit);
+    document.getElementById('statNetSale').textContent  = '₱' + fmt(stats.total_revenue);
 }
 
 function formatFinancialDate(value) {
@@ -786,16 +827,40 @@ function renderFinancialReport() {
     if (periodEl) periodEl.textContent = `Period: ${periodLabel}`;
 
     const providerSales = Array.isArray(data.provider_sales) ? data.provider_sales : [];
-    const providerRows = providerSales.length
-        ? providerSales.map(row => `
+    const reportedAddOnsTotal = Number(data.total_add_ons ?? data.service_amount ?? 0);
+    const normalizedProviderSales = providerSales.map(row => {
+        const isServiceRow = Boolean(row.is_service);
+        const addOns = isServiceRow
+            ? Number(row.add_ons || row.service_fee_income || row.total_amount || reportedAddOnsTotal || 0)
+            : Number(row.add_ons || 0);
+        return {
+            ...row,
+            service_fee_income: isServiceRow ? 0 : Number(row.service_fee_income || 0),
+            add_ons: addOns
+        };
+    });
+    const providerSalesWithData = normalizedProviderSales.filter(row => !row.is_service
+        || Number(row.add_ons || 0) > 0);
+    const totalServiceFeeIncome = providerSalesWithData.reduce(
+        (sum, row) => sum + Number(row.service_fee_income || 0), 0
+    );
+    const calculatedAddOnsTotal = providerSalesWithData.reduce(
+        (sum, row) => sum + Number(row.add_ons || 0), 0
+    );
+    const totalAddOns = Math.max(reportedAddOnsTotal, calculatedAddOnsTotal);
+    const hasAddOns = totalAddOns > 0;
+    const providerColspan = hasAddOns ? 6 : 5;
+    const providerRows = providerSalesWithData.length
+        ? providerSalesWithData.map(row => `
             <tr class="${row.is_service ? 'financial-report-service-row' : ''}">
               <td>${esc(row.provider_name || 'Unassigned')}</td>
               <td class="text-end">${Number(row.tickets || 0).toLocaleString('en-PH')}</td>
-              <td class="text-end">${reportMoney(row.total_cost)}</td>
-              <td class="text-end">${reportMoney(row.service_fee_income)}</td>
+              <td class="text-end">${reportMoneyOrDash(row.total_cost)}</td>
+              <td class="text-end">${reportMoneyOrDash(row.service_fee_income)}</td>
+              ${hasAddOns ? `<td class="text-end">${reportMoneyOrDash(row.add_ons)}</td>` : ''}
               <td class="text-end">${reportMoney(row.total_amount)}</td>
             </tr>`).join('')
-        : '<tr><td colspan="5" class="text-center text-muted">No ticket sales found for the selected filters.</td></tr>';
+        : `<tr><td colspan="${providerColspan}" class="text-center text-muted">No ticket sales found for the selected filters.</td></tr>`;
 
     const paymentSummary = Array.isArray(data.payment_summary) ? data.payment_summary : [];
     const paymentRows = paymentSummary.length
@@ -803,7 +868,7 @@ function renderFinancialReport() {
             <tr>
               <td>${esc(row.method_name || 'Other')}</td>
               <td class="text-end">${Number(row.order_count || 0).toLocaleString('en-PH')}</td>
-              <td class="text-end">${reportMoney(row.amount)}</td>
+              <td class="text-end">${reportMoneyOrDash(row.amount)}</td>
             </tr>`).join('')
         : '<tr><td colspan="3" class="text-center text-muted">No payment records found.</td></tr>';
 
@@ -828,7 +893,7 @@ function renderFinancialReport() {
             return `
             <tr>
               <td>${esc(provider.name)}</td>
-              <td class="text-end">${reportMoney(refund?.amount || 0)}</td>
+              <td class="text-end">${reportMoneyOrDash(refund?.amount || 0)}</td>
             </tr>`;
         }).join('')
         : '<tr><td colspan="2" class="text-center text-muted">No sales refunds found.</td></tr>';
@@ -843,21 +908,42 @@ function renderFinancialReport() {
       </label>`;
 
     const currentUserName = window.POS_TXN_CONFIG?.currentUserName || '';
+    const currentUserPosition = window.POS_TXN_CONFIG?.currentUserPosition || '';
     const signatoryConfig = getReportSignatories(data);
-    const signatures = signatoryConfig.map((sig, index) => `
+    const cashierFilter = document.getElementById('filterCashier');
+    const selectedCashierId = (cashierFilter && cashierFilter.value) ? cashierFilter.value : '';
+    const selectedCashierText = (selectedCashierId && cashierFilter.options[cashierFilter.selectedIndex])
+        ? cashierFilter.options[cashierFilter.selectedIndex].text : '';
+    const preparedByName = formatSignatoryName(selectedCashierText || currentUserName);
+    const preparedByPosition = formatPositionName(
+        (selectedCashierId && cashierPositions[selectedCashierId])
+            ? cashierPositions[selectedCashierId]
+            : currentUserPosition
+    );
+    const preparedBySignatoryName = selectedCashierText || currentUserName;
+    const signatures = signatoryConfig.map((sig, index) => {
+        const isPreparedByRow = index === 0;
+        const sigName = isPreparedByRow ? preparedBySignatoryName : (sig.name || '');
+        const sigPosition = formatPositionName(isPreparedByRow ? preparedByPosition : (sig.position_name || ''));
+        return `
       <div class="financial-signature-row">
         <span class="financial-signature-label">${esc(sig.label)}</span>
-        <span class="financial-signature-name">${esc(formatSignatoryName(sig.name || (!data.signatory_configured && index === 0 ? currentUserName : '')))}</span>
-        <span class="financial-signature-position">${esc(sig.position_name || '')}</span>
+        <span class="financial-signature-name">${esc(formatSignatoryName(sigName))}</span>
+        <span class="financial-signature-position">${esc(sigPosition)}</span>
         <span class="financial-signature-date-label financial-signature-date-label-text">Date</span>
         <span class="financial-signature-line financial-signature-date-line"></span>
         <span class="financial-signature-date-label financial-signature-sig-label-text">Signature</span>
         <span class="financial-signature-line financial-signature-sig-line financial-signature-mark"></span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 
     const companyInfo = window.COMPANY_INFO || {};
     const companyName = companyInfo.name || window.systemName || 'TMS';
-    const companyAddress = String(companyInfo.address || '').trim();
+    const branchFilter = document.getElementById('filterBranch');
+    const selectedBranchId = (branchFilter && branchFilter.value) ? branchFilter.value : '';
+    const selectedBranchInfo = selectedBranchId ? branchInfoMap[selectedBranchId] : null;
+    const branchAddress = selectedBranchInfo ? buildBranchAddress(selectedBranchInfo) : '';
+    const companyAddress = branchAddress || String(companyInfo.address || '').trim();
     const companyContact = [companyInfo.contact, companyInfo.email].filter(Boolean).join(' · ');
     const companyTin = String(companyInfo.tin || '').trim();
     const logoUrl = String(companyInfo.logo || '').trim();
@@ -877,7 +963,7 @@ function renderFinancialReport() {
             ${logoHtml}
             <div class="financial-report-company">
               <div class="financial-report-company-name">${esc(companyName)}</div>
-              ${companyAddress ? `<div class="financial-report-company-meta">${esc(companyAddress).replace(/\r?\n/g, '<br>')}</div>` : ''}
+              ${companyAddress ? `<div class="financial-report-company-meta financial-report-company-address">${esc(companyAddress).replace(/\r?\n/g, '<br>')}</div>` : ''}
               ${companyContact ? `<div class="financial-report-company-meta">${esc(companyContact)}</div>` : ''}
               ${companyTin ? `<div class="financial-report-company-meta">TIN: ${esc(companyTin)}</div>` : ''}
             </div>
@@ -887,6 +973,7 @@ function renderFinancialReport() {
             <div class="financial-report-title">FINANCIAL REPORT</div>
             <div class="financial-report-date">${esc(periodLabel)}</div>
             <div class="financial-report-scope">${esc(scopeLabel)}</div>
+
           </div>
         </div>
 
@@ -903,7 +990,8 @@ function renderFinancialReport() {
                   <th>Provider</th>
                   <th class="text-end">Tickets Sold</th>
                   <th class="text-end">Total Cost</th>
-                  <th class="text-end">Service Fee Income</th>
+                  <th class="text-end">Service Fee</th>
+                  ${hasAddOns ? '<th class="text-end">Add-ons</th>' : ''}
                   <th class="text-end">Total Amount</th>
                 </tr>
               </thead>
@@ -913,7 +1001,8 @@ function renderFinancialReport() {
                   <th>Total</th>
                   <th class="text-end">${Number(data.total_tickets || 0).toLocaleString('en-PH')}</th>
                   <th class="text-end">${reportMoney(data.total_cost)}</th>
-                  <th class="text-end">${reportMoney(data.total_service_fee_income)}</th>
+                  <th class="text-end">${reportMoney(totalServiceFeeIncome)}</th>
+                  ${hasAddOns ? `<th class="text-end">${reportMoney(totalAddOns)}</th>` : ''}
                   <th class="text-end">${reportMoney(data.total_amount)}</th>
                 </tr>
               </tfoot>
@@ -982,6 +1071,10 @@ function reportMoney(value) {
     return `₱${fmt(value)}`;
 }
 
+function reportMoneyOrDash(value) {
+    return Number(value || 0) > 0 ? reportMoney(value) : '<span class="text-muted">—</span>';
+}
+
 function refreshFinancialReport() {
     if (!isLoading) loadTransactions(1);
 }
@@ -1008,6 +1101,23 @@ function printFinancialReport() {
     };
 
     document.body.classList.add('printing-financial-report');
+
+    // Ensure the Prepared by field reflects the currently selected cashier at print time
+    const cashierFilter = document.getElementById('filterCashier');
+    const selectedCashierId = (cashierFilter && cashierFilter.value) ? cashierFilter.value : '';
+    const selectedCashierText = (selectedCashierId && cashierFilter.options[cashierFilter.selectedIndex])
+        ? cashierFilter.options[cashierFilter.selectedIndex].text : '';
+    const preparedByName = formatSignatoryName(selectedCashierText || window.POS_TXN_CONFIG?.currentUserName || '');
+    const preparedByPosition = formatPositionName(
+        (selectedCashierId && cashierPositions[selectedCashierId])
+            ? cashierPositions[selectedCashierId]
+            : (window.POS_TXN_CONFIG?.currentUserPosition || '')
+    );
+    const firstSigNameEl = document.querySelector('.financial-report-signatures .financial-signature-name');
+    if (firstSigNameEl) firstSigNameEl.textContent = preparedByName;
+    const firstSigPositionEl = document.querySelector('.financial-report-signatures .financial-signature-position');
+    if (firstSigPositionEl) firstSigPositionEl.textContent = preparedByPosition;
+
     const img = document.querySelector('.financial-report-logo');
     if (img && !img.complete && img.src) {
         img.addEventListener('load', doPrint, { once: true });
@@ -1090,9 +1200,30 @@ function formatSignatoryName(name) {
     return String(name || '').replace(/\s+/g, ' ').trim();
 }
 
+function formatPositionName(position) {
+    const p = String(position || '').replace(/\s+/g, ' ').trim();
+    if (!p) return '';
+    return p.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function buildBranchAddress(info) {
+    if (!info) return '';
+    const parts = [
+        info.street_address,
+        info.barangay_name,
+        info.city_municipality_name,
+        info.province_name,
+        info.zip_code
+    ].filter(Boolean);
+    return parts.join(', ');
+}
+
 function getEmployeeFullName(emp) {
     if (!emp) return '';
-    return formatSignatoryName(emp.full_name || `${emp.first_name || ''} ${emp.middle_name || ''} ${emp.last_name || ''}`);
+    if (emp.full_name) return formatSignatoryName(emp.full_name);
+    const middle = (emp.middle_name || '').trim();
+    const middleInitial = middle ? `${middle.charAt(0).toUpperCase()}.` : '';
+    return formatSignatoryName(`${emp.first_name || ''} ${middleInitial} ${emp.last_name || ''}`);
 }
 
 function getPositionById(positionId) {
@@ -1627,6 +1758,26 @@ function renderDetailModal(txn) {
         String(latestAdjustment.type || '').toUpperCase() === 'VOID'
         && String(latestAdjustment.approval_status || '').toUpperCase() === 'APPROVED'
     );
+    const refunded = Number(txn.total_refunded_amount) || 0;
+    const detailTotalAmount = Number(txn.original_grand_total || txn.total_amount || txn.grand_total) || 0;
+    const detailHasRefund = refunded > 0 || adjustments.some(adjustment =>
+        String(adjustment.type || '').toUpperCase() === 'REFUND'
+        && String(adjustment.approval_status || '').toUpperCase() === 'APPROVED'
+    );
+    const detailIsPartialRefund = detailHasRefund && detailTotalAmount > 0 && refunded < detailTotalAmount - 0.01;
+    const detailIsPending = String(latestAdjustment.approval_status || '').toUpperCase() === 'PENDING';
+    let detailStatusKey = String(txn.status || 'completed').toLowerCase();
+    let detailStatusLabel = detailStatusKey.charAt(0).toUpperCase() + detailStatusKey.slice(1);
+    if (detailIsPending) {
+        detailStatusKey = 'pending';
+        detailStatusLabel = 'Pending Cancel';
+    } else if (isVoided) {
+        detailStatusKey = 'voided';
+        detailStatusLabel = 'Voided';
+    } else if (detailHasRefund) {
+        detailStatusKey = detailIsPartialRefund ? 'partially-refunded' : 'refunded';
+        detailStatusLabel = detailIsPartialRefund ? 'Partially Refunded' : 'Refunded';
+    }
     const technicalLostSalesAmount = getTechnicalLostSalesAmount(latestAdjustment);
     const adjustmentsHtml = adjustments.length
         ? `<hr class="my-4"><div class="mb-3"><h6 class="fw-bold text-uppercase text-muted small"><span class="fas fa-user-shield me-2"></span>Adjustments & Responsibility</h6>${adjustments.map(adjustment => `
@@ -1638,11 +1789,12 @@ function renderDetailModal(txn) {
                     </div>
                     <div class="text-muted">${esc(adjustment.reason || 'No reason provided')}</div>
                     ${adjustment.reason_category ? `<div class="text-muted">Category: ${esc(adjustment.reason_category)}</div>` : ''}
-                    ${adjustment.type === 'VOID' && adjustment.reason_category === 'PRINTER_ERROR' && adjustment.cancellation_status === 'completed' && getTechnicalLostSalesAmount(adjustment) > 0 ? `<div class="text-danger">Lost Sales: -₱${fmt(getTechnicalLostSalesAmount(adjustment))}</div>` : ''}
+                    ${adjustment.type === 'VOID' && isTechnicalIssueReason(adjustment.reason_category) && adjustment.cancellation_status === 'completed' && getTechnicalLostSalesAmount(adjustment) > 0 ? `<div class="text-danger">Lost Sales: -₱${fmt(getTechnicalLostSalesAmount(adjustment))}</div>` : ''}
                     ${adjustment.type === 'VOID' && parseFloat(adjustment.void_fee || 0) > 0 ? `<div class="text-warning">Void Fee Income: ₱${fmt(adjustment.void_fee)}</div>` : ''}
                     ${adjustment.type === 'VOID' && parseFloat(adjustment.void_service_fee || 0) > 0 ? `<div class="text-info">Service Fee Income: ₱${fmt(adjustment.void_service_fee)}</div>` : ''}
                     <div class="text-muted">Responsible: ${esc(adjustment.charged_to || 'none')}${adjustment.responsible_cashier_name ? ` — ${esc(adjustment.responsible_cashier_name)}` : ''}</div>
                     <div class="text-muted">Approval: ${esc(adjustment.approval_status || '—')} · Settlement: ${esc(adjustment.settlement_status || '—')}</div>
+                    ${String(adjustment.type || '').toUpperCase() === 'REFUND' && adjustment.refund_processed_at ? `<div class="text-danger mt-1"><span class="fas fa-undo me-1"></span>Refund processed: ${esc(formatDateTime(adjustment.refund_processed_at))}${adjustment.refund_processed_by_name ? ` · By ${esc(adjustment.refund_processed_by_name)}` : ''}</div>` : ''}
                 </div>
             </div>`).join('')}</div>`
         : '';
@@ -1667,7 +1819,7 @@ function renderDetailModal(txn) {
                         ${item.travel_date ? `<div class="text-muted small mb-1"><span class="fas fa-calendar me-1"></span>Travel: ${formatDate(item.travel_date)}</div>` : ''}
                         ${item.accommodation_name ? `<div class="text-muted small mb-1"><span class="fas fa-bed me-1"></span>${esc(item.accommodation_name)}</div>` : ''}
                         ${item.discount_name ? `<div class="text-success small mb-1"><span class="fas fa-percent me-1"></span>${esc(item.discount_name)}</div>` : ''}
-                        ${item.provider_name || item.parent_provider_name || item.variant_name ? `<div class="text-muted small mb-1"><span class="fas fa-building me-1"></span>${buildProviderWallet(item)}</div>` : ''}
+                        ${item.provider_name || item.parent_provider_name || item.variant_name || item.variant_code ? `<div class="text-muted small mb-1"><span class="fas fa-building me-1"></span>${buildProviderWallet(item)}</div>` : ''}
                         ${item.service_name ? `<div class="text-muted small mb-1"><span class="fas fa-cog me-1"></span>${esc(item.service_name)}</div>` : ''}
                         ${item.ticket_status ? `<span class="badge status-badge-${item.ticket_status} mt-1" style="font-size:0.65rem">${esc(item.ticket_status)}</span>` : ''}
                     </div>
@@ -1678,8 +1830,6 @@ function renderDetailModal(txn) {
             </div>
         </div>`;
     });
-
-    const refunded = parseFloat(txn.total_refunded_amount || 0);
 
     document.getElementById('txnDetailContent').innerHTML = `
         <div class="row g-4">
@@ -1703,12 +1853,19 @@ function renderDetailModal(txn) {
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="text-muted small fw-bold text-uppercase mb-1">Date</label>
+                    <label class="text-muted small fw-bold text-uppercase mb-1">Sale date</label>
                     <div class="d-flex align-items-center">
                         <span class="fas fa-clock me-2 text-muted"></span>
                         <span class="small">${txn.created_at ? formatDateTime(txn.created_at) : '—'}</span>
                     </div>
                 </div>
+                ${txn.refund_processed_at ? `<div class="mb-3">
+                    <label class="text-muted small fw-bold text-uppercase mb-1">Refund processed</label>
+                    <div class="d-flex align-items-center text-danger">
+                        <span class="fas fa-undo me-2"></span>
+                        <span class="small">${formatDateTime(txn.refund_processed_at)}${txn.refund_processed_by_name ? ` · By ${esc(txn.refund_processed_by_name)}` : ''}</span>
+                    </div>
+                </div>` : ''}
                 ${txn.or_full_number ? `<div class="mb-3">
                     <label class="text-muted small fw-bold text-uppercase mb-1">Official Receipt No.</label>
                     <div class="d-flex align-items-center">
@@ -1729,7 +1886,7 @@ function renderDetailModal(txn) {
                 <div class="mb-3">
                     <label class="text-muted small fw-bold text-uppercase mb-1">Status</label>
                     <div>
-                        <span class="badge status-badge-${txn.status || 'completed'}">${esc((txn.status || 'completed').charAt(0).toUpperCase() + (txn.status || '').slice(1))}</span>
+                        <span class="badge status-badge-${detailStatusKey}">${esc(detailStatusLabel)}</span>
                     </div>
                 </div>
                 <div class="mb-3">
@@ -1752,7 +1909,7 @@ function renderDetailModal(txn) {
                                 <span>Service Fee</span>
                                 <span>₱${fmt(txn.total_service_fees)}</span>
                             </div>` : ''}
-                            ${isVoided && String(latestAdjustment.reason_category || '').toUpperCase() === 'PRINTER_ERROR' && String(latestAdjustment.cancellation_status || '').toLowerCase() === 'completed' && technicalLostSalesAmount > 0 ? `<div class="d-flex justify-content-between mb-2 text-danger">
+                            ${isVoided && isTechnicalIssueReason(latestAdjustment.reason_category) && String(latestAdjustment.cancellation_status || '').toLowerCase() === 'completed' && technicalLostSalesAmount > 0 ? `<div class="d-flex justify-content-between mb-2 text-danger">
                                 <span>Lost Sales</span>
                                 <span>-₱${fmt(technicalLostSalesAmount)}</span>
                             </div>` : ''}
@@ -1919,6 +2076,16 @@ function printTransactions() {
 
     // Top summary values are computed from the visible printed rows.
 
+    const parsePeso = s => parseFloat(String(s).replace(/[^\d.-]/g, '')) || 0;
+    const rows = table.querySelectorAll('tbody tr');
+    const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+
+    // Determine whether any visible row has add-ons before building columns
+    const hasAddOns = visibleRows.some(row => {
+        const cells = row.querySelectorAll('td');
+        return cells.length >= 14 && parsePeso(cells[10].textContent.trim()) > 0;
+    });
+
     // Build table HTML for print (only visible/filtered rows)
     const columns = [
         { key: 'no', header: 'NO.' },
@@ -1929,32 +2096,33 @@ function printTransactions() {
         { key: 'branch', header: 'BRANCH', hide: isBranchFiltered },
         { key: 'cost', header: 'COST' },
         { key: 'service_fee', header: 'SERVICE FEE' },
+        { key: 'add_ons', header: 'ADD-ONS' },
         { key: 'amount', header: 'AMOUNT' },
         { key: 'payment', header: 'PAYMENT' },
         { key: 'status', header: 'STATUS' }
-    ].filter(c => !c.hide);
+    ].filter(c => !c.hide && (c.key !== 'add_ons' || hasAddOns));
 
     const tableHeaders = columns.map(c => `<th>${c.header}</th>`).join('');
 
     let tableHTML = '';
     let totalCost = 0;
     let totalServiceFee = 0;
+    let totalAddOns = 0;
+    let totalRefunded = 0;
+    let totalVoidFee = 0;
     let totalTechnicalVoid = 0;
-    const parsePeso = s => parseFloat(String(s).replace(/[^\d.-]/g, '')) || 0;
-    const rows = table.querySelectorAll('tbody tr');
-    const sortedRows = Array.from(rows)
-        .filter(row => row.style.display !== 'none')
-        .sort((a, b) => {
-            const aCell = a.querySelectorAll('td')[4];
-            const bCell = b.querySelectorAll('td')[4];
-            const aName = aCell ? aCell.textContent.trim().toLowerCase() : '';
-            const bName = bCell ? bCell.textContent.trim().toLowerCase() : '';
-            return aName.localeCompare(bName);
-        });
+
+    const sortedRows = visibleRows.slice().sort((a, b) => {
+        const aCell = a.querySelectorAll('td')[4];
+        const bCell = b.querySelectorAll('td')[4];
+        const aName = aCell ? aCell.textContent.trim().toLowerCase() : '';
+        const bName = bCell ? bCell.textContent.trim().toLowerCase() : '';
+        return aName.localeCompare(bName);
+    });
     let rowNo = 0;
     sortedRows.forEach((row) => {
         const cells = row.querySelectorAll('td');
-            if (cells.length >= 13) { // 13 columns in the visible table
+            if (cells.length >= 14) { // 14 columns in the visible table
                 rowNo++;
                 // Extract responsibility/cancellation badges from cell 0
                 const orderCell = cells[0];
@@ -1977,7 +2145,7 @@ function printTransactions() {
                 const passengerName = detailsCell.split('\n').map(l => l.trim()).filter(l => l)[0] || '';
                 const passengerNumber = row.dataset?.passengerNumber || '';
 
-                // Cashier is cell 5, Branch cell 6, Payment cell 7, Cost cell 8, Service Fee cell 9, Amount cell 10, Status cell 11
+                // Cashier is cell 5, Branch cell 6, Payment cell 7, Cost cell 8, Service Fee cell 9, Add-ons cell 10, Amount cell 11, Status cell 12
                 const cashierName = cells[5].textContent.trim();
                 const formattedCashier = formatCashierName(cashierName);
                 const branchName = cells[6].textContent.trim();
@@ -1985,19 +2153,37 @@ function printTransactions() {
                 // Cost and Service Fee from cells 8 and 9
                 const costText = cells[8].textContent.trim();
                 const serviceFeeText = cells[9].textContent.trim();
+                const addOnsText = cells[10].textContent.trim();
 
-                // Amount and breakdown from cell 10
-                const amountCell = cells[10];
+                // Payment from cell 7: extract each payment chip separately
+                const paymentCell = cells[7];
+                const paymentChips = Array.from(paymentCell.querySelectorAll('.payment-chip'))
+                    .map(chip => chip.textContent.trim())
+                    .filter(Boolean);
+                const paymentLines = paymentChips.length > 0
+                    ? paymentChips
+                    : [paymentCell.textContent.trim() || '—'];
+                const paymentText = paymentLines.length > 1
+                    ? paymentLines.slice(0, -1).join(', ') + ' & ' + paymentLines[paymentLines.length - 1]
+                    : paymentLines[0];
+
+                // Amount and breakdown from cell 11
+                const amountCell = cells[11];
                 const amountMain = amountCell.querySelector('.fw-semibold')?.textContent.trim() || amountCell.textContent.trim();
-                const refundText = amountCell.querySelector('.text-danger:not(.fw-semibold):not(.transaction-lost-sales)')?.textContent.trim() || '';
+                const refundEl = amountCell.querySelector('[data-refunded-amount]');
+                const refundText = refundEl ? refundEl.textContent.trim() : '';
+                const voidFee = Number(amountCell.querySelector('[data-void-fee]')?.dataset.voidFee || 0);
                 const lostSalesText = amountCell.querySelector('.transaction-lost-sales')?.textContent.trim() || '';
 
                 // Accumulate totals for the visible rows
                 totalCost += parsePeso(costText);
                 totalServiceFee += parsePeso(serviceFeeText);
+                totalAddOns += parsePeso(addOnsText);
+                totalRefunded += refundEl ? Number(refundEl.dataset.refundedAmount || 0) : Math.abs(parsePeso(refundText));
+                totalVoidFee += voidFee;
                 totalTechnicalVoid += Math.abs(parsePeso(lostSalesText));
 
-                const statusText = cells[11].textContent.trim();
+                const statusText = cells[12].textContent.trim();
 
                 const colHtml = {
                     no: `<td style="text-align:center;">${rowNo}</td>`,
@@ -2014,9 +2200,10 @@ function printTransactions() {
                     </td>`,
                     cashier: `<td>${formattedCashier}</td>`,
                     branch: `<td>${branchName}</td>`,
-                    payment: `<td>${cells[7].textContent.trim()}</td>`,
+                    payment: `<td>${esc(paymentText)}</td>`,
                     cost: `<td>${costText}</td>`,
                     service_fee: `<td>${serviceFeeText}</td>`,
+                    add_ons: `<td>${addOnsText}</td>`,
                     amount: `<td>
                         <div style="margin-bottom:2px;">${amountMain}</div>
                         ${refundText ? `<div style="font-size:6.5pt; color:#dc3545;">${refundText}</div>` : ''}
@@ -2029,8 +2216,8 @@ function printTransactions() {
             }
         });
 
-    // Net sale total (Cost + Service Fee - Lost Sales)
-    const netSale = totalCost + totalServiceFee - totalTechnicalVoid;
+    // Net sale total (Cost + Service Fee + Add-ons + Void Fee - Refunded - Lost Sales)
+    const netSale = totalCost + totalServiceFee + totalAddOns + totalVoidFee - totalRefunded - totalTechnicalVoid;
 
     // Format date nicely
     const now = new Date();
@@ -2061,7 +2248,16 @@ function printTransactions() {
         printAddress = window.COMPANY_INFO.address;
     }
 
+    // Prepared by: selected cashier, fallback to current user
+    const preparedByName = selectedCashierText || window.POS_TXN_CONFIG?.currentUserName || '';
+
     // Build custom print HTML for POS transactions
+    const addOnsSummaryBox = hasAddOns ? `
+        <div style="flex: 1; text-align: center; border-right: 1px solid #000;">
+            <div style="font-size: 7pt; color: #000; margin-bottom: 2px;">TOTAL ADD-ONS</div>
+            <div style="font-size: 9pt; font-weight: normal; color: #000;">₱${fmt(totalAddOns)}</div>
+        </div>` : '';
+
     const printHTML = `
 <!DOCTYPE html>
 <html>
@@ -2183,8 +2379,17 @@ function printTransactions() {
             }
             .sig-line {
                 border-bottom: 1px solid #000;
-                height: 25px;
+                height: 0;
                 margin-bottom: 4px;
+            }
+            .sig-name {
+                font-size: 8pt;
+                color: #000;
+                font-weight: normal;
+                height: 14px;
+                line-height: 14px;
+                margin-bottom: 2px;
+                text-align: center;
             }
             .sig-label {
                 font-size: 7pt;
@@ -2204,7 +2409,7 @@ function printTransactions() {
         </div>
     </div>
     ${headerFilterHtml}
-    <div style="display: flex; justify-content: space-between; gap: 10px; margin: 10px 0;">
+    <div style="display: flex; justify-content: space-between; gap: 10px; margin: 10px 0; flex-wrap: wrap;">
         <div style="flex: 1; text-align: center; border-right: 1px solid #000;">
             <div style="font-size: 7pt; color: #000; margin-bottom: 2px;">TOTAL COST</div>
             <div style="font-size: 9pt; font-weight: normal; color: #000;">₱${fmt(totalCost)}</div>
@@ -2212,6 +2417,15 @@ function printTransactions() {
         <div style="flex: 1; text-align: center; border-right: 1px solid #000;">
             <div style="font-size: 7pt; color: #000; margin-bottom: 2px;">TOTAL SERVICE FEE</div>
             <div style="font-size: 9pt; font-weight: normal; color: #000;">₱${fmt(totalServiceFee)}</div>
+        </div>
+        ${addOnsSummaryBox}
+        <div style="flex: 1; text-align: center; border-right: 1px solid #000;">
+            <div style="font-size: 7pt; color: #000; margin-bottom: 2px;">TOTAL VOID FEE</div>
+            <div style="font-size: 9pt; font-weight: normal; color: #000;">₱${fmt(totalVoidFee)}</div>
+        </div>
+        <div style="flex: 1; text-align: center; border-right: 1px solid #000;">
+            <div style="font-size: 7pt; color: #000; margin-bottom: 2px;">TOTAL REFUNDED</div>
+            <div style="font-size: 9pt; font-weight: normal; color: #000;">-₱${fmt(totalRefunded)}</div>
         </div>
         <div style="flex: 1; text-align: center; border-right: 1px solid #000;">
             <div style="font-size: 7pt; color: #000; margin-bottom: 2px;">LOST SALES</div>
@@ -2235,14 +2449,17 @@ function printTransactions() {
     <div class="print-footer">
         <div class="signatures">
             <div class="sig-block">
+                <div class="sig-name">${esc(preparedByName)}</div>
                 <div class="sig-line"></div>
                 <div class="sig-label">Prepared by</div>
             </div>
             <div class="sig-block">
+                <div class="sig-name">&nbsp;</div>
                 <div class="sig-line"></div>
                 <div class="sig-label">Verified by</div>
             </div>
             <div class="sig-block">
+                <div class="sig-name">&nbsp;</div>
                 <div class="sig-line"></div>
                 <div class="sig-label">Approved by</div>
             </div>
@@ -2308,7 +2525,7 @@ async function exportTransactions() {
             rows.push(...(result.data || []));
         }
 
-        const header = ['Order Code','Status','Type','Passengers','Operating Provider','Vessel Name','Cashier','Branch','Payment','Lost Sales','Total Amount','Refunded','Operation','Responsibility','Responsible Cashier','Responsibility Amount','Date'];
+        const header = ['Order Code','Status','Type','Passengers','Operating Provider','Vessel Name','Cashier','Branch','Payment','Lost Sales','Add-ons','Total Amount','Refunded','Operation','Responsibility','Responsible Cashier','Responsibility Amount','Date'];
         const csvRows = [header];
         rows.forEach(txn => {
             const isTicket = txn.ticket_count > 0;
@@ -2327,6 +2544,7 @@ async function exportTransactions() {
                 txn.branch_name || '',
                 payments,
                 parseFloat(getTechnicalLostSalesAmount(txn) || 0).toFixed(2),
+                parseFloat(txn.total_add_ons || 0).toFixed(2),
                 parseFloat(getTransactionDisplayAmount(txn) || 0).toFixed(2),
                 parseFloat(txn.total_refunded_amount || 0).toFixed(2),
                 txn.adjustment_type || '',

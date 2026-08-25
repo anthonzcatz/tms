@@ -1,7 +1,7 @@
 <?php
 $activeWalletModule = $activeWalletModule ?? '';
 $walletGroup = ['ticket-providers', 'provider-wallets', 'wallet-transactions', 'provider-service-fees'];
-$paymentGroup = ['charges', 'cashier-charges', 'bank-confirmations', 'refund-confirmations'];
+$paymentGroup = ['charges', 'cashier-charges', 'bank-confirmations', 'refund-confirmations', 'refund-history'];
 $settingsGroup = ['service-types', 'payment-methods', 'bank-accounts', 'discount-types'];
 $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_array($activeWalletModule, $paymentGroup) ? 'payments' : (in_array($activeWalletModule, $settingsGroup) ? 'settings' : 'wallet'));
 ?>
@@ -22,6 +22,7 @@ $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_arra
       <a href="<?php echo BASE_URL; ?>/admin/charges/cashiers" class="btn btn-sm btn-<?php echo $activeWalletModule === 'cashier-charges' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-user-tag me-1"></span>Cashier Charges</a>
       <a href="<?php echo BASE_URL; ?>/admin/bank-confirmations" class="btn btn-sm btn-<?php echo $activeWalletModule === 'bank-confirmations' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-university me-1"></span>Bank</a>
       <a href="<?php echo BASE_URL; ?>/admin/refund-confirmations" class="btn btn-sm btn-<?php echo $activeWalletModule === 'refund-confirmations' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-undo me-1"></span>Refunds</a>
+      <a href="<?php echo BASE_URL; ?>/admin/refund-confirmations/history" class="btn btn-sm btn-<?php echo $activeWalletModule === 'refund-history' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-history me-1"></span>Refund History</a>
       <?php elseif ($activeGroup === 'settings'): ?>
       <!-- POS Settings Group -->
       <a href="<?php echo BASE_URL; ?>/admin/settings/service-types" class="btn btn-sm btn-<?php echo $activeWalletModule === 'service-types' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-concierge-bell me-1"></span>Services</a>
@@ -47,6 +48,7 @@ $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_arra
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/charges/cashiers">Cashier Charges</a></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/bank-confirmations">Bank</a></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/refund-confirmations">Refunds</a></li>
+          <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/refund-confirmations/history">Refund History</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><h6 class="dropdown-header">Settings</h6></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/service-types">Services</a></li>

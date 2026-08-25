@@ -7,6 +7,9 @@ let currentCancellationId = null;
 let currentPage = 1;
 let isLoading = false;
 
+const isTechnicalIssueReason = reasonCategory => ['PRINTER_ERROR', 'SYSTEM_ERROR']
+    .includes(String(reasonCategory || '').toUpperCase());
+
 const REFUND_CONFIRMATION_REALTIME_EVENTS = [
     'pos.transaction.completed',
     'wallet.updated',
@@ -201,9 +204,9 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
     const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
     const cashAmt = parseFloat(cashAmount || 0);
     const chargeAmt = parseFloat(chargeAmount || 0);
-    const isTechnicalIssueVoid = operationType === 'VOID' && reasonCategory === 'PRINTER_ERROR';
+    const isTechnicalIssueVoid = operationType === 'VOID' && isTechnicalIssueReason(reasonCategory);
     const voidFeeAmt = operationType === 'VOID'
-        ? parseFloat((isTechnicalIssueVoid ? lostSalesVoidFee : voidFee) || 0)
+        ? parseFloat((isTechnicalIssueVoid ? (lostSalesVoidFee || voidFee) : voidFee) || 0)
         : 0;
     const voidServiceFeeAmt = operationType === 'VOID' && !isTechnicalIssueVoid
         ? parseFloat(voidServiceFee || 0)
@@ -245,8 +248,8 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
     if (voidServiceFeeLabel) voidServiceFeeLabel.textContent = isTechnicalIssueVoid ? 'Service Fee Lost Sales' : 'Service Fee Income';
     if (voidFeeEl) voidFeeEl.textContent = '₱' + fmt(voidFeeAmt);
     if (voidServiceFeeEl) voidServiceFeeEl.textContent = '₱' + fmt(voidServiceFeeAmt);
-    if (voidFeeContainer) voidFeeContainer.style.display = operationType === 'VOID' && responsibility === 'NONE' && voidFeeAmt > 0 ? '' : 'none';
-    if (voidServiceFeeContainer) voidServiceFeeContainer.style.display = operationType === 'VOID' && responsibility === 'NONE' && voidServiceFeeAmt > 0 ? '' : 'none';
+    if (voidFeeContainer) voidFeeContainer.style.display = operationType === 'VOID' && voidFeeAmt > 0 ? '' : 'none';
+    if (voidServiceFeeContainer) voidServiceFeeContainer.style.display = operationType === 'VOID' && voidServiceFeeAmt > 0 ? '' : 'none';
     document.getElementById('modalRefundAmountInline').textContent = '₱' + fmt(grossRefundAmount);
     document.getElementById('modalCancellationType').textContent = cancellationType;
     const operationEl = document.getElementById('modalOperationType');
@@ -525,15 +528,15 @@ function renderTable(rows) {
 
         const ticketNumberDisplay = c.ticket_number ? `<div class="small text-info"><i class="fas fa-ticket-alt me-1"></i>${esc(c.ticket_number)}</div>` : '';
         const amountDisplay = c.refund_amount ? `<div class="fw-semibold text-success">₱${parseFloat(c.refund_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>` : '';
-        const isTechnicalIssueVoid = c.operation_type === 'VOID' && c.reason_category === 'PRINTER_ERROR';
-        const voidFeeAmount = parseFloat((isTechnicalIssueVoid ? c.lost_sales_void_fee : c.void_fee) || 0);
+        const isTechnicalIssueVoid = c.operation_type === 'VOID' && isTechnicalIssueReason(c.reason_category);
+        const voidFeeAmount = parseFloat((isTechnicalIssueVoid ? (c.lost_sales_void_fee || c.void_fee) : c.void_fee) || 0);
         const voidServiceFeeAmount = isTechnicalIssueVoid
             ? 0
             : parseFloat(c.void_service_fee || 0);
         const voidFeeLabel = isTechnicalIssueVoid ? 'Void fee lost sales' : 'Void fee income';
         const voidServiceFeeLabel = 'Service fee income';
         const voidFeeClass = isTechnicalIssueVoid ? 'text-danger' : 'text-warning';
-        const voidIncomeDisplay = c.operation_type === 'VOID' && c.responsibility === 'NONE' && (voidFeeAmount > 0 || voidServiceFeeAmount > 0)
+        const voidIncomeDisplay = c.operation_type === 'VOID' && (voidFeeAmount > 0 || voidServiceFeeAmount > 0)
             ? `<div class="small ${voidFeeClass} mt-1">${voidFeeAmount > 0 ? `${voidFeeLabel}: ₱${fmt(voidFeeAmount)}` : ''}${voidFeeAmount > 0 && voidServiceFeeAmount > 0 ? '<br>' : ''}${voidServiceFeeAmount > 0 ? `${voidServiceFeeLabel}: ₱${fmt(voidServiceFeeAmount)}` : ''}</div>`
             : '';
         const operationDisplay = c.operation_type === 'VOID'

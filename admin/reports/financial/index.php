@@ -6,6 +6,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 require_once dirname(__DIR__) . '/_guard.php';
@@ -26,8 +27,9 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode = $user['role_code'] ?? '';
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 $userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 // Default date range = this month
 $defaultStart = date('Y-m-01');
@@ -35,27 +37,28 @@ $defaultEnd = date('Y-m-t');
 
 $startDate = !empty($_GET['start_date']) ? $_GET['start_date'] : $defaultStart;
 $endDate = !empty($_GET['end_date']) ? $_GET['end_date'] : $defaultEnd;
-$branchId = isset($_GET['branch_id']) && $_GET['branch_id'] !== '' ? (int)$_GET['branch_id'] : null;
-
-// Branches for filter
-if ($userRoleCode === 'SUPER_ADMIN') {
-    $branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name");
-} else {
-    $branchPlaceholders = [];
-    $branchParams = [];
-    $branchIds = array_filter(array_map('trim', explode(',', (string)$userBranchId)));
-    foreach ($branchIds as $i => $bid) {
-        $branchPlaceholders[] = ':b' . $i;
-        $branchParams['b' . $i] = (int)$bid;
-    }
-    $branches = [];
-    if (!empty($branchPlaceholders)) {
-        $branches = Database::fetchAll(
-            "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN (" . implode(',', $branchPlaceholders) . ") AND status = 'active' ORDER BY branch_name",
-            $branchParams
-        );
+$branchId = isset($_GET['branch_id']) && $_GET['branch_id'] !== '' ? (int) $_GET['branch_id'] : null;
+$invalidBranchFilter = false;
+if ($branchId !== null) {
+    try {
+        PosAccess::assertBranchAccess($user, $branchId);
+    } catch (Throwable $e) {
+        $invalidBranchFilter = true;
+        $branchId = null;
     }
 }
+
+// Branches for filter
+$branchWhere = ["status = 'active'"];
+$branchParams = [];
+PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'financial_dropdown_branch');
+$branches = Database::fetchAll(
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchWhere) . "
+     ORDER BY branch_name",
+    $branchParams
+);
 
 // System settings for print header
 $systemSettings = Database::fetch("SELECT * FROM system_settings WHERE setting_id = 1");
@@ -71,12 +74,16 @@ $params = [
     'start_date' => $startDate . ' 00:00:00',
     'end_date' => $endDate . ' 23:59:59'
 ];
-
-$branchFilter = '';
-if ($branchId) {
-    $branchFilter = ' AND po.branch_id = :branch_id';
-    $params['branch_id'] = $branchId;
+$reportWhere = [];
+PosAccess::applyBranchScope($reportWhere, $params, 'po.branch_id', $user, 'financial_report_branch');
+if ($invalidBranchFilter) {
+    $reportWhere[] = '1 = 0';
+} elseif ($branchId !== null) {
+    $reportWhere[] = 'po.branch_id = :branch_filter';
+    $params['branch_filter'] = $branchId;
 }
+$branchFilter = $reportWhere ? ' AND ' . implode(' AND ', $reportWhere) : '';
+
 
 // Summary P&L
 $summary = Database::fetch(

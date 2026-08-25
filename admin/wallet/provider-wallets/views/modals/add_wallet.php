@@ -40,7 +40,7 @@
                         $providerLabel .= ' [' . $provider['provider_code'] . ']';
                     }
                     if (!empty($provider['provider_type'])) {
-                        $providerLabel .= ' (' . ucfirst(str_replace('_', ' ', $provider['provider_type'])) . ')';
+                        $providerLabel .= ' (' . htmlspecialchars($providerTypeOptions[$provider['provider_type']] ?? ucwords(str_replace('_', ' ', $provider['provider_type']))) . ')';
                     }
                     $subProviderCount = (int)($provider['sub_provider_count'] ?? 0);
                     if ($subProviderCount > 0) {

@@ -5,6 +5,7 @@
 
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -29,22 +30,28 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode  = $user['role_code'] ?? '';
-$userBranchId  = $user['branch_id'] ?? null;
-$realtimeBranchIds = $userRoleCode === 'SUPER_ADMIN'
-    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches"), 'branch_id'))
-    : array_values(array_filter(array_map('intval', explode(',', (string) $userBranchId))));
+$userRoleCode  = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId  = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+$realtimeBranchIds = $allowedBranchIds === null
+    ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active'"), 'branch_id'))
+    : $allowedBranchIds;
 $pusherConfigured = PusherService::isConfigured();
 $pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';
 $pusherCluster = $pusherConfigured ? env('PUSHER_CLUSTER', 'ap1') : 'ap1';
 
 // Build branch filter
-$branchWhere = '';
-$branchParam = [];
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchWhere = 'AND bb.branch_id = :branch_id';
-    $branchParam['branch_id'] = $userBranchId;
-}
+$transactionBranchWhere = [];
+$transactionBranchParams = [];
+PosAccess::applyBranchScope(
+    $transactionBranchWhere,
+    $transactionBranchParams,
+    'bb.branch_id',
+    $user,
+    'bank_confirmation_transaction_branch'
+);
+$branchWhere = $transactionBranchWhere ? 'AND ' . implode(' AND ', $transactionBranchWhere) : '';
+$branchParam = $transactionBranchParams;
 
 // Status filter from GET
 $statusFilter = $_GET['status'] ?? 'PENDING';
@@ -112,12 +119,10 @@ $transactionPayments = Database::fetchAll(
 $chargePayments = [];
 $chargeStatusParam = $statusFilter !== 'ALL' ? ['status' => $statusFilter] : [];
 $chargeStatusWhere = $statusFilter !== 'ALL' ? "AND cp.confirmation_status = :status" : '';
-$chargeBranchWhere = '';
+$chargeBranchWhereParts = [];
 $chargeBranchParam = [];
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $chargeBranchWhere = 'AND bb.branch_id = :branch_id';
-    $chargeBranchParam['branch_id'] = $userBranchId;
-}
+PosAccess::applyBranchScope($chargeBranchWhereParts, $chargeBranchParam, 'bb.branch_id', $user, 'bank_confirmation_charge_branch');
+$chargeBranchWhere = $chargeBranchWhereParts ? 'AND ' . implode(' AND ', $chargeBranchWhereParts) : '';
 $chargePayments = Database::fetchAll(
     "SELECT
             cp.charge_payment_id AS payment_id,
@@ -159,12 +164,16 @@ $chargePayments = Database::fetchAll(
 
 $depositStatusWhere = $statusFilter !== 'ALL' ? "AND bt.confirmation_status = :status" : '';
 $depositStatusParam = $statusFilter !== 'ALL' ? ['status' => $statusFilter] : [];
-$depositBranchWhere = '';
+$depositBranchWhereParts = [];
 $depositBranchParam = [];
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $depositBranchWhere = 'AND COALESCE(ba.branch_id, cs.branch_id) = :branch_id';
-    $depositBranchParam['branch_id'] = $userBranchId;
-}
+PosAccess::applyBranchScope(
+    $depositBranchWhereParts,
+    $depositBranchParam,
+    'COALESCE(ba.branch_id, cs.branch_id)',
+    $user,
+    'bank_confirmation_deposit_branch'
+);
+$depositBranchWhere = $depositBranchWhereParts ? 'AND ' . implode(' AND ', $depositBranchWhereParts) : '';
 $depositPayments = Database::fetchAll(
     "SELECT
             bt.bank_txn_id AS payment_id,
@@ -208,6 +217,15 @@ usort($payments, function($a, $b) {
 });
 
 // Stats (include both transaction_payments and charge_payments)
+$paymentStatsWhere = ['pm.requires_confirmation = 1'];
+$paymentStatsParams = [];
+PosAccess::applyBranchScope(
+    $paymentStatsWhere,
+    $paymentStatsParams,
+    'COALESCE(tt.branch_id, st.branch_id, cs.branch_id)',
+    $user,
+    'bank_confirmation_payment_stats_branch'
+);
 $paymentStats = Database::fetch(
     "SELECT
         SUM(CASE WHEN tp.confirmation_status='PENDING' THEN 1 ELSE 0 END) AS pending_count,
@@ -216,9 +234,18 @@ $paymentStats = Database::fetch(
         SUM(CASE WHEN tp.confirmation_status='PENDING' THEN tp.amount ELSE 0 END) AS pending_amount
      FROM transaction_payments tp
      JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-     WHERE pm.requires_confirmation = 1"
+     LEFT JOIN ticket_transactions tt
+       ON tp.source_type = 'TICKET_TRANSACTION' AND tp.source_id = tt.transaction_id
+     LEFT JOIN service_transactions st
+       ON tp.source_type = 'SERVICE_TRANSACTION' AND tp.source_id = st.service_txn_id
+     LEFT JOIN cashier_sessions cs ON tp.cashier_session_id = cs.session_id
+     WHERE " . implode(' AND ', $paymentStatsWhere),
+    $paymentStatsParams
 );
 
+$chargeStatsWhere = ['cp.bank_account_id IS NOT NULL'];
+$chargeStatsParams = [];
+PosAccess::applyBranchScope($chargeStatsWhere, $chargeStatsParams, 'cp.branch_id', $user, 'bank_confirmation_charge_stats_branch');
 $chargeStats = Database::fetch(
     "SELECT
         SUM(CASE WHEN cp.confirmation_status='PENDING' THEN 1 ELSE 0 END) AS pending_count,
@@ -226,7 +253,8 @@ $chargeStats = Database::fetch(
         SUM(CASE WHEN cp.confirmation_status='REJECTED' THEN 1 ELSE 0 END) AS rejected_count,
         SUM(CASE WHEN cp.confirmation_status='PENDING' THEN cp.amount_paid ELSE 0 END) AS pending_amount
      FROM charge_payments cp
-     WHERE cp.bank_account_id IS NOT NULL"
+     WHERE " . implode(' AND ', $chargeStatsWhere),
+    $chargeStatsParams
 );
 
 $statCounts = [
@@ -236,6 +264,15 @@ $statCounts = [
     'pending_amount' => ($paymentStats['pending_amount'] ?? 0) + ($chargeStats['pending_amount'] ?? 0)
 ];
 
+$depositStatsWhere = ["bt.txn_type = 'DEPOSIT'"];
+$depositStatsParams = [];
+PosAccess::applyBranchScope(
+    $depositStatsWhere,
+    $depositStatsParams,
+    'COALESCE(ba.branch_id, cs.branch_id)',
+    $user,
+    'bank_confirmation_deposit_stats_branch'
+);
 $depositStats = Database::fetch(
     "SELECT
         SUM(CASE WHEN bt.confirmation_status='PENDING' THEN 1 ELSE 0 END) AS pending_count,
@@ -243,14 +280,18 @@ $depositStats = Database::fetch(
         SUM(CASE WHEN bt.confirmation_status='REJECTED' THEN 1 ELSE 0 END) AS rejected_count,
         SUM(CASE WHEN bt.confirmation_status='PENDING' THEN bt.amount ELSE 0 END) AS pending_amount
      FROM bank_transactions bt
-     WHERE bt.txn_type = 'DEPOSIT'"
+     JOIN bank_accounts ba ON bt.bank_account_id = ba.bank_account_id
+     LEFT JOIN cashier_sessions cs
+       ON bt.reference_table = 'cashier_sessions' AND bt.reference_id = cs.session_id
+     WHERE " . implode(' AND ', $depositStatsWhere),
+    $depositStatsParams
 );
 
 $statCounts = [
-    'pending_count' => ($paymentStats['pending_count'] ?? 0) + ($depositStats['pending_count'] ?? 0),
-    'confirmed_count' => ($paymentStats['confirmed_count'] ?? 0) + ($depositStats['confirmed_count'] ?? 0),
-    'rejected_count' => ($paymentStats['rejected_count'] ?? 0) + ($depositStats['rejected_count'] ?? 0),
-    'pending_amount' => ($paymentStats['pending_amount'] ?? 0) + ($depositStats['pending_amount'] ?? 0)
+    'pending_count' => ($paymentStats['pending_count'] ?? 0) + ($chargeStats['pending_count'] ?? 0) + ($depositStats['pending_count'] ?? 0),
+    'confirmed_count' => ($paymentStats['confirmed_count'] ?? 0) + ($chargeStats['confirmed_count'] ?? 0) + ($depositStats['confirmed_count'] ?? 0),
+    'rejected_count' => ($paymentStats['rejected_count'] ?? 0) + ($chargeStats['rejected_count'] ?? 0) + ($depositStats['rejected_count'] ?? 0),
+    'pending_amount' => ($paymentStats['pending_amount'] ?? 0) + ($chargeStats['pending_amount'] ?? 0) + ($depositStats['pending_amount'] ?? 0)
 ];
 
 include __DIR__ . '/views/index.php';

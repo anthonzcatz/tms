@@ -6,6 +6,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 require_once dirname(__DIR__) . '/_guard.php';
@@ -19,23 +20,14 @@ header('Expires: 0');
 // Get current user
 $user = Auth::user();
 $userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
-$userRoleCode = $user['role_code'] ?? '';
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 
 // SUPER_ADMIN can see all fees, others are restricted to their branch
-$branchFilter = "";
+$feeWhere = [];
 $params = [];
+PosAccess::applyBranchScope($feeWhere, $params, 'psf.branch_id', $user, 'service_fee_branch');
+$branchFilter = $feeWhere ? 'WHERE ' . implode(' AND ', $feeWhere) : '';
 
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchIds = array_filter(array_map('trim', explode(',', $userBranchId)));
-    if (!empty($branchIds)) {
-        $branchPlaceholders = [];
-        foreach ($branchIds as $i => $branchId) {
-            $branchPlaceholders[] = ':branch_' . $i;
-            $params['branch_' . $i] = (int)$branchId;
-        }
-        $branchFilter = "WHERE psf.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
-    }
-}
 
 // Get all service fees
 $fees = Database::fetchAll(

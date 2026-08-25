@@ -86,9 +86,7 @@
                   <div class="col-12 col-md-2">
                     <select class="form-select" id="branchFilter">
                       <option value="">All Branches</option>
-                      <?php
-                      $branches = @Database::fetchAll("SELECT branch_id, branch_name FROM business_branches ORDER BY branch_name");
-                      if ($branches): foreach ($branches as $branch): ?>
+                      <?php if (!empty($branches)): foreach ($branches as $branch): ?>
                         <option value="<?php echo $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
                       <?php endforeach; endif; ?>
                     </select>
@@ -244,6 +242,8 @@
         echo rtrim($protocol . $host . $basePath, "/");
     ?>';
     window.CSRF_TOKEN = '<?php echo SecurityHelper::generateCSRFToken(); ?>';
+    window.PROVIDER_TYPE_OPTIONS = <?php echo json_encode($providerTypeOptions ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
+    window.PROVIDER_TYPE_ICONS = <?php echo json_encode($providerTypeIcons ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP); ?>;
   </script>
   <script src="<?php echo BASE_URL; ?>/resources/vendors/choices/choices.min.js"></script>
   <script src="<?php echo BASE_URL; ?>/admin/settings/users/assets/js/users.js?v=<?php echo filemtime(dirname(__DIR__) . '/assets/js/users.js'); ?>"></script>

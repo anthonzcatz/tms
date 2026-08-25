@@ -5,11 +5,13 @@
  */
 
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(__DIR__) . '/_guard.php';
 
 $user = Auth::user();
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 // Check permission - only admin, manager, accountant can access
 $allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT'];
@@ -28,19 +30,26 @@ $birSettings = Database::fetch(
 );
 
 // Fetch OR statistics
+$orStatsWhere = ['DATE(created_at) = CURDATE()'];
+$orStatsParams = [];
+PosAccess::applyBranchScope($orStatsWhere, $orStatsParams, 'branch_id', $user, 'bir_dashboard_or_branch');
 $orStats = Database::fetch(
-    "SELECT 
+    "SELECT
         COUNT(*) as total_or,
         SUM(CASE WHEN status = 'issued' THEN 1 ELSE 0 END) as issued_or,
         SUM(CASE WHEN status = 'void' THEN 1 ELSE 0 END) as void_or,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_or
      FROM bir_or_numbers
-     WHERE DATE(created_at) = CURDATE()"
+     WHERE " . implode(' AND ', $orStatsWhere),
+    $orStatsParams
 );
 
 // Fetch today's sales with VAT
+$todaySalesWhere = ["DATE(po.created_at) = CURDATE()", "po.status = 'completed'"];
+$todaySalesParams = [];
+PosAccess::applyBranchScope($todaySalesWhere, $todaySalesParams, 'po.branch_id', $user, 'bir_dashboard_sales_branch');
 $todaySales = Database::fetch(
-    "SELECT 
+    "SELECT
         COUNT(DISTINCT po.order_id) as total_orders,
         COALESCE(SUM(po.grand_total), 0) as total_sales,
         COALESCE(SUM(vt.vat_amount), 0) as total_vat,
@@ -48,25 +57,35 @@ $todaySales = Database::fetch(
         COALESCE(SUM(vt.non_taxable_amount), 0) as non_taxable_amount
      FROM pos_orders po
      LEFT JOIN bir_vat_transactions vt ON po.order_id = vt.order_id
-     WHERE DATE(po.created_at) = CURDATE()
-     AND po.status = 'completed'"
+     WHERE " . implode(' AND ', $todaySalesWhere),
+    $todaySalesParams
 );
 
 // Fetch active OR series
+$orSeriesWhere = ["s.status = 'active'"];
+$orSeriesParams = [];
+PosAccess::applyBranchScope($orSeriesWhere, $orSeriesParams, 's.branch_id', $user, 'bir_dashboard_series_branch');
 $orSeries = Database::fetchAll(
     "SELECT s.*, b.branch_name
      FROM bir_or_series s
      LEFT JOIN business_branches b ON s.branch_id = b.branch_id
-     WHERE s.status = 'active'
-     ORDER BY s.year DESC, b.branch_name ASC"
+     WHERE " . implode(' AND ', $orSeriesWhere) . "
+     ORDER BY s.year DESC, b.branch_name ASC",
+    $orSeriesParams
 );
 
 // Fetch POS machines
+$machineWhere = [];
+$machineParams = [];
+PosAccess::applyBranchScope($machineWhere, $machineParams, 'm.branch_id', $user, 'bir_dashboard_machine_branch');
+$machineFilter = $machineWhere ? 'WHERE ' . implode(' AND ', $machineWhere) : '';
 $machines = Database::fetchAll(
     "SELECT m.*, b.branch_name
      FROM bir_pos_machines m
      LEFT JOIN business_branches b ON m.branch_id = b.branch_id
-     ORDER BY m.status ASC, b.branch_name ASC"
+     {$machineFilter}
+     ORDER BY m.status ASC, b.branch_name ASC",
+    $machineParams
 );
 
 // Check accreditation expiry warning

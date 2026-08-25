@@ -9,6 +9,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/CancellationService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -178,15 +179,20 @@ $requiredResponsibilityByReason = [
 
 if (!$txnCode) { echo json_encode(['success' => false, 'error' => 'Transaction code required.']); exit; }
 if (!in_array($operationType, $allowedOperations, true)) { echo json_encode(['success' => false, 'error' => 'Invalid operation type.']); exit; }
+if ($operationType === 'REFUND') {
+    $reasonCategory = 'OTHER';
+    $responsibility = 'NONE';
+    $responsibilityAmount = 0.0;
+    $responsibleUserId = null;
+}
 if (!in_array($reasonCategory, $allowedReasonCategories, true)) { echo json_encode(['success' => false, 'error' => 'Invalid reason category.']); exit; }
 if (!in_array($responsibility, $allowedResponsibilities, true)) { echo json_encode(['success' => false, 'error' => 'Invalid responsibility type.']); exit; }
 if (!$reason) { echo json_encode(['success' => false, 'error' => 'Reason is required.']); exit; }
 if ($operationType === 'REFUND' && $grossRefundAmount <= 0) { echo json_encode(['success' => false, 'error' => 'Refund amount must be greater than 0.']); exit; }
 if ($operationType === 'VOID') {
     $grossRefundAmount = 0.0;
-    if ($reasonCategory === 'PRINTER_ERROR') {
+    if (in_array($reasonCategory, ['PRINTER_ERROR', 'SYSTEM_ERROR'], true)) {
         $lostSalesVoidFee = $enteredVoidFee;
-        $lostSalesServiceFee = $enteredVoidServiceFee;
     } else {
         $voidFee = $enteredVoidFee;
         $voidServiceFee = $enteredVoidServiceFee;
@@ -242,9 +248,11 @@ if (!$ticketTxn) {
 }
 
 // Branch access control
-if ($user['role_code'] !== 'SUPER_ADMIN' && (int)$user['branch_id'] !== (int)$ticketTxn['branch_id']) {
+try {
+    PosAccess::assertBranchAccess($user, (int) $ticketTxn['branch_id']);
+} catch (Throwable $e) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Access denied: ticket does not belong to your branch']); exit;
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]); exit;
 }
 
 // Check if already cancelled
@@ -317,7 +325,9 @@ $cashierSession = Database::fetch(
      ORDER BY started_at DESC LIMIT 1",
     ['uid' => $user['user_id']]
 );
-$cashierSessionId = $cashierSession ? $cashierSession['session_id'] : null;
+$cashierSessionId = $cashierSession
+    ? (int) $cashierSession['session_id']
+    : (!empty($ticketTxn['cashier_session_id']) ? (int) $ticketTxn['cashier_session_id'] : null);
 
 // Start database transaction
 Database::connection()->beginTransaction();

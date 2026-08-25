@@ -6,6 +6,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
@@ -19,8 +20,9 @@ header('Expires: 0');
 
 // Get current user
 $user = Auth::user();
-$userBranchId = Auth::userBranchId();
-$userRoleCode = Auth::userRoleCode() ?? '';
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 // Check if user can create wallets
 $canCreateWallet = ($userRoleCode === 'SUPER_ADMIN') || Auth::can('CREATE_WALLET');
@@ -50,21 +52,16 @@ $allProviders = Database::fetchAll(
 );
 
 // Get all branches for "Add Wallet" dropdown based on user access
-if ($userRoleCode === 'SUPER_ADMIN') {
-    $allBranches = Database::fetchAll(
-        "SELECT branch_id, branch_name FROM business_branches WHERE status = 'active' ORDER BY branch_name"
-    );
-} elseif ($userBranchId) {
-    // Non-SUPER_ADMIN users can only see their assigned branch(es)
-    $branchIds = explode(',', $userBranchId);
-    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-    $allBranches = Database::fetchAll(
-        "SELECT branch_id, branch_name FROM business_branches WHERE branch_id IN ($placeholders) AND status = 'active' ORDER BY branch_name",
-        $branchIds
-    );
-} else {
-    $allBranches = [];
-}
+$branchDropdownWhere = ["status = 'active'"];
+$branchDropdownParams = [];
+PosAccess::applyBranchScope($branchDropdownWhere, $branchDropdownParams, 'branch_id', $user, 'wallet_dropdown_branch');
+$allBranches = Database::fetchAll(
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchDropdownWhere) . "
+     ORDER BY branch_name",
+    $branchDropdownParams
+);
 
 // System settings for print layout
 $systemSettings = Database::fetch("SELECT system_name, system_logo, company_name, company_address, company_contact_number, company_email, company_tin FROM system_settings WHERE setting_id = 1");
@@ -79,28 +76,18 @@ $whereConditions = [];
 $params = [];
 
 // User branch restriction (for non-SUPER_ADMIN)
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchIds = explode(',', $userBranchId);
-    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
-    $whereConditions[] = "pw.branch_id IN ($placeholders)";
-    $params = $branchIds;
-}
+PosAccess::applyBranchScope($whereConditions, $params, 'pw.branch_id', $user, 'wallet_scope_branch');
 
 // Provider filter
 if ($filterProvider) {
-    $whereConditions[] = "tp.provider_name = ?";
-    $params[] = $filterProvider;
+    $whereConditions[] = "tp.provider_name = :provider_filter";
+    $params['provider_filter'] = $filterProvider;
 }
 
-// Branch filter (only apply if user is SUPER_ADMIN or has access to this branch)
-if ($filterBranch && ($userRoleCode === 'SUPER_ADMIN' || in_array($filterBranch, explode(',', $userBranchId ?? '')))) {
-    // Check if we already have branch restriction
-    if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-        // Branch already restricted by user access, no additional filter needed
-    } else {
-        $whereConditions[] = "bb.branch_name = ?";
-        $params[] = $filterBranch;
-    }
+// Apply the requested branch filter after the user's access scope.
+if ($filterBranch) {
+    $whereConditions[] = "bb.branch_name = :branch_filter";
+    $params['branch_filter'] = $filterBranch;
 }
 
 // Only main/standalone providers have wallets; sub-providers share the main provider wallet
@@ -108,8 +95,8 @@ $whereConditions[] = "tp.parent_provider_id IS NULL";
 
 // Status filter
 if ($filterStatus) {
-    $whereConditions[] = "pw.status = ?";
-    $params[] = $filterStatus;
+    $whereConditions[] = "pw.status = :status_filter";
+    $params['status_filter'] = $filterStatus;
 }
 
 // Build WHERE clause
@@ -168,10 +155,10 @@ $providerMap = [];
 $branchMap = [];
 
 // Get base wallets for filter options (without filters applied, but with user restrictions)
-$baseWhere = $userRoleCode !== 'SUPER_ADMIN' && $userBranchId 
-    ? 'WHERE pw.branch_id IN (' . implode(',', array_fill(0, count(explode(',', $userBranchId)), '?')) . ')'
-    : '';
-$baseParams = $userRoleCode !== 'SUPER_ADMIN' && $userBranchId ? explode(',', $userBranchId) : [];
+$baseWhereConditions = [];
+$baseParams = [];
+PosAccess::applyBranchScope($baseWhereConditions, $baseParams, 'pw.branch_id', $user, 'wallet_filter_branch');
+$baseWhere = $baseWhereConditions ? 'WHERE ' . implode(' AND ', $baseWhereConditions) : '';
 
 $baseWallets = Database::fetchAll(
     "SELECT DISTINCT tp.provider_name, bb.branch_name, pw.provider_id, pw.branch_id
@@ -202,11 +189,13 @@ ksort($branchMap);
 $filterProviders = array_values($providerMap);
 $filterBranches = array_values($branchMap);
 
-// Build provider type labels and badge colors from the database enum.
-$providerTypeValues = Database::getEnumValues('ticket_providers', 'provider_type');
+// Build provider type labels, icons, and badge colors from provider_types table.
+$providerTypeRows = Database::getProviderTypes();
 $providerTypeOptions = [];
-foreach ($providerTypeValues as $typeValue) {
-    $providerTypeOptions[$typeValue] = ucwords(str_replace('_', ' ', $typeValue));
+$providerTypeIcons = [];
+foreach ($providerTypeRows as $row) {
+    $providerTypeOptions[$row['type_code']] = $row['type_label'];
+    $providerTypeIcons[$row['type_code']] = $row['type_icon'] ?: 'fa-circle';
 }
 
 $badgePalette = ['bg-primary', 'bg-info', 'bg-warning text-dark', 'bg-success', 'bg-danger', 'bg-dark', 'bg-secondary'];
@@ -231,7 +220,8 @@ $viewData = [
     'pusherKey' => PusherService::isConfigured() ? env('PUSHER_KEY', '') : '',
     'pusherCluster' => PusherService::isConfigured() ? env('PUSHER_CLUSTER', 'ap1') : 'ap1',
     'providerTypeOptions' => $providerTypeOptions,
-    'providerTypeColors' => $providerTypeColors
+    'providerTypeColors' => $providerTypeColors,
+    'providerTypeIcons' => $providerTypeIcons
 ];
 
 extract($viewData);

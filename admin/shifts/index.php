@@ -4,6 +4,7 @@
  */
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
@@ -27,24 +28,34 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
     exit;
 }
 
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 $filterDate   = $_GET['date']   ?? date('Y-m-d');
 $filterBranch = $_GET['branch'] ?? '';
 $filterStatus = $_GET['status'] ?? '';
 
-$branchWhere = '';
+$branchConditions = [];
 $statusWhere = '';
 $params = ['date_start' => $filterDate . ' 00:00:00', 'date_end' => $filterDate . ' 23:59:59'];
+PosAccess::applyBranchScope($branchConditions, $params, 'cs.branch_id', $user, 'shift_branch');
 
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchWhere = 'AND cs.branch_id = :branch_id';
-    $params['branch_id'] = $userBranchId;
-} elseif ($filterBranch) {
-    $branchWhere = 'AND cs.branch_id = :branch_id';
-    $params['branch_id'] = $filterBranch;
+if ($filterBranch !== '') {
+    $filterBranchId = filter_var($filterBranch, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($filterBranchId === false) {
+        $branchConditions[] = '1 = 0';
+    } else {
+        try {
+            PosAccess::assertBranchAccess($user, (int) $filterBranchId);
+            $branchConditions[] = 'cs.branch_id = :filter_branch';
+            $params['filter_branch'] = (int) $filterBranchId;
+        } catch (Throwable $e) {
+            $branchConditions[] = '1 = 0';
+        }
+    }
 }
+$branchWhere = $branchConditions ? 'AND ' . implode(' AND ', $branchConditions) : '';
 
 if ($filterStatus) {
     $statusWhere = 'AND cs.status = :status';
@@ -87,7 +98,16 @@ $summary = Database::fetch(
 );
 
 // All branches for filter dropdown and manager session modal
-$branches = Database::fetchAll("SELECT branch_id, branch_name FROM business_branches WHERE status='active' ORDER BY branch_name");
+$branchListWhere = ["status = 'active'"];
+$branchListParams = [];
+PosAccess::applyBranchScope($branchListWhere, $branchListParams, 'branch_id', $user, 'shift_dropdown_branch');
+$branches = Database::fetchAll(
+    "SELECT branch_id, branch_name
+     FROM business_branches
+     WHERE " . implode(' AND ', $branchListWhere) . "
+     ORDER BY branch_name",
+    $branchListParams
+);
 
 // Fetch POS settings for manager permissions
 $posSettings = Database::fetch(
@@ -107,11 +127,27 @@ $cancellationSettings = Database::fetch(
 $cancellationSettings['show_pending_refunds_in_close_session'] = (int) ($cancellationSettings['show_pending_refunds_in_close_session'] ?? 0);
 
 // Fetch bank accounts for deposit modal
+$bankAccountWhere = ['is_active = 1'];
+$bankAccountParams = [];
+if ($allowedBranchIds !== null) {
+    if (!$allowedBranchIds) {
+        $bankAccountWhere[] = '1 = 0';
+    } else {
+        $bankBranchPlaceholders = [];
+        foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+            $key = 'shift_bank_branch_' . $index;
+            $bankBranchPlaceholders[] = ':' . $key;
+            $bankAccountParams[$key] = $allowedBranchId;
+        }
+        $bankAccountWhere[] = '(branch_id IS NULL OR branch_id IN (' . implode(',', $bankBranchPlaceholders) . '))';
+    }
+}
 $bankAccounts = Database::fetchAll(
     "SELECT bank_account_id, bank_name, account_name, account_number
      FROM bank_accounts
-     WHERE is_active = 1
-     ORDER BY bank_name ASC"
+     WHERE " . implode(' AND ', $bankAccountWhere) . "
+     ORDER BY bank_name ASC",
+    $bankAccountParams
 );
 
 // Pass data to view

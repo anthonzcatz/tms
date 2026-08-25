@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -20,8 +21,9 @@ if (!$user) {
     exit;
 }
 
-$userRoleCode = $user['role_code'] ?? '';
-$userBranchId = $user['branch_id'] ?? null;
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
 
 // Permission check
 if ($userRoleCode !== 'SUPER_ADMIN' && !Auth::canAccessModule('admin/refund-confirmations/')) {
@@ -82,12 +84,17 @@ if ($statusFilter !== 'all') {
 }
 
 // Branch scoping
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $where[]             = "bb.branch_id = :branch_id";
-    $params['branch_id'] = $userBranchId;
-} elseif ($filterBranchId) {
-    $where[]             = "bb.branch_id = :branch_id";
-    $params['branch_id'] = (int)$filterBranchId;
+PosAccess::applyBranchScope($where, $params, 'bb.branch_id', $user, 'refund_branch');
+if ($filterBranchId) {
+    try {
+        PosAccess::assertBranchAccess($user, (int) $filterBranchId);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+    $where[] = "bb.branch_id = :filter_branch";
+    $params['filter_branch'] = (int) $filterBranchId;
 }
 
 if ($filterWalletId) {
@@ -216,10 +223,7 @@ unset($row);
 // Stats (scoped to user's branch, NOT current filters)
 $statsWhere  = ['1=1'];
 $statsParams = [];
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $statsWhere[]              = "bb.branch_id = :branch_id";
-    $statsParams['branch_id']  = $userBranchId;
-}
+PosAccess::applyBranchScope($statsWhere, $statsParams, 'bb.branch_id', $user, 'refund_stats_branch');
 $statsWhereClause = implode(' AND ', $statsWhere);
 
 $stats = Database::fetch(

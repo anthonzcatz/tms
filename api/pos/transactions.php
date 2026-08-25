@@ -50,6 +50,8 @@ if (empty($payments))   { echo json_encode(['success' => false, 'error' => 'No p
 // Verify the active session and branch against current server-side access.
 try {
     $session = PosAccess::assertSessionForTransaction((int) $sessionId, (int) $branchId, $user);
+    $sessionId = (int) $sessionId;
+    $branchId = (int) $branchId;
 } catch (Throwable $e) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -284,6 +286,19 @@ try {
             if (in_array($methodType, ['BANK_TRANSFER', 'E_WALLET'], true) && !$bankAcctId) {
                 Database::connection()->rollBack();
                 echo json_encode(['success' => false, 'error' => 'Please select a bank account for ' . ($methodInfo['method_name'] ?? 'this payment method') . '.']); exit;
+            }
+            if ($bankAcctId) {
+                $bankAccount = Database::fetch(
+                    "SELECT bank_account_id, branch_id, is_active
+                     FROM bank_accounts
+                     WHERE bank_account_id = :bank_account_id",
+                    ['bank_account_id' => (int) $bankAcctId]
+                );
+                if (!$bankAccount || !(int) $bankAccount['is_active']
+                    || ($bankAccount['branch_id'] !== null && (int) $bankAccount['branch_id'] !== (int) $branchId)) {
+                    Database::connection()->rollBack();
+                    echo json_encode(['success' => false, 'error' => 'Selected bank account is not available for this branch.']); exit;
+                }
             }
 
             // Handle credit-tracking payments — post to customer_charges

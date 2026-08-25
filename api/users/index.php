@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
@@ -21,7 +22,8 @@ if (!Auth::check()) {
 
 // Check permission - SUPER_ADMIN or users with MANAGE_USERS permission
 $user = Auth::user();
-$canManageUsers = ($user['role_code'] === 'SUPER_ADMIN');
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$canManageUsers = ($userRoleCode === 'SUPER_ADMIN');
 
 // Check MANAGE_USERS permission if not SUPER_ADMIN
 if (!$canManageUsers) {
@@ -32,6 +34,56 @@ if (!$canManageUsers) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Permission denied. You need MANAGE_USERS permission to access this resource.']);
     exit;
+}
+
+function managedBranchIds($value): array
+{
+    if ($value === null || $value === '') {
+        return [];
+    }
+
+    $values = is_array($value) ? $value : explode(',', (string) $value);
+    return array_values(array_unique(array_filter(
+        array_map(static fn ($branchId): int => (int) trim((string) $branchId), $values),
+        static fn (int $branchId): bool => $branchId > 0
+    )));
+}
+
+function requireManagedUserBranchAccess($value): ?string
+{
+    global $user;
+    $branchIds = managedBranchIds($value);
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($allowedBranchIds !== null) {
+        if (!$branchIds) {
+            throw new InvalidArgumentException('At least one assigned branch is required.');
+        }
+        foreach ($branchIds as $branchId) {
+            if (!in_array($branchId, $allowedBranchIds, true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'You are not authorized to assign this branch.']);
+                exit;
+            }
+        }
+    }
+
+    return $branchIds ? implode(',', $branchIds) : null;
+}
+
+function requireManagedUserAccess(array $targetUser): void
+{
+    global $user;
+    $allowedBranchIds = PosAccess::allowedBranchIds($user);
+    if ($allowedBranchIds === null) {
+        return;
+    }
+
+    $targetBranchIds = managedBranchIds($targetUser['branch_id'] ?? null);
+    if (!$targetBranchIds || array_diff($targetBranchIds, $allowedBranchIds)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'You are not authorized to access this user account.']);
+        exit;
+    }
 }
 
 function syncCashierTransportAssignments(int $userId, bool $restricted, array $transportTypes, array $specificProviders): void
@@ -160,6 +212,7 @@ try {
  * Handle GET requests - list users or get single user
  */
 function handleGet() {
+    $currentUser = $GLOBALS['user'];
     $userId = $_GET['id'] ?? null;
     $roleId = $_GET['role_id'] ?? null;
     $roleCode = $_GET['role'] ?? null; // Filter by role code (e.g., CASHIER, MANAGER)
@@ -266,6 +319,7 @@ function handleGet() {
             echo json_encode(['success' => false, 'error' => 'User not found']);
             return;
         }
+        requireManagedUserAccess($user);
         
         echo json_encode(['success' => true, 'data' => $user]);
         return;
@@ -312,6 +366,30 @@ function handleGet() {
     ";
 
     $params = [];
+    $allowedBranchIds = PosAccess::allowedBranchIds($currentUser);
+    if ($allowedBranchIds !== null) {
+        if (!$allowedBranchIds) {
+            $sql .= ' AND 1 = 0';
+        } else {
+            $scopeConditions = [];
+            $scopePlaceholders = [];
+            foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+                $matchKey = 'user_scope_branch_' . $index;
+                $outsideKey = 'user_scope_outside_' . $index;
+                $scopeConditions[] = 'FIND_IN_SET(:' . $matchKey . ', ua.branch_id) > 0';
+                $scopePlaceholders[] = ':' . $outsideKey;
+                $params[$matchKey] = $allowedBranchId;
+                $params[$outsideKey] = $allowedBranchId;
+            }
+            $sql .= ' AND (' . implode(' OR ', $scopeConditions) . ')';
+            $sql .= ' AND NOT EXISTS (
+                SELECT 1
+                FROM business_branches outside_branch
+                WHERE FIND_IN_SET(outside_branch.branch_id, ua.branch_id) > 0
+                  AND outside_branch.branch_id NOT IN (' . implode(',', $scopePlaceholders) . ')
+            )';
+        }
+    }
 
     if ($roleId) {
         $sql .= " AND ua.role_id = :role_id";
@@ -329,6 +407,13 @@ function handleGet() {
     }
 
     if ($branchId) {
+        try {
+            PosAccess::assertBranchAccess($currentUser, (int) $branchId);
+        } catch (Throwable $e) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            return;
+        }
         $sql .= " AND FIND_IN_SET(:branch_id, ua.branch_id)";
         $params['branch_id'] = (int)$branchId;
     }
@@ -418,6 +503,7 @@ function handlePost() {
         echo json_encode(['success' => false, 'error' => 'Invalid email format']);
         return;
     }
+    $managedBranchValue = requireManagedUserBranchAccess($data['branch_id'] ?? null);
 
     // Check for duplicate username
     $existing = Database::fetch(
@@ -490,7 +576,7 @@ function handlePost() {
             'email' => $data['email'],
             'emp_id' => isset($data['emp_id']) ? ($data['emp_id'] ? (int)$data['emp_id'] : null) : null,
             'role_id' => (int)$data['role_id'],
-            'branch_id' => isset($data['branch_id']) ? (is_array($data['branch_id']) ? (count($data['branch_id']) ? implode(',', array_map('intval', $data['branch_id'])) : null) : ($data['branch_id'] ? $data['branch_id'] : null)) : null,
+            'branch_id' => $managedBranchValue,
             'profile_image' => $profileImagePath,
             'status' => isset($data['status']) ? $data['status'] : 'active',
             'has_restricted_transport' => $hasRestrictedTransport ? 1 : 0,
@@ -523,6 +609,7 @@ function handlePost() {
  * Handle PUT requests - update user
  */
 function handlePut() {
+    global $userRoleCode;
     $data = json_decode(file_get_contents('php://input'), true);
     
     $userId = $data['user_id'] ?? null;
@@ -547,11 +634,11 @@ function handlePut() {
         echo json_encode(['success' => false, 'error' => 'User not found']);
         return;
     }
+    requireManagedUserAccess($existing);
     
     // Prevent editing SUPER_ADMIN users unless current user is SUPER_ADMIN
     if ($existing['role_code'] === 'SUPER_ADMIN') {
-        $currentUser = Auth::user();
-        if ($currentUser['role_code'] !== 'SUPER_ADMIN') {
+        if ($userRoleCode !== 'SUPER_ADMIN') {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Cannot edit super admin accounts']);
             return;
@@ -606,6 +693,11 @@ function handlePut() {
         return;
     }
 
+    $managedBranchValue = null;
+    if (array_key_exists('branch_id', $data)) {
+        $managedBranchValue = requireManagedUserBranchAccess($data['branch_id']);
+    }
+
     // Build update query
     $updateFields = [];
     $params = ['user_id' => (int)$userId];
@@ -615,14 +707,9 @@ function handlePut() {
         $params['username'] = $data['username'];
     }
     
-    if (isset($data['branch_id'])) {
+    if (array_key_exists('branch_id', $data)) {
         $updateFields[] = "branch_id = :branch_id";
-        $branchVal = $data['branch_id'];
-        if (is_array($branchVal)) {
-            $params['branch_id'] = count($branchVal) ? implode(',', array_map('intval', $branchVal)) : null;
-        } else {
-            $params['branch_id'] = $branchVal ? $branchVal : null;
-        }
+        $params['branch_id'] = $managedBranchValue;
     }
     
     if (isset($data['email'])) {
@@ -784,6 +871,7 @@ function handleDelete() {
         echo json_encode(['success' => false, 'error' => 'User not found']);
         return;
     }
+    requireManagedUserAccess($existing);
     
     // Prevent deleting super admin
     if ($existing['role_code'] === 'SUPER_ADMIN') {
@@ -923,14 +1011,22 @@ function handleBulkUpdate($data) {
         $decodedIds[] = $decoded;
     }
     
+    $placeholders = implode(',', array_fill(0, count($decodedIds), '?'));
+    $targetUsers = Database::fetchAll(
+        "SELECT ua.user_id, ua.branch_id, ur.role_code
+         FROM user_accounts ua
+         LEFT JOIN user_roles ur ON ua.role_id = ur.role_id
+         WHERE ua.user_id IN ($placeholders)",
+        $decodedIds
+    );
+    foreach ($targetUsers as $targetUser) {
+        requireManagedUserAccess($targetUser);
+    }
+
     // Prevent deactivating super admin accounts
     if ($status === 'inactive') {
-        $placeholders = implode(',', array_fill(0, count($decodedIds), '?'));
-        $sql = "SELECT ua.user_id, ur.role_code FROM user_accounts ua LEFT JOIN user_roles ur ON ua.role_id = ur.role_id WHERE ua.user_id IN ($placeholders)";
-        $users = Database::fetchAll($sql, $decodedIds);
-
-        foreach ($users as $user) {
-            if ($user['role_code'] === 'SUPER_ADMIN') {
+        foreach ($targetUsers as $targetUser) {
+            if ($targetUser['role_code'] === 'SUPER_ADMIN') {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Cannot deactivate super admin account']);
                 return;

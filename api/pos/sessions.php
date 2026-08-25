@@ -42,14 +42,14 @@ function getSessionVoidSummary(int $sessionId): array {
                  FROM ticket_cancellations tc
                  WHERE tc.cashier_session_id = :sid_completed_technical_count
                    AND tc.operation_type = 'VOID'
-                   AND tc.reason_category = 'PRINTER_ERROR'
+                   AND tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
                    AND tc.status = 'completed') AS technical_void_count,
                 (SELECT COALESCE(SUM(tt.total_amount), 0)
                  FROM ticket_cancellations tc
                  JOIN ticket_transactions tt ON tt.transaction_id = tc.transaction_id
                  WHERE tc.cashier_session_id = :sid_completed_technical_amount
                    AND tc.operation_type = 'VOID'
-                   AND tc.reason_category = 'PRINTER_ERROR'
+                   AND tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
                    AND tc.status = 'completed') AS technical_void_amount,
                 (SELECT COALESCE(SUM(tp.amount), 0)
                  FROM ticket_cancellations tc
@@ -64,22 +64,28 @@ function getSessionVoidSummary(int $sessionId): array {
                    AND pm.include_in_expected_cash = 1
                    AND tp.confirmation_status <> 'REJECTED') AS voided_cash_amount,
                 (SELECT COALESCE(SUM(
-                            CASE WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0 ELSE tc.void_fee END
+                            CASE
+                                WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                                ELSE COALESCE(tc.void_fee, 0)
+                            END
                         ), 0)
                  FROM ticket_cancellations tc
                  WHERE tc.cashier_session_id = :sid_completed_void_fee
                    AND tc.operation_type = 'VOID'
                    AND tc.status = 'completed') AS void_fee,
                 (SELECT COALESCE(SUM(
-                            CASE WHEN tc.reason_category = 'PRINTER_ERROR' THEN 0 ELSE tc.void_service_fee END
+                            CASE
+                                WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN 0
+                                ELSE COALESCE(tc.void_service_fee, 0)
+                            END
                         ), 0)
                  FROM ticket_cancellations tc
                  WHERE tc.cashier_session_id = :sid_completed_void_service_fee
                    AND tc.operation_type = 'VOID'
                    AND tc.status = 'completed') AS void_service_fee,
                 (SELECT COALESCE(SUM(
-                            CASE WHEN tc.reason_category = 'PRINTER_ERROR'
-                                 THEN COALESCE(tc.lost_sales_void_fee, 0)
+                            CASE WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+                                 THEN COALESCE(NULLIF(tc.lost_sales_void_fee, 0), tc.void_fee, 0)
                                  ELSE 0 END
                         ), 0)
                  FROM ticket_cancellations tc
@@ -87,7 +93,7 @@ function getSessionVoidSummary(int $sessionId): array {
                    AND tc.operation_type = 'VOID'
                    AND tc.status = 'completed') AS lost_sales_void_fee,
                 (SELECT COALESCE(SUM(
-                            CASE WHEN tc.reason_category = 'PRINTER_ERROR'
+                            CASE WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
                                  THEN COALESCE(tc.lost_sales_service_fee, 0) + COALESCE(tc.void_service_fee, 0)
                                  ELSE 0 END
                         ), 0)
@@ -125,12 +131,15 @@ function getSessionVoidSummary(int $sessionId): array {
 
 function getSessionRefundSummary(int $sessionId): array {
     return Database::fetch(
-        "SELECT COALESCE(SUM(COALESCE(NULLIF(tc.gross_refund_amount, 0), tc.refund_amount)), 0) AS refunded_sales_amount
+        "SELECT
+                COALESCE(SUM(COALESCE(NULLIF(tc.refund_amount, 0), tc.gross_refund_amount, 0)), 0) AS refunded_sales_amount,
+                COALESCE(SUM(COALESCE(tc.cash_refund_amount, 0)), 0) AS refunded_cash_amount
          FROM ticket_cancellations tc
-         WHERE tc.cashier_session_id = :sid_ticket_refunds
+         JOIN ticket_transactions tt ON tt.transaction_id = tc.transaction_id
+         WHERE tt.cashier_session_id = :session_id
            AND tc.operation_type = 'REFUND'
            AND tc.status = 'completed'",
-        ['sid_ticket_refunds' => $sessionId]
+        ['session_id' => $sessionId]
     ) ?: [];
 }
 
@@ -198,7 +207,15 @@ function handleGet() {
         }
 
         // Get payment breakdown from transaction_payments (filter by session ID, not cashier ID)
-        $paymentWhere = "AND tp.created_at >= :start";
+        $paymentWhere = "AND tp.created_at >= :start
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM ticket_cancellations tc_void
+                              WHERE tp.source_type = 'TICKET_TRANSACTION'
+                                AND tc_void.transaction_id = tp.source_id
+                                AND tc_void.operation_type = 'VOID'
+                                AND tc_void.status = 'completed'
+                          )";
         $paymentParams = [
             'sid'   => $session['session_id'],
             'start' => $session['started_at']
@@ -209,13 +226,26 @@ function handleGet() {
         }
 
         $payments = Database::fetchAll(
-            "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
-             FROM transaction_payments tp
-             JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE tp.cashier_session_id = :sid
-               $paymentWhere
-             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash
-             ORDER BY total_amount DESC",
+            "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, pm.is_active, pm.sort_order,
+                    COALESCE(SUM(tp.amount), 0) AS gross_amount,
+                    COALESCE(SUM(LEAST(tp.amount, COALESCE(refunds.refunded_amount, 0))), 0) AS refunded_amount,
+                    COALESCE(SUM(GREATEST(0, tp.amount - COALESCE(refunds.refunded_amount, 0))), 0) AS active_amount,
+                    COALESCE(SUM(tp.amount), 0) AS total_amount
+             FROM payment_methods pm
+             LEFT JOIN transaction_payments tp
+               ON tp.payment_method_id = pm.method_id
+              AND tp.cashier_session_id = :sid
+              $paymentWhere
+             LEFT JOIN (
+                 SELECT source_payment_id, SUM(amount) AS refunded_amount
+                 FROM refund_allocations
+                 WHERE refund_scope IN ('TICKET', 'SERVICE')
+                   AND status = 'PROCESSED'
+                 GROUP BY source_payment_id
+             ) refunds ON refunds.source_payment_id = tp.payment_id
+             WHERE (pm.is_active = 1 OR tp.payment_id IS NOT NULL)
+             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash, pm.is_active, pm.sort_order
+             ORDER BY total_amount DESC, pm.sort_order ASC, pm.method_name ASC",
             $paymentParams
         );
 
@@ -230,23 +260,23 @@ function handleGet() {
         $session['lost_sales_void_fee'] = (float) ($voidSummary['lost_sales_void_fee'] ?? 0);
         $session['lost_sales_service_fee'] = (float) ($voidSummary['lost_sales_service_fee'] ?? 0);
         $session['void_income'] = round($session['void_fee'] + $session['void_service_fee'], 2);
-        $session['technical_lost_sales_amount'] = round($session['lost_sales_void_fee'], 2);
-        $session['refunded_cash_amount'] = (float) ($session['total_refunds'] ?? 0);
+        $session['technical_lost_sales_amount'] = round(
+            $session['lost_sales_void_fee'] + $session['lost_sales_service_fee'],
+            2
+        );
         $refundSummary = getSessionRefundSummary((int) $session['session_id']);
         $session['refunded_sales_amount'] = (float) ($refundSummary['refunded_sales_amount'] ?? 0);
+        $session['refunded_cash_amount'] = (float) ($session['total_refunds'] ?? 0);
+        if ($session['refunded_cash_amount'] <= 0 && (float) ($refundSummary['refunded_cash_amount'] ?? 0) > 0) {
+            $session['refunded_cash_amount'] = (float) $refundSummary['refunded_cash_amount'];
+            $session['total_refunds'] = $session['refunded_cash_amount'];
+        }
         $regularVoidedTicketAmount = max(0, $session['voided_ticket_amount'] - $session['technical_void_amount']);
         $session['regular_voided_ticket_amount'] = round($regularVoidedTicketAmount, 2);
         $session['voided_sales_amount'] = round(
-            $regularVoidedTicketAmount + $session['technical_lost_sales_amount'],
+            $session['voided_ticket_amount'] + $session['technical_lost_sales_amount'],
             2
         );
-        $session['net_sales'] = round(max(
-            0,
-            (float) ($session['total_sales'] ?? 0)
-                - $session['refunded_sales_amount']
-                - $session['voided_sales_amount']
-                + $session['void_income']
-        ), 2);
         $session['pending_void_count'] = (int) ($voidSummary['pending_void_count'] ?? 0);
         $session['pending_void_amount'] = (float) ($voidSummary['pending_void_amount'] ?? 0);
 
@@ -260,17 +290,33 @@ function handleGet() {
         ];
 
         // Calculate expected cash based on payment methods with include_in_expected_cash flag
-        $expectedCashPayments = 0;
+        $expectedCashPayments = 0.0;
+        $paymentRefundsAmount = 0.0;
         foreach ($payments as $payment) {
             $methodType = $payment['method_type'];
             if (isset($paymentMap[$methodType])) {
                 $session[$paymentMap[$methodType]] = $payment['total_amount'];
             }
+            $paymentRefundsAmount += (float) ($payment['refunded_amount'] ?? 0);
             // Add to expected cash if payment method is configured to be included
-            if ($payment['include_in_expected_cash']) {
-                $expectedCashPayments += $payment['total_amount'];
+            if ((int) $payment['include_in_expected_cash'] === 1) {
+                $expectedCashPayments += (float) ($payment['total_amount'] ?? 0);
             }
         }
+        $completedRefundsAmount = max(
+            (float) ($session['refunded_sales_amount'] ?? 0),
+            $paymentRefundsAmount,
+            (float) ($session['total_refunds'] ?? 0)
+        );
+        $session['approved_refunds_amount'] = round($completedRefundsAmount, 2);
+
+        $session['net_sales'] = round(max(
+            0,
+            (float) ($session['total_sales'] ?? 0)
+                - $session['refunded_sales_amount']
+                - $session['voided_sales_amount']
+                + $session['void_income']
+        ), 2);
 
         // Total cash change disbursed from the drawer during the session
         $totalCashChange = PosAccess::sessionTotalCashChange(
@@ -284,12 +330,13 @@ function handleGet() {
         $showPendingRefunds = (int) ($settings['show_pending_refunds_in_close_session'] ?? 0);
 
         // Recalculate expected cash based on payment method settings
-        // Expected cash = starting cash + cash payments - cash change - refunds - voided cash not received - responsibility deductions
-        $totalRefunds = floatval($session['total_refunds'] ?? 0);
+        // Expected cash = starting cash + cash payments - cash change - refunds - responsibility deductions
         $pendingRefundsCash = $showPendingRefunds ? floatval($session['pending_refunds_cash'] ?? 0) : 0.0;
         $totalCashAdjustments = floatval($session['total_cash_adjustments'] ?? 0);
         $voidedCashAmount = floatval($session['voided_cash_amount'] ?? 0);
-        $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments - $totalCashChange - $totalRefunds - $voidedCashAmount - $pendingRefundsCash - $totalCashAdjustments;
+        $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments
+            + $session['void_income'] - $session['technical_lost_sales_amount']
+            - $totalCashChange - $completedRefundsAmount - $pendingRefundsCash - $totalCashAdjustments;
         $session['total_cash_adjustments'] = $totalCashAdjustments;
         $session['voided_cash_amount'] = $voidedCashAmount;
         $session['total_cash_change'] = $totalCashChange;
@@ -476,29 +523,59 @@ function handlePut() {
         $requireDepositConfirmation = $cashDepositBankId && !$depositNow && $depositRequiresConfirmation;
 
         // Get payment breakdown for this session to calculate expected cash based on payment method settings
-        $paymentWhere = "AND tp.created_at >= :start";
+        $paymentWhere = "AND tp.created_at >= :start
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM ticket_cancellations tc_void
+                              WHERE tp.source_type = 'TICKET_TRANSACTION'
+                                AND tc_void.transaction_id = tp.source_id
+                                AND tc_void.operation_type = 'VOID'
+                                AND tc_void.status = 'completed'
+                          )";
         $paymentParams = [
             'sid'   => $session['session_id'],
             'start' => $session['started_at']
         ];
 
         $payments = Database::fetchAll(
-            "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, SUM(tp.amount) AS total_amount
-             FROM transaction_payments tp
-             JOIN payment_methods pm ON tp.payment_method_id = pm.method_id
-             WHERE tp.cashier_session_id = :sid
-               $paymentWhere
-             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash",
+            "SELECT pm.method_name, pm.method_type, pm.include_in_expected_cash, pm.is_active, pm.sort_order,
+                    COALESCE(SUM(tp.amount), 0) AS gross_amount,
+                    COALESCE(SUM(LEAST(tp.amount, COALESCE(refunds.refunded_amount, 0))), 0) AS refunded_amount,
+                    COALESCE(SUM(GREATEST(0, tp.amount - COALESCE(refunds.refunded_amount, 0))), 0) AS active_amount,
+                    COALESCE(SUM(tp.amount), 0) AS total_amount
+             FROM payment_methods pm
+             LEFT JOIN transaction_payments tp
+               ON tp.payment_method_id = pm.method_id
+              AND tp.cashier_session_id = :sid
+              $paymentWhere
+             LEFT JOIN (
+                 SELECT source_payment_id, SUM(amount) AS refunded_amount
+                 FROM refund_allocations
+                 WHERE refund_scope IN ('TICKET', 'SERVICE')
+                   AND status = 'PROCESSED'
+                 GROUP BY source_payment_id
+             ) refunds ON refunds.source_payment_id = tp.payment_id
+             WHERE (pm.is_active = 1 OR tp.payment_id IS NOT NULL)
+             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.include_in_expected_cash, pm.is_active, pm.sort_order
+             ORDER BY pm.sort_order ASC, pm.method_name ASC",
             $paymentParams
         );
 
         // Calculate expected cash based on payment methods with include_in_expected_cash flag
-        $expectedCashPayments = 0;
+        $expectedCashPayments = 0.0;
+        $paymentRefundsAmount = 0.0;
         foreach ($payments as $payment) {
-            if ($payment['include_in_expected_cash']) {
-                $expectedCashPayments += $payment['total_amount'];
+            $paymentRefundsAmount += (float) ($payment['refunded_amount'] ?? 0);
+            if ((int) $payment['include_in_expected_cash'] === 1) {
+                $expectedCashPayments += (float) ($payment['total_amount'] ?? 0);
             }
         }
+        $refundSummary = getSessionRefundSummary((int) $session['session_id']);
+        $completedRefundsAmount = max(
+            (float) ($refundSummary['refunded_sales_amount'] ?? 0),
+            $paymentRefundsAmount,
+            (float) ($session['total_refunds'] ?? 0)
+        );
 
         // Total cash change disbursed from the drawer during the session
         $totalCashChange = PosAccess::sessionTotalCashChange(
@@ -506,15 +583,23 @@ function handlePut() {
             $session['started_at']
         );
 
-        // Compute expected cash: starting cash + in-cash payments - cash change - refunds - voided cash not received - responsibility deductions
+        // Compute expected cash: starting cash + in-cash payments - cash change - refunds - responsibility deductions
         // If configured, also reserve pending refund cash so the cashier accounts for it.
-        $totalRefunds = floatval($session['total_refunds'] ?? 0);
         $showPendingRefunds = ($settings['show_pending_refunds_in_close_session'] ?? 0) == 1;
         $pendingRefundsCash = $showPendingRefunds ? floatval($session['pending_refunds_cash'] ?? 0) : 0.0;
         $totalCashAdjustments = floatval($session['total_cash_adjustments'] ?? 0);
         $voidSummary = getSessionVoidSummary((int) $session['session_id']);
-        $voidedCashAmount = (float) ($voidSummary['voided_cash_amount'] ?? 0);
-        $expectedCash = $session['starting_cash'] + $expectedCashPayments - $totalCashChange - $totalRefunds - $voidedCashAmount - $pendingRefundsCash - $totalCashAdjustments;
+        $voidIncome = round(
+            (float) ($voidSummary['void_fee'] ?? 0) + (float) ($voidSummary['void_service_fee'] ?? 0),
+            2
+        );
+        $voidLostSalesAmount = round(
+            (float) ($voidSummary['lost_sales_void_fee'] ?? 0) + (float) ($voidSummary['lost_sales_service_fee'] ?? 0),
+            2
+        );
+        $expectedCash = $session['starting_cash'] + $expectedCashPayments
+            + $voidIncome - $voidLostSalesAmount
+            - $totalCashChange - $completedRefundsAmount - $pendingRefundsCash - $totalCashAdjustments;
         $variance = $closingCash - $expectedCash;
 
         // Determine deposit status based on system settings

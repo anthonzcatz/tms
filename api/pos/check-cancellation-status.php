@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
 Auth::requireLogin();
@@ -25,7 +26,8 @@ if (!$txnCode) {
 }
 
 $user = Auth::user();
-$isAdmin = $user['role_code'] === 'SUPER_ADMIN';
+$allowedBranchIds = PosAccess::allowedBranchIds($user);
+$isAdmin = $allowedBranchIds === null;
 
 // Determine whether this is a ticket or service code by looking up both tables
 $serviceTxn = Database::fetch(
@@ -34,15 +36,32 @@ $serviceTxn = Database::fetch(
 );
 $isService = !empty($serviceTxn);
 
+$branchScopeSql = '';
+$branchScopeParams = [];
+if (!$isAdmin) {
+    if (!$allowedBranchIds) {
+        $branchScopeSql = ' AND 1 = 0 ';
+    } else {
+        $branchPlaceholders = [];
+        foreach (array_values($allowedBranchIds) as $index => $allowedBranchId) {
+            $key = 'branch_scope_' . $index;
+            $branchPlaceholders[] = ':' . $key;
+            $branchScopeParams[$key] = $allowedBranchId;
+        }
+        $branchScopeSql = ' AND %s IN (' . implode(',', $branchPlaceholders) . ') ';
+    }
+}
+
 if ($isService) {
     // Pending service cancellation
+    $serviceBranchScopeSql = sprintf($branchScopeSql, 'st.branch_id');
     $pendingSql = "SELECT sc.*, COALESCE(CONCAT(e.first_name, ' ', e.last_name), ua.username) as requested_by_name
                    FROM service_cancellations sc
                    LEFT JOIN service_transactions st ON sc.service_transaction_id = st.service_txn_id
                    LEFT JOIN user_accounts ua ON sc.requested_by = ua.user_id
                    LEFT JOIN employees e ON ua.emp_id = e.emp_id
                    WHERE sc.transaction_code = :code AND sc.status = 'pending' " .
-                   ($isAdmin ? '' : " AND st.branch_id = :branch_id " ) .
+                   $serviceBranchScopeSql .
                    "ORDER BY sc.requested_at DESC LIMIT 1";
 
     $historySql = "SELECT sc.*,
@@ -55,18 +74,20 @@ if ($isService) {
                    LEFT JOIN user_accounts ua2 ON sc.approved_by = ua2.user_id
                    LEFT JOIN employees e2 ON ua2.emp_id = e2.emp_id
                    WHERE sc.transaction_code = :code " .
-                   ($isAdmin ? '' : " AND st.branch_id = :branch_id " ) .
+                   $serviceBranchScopeSql .
                    "ORDER BY sc.requested_at DESC";
 
-    $params = $isAdmin ? ['code' => $txnCode] : ['code' => $txnCode, 'branch_id' => $user['branch_id']];
+    $params = array_merge(['code' => $txnCode], $branchScopeParams);
 } else {
+    // Pending ticket cancellation
+    $ticketBranchScopeSql = sprintf($branchScopeSql, 'tt.branch_id');
     $pendingSql = "SELECT tc.*, COALESCE(CONCAT(e.first_name, ' ', e.last_name), ua.username) as requested_by_name
                    FROM ticket_cancellations tc
                    LEFT JOIN ticket_transactions tt ON tc.transaction_id = tt.transaction_id
                    LEFT JOIN user_accounts ua ON tc.requested_by = ua.user_id
                    LEFT JOIN employees e ON ua.emp_id = e.emp_id
                    WHERE tc.transaction_code = :code AND tc.status = 'pending' " .
-                   ($isAdmin ? '' : " AND tt.branch_id = :branch_id " ) .
+                   $ticketBranchScopeSql .
                    "ORDER BY tc.requested_at DESC LIMIT 1";
 
     $historySql = "SELECT tc.*,
@@ -79,10 +100,10 @@ if ($isService) {
                    LEFT JOIN user_accounts ua2 ON tc.approved_by = ua2.user_id
                    LEFT JOIN employees e2 ON ua2.emp_id = e2.emp_id
                    WHERE tc.transaction_code = :code " .
-                   ($isAdmin ? '' : " AND tt.branch_id = :branch_id " ) .
+                   $ticketBranchScopeSql .
                    "ORDER BY tc.requested_at DESC";
 
-    $params = $isAdmin ? ['code' => $txnCode] : ['code' => $txnCode, 'branch_id' => $user['branch_id']];
+    $params = array_merge(['code' => $txnCode], $branchScopeParams);
 }
 
 $pendingCancellation = Database::fetch($pendingSql, $params);

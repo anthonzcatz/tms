@@ -6,6 +6,7 @@
 
 require_once dirname(dirname(dirname(__DIR__))) . '/config/bootstrap.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/Auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/config/database.php';
 require_once dirname(__DIR__) . '/_guard.php';
@@ -32,23 +33,14 @@ if ($user && $user['role_code'] === 'SUPER_ADMIN') {
 // Get current user
 $user = Auth::user();
 $userBranchId = Auth::userBranchId() ?? ($user['branch_id'] ?? null);
-$userRoleCode = $user['role_code'] ?? '';
+$userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
 
 // SUPER_ADMIN can see all wallets, others are restricted to their branch
-$branchFilter = "";
+$walletWhere = [];
 $params = [];
+PosAccess::applyBranchScope($walletWhere, $params, 'pw.branch_id', $user, 'wallet_transaction_branch');
+$branchFilter = $walletWhere ? 'WHERE ' . implode(' AND ', $walletWhere) : '';
 
-if ($userRoleCode !== 'SUPER_ADMIN' && $userBranchId) {
-    $branchIds = array_filter(array_map('trim', explode(',', $userBranchId)));
-    if (!empty($branchIds)) {
-        $branchPlaceholders = [];
-        foreach ($branchIds as $i => $branchId) {
-            $branchPlaceholders[] = ':branch_' . $i;
-            $params['branch_' . $i] = (int)$branchId;
-        }
-        $branchFilter = "WHERE pw.branch_id IN (" . implode(',', $branchPlaceholders) . ")";
-    }
-}
 
 // Get all wallets for dropdown (filtered by user's branch if not SUPER_ADMIN)
 $wallets = Database::fetchAll(
