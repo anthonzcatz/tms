@@ -106,9 +106,19 @@ function canManageVariants(): bool {
     return Auth::can('MANAGE_TICKET_VARIANTS');
 }
 
-function getAllowedBranchIds(): array {
+function canViewAllTicketStock(): bool {
     $user = Auth::user();
     if (!$user) {
+        return false;
+    }
+
+    $roleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+    return $roleCode === 'SUPER_ADMIN' || Auth::can('VIEW_ALL_TICKET_STOCK');
+}
+
+function getAllowedBranchIds(): array {
+    $user = Auth::user();
+    if (!$user || canViewAllTicketStock()) {
         return [];
     }
 
@@ -117,8 +127,7 @@ function getAllowedBranchIds(): array {
 }
 
 function getWalletBranchIds(?int $branchId): array {
-    $user = Auth::user();
-    if ($user && (Auth::userRoleCode() ?? ($user['role_code'] ?? '')) === 'SUPER_ADMIN') {
+    if (canViewAllTicketStock()) {
         $allBranches = Database::fetchAll(
             "SELECT branch_id FROM business_branches WHERE status = 'active' OR status IS NULL"
         );
@@ -144,7 +153,7 @@ function validateBranchAccess(?int $branchId): void {
         exit;
     }
 
-    if (!$branchId || PosAccess::allowedBranchIds($user) === null) {
+    if (!$branchId || canViewAllTicketStock()) {
         return;
     }
 
@@ -166,7 +175,7 @@ function stockAggregationSql(?int $branchId, array &$params, string $prefix): st
         $params[$key] = $branchId;
     } else {
         $allowedBranchIds = getAllowedBranchIds();
-        if (Auth::userRoleCode() !== 'SUPER_ADMIN') {
+        if (!canViewAllTicketStock()) {
             if (!$allowedBranchIds) {
                 $where[] = '1 = 0';
             } else {
@@ -199,7 +208,7 @@ function handleGet(): void {
     $branchId   = $_GET['branch_id']   ?? null;
     $includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] == '1';
     $allowedBranchIds = getAllowedBranchIds();
-    if (Auth::userRoleCode() !== 'SUPER_ADMIN' && !$allowedBranchIds) {
+    if (!canViewAllTicketStock() && !$allowedBranchIds) {
         echo json_encode(['success' => true, 'data' => []]);
         exit;
     }

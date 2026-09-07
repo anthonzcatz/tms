@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/ProviderWalletDeductionService.php';
 
 Auth::requireLogin();
 $user = Auth::user();
@@ -141,11 +142,30 @@ if ($useOrdersTable) {
         // Fetch order items
         $items = Database::fetchAll(
             "SELECT oi.*,
+                    tt.ticket_notes AS transaction_ticket_notes,
                     CASE
                         WHEN oi.item_type = 'TICKET' THEN p.fullname
                         WHEN oi.item_type = 'SERVICE' THEN st.name
                         ELSE oi.item_type
                     END as name,
+                    CASE
+                        WHEN st_txn.status IN ('cancelled', 'refunded') THEN st_txn.status
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM pos_order_items oi_service_ticket
+                            JOIN ticket_transactions tt_service_ticket
+                              ON tt_service_ticket.transaction_id = oi_service_ticket.reference_id
+                            JOIN ticket_cancellations tc_service_ticket
+                              ON tc_service_ticket.transaction_id = tt_service_ticket.transaction_id
+                            WHERE oi_service_ticket.order_id = oi.order_id
+                              AND oi_service_ticket.item_type = 'TICKET'
+                              AND tt_service_ticket.status IN ('cancelled', 'refunded')
+                              AND tc_service_ticket.operation_type = 'VOID'
+                              AND tc_service_ticket.status IN ('approved', 'completed')
+                              AND COALESCE(tc_service_ticket.reason_category, '') NOT IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR')
+                        ) THEN 'cancelled'
+                        ELSE st_txn.status
+                    END AS service_status,
                     at.name as accommodation_name,
                     at.code as accommodation_code,
                     dt.name as discount_name,
@@ -160,8 +180,10 @@ if ($useOrdersTable) {
                     pv_wallet.variant_name as wallet_variant_name,
                     pv_wallet.variant_code as wallet_variant_code
              FROM pos_order_items oi
+             LEFT JOIN ticket_transactions tt ON oi.reference_id = tt.transaction_id AND oi.item_type = 'TICKET'
              LEFT JOIN passenger_accounts p ON oi.passenger_id = p.passenger_id
              LEFT JOIN service_types st ON oi.service_type_id = st.service_type_id
+             LEFT JOIN service_transactions st_txn ON oi.reference_id = st_txn.service_txn_id AND oi.item_type = 'SERVICE'
              LEFT JOIN accommodation_types at ON oi.accommodation_id = at.accommodation_id
              LEFT JOIN discount_types dt ON oi.discount_id = dt.discount_id
              LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
@@ -174,6 +196,22 @@ if ($useOrdersTable) {
              WHERE oi.order_id = :order_id",
             ['order_id' => $transaction['order_id']]
         );
+        foreach ($items as &$item) {
+            if (array_key_exists('transaction_ticket_notes', $item)) {
+                $item['ticket_notes'] = trim((string) ($item['ticket_notes'] ?? '')) !== ''
+                    ? $item['ticket_notes']
+                    : $item['transaction_ticket_notes'];
+                unset($item['transaction_ticket_notes']);
+            }
+            if (($item['item_type'] ?? '') === 'TICKET') {
+                $walletPolicy = ProviderWalletDeductionService::forWallet(
+                    !empty($item['wallet_id']) ? (int) $item['wallet_id'] : null
+                );
+                $item['wallet_deduct_all_charges'] = $walletPolicy['wallet_deduct_all_charges'];
+                $item['wallet_deduct_base_only'] = $walletPolicy['wallet_deduct_base_only'];
+            }
+        }
+        unset($item);
         $transaction['order_items'] = $items;
         $transaction['adjustments'] = Database::fetchAll(
             "SELECT ta.adjustment_id, ta.type, ta.amount, ta.reason, ta.charged_to,
@@ -432,12 +470,74 @@ if (!$transaction) {
     exit;
 }
 
+if (($transaction['type'] ?? '') === 'TICKET' && empty($transaction['order_id'])) {
+    $walletPolicy = ProviderWalletDeductionService::forWallet(
+        !empty($transaction['wallet_id']) ? (int) $transaction['wallet_id'] : null
+    );
+    $transaction['wallet_deduct_all_charges'] = $walletPolicy['wallet_deduct_all_charges'];
+    $transaction['wallet_deduct_base_only'] = $walletPolicy['wallet_deduct_base_only'];
+}
+
 // Branch access control
 $allowedBranchIds = PosAccess::allowedBranchIds($user);
 if ($allowedBranchIds !== null && !in_array((int) $transaction['branch_id'], $allowedBranchIds, true)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Access denied: transaction does not belong to an assigned branch']);
     exit;
+}
+
+$paymentSourceCondition = '';
+$paymentSourceParams = [];
+if (!empty($transaction['order_id'])) {
+    $paymentSourceCondition = "EXISTS (
+        SELECT 1
+        FROM pos_order_items oi_payment
+        WHERE oi_payment.order_id = :payment_order_id
+          AND (
+              (oi_payment.item_type = 'TICKET'
+               AND tp.source_type = 'TICKET_TRANSACTION'
+               AND oi_payment.reference_id = tp.source_id)
+              OR (oi_payment.item_type = 'SERVICE'
+                  AND tp.source_type = 'SERVICE_TRANSACTION'
+                  AND oi_payment.reference_id = tp.source_id)
+              OR (tp.source_type = 'POS_ORDER'
+                  AND tp.source_id = oi_payment.order_id)
+          )
+    )";
+    $paymentSourceParams['payment_order_id'] = (int) $transaction['order_id'];
+} elseif (!empty($transaction['transaction_id'])) {
+    $paymentSourceCondition = 'tp.source_type = :payment_source_type AND tp.source_id = :payment_source_id';
+    $paymentSourceParams['payment_source_type'] = ($transaction['type'] ?? '') === 'SERVICE'
+        ? 'SERVICE_TRANSACTION'
+        : 'TICKET_TRANSACTION';
+    $paymentSourceParams['payment_source_id'] = (int) $transaction['transaction_id'];
+}
+
+if ($paymentSourceCondition !== '') {
+    try {
+        $transaction['payments'] = Database::fetchAll(
+            "SELECT pm.method_id,
+                    pm.method_name,
+                    pm.method_type,
+                    pm.method_code,
+                    pm.tracks_credit,
+                    pm.sort_order,
+                    SUM(tp.amount) AS amount,
+                    tp.charged_to_passenger_id,
+                    pa.fullname AS charged_to_passenger_name
+             FROM transaction_payments tp
+             INNER JOIN payment_methods pm ON pm.method_id = tp.payment_method_id
+             LEFT JOIN passenger_accounts pa ON pa.passenger_id = tp.charged_to_passenger_id
+             WHERE $paymentSourceCondition
+             GROUP BY pm.method_id, pm.method_name, pm.method_type, pm.method_code,
+                      pm.tracks_credit, pm.sort_order,
+                      tp.charged_to_passenger_id, pa.fullname
+             ORDER BY pm.sort_order ASC, pm.method_name ASC, pa.fullname ASC",
+            $paymentSourceParams
+        );
+    } catch (Throwable $e) {
+        $transaction['payments'] = [];
+    }
 }
 
 // Encode IDs if encryption is enabled

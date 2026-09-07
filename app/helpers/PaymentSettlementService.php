@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/BalanceLedgerService.php';
+require_once __DIR__ . '/ProviderWalletDeductionService.php';
 require_once __DIR__ . '/TicketStockHelper.php';
 
 final class PaymentSettlementService
@@ -95,29 +96,28 @@ final class PaymentSettlementService
             throw new RuntimeException('The rejected ticket payment has no original wallet.');
         }
 
-        $originalSale = Database::fetch(
-            "SELECT wallet_txn_id
-             FROM wallet_transactions
-             WHERE idempotency_key = :idempotency_key
-             LIMIT 1",
-            ['idempotency_key' => 'pos-sale:' . $ticketId]
-        );
-        $baseAmount = round((float) ($ticket['base_amount'] ?? 0), 2);
+        $originalSale = ProviderWalletDeductionService::originalSaleMovement($ticketId);
+        $walletPolicy = ProviderWalletDeductionService::forWallet((int) $wallet['wallet_id']);
+        $restoreAmount = $originalSale
+            ? round((float) ($originalSale['amount'] ?? 0), 2)
+            : (($walletPolicy['mode'] ?? ProviderWalletDeductionService::MODE_BASE_ONLY) === ProviderWalletDeductionService::MODE_NONE
+                ? 0.0
+                : round(max(0, (float) ($ticket['base_amount'] ?? 0)), 2));
         // POS variant tickets use the separate ticket-stock ledger and do not
         // create a monetary wallet debit, so there is no wallet amount to restore.
-        if (empty($ticket['variant_id']) && $baseAmount > 0) {
+        if (empty($ticket['variant_id']) && empty($wallet['variant_id']) && $restoreAmount > 0) {
             BalanceLedgerService::walletMovement(
                 (int) $wallet['wallet_id'],
                 'REFUND',
                 'IN',
-                $baseAmount,
+                $restoreAmount,
                 'transaction_payments',
                 $paymentId,
-                'Provider cost restored after bank/e-wallet payment rejection'
+                'Provider wallet debit restored after bank/e-wallet payment rejection'
                     . ($notes ? ' | ' . $notes : ''),
                 $processedBy,
                 'bank-reject:ticket:' . $ticketId . ':wallet',
-                $originalSale ? (int) $originalSale['wallet_txn_id'] : null
+                (int) $originalSale['wallet_txn_id']
             );
         }
 

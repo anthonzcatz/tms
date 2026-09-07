@@ -17,6 +17,69 @@ function isTechnicalIssueReason(reasonCategory) {
     return ['PRINTER_ERROR', 'SYSTEM_ERROR'].includes(String(reasonCategory || '').toUpperCase());
 }
 
+function getWalletDeductionPolicy(source = {}) {
+    const walletProviderId = source.wallet_provider_id
+        || source.walletProviderId
+        || source.provider_id
+        || source.providerId;
+    const provider = (window.allTicketProviders || []).find(item => String(item.provider_id) === String(walletProviderId));
+    const allSetting = source.wallet_deduct_all_charges
+        ?? source.walletDeductAllCharges
+        ?? source.dataset?.walletDeductAllCharges
+        ?? provider?.wallet_deduct_all_charges
+        ?? provider?.void_fee_wallet_enabled;
+    const baseSetting = source.wallet_deduct_base_only
+        ?? source.walletDeductBaseOnly
+        ?? source.dataset?.walletDeductBaseOnly
+        ?? provider?.wallet_deduct_base_only;
+    const allChargesEnabled = Number(allSetting ?? 0) === 1;
+    const baseOnlyEnabled = baseSetting === undefined || baseSetting === null
+        ? true
+        : Number(baseSetting) === 1;
+    const walletActive = String(source.wallet_status ?? source.walletStatus ?? source.status ?? '').toLowerCase() === 'active';
+    const isVariantWallet = Number(source.wallet_is_variant ?? source.walletIsVariant) === 1
+        || Number(source.wallet_variant_id ?? source.walletVariantId) > 0
+        || Number(source.variant_id ?? source.variantId) > 0;
+    const mode = allChargesEnabled
+        ? 'all_charges'
+        : baseOnlyEnabled
+            ? 'base_only'
+            : 'none';
+
+    return {
+        allChargesEnabled,
+        baseOnlyEnabled,
+        walletActive,
+        isVariantWallet,
+        mode,
+        settingEnabled: allChargesEnabled,
+        canDebit: allChargesEnabled && walletActive && !isVariantWallet,
+        canDebitVoidFees: allChargesEnabled && walletActive && !isVariantWallet
+    };
+}
+
+function getTicketWalletDeductionPolicy(ticketOrWallet = {}) {
+    return getWalletDeductionPolicy(ticketOrWallet);
+}
+
+function getTicketWalletDebitAmount(ticket = {}, policy = null) {
+    const effectivePolicy = policy || getTicketWalletDeductionPolicy(ticket);
+    if (effectivePolicy.isVariantWallet || Number(ticket.variantId ?? ticket.variant_id) > 0) {
+        return 0;
+    }
+
+    const baseAmount = Math.max(0, parseFloat(ticket.baseAmount ?? ticket.base_amount ?? 0) || 0);
+    const serviceFee = Math.max(0, parseFloat(ticket.serviceFee ?? ticket.service_fee ?? 0) || 0);
+    if (effectivePolicy.mode === 'all_charges') {
+        return Math.max(0, baseAmount + serviceFee);
+    }
+    return effectivePolicy.mode === 'base_only' ? Math.max(0, baseAmount) : 0;
+}
+
+function getVoidFeeWalletPolicy(transactionData = {}) {
+    return getWalletDeductionPolicy(transactionData);
+}
+
 function getTicketProviderDetails(providerId, mainProviderId) {
     const providers = window.allTicketProviders || [];
     const operatingProvider = providers.find(provider => String(provider.provider_id) === String(providerId));
@@ -255,6 +318,9 @@ let totalPassengerSteps = 2;
 let viewPassengerStep = 1;
 let totalViewPassengerSteps = 2;
 let pendingTransactionType = null; // Store pending transaction type for confirmation
+let orderSubmissionInFlight = false;
+let paymentOpeningInFlight = false;
+let pendingOrderCode = null;
 
 // Load cart from localStorage on page load
 function loadCartFromStorage() {
@@ -354,6 +420,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add listeners
             orderSummaryCollapse.addEventListener('show.bs.collapse', handleCollapseShow);
             orderSummaryCollapse.addEventListener('hide.bs.collapse', handleCollapseHide);
+        }
+    });
+
+    paymentModal._element.addEventListener('hidden.bs.modal', function() {
+        if (!orderSubmissionInFlight) {
+            pendingOrderCode = null;
         }
     });
 
@@ -670,7 +742,7 @@ function renderCustomers(searchTerm = '') {
                 tr.innerHTML = `
                     <td class="fw-semibold">${p.fullname}</td>
                     <td>${p.mobile_number || '—'}</td>
-                    <td class="text-end">₱0.00</td>
+                    <td class="text-end">₱${fmt(p.balance)}</td>
                     <td class="text-center">
                         <input type="radio" name="selectedCustomer" value="${p.passenger_id}" ${isSelected ? 'checked' : ''} onchange="selectCustomerRadio(this)">
                     </td>
@@ -1344,7 +1416,9 @@ function getPosProviderSignature(providers) {
         provider.provider_type,
         provider.parent_provider_id,
         provider.status,
-        provider.variant_count
+        provider.variant_count,
+        provider.wallet_deduct_all_charges,
+        provider.wallet_deduct_base_only
     ]));
 }
 
@@ -1931,6 +2005,8 @@ function loadWallets(providerId = null, branchId = null, variantId = null) {
                 option.dataset.branchId = w.branch_id;
                 option.dataset.providerType = w.provider_type || '';
                 option.dataset.balance = w.current_balance;
+                option.dataset.walletDeductAllCharges = w.wallet_deduct_all_charges ?? 0;
+                option.dataset.walletDeductBaseOnly = w.wallet_deduct_base_only ?? 1;
                 option.dataset.onHandQty = w.on_hand_qty || 0;
                 option.textContent = w.variant_id
                     ? `${w.wallet_name || 'Wallet #' + w.wallet_id} • ${Number(w.on_hand_qty || 0)} tickets`
@@ -3188,6 +3264,7 @@ async function openCloseSession() {
                         || voidedTicketCount > 0 || technicalVoidCount > 0 || voidFeeTotal > 0 || pendingVoidCount > 0;
                     const borderClass = !isLast || hasDeductions ? 'border-bottom' : '';
                     const totalAmount = parseFloat(p.total_amount ?? p.active_amount ?? 0);
+                    const methodTypeLabel = p.method_type === 'ADD_ON' ? 'ADD-ON' : p.method_type;
                     const inCashBadge = Number(p.include_in_expected_cash) === 1
                         ? '<span class="badge bg-soft-success text-success fs-11 ms-1"><span class="fas fa-cash-register me-1"></span>In Cash</span>'
                         : '<span class="badge bg-soft-secondary text-secondary fs-11 ms-1"><span class="fas fa-ban me-1"></span>Not Cash</span>';
@@ -3196,7 +3273,7 @@ async function openCloseSession() {
                       <tr class="${borderClass}" style="cursor: default;">
                         <td class="ps-0">
                           <div class="fw-semibold">${p.method_name} ${inCashBadge}</div>
-                          <div class="text-400 fw-normal fs-11 text-uppercase">${p.method_type}</div>
+                          <div class="text-400 fw-normal fs-11 text-uppercase">${methodTypeLabel}</div>
                         </td>
                         <td class="pe-0 text-end"><strong>₱${fmt(totalAmount)}</strong></td>
                       </tr>`;
@@ -4342,7 +4419,7 @@ function showInsufficientWalletBalance(required, available = null) {
     showToast(
         'danger',
         'Insufficient Wallet Balance',
-        `The selected wallet balance is insufficient to cover the ticket base fare.${balanceDetails} Please top up the wallet or select another wallet.`
+        `The selected wallet balance is insufficient to cover the configured ticket wallet deduction.${balanceDetails} Please top up the wallet or select another wallet.`
     );
 }
 
@@ -4356,6 +4433,8 @@ function toggleTicketSpecialAction() {
 function clearTicketSpecialAction() {
     const radios = document.querySelectorAll('input[name="ticketSpecialAction"]');
     radios.forEach(r => r.checked = false);
+    const notes = document.getElementById('ticketNotes');
+    if (notes) notes.value = '';
     const wrapper = document.getElementById('ticketSpecialActionWrapper');
     const toggleRow = document.getElementById('ticketSpecialActionToggleRow');
     if (wrapper) wrapper.classList.add('d-none');
@@ -4395,6 +4474,7 @@ function addTicketToCart() {
     const selectedActionEl = document.querySelector('input[name="ticketSpecialAction"]:checked');
     const ticketAction = selectedActionEl ? selectedActionEl.value : '';
     const ticketActionLabel = getTicketSpecialActionLabel(ticketAction);
+    const ticketNotes = document.getElementById('ticketNotes')?.value.trim() || '';
     const accommodationSelect = document.getElementById('ticketAccommodation');
     const accommodationId = accommodationSelect.value || null;
     const accommodationName = accommodationSelect.selectedOptions[0]?.textContent.trim() || '';
@@ -4433,6 +4513,13 @@ function addTicketToCart() {
         walletBranchId = resolvedWallet?.branch_id || null;
     }
 
+    const walletPolicy = getTicketWalletDeductionPolicy(resolvedWallet || walletOption || {
+        provider_id: providerId
+    });
+    const walletDebitAmount = getTicketWalletDebitAmount(
+        { baseAmount, serviceFee, variantId },
+        walletPolicy
+    );
     let walletBalance = resolvedWallet && resolvedWallet.wallet_id
         ? parseFloat(resolvedWallet.current_balance)
         : NaN;
@@ -4440,8 +4527,12 @@ function addTicketToCart() {
         const optionBalance = hasActiveVariant ? variantOption?.dataset.walletBalance : walletOption?.dataset.balance;
         walletBalance = optionBalance === undefined || optionBalance === '' ? NaN : parseFloat(optionBalance);
     }
-    if (!hasActiveVariant && !window.POS_SETTINGS?.allow_insufficient_wallet && Number.isFinite(walletBalance) && Math.round((baseAmount - walletBalance) * 100) > 0) {
-        showInsufficientWalletBalance(baseAmount, walletBalance);
+    if (!hasActiveVariant
+        && walletDebitAmount > 0
+        && !window.POS_SETTINGS?.allow_insufficient_wallet
+        && Number.isFinite(walletBalance)
+        && Math.round((walletDebitAmount - walletBalance) * 100) > 0) {
+        showInsufficientWalletBalance(walletDebitAmount, walletBalance);
         return;
     }
 
@@ -4482,8 +4573,13 @@ function addTicketToCart() {
         total,
         providerId,
         walletId,
+        walletProviderId: resolvedWallet?.provider_id || walletOption?.dataset.providerId || null,
+        walletDeductAllCharges: walletPolicy.allChargesEnabled ? 1 : 0,
+        walletDeductBaseOnly: walletPolicy.baseOnlyEnabled ? 1 : 0,
+        walletDebitAmount,
         ticketAction,
         ticketActionLabel,
+        ticketNotes: ticketNotes || null,
         branchId: walletBranchId || window.POS_BRANCH_ID
     };
 
@@ -4704,6 +4800,7 @@ function renderCart() {
                 ${item.discountAmount > 0 ? `<div class="cart-ticket-discount"><span>Discount</span><strong>-₱${fmt(item.discountAmount)}</strong></div>` : ''}
               </div>
               ${item.ticketAction ? `<div class="cart-ticket-action"><span class="badge bg-soft-info text-info">${escapeHtml(item.ticketActionLabel)}</span></div>` : ''}
+              ${item.ticketNotes ? `<div class="cart-ticket-note text-muted small mt-1"><span class="fas fa-sticky-note me-1"></span><span style="white-space:pre-line;">${escapeHtml(item.ticketNotes)}</span></div>` : ''}
             </article>`;
         } else {
             html += `
@@ -4768,7 +4865,7 @@ function confirmClearCart() {
 
 function resetTicketEntryForm() {
     resetPassengerField();
-    ['ticketNumber', 'ticketBaseAmount', 'ticketServiceFee', 'ticketProvider'].forEach(id => {
+    ['ticketNumber', 'ticketBaseAmount', 'ticketServiceFee', 'ticketProvider', 'ticketNotes'].forEach(id => {
         const element = document.getElementById(id);
         if (element) element.value = '';
     });
@@ -4825,6 +4922,22 @@ function getCartTotal() {
     return cart.reduce((s, i) => s + i.total, 0);
 }
 
+function generatePosOrderCode() {
+    const now = new Date();
+    const pad = value => String(value).padStart(2, '0');
+    let randomHex = '';
+
+    if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+        const bytes = new Uint8Array(8);
+        window.crypto.getRandomValues(bytes);
+        randomHex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    } else {
+        randomHex = `${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`.slice(-16);
+    }
+
+    return `ORD-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${randomHex.toUpperCase()}`;
+}
+
 async function fetchTicketWalletBalance(ticket) {
     const walletId = parseInt(ticket?.walletId, 10);
     if (!walletId) throw new Error('No wallet is associated with this ticket.');
@@ -4840,34 +4953,44 @@ async function fetchTicketWalletBalance(ticket) {
 
     const balance = parseFloat(data.data.current_balance);
     if (!Number.isFinite(balance)) throw new Error('Unable to verify the wallet balance.');
-    return balance;
+    return { balance, wallet: data.data };
 }
 
 async function proceedToPayment() {
-    if (cart.length === 0) { return; }
+    if (paymentOpeningInFlight || orderSubmissionInFlight || cart.length === 0) { return; }
 
-    const ticket = cart.find(item => item.type === 'ticket');
-    if (ticket && !ticket.variantId && !window.POS_SETTINGS?.allow_insufficient_wallet) {
-        let walletBalance;
-        try {
-            walletBalance = await fetchTicketWalletBalance(ticket);
-        } catch (error) {
-            console.error('[POS] Wallet balance verification failed:', error);
-            showToast('danger', 'Wallet Verification Required', 'Unable to verify the selected wallet balance. Please refresh the wallet and try again.');
-            return;
+    paymentOpeningInFlight = true;
+    const payBtn = document.getElementById('payBtn');
+    if (payBtn) payBtn.disabled = true;
+
+    try {
+        const ticket = cart.find(item => item.type === 'ticket');
+        if (ticket && !ticket.variantId && !window.POS_SETTINGS?.allow_insufficient_wallet) {
+            let walletData;
+            try {
+                walletData = await fetchTicketWalletBalance(ticket);
+            } catch (error) {
+                console.error('[POS] Wallet balance verification failed:', error);
+                showToast('danger', 'Wallet Verification Required', 'Unable to verify the selected wallet balance. Please refresh the wallet and try again.');
+                return;
+            }
+
+            const walletPolicy = getTicketWalletDeductionPolicy(walletData.wallet || ticket);
+            const walletDebitAmount = getTicketWalletDebitAmount(ticket, walletPolicy);
+            if (walletDebitAmount > 0 && Math.round((walletDebitAmount - walletData.balance) * 100) > 0) {
+                showInsufficientWalletBalance(walletDebitAmount, walletData.balance);
+                return;
+            }
         }
 
-        const baseAmount = parseFloat(ticket.baseAmount) || 0;
-        if (Math.round((baseAmount - walletBalance) * 100) > 0) {
-            showInsufficientWalletBalance(baseAmount, walletBalance);
-            return;
-        }
+        paymentLines = [];
+        renderPaymentLines();
+        populatePaymentModalCart();
+        paymentModal.show();
+    } finally {
+        paymentOpeningInFlight = false;
+        if (payBtn && cart.length > 0) payBtn.disabled = false;
     }
-
-    paymentLines = [];
-    renderPaymentLines();
-    populatePaymentModalCart();
-    paymentModal.show();
 }
 
 function populatePaymentModalCart() {
@@ -5113,12 +5236,11 @@ async function reservePosTicketStock(ticket) {
             variant_id: ticket.variantId,
             qty: 1,
             session_id: String(window.POS_SESSION_ID),
-            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
         })
     });
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Unable to reserve ticket stock.');
-    return { branchId: window.POS_BRANCH_ID, providerId: ticket.providerId, variantId: ticket.variantId, qty: 1, sessionId: String(window.POS_SESSION_ID) };
+    return { branch_id: window.POS_BRANCH_ID, provider_id: ticket.providerId, variant_id: ticket.variantId, qty: 1, session_id: String(window.POS_SESSION_ID) };
 }
 
 async function releasePosTicketStock(reservation) {
@@ -5127,18 +5249,23 @@ async function releasePosTicketStock(reservation) {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.CSRF_TOKEN || '';
         const headers = { 'Content-Type': 'application/json' };
         if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
-        await fetch(`${window.BASE_URL}/api/ticket-stock`, {
+        const response = await fetch(`${window.BASE_URL}/api/ticket-stock`, {
             method: 'POST',
             headers,
             credentials: 'same-origin',
             body: JSON.stringify({ action: 'release', ...reservation })
         });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.success) {
+            console.warn('[POS stock] Failed to release reservation:', result?.error || `HTTP ${response.status}`);
+        }
     } catch (error) {
         console.error('[POS stock] Failed to release reservation:', error);
     }
 }
 
 async function confirmOrder() {
+    if (orderSubmissionInFlight) return;
     if (!window.POS_HAS_SESSION) {
         showToast('danger', 'No Session', 'Open a session first.'); return;
     }
@@ -5165,18 +5292,14 @@ async function confirmOrder() {
     // Reserve physical stock before checkout for stock-controlled variants.
     const hasTicket = cart.some(item => item.type === 'ticket');
     let reservedStock = null;
-    if (hasTicket) {
-        try {
-            reservedStock = await reservePosTicketStock(cart.find(item => item.type === 'ticket'));
-        } catch (error) {
-            showToast('danger', 'Stock unavailable', error.message);
-            return;
-        }
-    }
-
+    let transactionRequestStarted = false;
     const btn = document.getElementById('confirmOrderBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
+    orderSubmissionInFlight = true;
+    pendingOrderCode = pendingOrderCode || generatePosOrderCode();
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="fas fa-spinner fa-spin me-2"></span>Processing...';
+    }
 
     const apiUrl = hasTicket ? `${window.BASE_URL}/api/pos/tickets` : `${window.BASE_URL}/api/pos/transactions`;
 
@@ -5201,7 +5324,8 @@ async function confirmOrder() {
                 total_amount: ticket.total,
                 provider_id: ticket.providerId,
                 wallet_id: ticket.walletId,
-                ticket_action: ticket.ticketAction || null
+                ticket_action: ticket.ticketAction || null,
+                ticket_notes: ticket.ticketNotes || null
             }],
             services: services.map(s => ({
                 service_type_id: s.serviceTypeId,
@@ -5240,8 +5364,20 @@ async function confirmOrder() {
             change_amount: paid - total
         };
     }
+    payload.order_code = pendingOrderCode;
 
     try {
+        if (hasTicket) {
+            try {
+                reservedStock = await reservePosTicketStock(cart.find(item => item.type === 'ticket'));
+            } catch (error) {
+                pendingOrderCode = null;
+                showToast('danger', 'Stock unavailable', error.message);
+                return;
+            }
+        }
+
+        transactionRequestStarted = true;
         const res = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -5249,6 +5385,10 @@ async function confirmOrder() {
         });
         const result = await res.json();
         if (result.success) {
+            if (result.already_processed) {
+                await releasePosTicketStock(reservedStock);
+            }
+            pendingOrderCode = null;
             showToast('success', 'Transaction Complete!',
                 `Receipt #${result.transaction_code} processed. Change: ₱${fmt(paid - total)}`);
 
@@ -5353,6 +5493,7 @@ async function confirmOrder() {
             await postTransactionRefresh;
             setPosRealtimeStatus('ok', `Updated after transaction • ${new Date().toLocaleTimeString('en-PH')}`);
         } else {
+            pendingOrderCode = null;
             await releasePosTicketStock(reservedStock);
             const errorMessage = result.error || 'Unknown error.';
             const walletInsufficient = result.code === 'INSUFFICIENT_WALLET_BALANCE' || /insufficient wallet balance/i.test(errorMessage);
@@ -5360,16 +5501,24 @@ async function confirmOrder() {
                 'danger',
                 walletInsufficient ? 'Insufficient Wallet Balance' : 'Transaction Failed',
                 walletInsufficient
-                    ? 'The selected wallet balance is insufficient to cover the ticket base fare. Please top up the wallet or select another wallet.'
+                    ? 'The selected wallet balance is insufficient to cover the configured ticket wallet deduction. Please top up the wallet or select another wallet.'
                     : errorMessage
             );
         }
     } catch (e) {
         await releasePosTicketStock(reservedStock);
-        showToast('danger', 'Error', 'An unexpected error occurred.');
+        if (!transactionRequestStarted) {
+            pendingOrderCode = null;
+            showToast('danger', 'Stock unavailable', e.message || 'Unable to reserve ticket stock.');
+        } else {
+            showToast('danger', 'Error', 'An unexpected error occurred. You may retry the same payment.');
+        }
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="fas fa-check-circle me-2"></span>Confirm & Process';
+        orderSubmissionInFlight = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="fas fa-check-circle me-2"></span>Confirm & Process';
+        }
     }
 }
 
@@ -5518,15 +5667,22 @@ let totalItems = 0;
 
 const isApprovedVoid = txn => txn.adjustment_type === 'VOID' && txn.adjustment_approval_status === 'APPROVED';
 const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && isTechnicalIssueReason(txn.adjustment_reason_category);
+const isCustomerRequestVoid = txn => isApprovedVoid(txn)
+    && ['CUSTOMER_REQUEST', 'CUSTOMER_ERROR'].includes(String(txn.adjustment_reason_category || '').toUpperCase());
 const getTechnicalLostSalesAmount = txn => Number(txn.lost_sales_void_fee) || 0;
+const getRetainedServiceSalesAmount = txn => isCustomerRequestVoid(txn)
+    ? Number(txn.total_add_ons) || 0
+    : 0;
 const isCashierResponsibilityVoid = txn => txn.adjustment_type === 'VOID'
     && String(txn.adjustment_responsibility || '').toUpperCase() === 'CASHIER';
 const getTransactionDisplayAmount = txn => isTechnicalIssueVoid(txn)
     ? 0
     : isCashierResponsibilityVoid(txn)
-        ? (Number(txn.adjustment_amount) || 0)
+        ? getRetainedServiceSalesAmount(txn) + (Number(txn.adjustment_amount) || 0)
         : isApprovedVoid(txn)
-            ? (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0)
+            ? getRetainedServiceSalesAmount(txn)
+                + (Number(txn.void_fee) || 0)
+                + (Number(txn.void_service_fee) || 0)
             : txn.total_amount;
 
 function loadRecentTransactions(page = 1, showLoading = true) {
@@ -5679,6 +5835,12 @@ function renderTransactionsTable(transactions) {
         } else if (txn.passenger_name) {
             passengerCell = txn.passenger_name.charAt(0).toUpperCase() + txn.passenger_name.slice(1).toLowerCase();
         }
+        const ticketNotes = isOrderBased
+            ? [...new Set(orderItems.filter(i => i.item_type === 'TICKET' && i.ticket_notes).map(i => i.ticket_notes.trim()).filter(Boolean))].join(' | ')
+            : (txn.ticket_notes || '');
+        const noteLine = ticketNotes
+            ? `<div class="text-muted mt-1" style="font-size:.72rem;white-space:pre-line;"><span class="fas fa-sticky-note me-1"></span><span class="fw-semibold">Note:</span> ${escapeHtml(ticketNotes)}</div>`
+            : '';
 
         // Provider cell (operating provider / wallet provider)
         let providerCell = '-';
@@ -5737,7 +5899,9 @@ function renderTransactionsTable(transactions) {
             orderItems.forEach(item => {
                 // Check if item is cancelled/refunded
                 const isTicketCancelled = item.item_type === 'TICKET' && ['cancelled', 'refunded'].includes(item.ticket_status);
-                const isServiceCancelled = item.item_type === 'SERVICE' && ['cancelled', 'refunded'].includes(item.service_status);
+                const isServiceCancelled = item.item_type === 'SERVICE'
+                    && (['cancelled', 'refunded'].includes(item.service_status)
+                        || Number(txn.cancel_void_only) === 1);
                 const isCancelled = isTicketCancelled || isServiceCancelled;
                 const cancelledBadge = isCancelled ? '<span class="badge bg-danger text-white ms-1" style="font-size:0.6rem;">CANCELLED</span>' : '';
                 const rowClass = isCancelled ? 'table-secondary text-muted' : 'table-light';
@@ -5746,8 +5910,11 @@ function renderTransactionsTable(transactions) {
                 if (item.item_type === 'TICKET') {
                     const td = item.travel_date ? new Date(item.travel_date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
                     const iconColor = isCancelled ? 'text-muted' : 'text-primary';
+                    const itemNote = item.ticket_notes
+                        ? `<div class="text-muted mt-1" style="white-space:pre-line;"><span class="fas fa-sticky-note me-1"></span><span class="fw-semibold">Note:</span> ${escapeHtml(item.ticket_notes)}</div>`
+                        : '';
                     itemRows += `<tr class="${rowClass}" style="font-size:0.8em;${textStyle}">
-                        <td colspan="2"><i class="fas fa-ticket-alt ${iconColor} me-1"></i>${item.passenger_name || '-'}${cancelledBadge}</td>
+                        <td colspan="2"><i class="fas fa-ticket-alt ${iconColor} me-1"></i>${item.passenger_name || '-'}${cancelledBadge}${itemNote}</td>
                         <td colspan="2">${item.provider_name || item.parent_provider_name || item.variant_name ? buildTransactionProviderWallet(item) : '-'}</td>
                         <td>${td}</td>
                         <td>${item.origin && item.destination ? item.origin + ' → ' + item.destination : '-'}</td>
@@ -5801,6 +5968,12 @@ function renderTransactionsTable(transactions) {
 
                 // Calculate base amount and service fee correctly
                 // For order items: total = base + service_fee, so base = total - service_fee
+                const printFeeAmount = isOrderBased
+                    ? orderItems
+                        .filter(item => item.item_type === 'SERVICE'
+                            && String(item.service_type_name || '').trim().toUpperCase() === 'PRINT FEE')
+                        .reduce((sum, item) => sum + (parseFloat(item.total_amount) || 0), 0)
+                    : (parseFloat(txn.print_fee_amount) || 0);
                 const cancelTxnCode = ticketItem ? ticketItem.transaction_code : txn.transaction_code;
                 let cancelBaseAmount, cancelServiceFee, cancelTotalAmount;
                 if (ticketItem) {
@@ -5820,9 +5993,17 @@ function renderTransactionsTable(transactions) {
                     transaction_code: ticketItem.transaction_code,
                     base_amount: cancelBaseAmount,
                     service_fee: cancelServiceFee,
+                    print_fee_amount: printFeeAmount,
                     total_amount: cancelTotalAmount,
                     passenger_name: ticketItem.passenger_name,
                     provider_name: ticketItem.provider_name,
+                    provider_id: ticketItem.provider_id,
+                    wallet_id: ticketItem.wallet_id,
+                    wallet_provider_id: ticketItem.wallet_provider_id,
+                    wallet_status: ticketItem.wallet_status,
+                    wallet_deduct_all_charges: ticketItem.wallet_deduct_all_charges ?? ticketItem.walletDeductAllCharges,
+                    wallet_deduct_base_only: ticketItem.wallet_deduct_base_only ?? ticketItem.walletDeductBaseOnly,
+                    wallet_is_variant: ticketItem.wallet_is_variant,
                     origin: ticketItem.origin,
                     destination: ticketItem.destination,
                     travel_date: ticketItem.travel_date,
@@ -5945,7 +6126,7 @@ function renderTransactionsTable(transactions) {
                     </div>
                     <div>${typeBadge} ${cashierDisplay}</div>
                 </td>
-                <td class="small">${passengerCell}</td>
+                <td class="small">${passengerCell}${noteLine}</td>
                 <td class="small">${branchName}</td>
                 <td class="small">${providerCell}</td>
                 <td class="small">${paymentCell}</td>
@@ -6373,6 +6554,7 @@ function updateCancellationReasonOptions(operationType = null) {
     const options = operation === 'VOID'
         ? [
             ['CUSTOMER_REQUEST', 'Customer Request / Error'],
+            ['CANCEL', 'Cancel'],
             ['CASHIER_ERROR', "Cashier's Negligence"],
             ['PRINTER_ERROR', 'Technical Issue (System/Printer)']
         ]
@@ -6393,12 +6575,14 @@ function updateCancellationReasonOptions(operationType = null) {
 
 function syncTicketResponsibilityFromReason() {
     const reasonCategory = document.getElementById('cancelReasonCategory')?.value || 'OTHER';
+    const operation = document.getElementById('cancelOperationType')?.value || 'REFUND';
     const responsibilitySelect = document.getElementById('cancelResponsibility');
     if (!responsibilitySelect) return;
 
     const reasonResponsibilityMap = {
-        CUSTOMER_REQUEST: 'NONE',
+        CUSTOMER_REQUEST: operation === 'VOID' ? 'CUSTOMER' : 'NONE',
         CUSTOMER_ERROR:   'CUSTOMER',
+        CANCEL:           'NONE',
         CASHIER_ERROR:    'CASHIER',
         PRINTER_ERROR:    'NONE',
         SYSTEM_ERROR:     'NONE',
@@ -6432,7 +6616,10 @@ function toggleTicketAdjustmentFields() {
     const voidServiceFeeToggle = document.getElementById('cancelVoidServiceFeeEnabled');
     const voidServiceFeeRow = document.getElementById('cancelVoidServiceFeeRow');
     const voidServiceFeeInput = document.getElementById('cancelVoidServiceFee');
+    const voidFeeHelp = document.getElementById('cancelVoidFeeHelp');
+    const voidServiceFeeHelp = document.getElementById('cancelVoidServiceFeeHelp');
     const cancellationSettings = window.CANCELLATION_SETTINGS || {};
+    const voidFeeWalletPolicy = getVoidFeeWalletPolicy(window.currentCancelTxnData || {});
 
     const isVoid = operation === 'VOID';
     if (!isVoid) {
@@ -6447,17 +6634,26 @@ function toggleTicketAdjustmentFields() {
         if (responsibilityInput) responsibilityInput.value = '0.00';
     }
     const reasonCategory = isVoid ? (reasonCategorySelect?.value || 'OTHER') : 'OTHER';
-    const responsibility = isVoid ? (responsibilitySelect?.value || 'NONE') : 'NONE';
+    const isCancelVoid = isVoid && reasonCategory === 'CANCEL';
+    const responsibility = isVoid && !isCancelVoid ? (responsibilitySelect?.value || 'NONE') : 'NONE';
     const isTechnicalIssueVoid = isVoid && isTechnicalIssueReason(reasonCategory);
+    const printFeeAmount = isVoid && reasonCategory === 'CASHIER_ERROR'
+        ? Math.max(0, parseFloat(window.currentCancelTxnData?.print_fee_amount) || 0)
+        : 0;
+    const retainsPrintFeeIncome = isVoid
+        && ['CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR'].includes(reasonCategory);
     displayCancellationPolicy(operation);
-    const voidFeeAvailable = cancellationSettings.void_fee_enabled !== false;
-    const voidServiceFeeAvailable = cancellationSettings.void_service_fee_enabled !== false;
+    const voidFeeWalletUnavailable = voidFeeWalletPolicy.settingEnabled
+        && !voidFeeWalletPolicy.canDebit
+        && !isTechnicalIssueVoid;
+    const voidFeeAvailable = !voidFeeWalletUnavailable && !isCancelVoid;
+    const voidServiceFeeAvailable = cancellationSettings.void_service_fee_enabled !== false && !isCancelVoid;
     if (refundRow) refundRow.style.display = isVoid ? 'none' : '';
     if (refundBreakdown) refundBreakdown.style.display = isVoid ? 'none' : refundBreakdown.style.display;
     if (refundInput && isVoid) refundInput.value = '0';
     if (refundInput && !isVoid) refundInput.dispatchEvent(new Event('input'));
     if (reasonCategoryRow) reasonCategoryRow.style.display = isVoid ? '' : 'none';
-    if (responsibilitySelectRow) responsibilitySelectRow.style.display = isVoid ? '' : 'none';
+    if (responsibilitySelectRow) responsibilitySelectRow.style.display = isVoid && !isCancelVoid ? '' : 'none';
     if (voidFeeSection) voidFeeSection.style.display = isVoid && voidFeeAvailable ? '' : 'none';
     if (voidFeeToggle) {
         const voidFeeBlocked = !isVoid || !voidFeeAvailable;
@@ -6484,21 +6680,48 @@ function toggleTicketAdjustmentFields() {
     if (voidServiceFeeRow) voidServiceFeeRow.style.display = voidServiceFeeEnabled ? '' : 'none';
     if (voidServiceFeeInput && !voidServiceFeeEnabled) voidServiceFeeInput.value = '0.00';
     const voidResponsibilityAmount = (voidFeeEnabled ? (parseFloat(voidFeeInput?.value) || 0) : 0)
-        + (voidServiceFeeEnabled ? (parseFloat(voidServiceFeeInput?.value) || 0) : 0);
+        + (voidServiceFeeEnabled ? (parseFloat(voidServiceFeeInput?.value) || 0) : 0)
+        + (responsibility === 'CASHIER' && reasonCategory === 'CASHIER_ERROR' ? printFeeAmount : 0);
+    if (voidFeeHelp) {
+        voidFeeHelp.textContent = isCancelVoid
+            ? 'Cancel Void has no Void Fee.'
+            : isTechnicalIssueVoid
+                ? 'Optional amount recorded as Lost Sales for a Technical Issue; it is not debited from the provider wallet.'
+                : voidFeeWalletPolicy.canDebit
+                    ? 'This amount is recorded as Void income and debited from the resolved provider wallet after the original sale debit is restored.'
+                    : 'Optional fee recorded as Void income. The provider wallet is not debited.';
+    }
+    if (voidServiceFeeHelp) {
+        voidServiceFeeHelp.textContent = isCancelVoid
+            ? 'Cancel Void has no Service Fee.'
+            : isTechnicalIssueVoid
+                ? 'Technical-issue fees are recorded as Lost Sales and are not debited from the provider wallet.'
+                : voidFeeWalletPolicy.canDebit
+                    ? 'This amount is recorded as Void income and debited from the resolved provider wallet after the original sale debit is restored.'
+                    : 'Optional service fee recorded as Void income. The provider wallet is not debited.';
+    }
     if (operationHint) {
-        operationHint.textContent = isTechnicalIssueVoid
-            ? 'No cash or bank refund will be issued. The original ticket amount and any entered fees will be recorded separately as Lost Sales.'
-            : isVoid
-                ? 'No cash or bank refund will be issued. Original CHARGE debt will be reversed; configured Void and Service Fees are recorded as income.'
-                : 'Refund the eligible amount through the original payment sources.';
+        operationHint.textContent = isCancelVoid
+            ? 'No cash or bank refund will be issued. No Void Fee, Service Fee, or responsibility will be recorded. The provider wallet sale debit or variant ticket stock will be restored.'
+            : isTechnicalIssueVoid
+                ? 'No cash or bank refund will be issued. The original ticket amount and any entered fees will be recorded separately as Lost Sales.'
+                : retainsPrintFeeIncome
+                    ? 'No cash or bank refund will be issued. The original ticket amount is voided, while the Print Fee remains recorded as service income/sales.'
+                    : isVoid && voidFeeWalletPolicy.canDebit
+                        ? 'No cash or bank refund will be issued. Original CHARGE debt will be reversed; configured Void and Service Fees are recorded as income, and both fees are debited from the provider wallet after the original sale debit is restored.'
+                        : isVoid && voidFeeWalletPolicy.settingEnabled
+                            ? 'No cash or bank refund will be issued. Original CHARGE debt will be reversed; the provider wallet is unavailable for Void Fee deduction.'
+                            : isVoid
+                                ? 'No cash or bank refund will be issued. Original CHARGE debt will be reversed; configured Void and Service Fees are recorded as income.'
+                                : 'Refund the eligible amount through the original payment sources.';
     }
 
-    const hasResponsibility = isVoid && responsibility !== 'NONE';
+    const hasResponsibility = isVoid && !isCancelVoid && responsibility !== 'NONE';
     if (responsibilityRow) responsibilityRow.style.display = hasResponsibility ? '' : 'none';
-    if (cashierRow) cashierRow.style.display = isVoid && responsibility === 'CASHIER' ? '' : 'none';
+    if (cashierRow) cashierRow.style.display = isVoid && !isCancelVoid && responsibility === 'CASHIER' ? '' : 'none';
 
     // Responsibility select is only user-editable when the reason implies a chargeable party.
-    const reasonLockedResponsibility = ['PRINTER_ERROR', 'SYSTEM_ERROR', 'OTHER'];
+    const reasonLockedResponsibility = ['PRINTER_ERROR', 'SYSTEM_ERROR', 'CANCEL', 'OTHER'];
     const customerRequestLocked = reasonCategory === 'CUSTOMER_REQUEST' && !isVoid;
     if (reasonCategorySelect) reasonCategorySelect.disabled = !isVoid;
     if (responsibilitySelect) {
@@ -6509,7 +6732,7 @@ function toggleTicketAdjustmentFields() {
         responsibilityHint.textContent = responsibility === 'CUSTOMER'
             ? (isVoid ? 'Customer responsibility is recorded for audit only on a no-refund Void.' : 'Customer responsibility is deducted from the refund.')
             : responsibility === 'CASHIER'
-                ? 'The amount is assigned to the selected cashier and deducted from an open session when available. Approval follows the configured Return/VOID confirmation settings.'
+                ? 'The amount is assigned to the selected cashier. Technical Issue and Cashier Negligence are deducted from the responsible cashier; other categories are recorded for audit.'
                 : 'No responsibility charge will be applied.';
     }
     if (responsibilityAmountHint) {
@@ -6517,7 +6740,7 @@ function toggleTicketAdjustmentFields() {
             ? 'This amount will be deducted from the gross refund.'
             : isVoid && hasResponsibility
                 ? voidResponsibilityAmount > 0
-                    ? `Auto-calculated as Void Fee + Service Fee (₱${voidResponsibilityAmount.toFixed(2)}). This is read-only.`
+                    ? `Auto-calculated as Void Fee + Service Fee${reasonCategory === 'CASHIER_ERROR' && printFeeAmount > 0 ? ' + Print Fee' : ''} (₱${voidResponsibilityAmount.toFixed(2)}). This is read-only.`
                     : 'Auto-calculated as Void Fee + Service Fee. Add a fee to create a responsibility amount.'
                 : responsibility === 'CASHIER'
                     ? 'Defaults to the eligible refund amount; the approving manager may adjust it.'
@@ -6918,23 +7141,40 @@ async function confirmCancelTicket() {
     const operationType = document.getElementById('cancelOperationType')?.value || 'REFUND';
     const isVoid = operationType === 'VOID';
     const reasonCategory = isVoid ? (document.getElementById('cancelReasonCategory')?.value || 'OTHER') : 'OTHER';
+    const isCancelVoid = isVoid && reasonCategory === 'CANCEL';
     const isTechnicalIssueVoid = isVoid && isTechnicalIssueReason(reasonCategory);
-    const responsibility = isVoid ? (document.getElementById('cancelResponsibility')?.value || 'NONE') : 'NONE';
+    const responsibility = isVoid && !isCancelVoid
+        ? (document.getElementById('cancelResponsibility')?.value || 'NONE')
+        : 'NONE';
     const grossRefundAmount = isVoid
         ? 0
         : parseFloat(document.getElementById('cancelRefundAmount').value) || 0;
-    const voidFeeEnabled = isVoid && Boolean(document.getElementById('cancelVoidFeeEnabled')?.checked);
+    const txnData = window.currentCancelTxnData || {};
+    const voidFeeWalletPolicy = getVoidFeeWalletPolicy(txnData);
+    const voidFeeInputAllowed = !isCancelVoid && (!voidFeeWalletPolicy.settingEnabled
+        || voidFeeWalletPolicy.canDebit
+        || isTechnicalIssueVoid);
+    const voidFeeEnabled = isVoid
+        && !isCancelVoid
+        && voidFeeInputAllowed
+        && Boolean(document.getElementById('cancelVoidFeeEnabled')?.checked);
     const voidServiceFeeEnabled = isVoid
+        && !isCancelVoid
         && !isTechnicalIssueVoid
         && Boolean(document.getElementById('cancelVoidServiceFeeEnabled')?.checked);
     const rawVoidFee = parseFloat(document.getElementById('cancelVoidFee')?.value);
     const rawVoidServiceFee = parseFloat(document.getElementById('cancelVoidServiceFee')?.value);
     const voidFee = voidFeeEnabled && Number.isFinite(rawVoidFee) ? Math.max(0, rawVoidFee) : 0;
     const voidServiceFee = voidServiceFeeEnabled && Number.isFinite(rawVoidServiceFee) ? Math.max(0, rawVoidServiceFee) : 0;
-    const responsibilityAmount = isVoid
+    const voidFeeWalletDebit = isVoid
+        && !isCancelVoid
+        && !isTechnicalIssueVoid
+        && voidFeeWalletPolicy.canDebit
+        && (voidFee > 0 || voidServiceFee > 0);
+    const responsibilityAmount = isVoid && !isCancelVoid
         ? parseFloat(document.getElementById('cancelResponsibilityAmount')?.value) || 0
         : 0;
-    const responsibleUserId = isVoid && responsibility === 'CASHIER'
+    const responsibleUserId = isVoid && !isCancelVoid && responsibility === 'CASHIER'
         ? (document.getElementById('cancelResponsibleCashier')?.value || null)
         : null;
     const netRefundAmount = operationType === 'REFUND'
@@ -6958,7 +7198,10 @@ async function confirmCancelTicket() {
         showToast('danger', 'Error', 'Select the responsible cashier.');
         return;
     }
-    if (operationType === 'VOID' && responsibility === 'CASHIER' && responsibilityAmount <= 0) {
+    if (operationType === 'VOID'
+        && responsibility === 'CASHIER'
+        && responsibilityAmount <= 0
+        && reasonCategory !== 'CASHIER_ERROR') {
         showToast('danger', 'Error', 'Enter a Responsibility Amount greater than zero for the selected cashier.');
         return;
     }
@@ -7017,7 +7260,6 @@ async function confirmCancelTicket() {
         console.error('Error fetching payment breakdown for confirmation:', e);
     }
 
-    const txnData = window.currentCancelTxnData || {};
     const isConsumedVariant = Boolean(txnData.variant_id || txnData.variantId || txnData.is_consumed_variant);
     showRefundConfirmModal(
         txnCode,
@@ -7034,23 +7276,28 @@ async function confirmCancelTicket() {
             responsibleUserId,
             netRefundAmount,
             voidFee,
-            voidServiceFee
+            voidServiceFee,
+            voidFeeWalletDebit
         }
     );
 }
 
 function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentBreakdown, isConsumedVariant = false, adjustmentOptions = {}) {
     const operationType = adjustmentOptions.operationType || 'REFUND';
-    const responsibility = adjustmentOptions.responsibility || 'NONE';
-    const responsibilityAmount = parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0;
-    const responsibleUserId = adjustmentOptions.responsibleUserId || null;
     const isVoid = operationType === 'VOID';
+    const isCancelVoid = isVoid && String(adjustmentOptions.reasonCategory || '').toUpperCase() === 'CANCEL';
+    const responsibility = isCancelVoid ? 'NONE' : (adjustmentOptions.responsibility || 'NONE');
+    const responsibilityAmount = isCancelVoid
+        ? 0
+        : parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0;
+    const responsibleUserId = isCancelVoid ? null : (adjustmentOptions.responsibleUserId || null);
     const isTechnicalIssueVoid = isVoid && isTechnicalIssueReason(adjustmentOptions.reasonCategory);
-    const enteredVoidFee = isVoid ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0) : 0;
-    const enteredVoidServiceFee = isVoid ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0) : 0;
+    const enteredVoidFee = isVoid && !isCancelVoid ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0) : 0;
+    const enteredVoidServiceFee = isVoid && !isCancelVoid ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0) : 0;
     const voidFee = isTechnicalIssueVoid ? 0 : enteredVoidFee;
     const voidServiceFee = isTechnicalIssueVoid ? 0 : enteredVoidServiceFee;
     const lostSalesVoidFee = isTechnicalIssueVoid ? enteredVoidFee : 0;
+    const voidFeeWalletDebit = Boolean(adjustmentOptions.voidFeeWalletDebit);
 
     // Calculate totals
     const totalCash = paymentBreakdown
@@ -7111,13 +7358,13 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
 
         if (isVoid && voidFee > 0) {
             breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
-                <span><i class="fas fa-receipt text-warning me-1"></i>Void fee income</span>
+                <span><i class="fas fa-receipt text-warning me-1"></i>Void fee income${voidFeeWalletDebit ? ' / wallet debit' : ''}</span>
                 <span class="fw-bold text-warning">₱${fmt(voidFee)}</span>
             </div>`;
         }
         if (isVoid && voidServiceFee > 0) {
             breakdownHtml += `<div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
-                <span><i class="fas fa-concierge-bell text-info me-1"></i>Service fee income</span>
+                <span><i class="fas fa-concierge-bell text-info me-1"></i>Service fee income${voidFeeWalletDebit ? ' / wallet debit' : ''}</span>
                 <span class="fw-bold text-info">₱${fmt(voidServiceFee)}</span>
             </div>`;
         }
@@ -7135,15 +7382,28 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
     const cashierResponsibilityNotice = isVoid && responsibility === 'CASHIER' && responsibilityAmount > 0
         ? ` A Responsibility Amount of ₱${fmt(responsibilityAmount)} will be recorded against the selected cashier.`
         : '';
-    const voidFeeNotice = isVoid && voidFee > 0 ? ` A void fee of ₱${fmt(voidFee)} will be recorded as income.` : '';
-    const voidServiceFeeNotice = isVoid && voidServiceFee > 0 ? ` A service fee of ₱${fmt(voidServiceFee)} will be recorded as income.` : '';
+    const voidFeeNotice = isVoid && voidFee > 0
+        ? voidFeeWalletDebit
+            ? ` A void fee of ₱${fmt(voidFee)} will be recorded as income and debited from the provider wallet after base restoration.`
+            : ` A void fee of ₱${fmt(voidFee)} will be recorded as income.`
+        : '';
+    const voidServiceFeeNotice = isVoid && voidServiceFee > 0
+        ? voidFeeWalletDebit
+            ? ` A service fee of ₱${fmt(voidServiceFee)} will be recorded as income and debited from the provider wallet after base restoration.`
+            : ` A service fee of ₱${fmt(voidServiceFee)} will be recorded as income.`
+        : '';
     const lostSalesVoidFeeNotice = isTechnicalIssueVoid && lostSalesVoidFee > 0
         ? ` A void fee of ₱${fmt(lostSalesVoidFee)} will be recorded as Lost Sales.`
         : '';
+    const cancelVoidNotice = isCancelVoid
+        ? isConsumedVariant
+            ? ' No Void Fee, Service Fee, or responsibility will be recorded. The physical ticket stock will be returned.'
+            : ' No Void Fee, Service Fee, or responsibility will be recorded. The provider wallet sale debit will be restored.'
+        : '';
     if (isVoid) {
         confirmText = requiresConfirmation
-            ? `I confirm that this Void request should be submitted for manager approval. No cash or bank refund will be issued, and ₱${fmt(totalChargeReversal)} will be reversed from the original charge/debt balance.${cashierResponsibilityNotice}${voidFeeNotice}${voidServiceFeeNotice}${lostSalesVoidFeeNotice}`
-            : `I confirm this Void operation. No cash or bank refund will be issued, and ₱${fmt(totalChargeReversal)} will be reversed from the original charge/debt balance.${cashierResponsibilityNotice}${voidFeeNotice}${voidServiceFeeNotice}${lostSalesVoidFeeNotice}`;
+            ? `I confirm that this Void request should be submitted for manager approval. No cash or bank refund will be issued, and ₱${fmt(totalChargeReversal)} will be reversed from the original charge/debt balance.${cancelVoidNotice}${cashierResponsibilityNotice}${voidFeeNotice}${voidServiceFeeNotice}${lostSalesVoidFeeNotice}`
+            : `I confirm this Void operation. No cash or bank refund will be issued, and ₱${fmt(totalChargeReversal)} will be reversed from the original charge/debt balance.${cancelVoidNotice}${cashierResponsibilityNotice}${voidFeeNotice}${voidServiceFeeNotice}${lostSalesVoidFeeNotice}`;
     } else if (requiresConfirmation) {
         if (totalCash > 0 && totalChargeReversal > 0) {
             confirmText = `I confirm that this cancellation request should be submitted for manager approval. If approved, an estimated ₱${fmt(totalCash)} cash will be given and ₱${fmt(totalChargeReversal)} will be reversed from the passenger's charge/debt balance.`;
@@ -7175,7 +7435,9 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
             ? `<div class="alert alert-warning"><span class="fas fa-ban me-2"></span><strong>Important:</strong> This will void the ticket without a cash or bank refund.</div>`
             : `<div class="alert alert-warning"><span class="fas fa-exclamation-triangle me-2"></span><strong>Important:</strong> This action will process the refund and update the customer's charge balance.</div>`;
     if (isConsumedVariant) {
-        modalAlert += `<div class="alert alert-warning mt-2"><span class="fas fa-ticket-alt me-2"></span>This variant ticket is <strong>consumed</strong>. Physical availability and provider wallet balance will not be restored.</div>`;
+        modalAlert += isCancelVoid
+            ? `<div class="alert alert-info mt-2"><span class="fas fa-ticket-alt me-2"></span>This Cancel Void will return the physical ticket to variant stock. No provider-wallet credit will be created for the variant.</div>`
+            : `<div class="alert alert-warning mt-2"><span class="fas fa-ticket-alt me-2"></span>This variant ticket is <strong>consumed</strong>. Physical availability and provider wallet balance will not be restored.</div>`;
     }
     if (responsibility === 'CASHIER' && requiresConfirmation) {
         modalAlert += `<div class="alert alert-danger mt-2"><span class="fas fa-user-shield me-2"></span>The selected cashier responsibility will be finalized after manager approval.</div>`;
@@ -7307,6 +7569,8 @@ function showRefundConfirmModal(txnCode, txnType, refundAmount, reason, paymentB
 function executeTicketCancellation(txnCode, refundAmount, reason, adjustmentOptions = {}) {
     const operationType = adjustmentOptions.operationType || 'REFUND';
     const isVoid = operationType === 'VOID';
+    const reasonCategory = isVoid ? (adjustmentOptions.reasonCategory || 'OTHER') : 'OTHER';
+    const isCancelVoid = isVoid && String(reasonCategory).toUpperCase() === 'CANCEL';
 
     // Hide the confirmation modal first
     restoreCancelTicketModal = false;
@@ -7329,16 +7593,16 @@ function executeTicketCancellation(txnCode, refundAmount, reason, adjustmentOpti
         body: JSON.stringify({
             transaction_code: txnCode,
             operation_type: operationType,
-            reason_category: isVoid ? (adjustmentOptions.reasonCategory || 'OTHER') : 'OTHER',
-            responsibility: isVoid ? (adjustmentOptions.responsibility || 'NONE') : 'NONE',
-            responsibility_amount: isVoid
+            reason_category: reasonCategory,
+            responsibility: isVoid && !isCancelVoid ? (adjustmentOptions.responsibility || 'NONE') : 'NONE',
+            responsibility_amount: isVoid && !isCancelVoid
                 ? parseFloat(adjustmentOptions.responsibilityAmount || 0) || 0
                 : 0,
-            responsible_user_id: isVoid ? (adjustmentOptions.responsibleUserId || null) : null,
-            void_fee: isVoid
+            responsible_user_id: isVoid && !isCancelVoid ? (adjustmentOptions.responsibleUserId || null) : null,
+            void_fee: isVoid && !isCancelVoid
                 ? Math.max(0, parseFloat(adjustmentOptions.voidFee || 0) || 0)
                 : 0,
-            void_service_fee: isVoid
+            void_service_fee: isVoid && !isCancelVoid
                 ? Math.max(0, parseFloat(adjustmentOptions.voidServiceFee || 0) || 0)
                 : 0,
             refund_amount: refundAmount,

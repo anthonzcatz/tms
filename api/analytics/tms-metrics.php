@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -25,6 +26,9 @@ try {
     $branchParams = $branchScope['params'];
     $dateWhere = 'AND ' . $dateScope['sql'];
     $dateParams = $dateScope['params'];
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionNet = PosTransactionReporting::netExpression();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
 
     // Get total metrics for selected range
     $metricsParams = array_merge($branchParams, $dateParams);
@@ -32,10 +36,10 @@ try {
     $totalMetrics = Database::fetch(
         "SELECT 
             COUNT(DISTINCT po.order_id) as total_orders,
-            COALESCE(SUM(po.grand_total), 0) as total_revenue,
-            COALESCE(AVG(po.grand_total), 0) as avg_order_value
-         FROM pos_orders po
-         WHERE po.status = 'completed'
+            COALESCE(SUM($transactionNet), 0) as total_revenue,
+            COALESCE(AVG($transactionNet), 0) as avg_order_value
+         $transactionFrom
+         WHERE $transactionStatus
            $dateWhere
            $branchWhere",
         $metricsParams
@@ -52,9 +56,9 @@ try {
         "SELECT
             $trendKeyExpression as period_key,
             COUNT(DISTINCT po.order_id) as orders,
-            COALESCE(SUM(po.grand_total), 0) as revenue
-         FROM pos_orders po
-         WHERE po.status = 'completed'
+            COALESCE(SUM($transactionNet), 0) as revenue
+         $transactionFrom
+         WHERE $transactionStatus
            $dateWhere
            $branchWhere
          GROUP BY $trendKeyExpression

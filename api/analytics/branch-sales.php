@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -46,6 +47,11 @@ try {
     );
     $accessibleBranches = array_values(array_map('intval', array_column($branchRows, 'branch_id')));
     $branchNames = array_column($branchRows, 'branch_name', 'branch_id');
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionGross = PosTransactionReporting::grossExpression();
+    $transactionRefund = PosTransactionReporting::refundExpression();
+    $transactionNet = PosTransactionReporting::netExpression();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
 
     if ($isAllBranches) {
         $targetBranchId = null;
@@ -68,6 +74,7 @@ try {
                 'date' => $startDate,
                 'display_date' => sprintf('%02d:00', $hour),
                 'sales' => 0,
+                'gross_sales' => 0,
                 'refunds' => 0,
                 'net' => 0,
                 'transactions' => 0
@@ -102,6 +109,7 @@ try {
                 'date' => $key,
                 'display_date' => $displayDate,
                 'sales' => 0,
+                'gross_sales' => 0,
                 'refunds' => 0,
                 'net' => 0,
                 'transactions' => 0
@@ -114,7 +122,7 @@ try {
         if ($accessibleBranches) {
             $branchInPlaceholders = implode(',', array_fill(0, count($accessibleBranches), '?'));
             $branchWhereCs = "po.branch_id IN ($branchInPlaceholders)";
-            $branchWhereFlat = "branch_id IN ($branchInPlaceholders)";
+            $branchWhereFlat = "po.branch_id IN ($branchInPlaceholders)";
         } else {
             $branchWhereCs = '1 = 0';
             $branchWhereFlat = '1 = 0';
@@ -124,7 +132,7 @@ try {
         $prevBranchArgs = $accessibleBranches;
     } else {
         $branchWhereCs = "po.branch_id = ?";
-        $branchWhereFlat = "branch_id = ?";
+        $branchWhereFlat = "po.branch_id = ?";
 
         $salesParams = [$startDate, $endDate, $targetBranchId];
         $prevBranchArgs = [$targetBranchId];
@@ -136,11 +144,12 @@ try {
         $salesQuery = "
             SELECT
                 DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00') as sale_date,
-                COALESCE(SUM(po.grand_total), 0) as total_sales,
-                COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
-                COUNT(*) as transaction_count
-            FROM pos_orders po
-            WHERE po.status = 'completed'
+                COALESCE(SUM($transactionGross), 0) as total_sales,
+                COALESCE(SUM($transactionRefund), 0) as total_refunds,
+                COALESCE(SUM($transactionNet), 0) as total_net,
+                COUNT(DISTINCT po.order_id) as transaction_count
+            $transactionFrom
+            WHERE $transactionStatus
             AND DATE(po.created_at) = ?
             AND $branchWhereCs
             GROUP BY DATE_FORMAT(po.created_at, '%Y-%m-%d %H:00')
@@ -154,14 +163,15 @@ try {
         $salesQuery = "
             SELECT
                 DATE_FORMAT(po.created_at, '$salesGroup') as sale_date,
-                COALESCE(SUM(po.grand_total), 0) as total_sales,
-                COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
-                COUNT(*) as transaction_count
-            FROM pos_orders po
-            WHERE po.status = 'completed'
+                COALESCE(SUM($transactionGross), 0) as total_sales,
+                COALESCE(SUM($transactionRefund), 0) as total_refunds,
+                COALESCE(SUM($transactionNet), 0) as total_net,
+                COUNT(DISTINCT po.order_id) as transaction_count
+            $transactionFrom
+            WHERE $transactionStatus
             AND DATE(po.created_at) BETWEEN ? AND ?
             AND $branchWhereCs
-            GROUP BY DATE_FORMAT(po.created_at, '%Y-%m')
+            GROUP BY DATE_FORMAT(po.created_at, '$salesGroup')
             ORDER BY sale_date ASC
         ";
     } else {
@@ -169,11 +179,12 @@ try {
         $salesQuery = "
             SELECT
                 DATE(po.created_at) as sale_date,
-                COALESCE(SUM(po.grand_total), 0) as total_sales,
-                COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
-                COUNT(*) as transaction_count
-            FROM pos_orders po
-            WHERE po.status = 'completed'
+                COALESCE(SUM($transactionGross), 0) as total_sales,
+                COALESCE(SUM($transactionRefund), 0) as total_refunds,
+                COALESCE(SUM($transactionNet), 0) as total_net,
+                COUNT(DISTINCT po.order_id) as transaction_count
+            $transactionFrom
+            WHERE $transactionStatus
             AND DATE(po.created_at) BETWEEN ? AND ?
             AND $branchWhereCs
             GROUP BY DATE(po.created_at)
@@ -186,9 +197,10 @@ try {
     foreach ($salesResults as $row) {
         $key = $row['sale_date'];
         if (isset($dailyData[$key])) {
-            $dailyData[$key]['sales'] = floatval($row['total_sales']);
+            $dailyData[$key]['gross_sales'] = floatval($row['total_sales']);
+            $dailyData[$key]['sales'] = floatval($row['total_net']);
             $dailyData[$key]['refunds'] = floatval($row['total_refunds']);
-            $dailyData[$key]['net'] = floatval($row['total_sales']) - floatval($row['total_refunds']);
+            $dailyData[$key]['net'] = floatval($row['total_net']);
             $dailyData[$key]['transactions'] = intval($row['transaction_count']);
         }
     }
@@ -228,8 +240,8 @@ try {
         SELECT
             $txnGroupBy as txn_date,
             COUNT(*) as txn_count
-        FROM pos_orders po
-        WHERE po.status = 'completed'
+        $transactionFrom
+        WHERE $transactionStatus
         AND $txnDateWhere
         AND $txnBranchWhere
         GROUP BY $txnGroupBy
@@ -278,13 +290,13 @@ try {
     $profitQuery = "
         SELECT
             $profitGroupBy as profit_date,
-            COALESCE(SUM(po.grand_total), 0)          as revenue,
+            COALESCE(SUM($transactionGross), 0)          as revenue,
             COALESCE(SUM(po.total_cost), 0)           as cost,
             COALESCE(SUM(po.total_service_fees), 0)   as service_fees,
             COALESCE(SUM(po.total_add_ons), 0)        as add_ons,
             COALESCE(SUM(po.total_profit), 0)         as profit
-        FROM pos_orders po
-        WHERE po.status = 'completed'
+        $transactionFrom
+        WHERE $transactionStatus
         AND $profitDateWhere
         AND $profitBranchWhere
         GROUP BY $profitGroupBy
@@ -312,9 +324,10 @@ try {
     }
 
     // Calculate totals - use revenue from pos_orders for consistency
+    $totalGrossSales = array_sum(array_column($dailyData, 'gross_sales'));
     $totalSales = array_sum(array_column($dailyData, 'sales'));
     $totalRefunds = array_sum(array_column($dailyData, 'refunds'));
-    $totalNet = $totalSales - $totalRefunds;
+    $totalNet = array_sum(array_column($dailyData, 'net'));
     $totalTransactions = array_sum(array_column($dailyData, 'transactions'));
     $totalRevenue = array_sum(array_column($dailyData, 'revenue'));
     $totalCost = array_sum(array_column($dailyData, 'cost'));
@@ -351,15 +364,14 @@ try {
 
     $prevParams = array_merge([$prevStartDate, $prevEndDate], $prevBranchArgs);
     $prevResult = Database::fetch("
-        SELECT COALESCE(SUM(grand_total), 0) as total,
-               COALESCE(SUM(total_refunded_amount), 0) as refunds
-        FROM pos_orders
-        WHERE status = 'completed'
-        AND DATE(created_at) BETWEEN ? AND ?
+        SELECT COALESCE(SUM($transactionNet), 0) as total
+        $transactionFrom
+        WHERE $transactionStatus
+        AND DATE(po.created_at) BETWEEN ? AND ?
         AND $branchWhereFlat
     ", $prevParams);
 
-    $prevTotal = floatval($prevResult['total']) - floatval($prevResult['refunds']);
+    $prevTotal = floatval($prevResult['total']);
     $periodChange = 0;
     if ($prevTotal > 0) {
         $periodChange = (($totalNet - $prevTotal) / $prevTotal) * 100;
@@ -372,11 +384,12 @@ try {
             'branch_id' => $targetBranchId ? IdEncoder::encode($targetBranchId) : '',
             'period' => $range,
             'summary' => [
-                'total_sales' => $totalRevenue, // Use revenue for consistency
+                'total_sales' => $totalSales,
+                'gross_sales' => $totalGrossSales,
                 'total_refunds' => $totalRefunds,
                 'total_net' => $totalNet,
                 'total_transactions' => $totalTransactions,
-                'total_revenue' => $totalRevenue,
+                'total_revenue' => $totalSales,
                 'total_cost' => $totalCost,
                 'total_service_fees' => $totalServiceFees,
                 'total_add_ons' => $totalAddOns,

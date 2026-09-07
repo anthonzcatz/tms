@@ -22,7 +22,7 @@ ALTER TABLE `ticket_adjustments`
 
 ALTER TABLE `ticket_cancellations`
     ADD COLUMN IF NOT EXISTS `operation_type` enum('REFUND','VOID') NOT NULL DEFAULT 'REFUND' AFTER `transaction_code`,
-    ADD COLUMN IF NOT EXISTS `reason_category` enum('CUSTOMER_REQUEST','CUSTOMER_ERROR','CASHIER_ERROR','PRINTER_ERROR','SYSTEM_ERROR','OTHER') NOT NULL DEFAULT 'OTHER' AFTER `reason`,
+    ADD COLUMN IF NOT EXISTS `reason_category` enum('CUSTOMER_REQUEST','CUSTOMER_ERROR','CASHIER_ERROR','PRINTER_ERROR','SYSTEM_ERROR','CANCEL','OTHER') NOT NULL DEFAULT 'OTHER' AFTER `reason`,
     ADD COLUMN IF NOT EXISTS `responsibility` enum('NONE','CUSTOMER','CASHIER') NOT NULL DEFAULT 'NONE' AFTER `reason_category`,
     ADD COLUMN IF NOT EXISTS `responsible_user_id` bigint(20) DEFAULT NULL AFTER `responsibility`,
     ADD COLUMN IF NOT EXISTS `responsibility_cashier_session_id` bigint(20) DEFAULT NULL AFTER `cashier_session_id`,

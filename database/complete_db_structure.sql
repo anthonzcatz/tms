@@ -551,6 +551,10 @@ CREATE TABLE ticket_providers (
         'inactive'
     ) DEFAULT 'active',
 
+    wallet_deduct_all_charges TINYINT(1) NOT NULL DEFAULT 0,
+
+    wallet_deduct_base_only TINYINT(1) NOT NULL DEFAULT 1,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

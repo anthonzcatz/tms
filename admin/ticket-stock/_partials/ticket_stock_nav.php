@@ -7,6 +7,9 @@ $links = [
     'discrepancies' => ['label' => 'Discrepancies', 'icon' => 'fa-exclamation-triangle', 'url' => '/admin/ticket-stock/discrepancies'],
     'variants' => ['label' => 'Variants', 'icon' => 'fa-palette', 'url' => '/admin/ticket-stock/variants'],
 ];
+if (Auth::can('MANAGE_TICKET_STOCK_ACCESS')) {
+    $links['access'] = ['label' => 'Access', 'icon' => 'fa-user-shield', 'url' => '/admin/ticket-stock/access'];
+}
 ?>
 <div class="card mb-3">
   <div class="card-body py-2">

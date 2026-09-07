@@ -23,6 +23,33 @@ if (!$user) {
 
 $userRoleCode = $user['role_code'] ?? '';
 
+$hasPosTransactionColumn = static function (string $table, string $column): bool {
+    try {
+        return Database::fetch(
+            "SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema = DATABASE()
+               AND table_name = :table_name
+               AND column_name = :column_name
+             LIMIT 1",
+            ['table_name' => $table, 'column_name' => $column]
+        ) !== null;
+    } catch (Throwable $e) {
+        return false;
+    }
+};
+
+$hasOrderItemTicketNotes = $hasPosTransactionColumn('pos_order_items', 'ticket_notes');
+$hasTicketTransactionNotes = $hasPosTransactionColumn('ticket_transactions', 'ticket_notes');
+$ticketNotesSql = static function (string $itemAlias, string $transactionAlias) use (
+    $hasOrderItemTicketNotes,
+    $hasTicketTransactionNotes
+): string {
+    $itemNotes = $hasOrderItemTicketNotes ? $itemAlias . '.ticket_notes' : 'NULL';
+    $transactionNotes = $hasTicketTransactionNotes ? $transactionAlias . '.ticket_notes' : 'NULL';
+    return "COALESCE(NULLIF({$itemNotes}, ''), NULLIF({$transactionNotes}, ''))";
+};
+
 // Check if ID encryption is enabled
 $encryptIds = false;
 try {
@@ -179,6 +206,8 @@ if ($filterDateFrom || $filterDateTo) {
     }
 }
 
+$ticketNotesSearchSql = $ticketNotesSql('oi_s3', 'tt_s3');
+
 if ($filterSearch) {
     $where[] = "(o.order_code LIKE :search_order
         OR o.cashier_name LIKE :search_cashier
@@ -198,6 +227,12 @@ if ($filterSearch) {
             WHERE oi_s2.order_id = o.order_id
             AND (tp_s.provider_name LIKE :search_provider OR wallet_tp_s.provider_name LIKE :search_wallet_provider)
         )
+        OR EXISTS (
+            SELECT 1 FROM pos_order_items oi_s3
+            LEFT JOIN ticket_transactions tt_s3 ON oi_s3.reference_id = tt_s3.transaction_id AND oi_s3.item_type = 'TICKET'
+            WHERE oi_s3.order_id = o.order_id
+            AND $ticketNotesSearchSql LIKE :search_ticket_notes
+        )
     )";
     $searchValue = '%' . $filterSearch . '%';
     $params['search_order'] = $searchValue;
@@ -206,6 +241,7 @@ if ($filterSearch) {
     $params['search_passenger'] = $searchValue;
     $params['search_provider'] = $searchValue;
     $params['search_wallet_provider'] = $searchValue;
+    $params['search_ticket_notes'] = $searchValue;
 }
 
 $whereClause = implode(' AND ', $where);
@@ -336,11 +372,13 @@ $total      = $marker['total_orders'];
 $totalPages = $limit > 0 ? (int)ceil($total / $limit) : 1;
 
 // --- Main data query ---
+$ticketNotesSelectSql = $ticketNotesSql('oi_notes', 'tt_notes');
 $dataParams          = $params;
 $dataParams['limit'] = $limit;
 $dataParams['offset']= $offset;
 
-$rows = Database::fetchAll(
+try {
+    $rows = Database::fetchAll(
     "SELECT
         o.order_id,
         o.order_code,
@@ -390,6 +428,12 @@ $rows = Database::fetchAll(
          LEFT JOIN ticket_transactions tt4 ON oi4.reference_id = tt4.transaction_id AND oi4.item_type = 'TICKET'
          WHERE oi4.order_id = o.order_id AND oi4.item_type = 'TICKET'
            AND (oi4.ticket_number IS NOT NULL OR tt4.ticket_number IS NOT NULL)) AS ticket_numbers,
+        (SELECT GROUP_CONCAT(DISTINCT $ticketNotesSelectSql SEPARATOR ' | ')
+         FROM pos_order_items oi_notes
+         LEFT JOIN ticket_transactions tt_notes ON oi_notes.reference_id = tt_notes.transaction_id AND oi_notes.item_type = 'TICKET'
+         WHERE oi_notes.order_id = o.order_id
+           AND oi_notes.item_type = 'TICKET'
+           AND $ticketNotesSelectSql IS NOT NULL) AS ticket_notes,
         (SELECT GROUP_CONCAT(DISTINCT COALESCE(
             CASE
                 WHEN pv.variant_id IS NOT NULL THEN CONCAT(COALESCE(NULLIF(pv.variant_code, ''), pv.variant_name, ''), IF(pt_op.type_label IS NOT NULL AND pt_op.type_label != '', CONCAT(' (', pt_op.type_label, ')'), ''))
@@ -456,6 +500,68 @@ $rows = Database::fetchAll(
          WHERE oi_adj.order_id = o.order_id AND oi_adj.item_type = 'TICKET'
          ORDER BY ta.created_at DESC
          LIMIT 1) AS adjustment_reason_category,
+        (SELECT CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM pos_order_items oi_cancel_only
+                JOIN ticket_transactions tt_cancel_only
+                  ON tt_cancel_only.transaction_id = oi_cancel_only.reference_id
+                JOIN ticket_cancellations tc_cancel_only
+                  ON tc_cancel_only.transaction_id = tt_cancel_only.transaction_id
+                WHERE oi_cancel_only.order_id = o.order_id
+                  AND oi_cancel_only.item_type = 'TICKET'
+                  AND tt_cancel_only.status IN ('cancelled', 'refunded')
+                  AND tc_cancel_only.operation_type = 'VOID'
+                  AND tc_cancel_only.reason_category = 'CANCEL'
+                  AND tc_cancel_only.status IN ('approved', 'completed')
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pos_order_items oi_mixed
+                LEFT JOIN ticket_transactions tt_mixed
+                  ON tt_mixed.transaction_id = oi_mixed.reference_id
+                 AND oi_mixed.item_type = 'TICKET'
+                LEFT JOIN service_transactions st_mixed
+                  ON st_mixed.service_txn_id = oi_mixed.reference_id
+                 AND oi_mixed.item_type = 'SERVICE'
+                WHERE oi_mixed.order_id = o.order_id
+                  AND (
+                      (
+                          oi_mixed.item_type = 'SERVICE'
+                          AND COALESCE(st_mixed.status, '') NOT IN ('cancelled', 'refunded')
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM pos_order_items oi_service_void_ticket
+                              JOIN ticket_transactions tt_service_void_ticket
+                                ON tt_service_void_ticket.transaction_id = oi_service_void_ticket.reference_id
+                              JOIN ticket_cancellations tc_service_void
+                                ON tc_service_void.transaction_id = tt_service_void_ticket.transaction_id
+                              WHERE oi_service_void_ticket.order_id = oi_mixed.order_id
+                                AND oi_service_void_ticket.item_type = 'TICKET'
+                                AND tt_service_void_ticket.status IN ('cancelled', 'refunded')
+                                AND tc_service_void.operation_type = 'VOID'
+                                AND tc_service_void.reason_category = 'CANCEL'
+                                AND tc_service_void.status IN ('approved', 'completed')
+                          )
+                      )
+                      OR (
+                          oi_mixed.item_type = 'TICKET'
+                          AND (
+                              COALESCE(tt_mixed.status, '') NOT IN ('cancelled', 'refunded')
+                              OR NOT EXISTS (
+                                  SELECT 1
+                                  FROM ticket_cancellations tc_mixed
+                                  WHERE tc_mixed.transaction_id = tt_mixed.transaction_id
+                                    AND tc_mixed.operation_type = 'VOID'
+                                    AND tc_mixed.reason_category = 'CANCEL'
+                                    AND tc_mixed.status IN ('approved', 'completed')
+                              )
+                          )
+                      )
+                  )
+            )
+            THEN 1 ELSE 0
+        END) AS cancel_void_only,
         (SELECT COALESCE(SUM(
                     CASE WHEN tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR') THEN COALESCE(tt.total_amount, 0) ELSE 0 END
                 ), 0)
@@ -552,10 +658,23 @@ $rows = Database::fetchAll(
     $baseFrom
     WHERE $whereClause
     GROUP BY o.order_id
-    ORDER BY o.created_at DESC
+    ORDER BY
+        CASE WHEN COALESCE(CHAR_LENGTH(wallet_provider_names), 0) = 0 THEN 1 ELSE 0 END,
+        wallet_provider_names ASC,
+        CASE WHEN COALESCE(CHAR_LENGTH(ticket_numbers), 0) = 0 THEN 1 ELSE 0 END,
+        CAST(ticket_numbers AS UNSIGNED) ASC,
+        ticket_numbers ASC,
+        o.created_at DESC,
+        o.order_id DESC
     LIMIT :limit OFFSET :offset",
     $dataParams
-);
+    );
+} catch (Throwable $e) {
+    error_log('[POS transactions API] ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Unable to load transactions.']);
+    exit;
+}
 
 // Decode payment methods json
 foreach ($rows as &$row) {
@@ -615,6 +734,37 @@ $stats = Database::fetch(
                     WHERE oi_void.order_id = o.order_id
                       AND oi_void.item_type = 'TICKET'
                 ), 0)
+                - COALESCE((
+                    SELECT SUM(COALESCE(st_service.total_amount, oi_service.total_amount, 0))
+                    FROM pos_order_items oi_service
+                    LEFT JOIN service_transactions st_service
+                      ON st_service.service_txn_id = oi_service.reference_id
+                     AND oi_service.item_type = 'SERVICE'
+                    LEFT JOIN service_types st_service_type
+                      ON st_service_type.service_type_id = COALESCE(
+                          oi_service.service_type_id,
+                          st_service.service_type_id
+                      )
+                    WHERE oi_service.order_id = o.order_id
+                      AND oi_service.item_type = 'SERVICE'
+                      AND (st_service_type.code = 'PRINT_FEE'
+                           OR TRIM(UPPER(st_service_type.name)) = 'PRINT FEE')
+                      AND EXISTS (
+                          SELECT 1
+                          FROM pos_order_items oi_service_ticket
+                          JOIN ticket_transactions tt_service_ticket
+                            ON tt_service_ticket.transaction_id = oi_service_ticket.reference_id
+                          JOIN ticket_cancellations tc_service_ticket
+                            ON tc_service_ticket.transaction_id = tt_service_ticket.transaction_id
+                          WHERE oi_service_ticket.order_id = oi_service.order_id
+                            AND oi_service_ticket.item_type = 'TICKET'
+                            AND tt_service_ticket.status IN ('cancelled', 'refunded')
+                            AND tc_service_ticket.operation_type = 'VOID'
+                            AND tc_service_ticket.status IN ('approved', 'completed')
+                            AND COALESCE(tc_service_ticket.reason_category, 'OTHER')
+                                NOT IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+                      )
+                ), 0)
             )
         ), 0) AS total_revenue,
         SUM(COALESCE(o.original_grand_total, o.grand_total)) AS total_gross,
@@ -633,8 +783,8 @@ if ($includeFinancialReport) {
 
     $providerSalesRows = Database::fetchAll(
         "SELECT
-            COALESCE(tp.provider_id, 0) AS provider_id,
-            COALESCE(NULLIF(tp.provider_name, ''), 'Unassigned') AS provider_name,
+            COALESCE(tp_main.provider_id, tp.provider_id, 0) AS provider_id,
+            COALESCE(NULLIF(tp_main.provider_name, ''), NULLIF(tp.provider_name, ''), 'Unassigned') AS provider_name,
             COALESCE(SUM(CASE WHEN oi.quantity IS NULL OR oi.quantity < 1 THEN 1 ELSE oi.quantity END), 0) AS tickets,
             COALESCE(SUM(COALESCE(tt.base_amount, oi.unit_price, 0) * CASE WHEN oi.quantity IS NULL OR oi.quantity < 1 THEN 1 ELSE oi.quantity END), 0) AS total_cost,
             COALESCE(SUM(COALESCE(tt.service_fee, oi.service_fee, 0) * CASE WHEN oi.quantity IS NULL OR oi.quantity < 1 THEN 1 ELSE oi.quantity END), 0) AS service_fee_income,
@@ -644,8 +794,38 @@ if ($includeFinancialReport) {
             ON oi.order_id = o.order_id AND oi.item_type = 'TICKET'
          LEFT JOIN ticket_transactions tt ON tt.transaction_id = oi.reference_id
          LEFT JOIN ticket_providers tp ON tp.provider_id = COALESCE(tt.provider_id, oi.provider_id)
+         LEFT JOIN ticket_providers tp_main ON tp.parent_provider_id = tp_main.provider_id
          WHERE $financialSaleWhere
-         GROUP BY tp.provider_id, tp.provider_name
+         GROUP BY COALESCE(tp_main.provider_id, tp.provider_id),
+                  COALESCE(NULLIF(tp_main.provider_name, ''), NULLIF(tp.provider_name, ''), 'Unassigned')
+         ORDER BY provider_name",
+        $params
+    );
+
+    $technicalVoidRows = Database::fetchAll(
+        "SELECT
+            COALESCE(tp_main.provider_id, tp.provider_id, 0) AS provider_id,
+            COALESCE(NULLIF(tp_main.provider_name, ''), NULLIF(tp.provider_name, ''), 'Unassigned') AS provider_name,
+            COUNT(DISTINCT tc.transaction_id) AS technical_void_count,
+            COALESCE(SUM(
+                COALESCE(NULLIF(tc.lost_sales_void_fee, 0), tc.void_fee, 0)
+            ), 0) AS lost_sales_void_fee,
+            COALESCE(SUM(
+                COALESCE(NULLIF(tc.lost_sales_service_fee, 0), tc.void_service_fee, 0)
+            ), 0) AS lost_sales_service_fee
+         $financialFrom
+         INNER JOIN pos_order_items oi
+            ON oi.order_id = o.order_id AND oi.item_type = 'TICKET'
+         INNER JOIN ticket_transactions tt ON tt.transaction_id = oi.reference_id
+         INNER JOIN ticket_cancellations tc ON tc.transaction_id = tt.transaction_id
+         LEFT JOIN ticket_providers tp ON tp.provider_id = COALESCE(tt.provider_id, oi.provider_id)
+         LEFT JOIN ticket_providers tp_main ON tp.parent_provider_id = tp_main.provider_id
+         WHERE $whereClause
+           AND tc.operation_type = 'VOID'
+           AND tc.status = 'completed'
+           AND tc.reason_category IN ('PRINTER_ERROR', 'SYSTEM_ERROR')
+         GROUP BY COALESCE(tp_main.provider_id, tp.provider_id),
+                  COALESCE(NULLIF(tp_main.provider_name, ''), NULLIF(tp.provider_name, ''), 'Unassigned')
          ORDER BY provider_name",
         $params
     );
@@ -657,7 +837,25 @@ if ($includeFinancialReport) {
          $financialFrom
          INNER JOIN pos_order_items oi
             ON oi.order_id = o.order_id AND oi.item_type = 'SERVICE'
-         WHERE $financialSaleWhere",
+         INNER JOIN service_transactions st
+            ON st.service_txn_id = oi.reference_id
+         WHERE $whereClause
+           AND st.status NOT IN ('cancelled', 'refunded')
+           AND NOT EXISTS (
+               SELECT 1
+               FROM pos_order_items oi_void_ticket
+               JOIN ticket_transactions tt_void_ticket
+                 ON tt_void_ticket.transaction_id = oi_void_ticket.reference_id
+               JOIN ticket_cancellations tc_void_ticket
+                 ON tc_void_ticket.transaction_id = tt_void_ticket.transaction_id
+               WHERE oi_void_ticket.order_id = oi.order_id
+                 AND oi_void_ticket.item_type = 'TICKET'
+                 AND tt_void_ticket.status IN ('cancelled', 'refunded')
+                 AND tc_void_ticket.operation_type = 'VOID'
+                 AND tc_void_ticket.reason_category = 'CANCEL'
+                 AND tc_void_ticket.status IN ('approved', 'completed')
+           )
+           AND COALESCE(oi.total_amount, 0) > 0",
         $params
     ) ?: [];
 
@@ -766,11 +964,15 @@ if ($includeFinancialReport) {
     unset($payment);
 
     $providerSales = [];
+    $providerSalesIndex = [];
     $totalTickets = 0;
     $totalCost = 0.0;
     $totalServiceFeeIncome = 0.0;
     $totalAddOns = 0.0;
     $totalAmount = 0.0;
+    $totalTechnicalVoidCount = 0;
+    $totalLostSalesVoidFee = 0.0;
+    $totalLostSalesServiceFee = 0.0;
     foreach ($providerSalesRows as $providerSalesRow) {
         $providerRow = [
             'provider_id' => (int)($providerSalesRow['provider_id'] ?? 0),
@@ -779,14 +981,70 @@ if ($includeFinancialReport) {
             'total_cost' => round((float)($providerSalesRow['total_cost'] ?? 0), 2),
             'service_fee_income' => round((float)($providerSalesRow['service_fee_income'] ?? 0), 2),
             'add_ons' => 0.0,
-            'total_amount' => round((float)($providerSalesRow['total_amount'] ?? 0), 2)
+            'total_amount' => round((float)($providerSalesRow['total_amount'] ?? 0), 2),
+            'technical_void_count' => 0,
+            'lost_sales_void_fee' => 0.0,
+            'lost_sales_service_fee' => 0.0,
+            'technical_lost_sales_amount' => 0.0
         ];
+        $providerKey = (string)$providerRow['provider_id'];
+        $providerSalesIndex[$providerKey] = count($providerSales);
         $providerSales[] = $providerRow;
         $totalTickets += $providerRow['tickets'];
         $totalCost += $providerRow['total_cost'];
         $totalServiceFeeIncome += $providerRow['service_fee_income'];
         $totalAmount += $providerRow['total_amount'];
     }
+
+    foreach ($technicalVoidRows as $technicalVoidRow) {
+        $providerId = (int)($technicalVoidRow['provider_id'] ?? 0);
+        $providerKey = (string)$providerId;
+        if (!array_key_exists($providerKey, $providerSalesIndex)) {
+            $providerSalesIndex[$providerKey] = count($providerSales);
+            $providerSales[] = [
+                'provider_id' => $providerId,
+                'provider_name' => $technicalVoidRow['provider_name'] ?? 'Unassigned',
+                'tickets' => 0,
+                'total_cost' => 0.0,
+                'service_fee_income' => 0.0,
+                'add_ons' => 0.0,
+                'total_amount' => 0.0,
+                'technical_void_count' => 0,
+                'lost_sales_void_fee' => 0.0,
+                'lost_sales_service_fee' => 0.0,
+                'technical_lost_sales_amount' => 0.0
+            ];
+        }
+
+        $providerIndex = $providerSalesIndex[$providerKey];
+        $technicalVoidCount = (int)($technicalVoidRow['technical_void_count'] ?? 0);
+        $lostSalesVoidFee = round((float)($technicalVoidRow['lost_sales_void_fee'] ?? 0), 2);
+        $lostSalesServiceFee = round((float)($technicalVoidRow['lost_sales_service_fee'] ?? 0), 2);
+        $providerSales[$providerIndex]['technical_void_count'] += $technicalVoidCount;
+        $providerSales[$providerIndex]['lost_sales_void_fee'] += $lostSalesVoidFee;
+        $providerSales[$providerIndex]['lost_sales_service_fee'] += $lostSalesServiceFee;
+        $providerSales[$providerIndex]['technical_lost_sales_amount'] = round(
+            $providerSales[$providerIndex]['lost_sales_void_fee']
+                + $providerSales[$providerIndex]['lost_sales_service_fee'],
+            2
+        );
+        $totalTechnicalVoidCount += $technicalVoidCount;
+        $totalLostSalesVoidFee += $lostSalesVoidFee;
+        $totalLostSalesServiceFee += $lostSalesServiceFee;
+    }
+
+    foreach ($providerSales as &$providerSale) {
+        $providerSale['lost_sales_void_fee'] = round((float)$providerSale['lost_sales_void_fee'], 2);
+        $providerSale['lost_sales_service_fee'] = round((float)$providerSale['lost_sales_service_fee'], 2);
+        $providerSale['technical_lost_sales_amount'] = round(
+            (float)$providerSale['lost_sales_void_fee'] + (float)$providerSale['lost_sales_service_fee'],
+            2
+        );
+    }
+    unset($providerSale);
+    usort($providerSales, static function (array $left, array $right): int {
+        return strcasecmp((string)$left['provider_name'], (string)$right['provider_name']);
+    });
 
     $serviceAmount = round((float)($serviceSalesRow['service_amount'] ?? 0), 2);
     if ($serviceAmount > 0) {
@@ -798,6 +1056,10 @@ if ($includeFinancialReport) {
             'service_fee_income' => 0.0,
             'add_ons' => $serviceAmount,
             'total_amount' => $serviceAmount,
+            'technical_void_count' => 0,
+            'lost_sales_void_fee' => 0.0,
+            'lost_sales_service_fee' => 0.0,
+            'technical_lost_sales_amount' => 0.0,
             'is_service' => true
         ];
         $totalAddOns += $serviceAmount;
@@ -806,8 +1068,8 @@ if ($includeFinancialReport) {
 
     $refundRows = Database::fetchAll(
         "SELECT
-            COALESCE(tp.provider_id, 0) AS provider_id,
-            COALESCE(NULLIF(tp.provider_name, ''), 'Unassigned') AS provider_name,
+            COALESCE(tp_main.provider_id, tp.provider_id, 0) AS provider_id,
+            COALESCE(NULLIF(tp_main.provider_name, ''), NULLIF(tp.provider_name, ''), 'Unassigned') AS provider_name,
             COUNT(DISTINCT tc.cancellation_id) AS refund_count,
             COALESCE(SUM(COALESCE(
                 NULLIF(tr.refund_amount, 0),
@@ -822,11 +1084,13 @@ if ($includeFinancialReport) {
          INNER JOIN ticket_cancellations tc ON tc.transaction_id = tt.transaction_id
          LEFT JOIN ticket_refunds tr ON tr.cancellation_id = tc.cancellation_id
          LEFT JOIN ticket_providers tp ON tp.provider_id = COALESCE(tt.provider_id, oi.provider_id)
+         LEFT JOIN ticket_providers tp_main ON tp.parent_provider_id = tp_main.provider_id
          WHERE $refundWhereClause
            AND tc.status = 'completed'
            AND tc.operation_type = 'REFUND'
            AND $refundProcessedAtExpression IS NOT NULL
-         GROUP BY tp.provider_id, tp.provider_name
+         GROUP BY COALESCE(tp_main.provider_id, tp.provider_id),
+                  COALESCE(NULLIF(tp_main.provider_name, ''), NULLIF(tp.provider_name, ''), 'Unassigned')
          ORDER BY provider_name",
         $refundParams
     );
@@ -844,6 +1108,7 @@ if ($includeFinancialReport) {
         $totalSalesRefunds += $refund['amount'];
     }
 
+    $totalLostSales = round($totalLostSalesVoidFee + $totalLostSalesServiceFee, 2);
     $financialReport = [
         'date_from' => $filterDateFrom ?: '',
         'date_to' => $filterDateTo ?: '',
@@ -859,7 +1124,12 @@ if ($includeFinancialReport) {
         'total_sales' => round($totalSales, 2),
         'sales_refunds' => $salesRefunds,
         'total_sales_refunds' => round($totalSalesRefunds, 2),
-        'net_amount_for_deposit' => round(max(0, $totalSales - $totalSalesRefunds), 2)
+        'technical_void_count' => $totalTechnicalVoidCount,
+        'lost_sales_void_fee' => round($totalLostSalesVoidFee, 2),
+        'lost_sales_service_fee' => round($totalLostSalesServiceFee, 2),
+        'technical_lost_sales_amount' => $totalLostSales,
+        'total_lost_sales' => $totalLostSales,
+        'net_amount_for_deposit' => round(max(0, $totalSales - $totalSalesRefunds - $totalLostSales), 2)
     ];
 }
 

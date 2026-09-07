@@ -25,6 +25,8 @@
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/BalanceLedgerService.php';
+require_once __DIR__ . '/ProviderWalletDeductionService.php';
+require_once __DIR__ . '/TicketStockHelper.php';
 require_once __DIR__ . '/ChargeService.php';
 require_once __DIR__ . '/RefundService.php';
 require_once __DIR__ . '/WalletResolver.php';
@@ -158,6 +160,8 @@ final class CancellationService
             'wallet_balance_before' => $walletResult['balance_before'],
             'wallet_balance_after'  => $walletResult['balance_after'],
             'wallet_txn_code'       => $walletResult['txn_code'],
+            'wallet_original_sale_amount' => $walletResult['original_sale_amount'] ?? $walletResult['wallet_refund_amount'],
+            'wallet_used_legacy_fallback' => $walletResult['used_legacy_fallback'] ?? false,
             'refund_status'         => $refundRecord['status'],
             'refund_record_id'      => $refundRecord['refund_id'],
             'cash_refund_amount'    => $allocationResult['cash_amount'],
@@ -197,6 +201,33 @@ final class CancellationService
         )['total'] ?? 0);
     }
 
+    public static function printFeeAmountForTicket(int $ticketTxnId): float
+    {
+        if ($ticketTxnId <= 0) {
+            return 0.0;
+        }
+
+        $row = Database::fetch(
+            "SELECT COALESCE(SUM(COALESCE(st.total_amount, oi_service.total_amount, 0)), 0) AS amount
+             FROM pos_order_items oi_ticket
+             JOIN pos_order_items oi_service
+               ON oi_service.order_id = oi_ticket.order_id
+             LEFT JOIN service_transactions st
+               ON st.service_txn_id = oi_service.reference_id
+             LEFT JOIN service_types st_type
+               ON st_type.service_type_id = COALESCE(oi_service.service_type_id, st.service_type_id)
+             WHERE oi_ticket.reference_id = :transaction_id
+               AND oi_ticket.item_type = 'TICKET'
+               AND oi_service.item_type = 'SERVICE'
+               AND (st_type.code = 'PRINT_FEE'
+                    OR TRIM(UPPER(st_type.name)) = 'PRINT FEE')
+               AND COALESCE(st.status, '') NOT IN ('cancelled', 'refunded')",
+            ['transaction_id' => $ticketTxnId]
+        );
+
+        return round(max(0, (float) ($row['amount'] ?? 0)), 2);
+    }
+
     /**
      * Derive the operating provider_id from a ticket transaction, with a legacy fallback
      * to the recorded wallet if provider_id is missing.
@@ -234,6 +265,8 @@ final class CancellationService
         $ticketTxnId = (int) $ticketTxn['transaction_id'];
         $ticketTotal = (float) ($ticketTxn['total_amount'] ?? 0);
         $reason = (string) ($cancellation['reason'] ?? 'Void');
+        $reasonCategory = strtoupper((string) ($cancellation['reason_category'] ?? 'OTHER'));
+        $isCancelVoid = $reasonCategory === 'CANCEL';
 
         Database::execute(
             "UPDATE ticket_transactions SET status = 'cancelled' WHERE transaction_id = :tid",
@@ -253,17 +286,22 @@ final class CancellationService
                 ['iid' => (int) $orderItem['item_id']]
             );
 
-            $activeService = Database::fetch(
+            $activeItems = Database::fetch(
                 "SELECT COUNT(*) AS total
                  FROM pos_order_items oi
-                 JOIN service_transactions st ON st.service_txn_id = oi.reference_id
+                 LEFT JOIN ticket_transactions tt
+                   ON oi.item_type = 'TICKET' AND tt.transaction_id = oi.reference_id
+                 LEFT JOIN service_transactions st
+                   ON oi.item_type = 'SERVICE' AND st.service_txn_id = oi.reference_id
                  WHERE oi.order_id = :order_id
-                   AND oi.item_type = 'SERVICE'
-                   AND st.status NOT IN ('cancelled', 'refunded')
-                   AND oi.total_amount > 0",
+                   AND oi.total_amount > 0
+                   AND (
+                       (oi.item_type = 'TICKET' AND COALESCE(tt.status, '') NOT IN ('cancelled', 'refunded'))
+                       OR (oi.item_type = 'SERVICE' AND COALESCE(st.status, '') NOT IN ('cancelled', 'refunded'))
+                   )",
                 ['order_id' => (int) $orderItem['order_id']]
             );
-            if ((int) ($activeService['total'] ?? 0) === 0) {
+            if ((int) ($activeItems['total'] ?? 0) === 0) {
                 Database::execute(
                     "UPDATE pos_orders SET status = 'cancelled' WHERE order_id = :order_id",
                     ['order_id' => (int) $orderItem['order_id']]
@@ -281,6 +319,18 @@ final class CancellationService
             $remarks,
             'VOID'
         );
+        $voidFeeWalletResult = self::debitVoidFeeFromProviderWallet(
+            $ticketTxn,
+            $cancellation,
+            $walletResult,
+            $processedByUserId,
+            $reason,
+            $remarks,
+            $reasonCategory
+        );
+        $stockResult = $isCancelVoid
+            ? self::restoreBranchStockForCancel($ticketTxn, $processedByUserId)
+            : self::emptyStockRestoreResult();
 
         Database::execute(
             "UPDATE ticket_cancellations
@@ -299,11 +349,97 @@ final class CancellationService
             'wallet_id' => $walletResult['wallet_id'],
             'wallet_refund_amount' => $walletResult['wallet_refund_amount'],
             'wallet_balance_before' => $walletResult['balance_before'],
-            'wallet_balance_after' => $walletResult['balance_after'],
+            'wallet_balance_after' => $voidFeeWalletResult['balance_after'] ?? $walletResult['balance_after'],
             'wallet_txn_code' => $walletResult['txn_code'],
+            'wallet_original_sale_amount' => $walletResult['original_sale_amount'] ?? $walletResult['wallet_refund_amount'],
+            'wallet_used_legacy_fallback' => $walletResult['used_legacy_fallback'] ?? false,
+            'void_fee_wallet_debited' => $voidFeeWalletResult['applied'],
+            'void_fee_wallet_debit_amount' => $voidFeeWalletResult['amount'],
+            'void_fee_wallet_debit_void_fee' => $voidFeeWalletResult['void_fee_amount'],
+            'void_fee_wallet_debit_service_fee' => $voidFeeWalletResult['void_service_fee_amount'],
+            'void_fee_wallet_balance_before' => $voidFeeWalletResult['balance_before'],
+            'void_fee_wallet_balance_after' => $voidFeeWalletResult['balance_after'],
+            'void_fee_wallet_txn_code' => $voidFeeWalletResult['txn_code'],
             'charge_reversal_amount' => $chargeReversalAmount,
             'cash_refund_amount' => 0.0,
             'is_consumed_variant' => !empty($ticketTxn['variant_id']),
+            'stock_restored' => $stockResult['restored'],
+            'stock_restoration_already_applied' => $stockResult['already_applied'],
+            'stock_restoration_movement_id' => $stockResult['movement_id'],
+            'stock_restoration_quantity' => $stockResult['quantity'],
+        ];
+    }
+
+    private static function debitVoidFeeFromProviderWallet(
+        array $ticketTxn,
+        array $cancellation,
+        array $walletResult,
+        int $processedByUserId,
+        string $reason,
+        ?string $remarks,
+        string $reasonCategory
+    ): array {
+        $result = [
+            'applied' => false,
+            'amount' => 0.0,
+            'void_fee_amount' => 0.0,
+            'void_service_fee_amount' => 0.0,
+            'balance_before' => null,
+            'balance_after' => null,
+            'txn_code' => null,
+        ];
+        if (strtoupper($reasonCategory) === 'CANCEL') {
+            return $result;
+        }
+
+        $walletId = (int) ($walletResult['wallet_id'] ?? 0);
+
+        if ($walletId <= 0) {
+            return $result;
+        }
+
+        $walletPolicy = ProviderWalletDeductionService::forWallet($walletId);
+        if (($walletPolicy['wallet_status'] ?? null) !== 'active'
+            || !empty($walletPolicy['variant_id'])) {
+            return $result;
+        }
+
+        $voidFee = max(0, round((float) ($cancellation['void_fee'] ?? 0), 2));
+        $voidServiceFee = max(0, round((float) ($cancellation['void_service_fee'] ?? 0), 2));
+        $feeAmount = ProviderWalletDeductionService::voidFeeDebit(
+            $cancellation,
+            $walletPolicy,
+            $reasonCategory
+        );
+
+        if ($feeAmount <= 0) {
+            return $result;
+        }
+
+        $walletMovement = BalanceLedgerService::walletMovement(
+            $walletId,
+            'ADJUSTMENT',
+            'OUT',
+            $feeAmount,
+            'ticket_transactions',
+            (int) $ticketTxn['transaction_id'],
+            'Void Fee(s): ' . $ticketTxn['transaction_code']
+                . ' | Void Fee: ' . number_format($voidFee, 2, '.', '')
+                . ' | Void Service Fee: ' . number_format($voidServiceFee, 2, '.', '')
+                . ' | Cancellation #' . (int) $cancellation['cancellation_id']
+                . ($remarks ? ' | ' . $remarks : ($reason ? ' | ' . $reason : '')),
+            $processedByUserId,
+            'ticket-void-fee:' . (int) $cancellation['cancellation_id']
+        );
+
+        return [
+            'applied' => true,
+            'amount' => (float) ($walletMovement['amount'] ?? $feeAmount),
+            'void_fee_amount' => $voidFee,
+            'void_service_fee_amount' => $voidServiceFee,
+            'balance_before' => $walletMovement['balance_before'],
+            'balance_after' => $walletMovement['balance_after'],
+            'txn_code' => $walletMovement['txn_code'],
         ];
     }
 
@@ -422,22 +558,18 @@ final class CancellationService
             ];
         }
 
-        $ticketBaseAmount = max(0, (float) ($ticketTxn['base_amount'] ?? 0));
-        // The cashier-entered Refund Amount is the refund basis. The provider
-        // wallet can only receive the provider cost that was originally
-        // debited; service fees never came out of this wallet.
-        $walletRefundAmount = round(min(max(0, $refundAmount), $ticketBaseAmount), 2);
+        $restoreCancellation = $cancellation;
+        $restoreCancellation['operation_type'] = strtoupper($operationType);
+        $restoration = ProviderWalletDeductionService::restoration(
+            $ticketTxn,
+            $refundAmount,
+            $restoreCancellation
+        );
+        $walletRefundAmount = $restoration['amount'];
         $wTxnRemarks = 'Refund: ' . $ticketTxn['transaction_code']
+            . ' | Restored sale debit: ' . number_format($walletRefundAmount, 2, '.', '')
             . ' | Cancellation #' . (int) $cancellation['cancellation_id']
             . ($remarks ? ' | ' . $remarks : ($reason ? ' | ' . $reason : ''));
-
-        $originalSale = Database::fetch(
-            "SELECT wallet_txn_id
-             FROM wallet_transactions
-             WHERE idempotency_key = :idempotency_key
-             LIMIT 1",
-            ['idempotency_key' => 'pos-sale:' . (int) $ticketTxn['transaction_id']]
-        );
 
         $walletMovement = null;
         if ($walletRefundAmount > 0) {
@@ -451,7 +583,7 @@ final class CancellationService
                 $wTxnRemarks,
                 $processedByUserId,
                 'ticket-' . strtolower($operationType) . ':' . (int) $cancellation['cancellation_id'],
-                $originalSale ? (int) $originalSale['wallet_txn_id'] : null
+                $restoration['wallet_txn_id'] ?: null
             );
         }
 
@@ -461,32 +593,102 @@ final class CancellationService
             'balance_before' => $walletMovement['balance_before'] ?? (float) ($resolvedWallet['current_balance'] ?? 0),
             'balance_after' => $walletMovement['balance_after'] ?? (float) ($resolvedWallet['current_balance'] ?? 0),
             'txn_code' => $walletMovement['txn_code'] ?? null,
+            'original_sale_amount' => $restoration['original_amount'],
+            'used_legacy_fallback' => $restoration['used_legacy_fallback'],
             'is_variant_wallet' => !empty($resolvedWallet['variant_id']),
         ];
     }
 
-    /**
-     * Restore physical branch stock for a cancelled non-wallet variant ticket.
-     */
-    private static function restoreBranchStockForCancel(array $ticketTxn, int $qty, int $processedByUserId): array
+    private static function emptyStockRestoreResult(): array
     {
+        return [
+            'restored' => false,
+            'already_applied' => false,
+            'movement_id' => null,
+            'quantity' => 0,
+        ];
+    }
+
+    /**
+     * Restore physical branch stock for a Cancel Void variant ticket.
+     *
+     * Only reverse a recorded POS_SALE movement. This prevents a legacy or
+     * partially-created ticket from receiving stock that was never deducted.
+     */
+    private static function restoreBranchStockForCancel(array $ticketTxn, int $processedByUserId): array
+    {
+        $variantId = (int) ($ticketTxn['variant_id'] ?? 0);
+        if ($variantId <= 0) {
+            return self::emptyStockRestoreResult();
+        }
+
+        $variant = TicketStockHelper::getVariant($variantId);
+        if (!$variant || !(bool) ($variant['stock_controlled'] ?? false)) {
+            return self::emptyStockRestoreResult();
+        }
+
         $providerId = self::resolveProviderId($ticketTxn);
-        if (!$providerId || empty($ticketTxn['branch_id']) || empty($ticketTxn['variant_id'])) {
+        $branchId = (int) ($ticketTxn['branch_id'] ?? 0);
+        $transactionId = (int) ($ticketTxn['transaction_id'] ?? 0);
+        if (!$providerId || $branchId <= 0 || $transactionId <= 0) {
             throw new RuntimeException('The cancelled ticket has incomplete stock reference data.');
         }
 
-        return TicketStockHelper::restoreOnSale(
-            (int) $ticketTxn['branch_id'],
+        $existingReversal = Database::fetch(
+            "SELECT movement_id, quantity_delta
+             FROM ticket_stock_movements
+             WHERE reference_type = 'TICKET_TRANSACTION'
+               AND reference_id = :transaction_id
+               AND movement_type = 'POS_SALE_REVERSAL'
+             ORDER BY movement_id DESC
+             LIMIT 1",
+            ['transaction_id' => $transactionId]
+        );
+        if ($existingReversal) {
+            return [
+                'restored' => true,
+                'already_applied' => true,
+                'movement_id' => (int) $existingReversal['movement_id'],
+                'quantity' => abs((int) ($existingReversal['quantity_delta'] ?? 0)),
+            ];
+        }
+
+        $saleMovement = Database::fetch(
+            "SELECT movement_id, quantity_delta
+             FROM ticket_stock_movements
+             WHERE reference_type = 'TICKET_TRANSACTION'
+               AND reference_id = :transaction_id
+               AND movement_type = 'POS_SALE'
+               AND quantity_delta < 0
+             ORDER BY movement_id DESC
+             LIMIT 1",
+            ['transaction_id' => $transactionId]
+        );
+        if (!$saleMovement) {
+            return self::emptyStockRestoreResult();
+        }
+
+        $movement = TicketStockHelper::restoreOnSale(
+            $branchId,
             (int) $providerId,
-            (int) $ticketTxn['variant_id'],
-            $qty,
+            $variantId,
+            abs((int) ($saleMovement['quantity_delta'] ?? 1)),
             $processedByUserId,
             [
                 'reference_type' => 'TICKET_TRANSACTION',
-                'reference_id'   => (int) $ticketTxn['transaction_id'],
-                'remarks'        => 'Stock restored from cancellation ' . $ticketTxn['transaction_code'],
+                'reference_id'   => $transactionId,
+                'ticket_number_from' => $ticketTxn['ticket_number'] ?? null,
+                'ticket_number_to' => $ticketTxn['ticket_number'] ?? null,
+                'remarks'        => 'Stock restored from Cancel Void ' . ($ticketTxn['transaction_code'] ?? ''),
             ]
         );
+
+        return [
+            'restored' => true,
+            'already_applied' => false,
+            'movement_id' => (int) ($movement['movement_id'] ?? 0),
+            'quantity' => abs((int) ($saleMovement['quantity_delta'] ?? 1)),
+        ];
     }
 
     /**

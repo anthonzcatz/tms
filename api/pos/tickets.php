@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BIRHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/TicketStockHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/BalanceLedgerService.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/ProviderWalletDeductionService.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/ChargeService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
@@ -24,6 +25,24 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
          'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
          'old' => $old ? json_encode($old) : null, 'new' => $new ? json_encode($new) : null,
          'created_at' => $now]
+    );
+}
+
+function isDuplicateOrderCodeError(Throwable $e): bool {
+    $message = strtolower($e->getMessage());
+    return strpos($message, 'duplicate entry') !== false && strpos($message, 'order_code') !== false;
+}
+
+function findExistingPosOrder(string $orderCode, int $userId, int $sessionId, int $branchId): ?array {
+    return Database::fetch(
+        "SELECT order_id, order_code, grand_total, amount_paid, change_amount
+         FROM pos_orders
+         WHERE order_code = :code
+           AND created_by = :uid
+           AND cashier_session_id = :session
+           AND branch_id = :branch
+         LIMIT 1",
+        ['code' => $orderCode, 'uid' => $userId, 'session' => $sessionId, 'branch' => $branchId]
     );
 }
 
@@ -49,6 +68,13 @@ if (empty($tickets) && !empty($input['ticket'])) {
     $tickets = [$input['ticket']]; // backward-compat: wrap single ticket
 }
 $services  = $input['services'] ?? [];
+$requestedOrderCode = trim((string) ($input['order_code'] ?? ''));
+
+if ($requestedOrderCode !== '' && !preg_match('/^ORD-\d{8}-\d{6}-[A-F0-9]{16}$/i', $requestedOrderCode)) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'error' => 'Invalid order request code.']);
+    exit;
+}
 
 // Validate
 if (!$sessionId)        { echo json_encode(['success' => false, 'error' => 'Session ID required.']); exit; }
@@ -84,6 +110,14 @@ foreach ($tickets as $ticket) {
         echo json_encode(['success' => false, 'error' => 'Ticket number is required.']);
         exit;
     }
+
+    $ticketNotes = is_string($ticket['ticket_notes'] ?? null) ? trim($ticket['ticket_notes']) : '';
+    $ticketNotesLength = function_exists('mb_strlen') ? mb_strlen($ticketNotes, 'UTF-8') : strlen($ticketNotes);
+    if ($ticketNotesLength > 500) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'error' => 'Ticket notes must be 500 characters or fewer.']);
+        exit;
+    }
 }
 
 // Process transaction with retry for duplicate key errors
@@ -99,7 +133,7 @@ function generateOrderCode() {
 for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
     try {
         // Generate unique order code: ORD-YYYYMMDD-HHMM-### (sequential)
-        $orderCode = generateOrderCode();
+        $orderCode = $requestedOrderCode ?: generateOrderCode();
 
         // Start database transaction
         Database::connection()->beginTransaction();
@@ -334,11 +368,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 Database::execute(
                     "INSERT INTO ticket_transactions
                         (transaction_code, wallet_id, provider_id, branch_id, passenger_id, accommodation_id, discount_id, variant_id,
-                         origin, destination, travel_date, ticket_number, ticket_action,
+                         origin, destination, travel_date, ticket_number, ticket_action, ticket_notes,
                          base_amount, service_fee, discount_amount, total_amount, status,
                          cashier_session_id, created_by, created_at)
                      VALUES (:code, :wallet, :provider, :branch, :passenger, :accommodation_id, :discount_id, :variant_id,
-                             :origin, :destination, :travel_date, :ticket_number, :ticket_action,
+                             :origin, :destination, :travel_date, :ticket_number, :ticket_action, :ticket_notes,
                              :base_amount, :service_fee, :discount_amount, :total_amount, 'booked',
                              :session, :uid, :created_at)",
                     [
@@ -355,6 +389,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'travel_date'     => $ticket['travel_date'] ?? null,
                         'ticket_number'   => $ticket['ticket_number'] ?? null,
                         'ticket_action'   => !empty($ticket['ticket_action']) ? strtoupper(trim($ticket['ticket_action'])) : null,
+                        'ticket_notes'    => is_string($ticket['ticket_notes'] ?? null) && trim($ticket['ticket_notes']) !== '' ? trim($ticket['ticket_notes']) : null,
                         'base_amount'     => floatval($ticket['base_amount'] ?? 0),
                         'service_fee'     => floatval($ticket['service_fee'] ?? 0),
                         'discount_amount' => floatval($ticket['discount_amount'] ?? 0),
@@ -404,11 +439,11 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 Database::execute(
                     "INSERT INTO pos_order_items
                         (order_id, item_type, reference_id, transaction_code, ticket_number,
-                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, variant_id, ticket_action, description,
+                         accommodation_id, discount_id, provider_id, wallet_id, passenger_id, variant_id, ticket_action, ticket_notes, description,
                          unit_price, service_fee, discount_amount, total_amount,
                          origin, destination, travel_date, created_at)
                      VALUES (:oid, 'TICKET', :ref, :code, :ticket_number,
-                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :variant_id, :ticket_action, :description,
+                             :accommodation_id, :discount_id, :provider_id, :wallet_id, :passenger_id, :variant_id, :ticket_action, :ticket_notes, :description,
                              :unit_price, :service_fee, :discount_amount, :total,
                              :origin, :destination, :travel_date, :created_at)",
                     [
@@ -423,6 +458,7 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                         'passenger_id'     => $ticket['passenger_id'] ?? null,
                         'variant_id'       => $variantId,
                         'ticket_action'    => !empty($ticket['ticket_action']) ? strtoupper(trim($ticket['ticket_action'])) : null,
+                        'ticket_notes'     => is_string($ticket['ticket_notes'] ?? null) && trim($ticket['ticket_notes']) !== '' ? trim($ticket['ticket_notes']) : null,
                         'description'      => $ticket['description'] ?? null,
                         'unit_price'       => floatval($ticket['base_amount'] ?? 0),
                         'service_fee'      => floatval($ticket['service_fee'] ?? 0),
@@ -443,18 +479,19 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
             logActivity($user['user_id'], 'CREATE_TICKET_TRANSACTION', 'POS', $txnCode, null,
                 ['order_code' => $orderCode, 'ticket_id' => $ticketTxnId, 'provider_id' => (int)$providerId, 'wallet_id' => $walletId]);
 
-            // --- Wallet balance deduction (Base Amount only, NOT Service Fee) ---
-            $baseAmount = floatval($ticket['base_amount'] ?? 0);
+            // --- Wallet balance deduction based on the resolved wallet owner's policy ---
+            $walletPolicy = ProviderWalletDeductionService::forWallet((int) $walletId);
+            $walletDebit = ProviderWalletDeductionService::saleDebit($ticket, $walletPolicy);
 
-            if ($walletId && $baseAmount > 0 && !$variantId) {
+            if ($walletId && $walletDebit['amount'] > 0 && !$variantId) {
                 $walletMovement = BalanceLedgerService::walletMovement(
                     (int) $walletId,
                     'SALE',
                     'OUT',
-                    $baseAmount,
+                    $walletDebit['amount'],
                     'ticket_transactions',
                     (int) $ticketTxnId,
-                    "Ticket sale - Base Amount only. Order: {$orderCode}, Txn: {$txnCode}",
+                    "Ticket sale - {$walletDebit['mode']}. Base: {$walletDebit['base_amount']}, Service Fee: {$walletDebit['service_fee']}. Order: {$orderCode}, Txn: {$txnCode}",
                     (int) $user['user_id'],
                     'pos-sale:' . (int) $ticketTxnId,
                     null,
@@ -465,7 +502,10 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
                 logActivity($user['user_id'], 'WALLET_DEDUCTION', 'POS', $txnCode, null,
                     [
                         'wallet_id' => $walletId,
-                        'amount' => $baseAmount,
+                        'deduction_mode' => $walletDebit['mode'],
+                        'base_amount' => $walletDebit['base_amount'],
+                        'service_fee' => $walletDebit['service_fee'],
+                        'amount' => $walletDebit['amount'],
                         'balance_before' => $walletMovement['balance_before'],
                         'balance_after' => $walletMovement['balance_after'],
                         'wallet_txn_code' => $walletMovement['txn_code'],
@@ -727,6 +767,36 @@ for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
     } catch (Exception $e) {
         if (Database::connection()->inTransaction()) {
             Database::connection()->rollBack();
+        }
+
+        if ($requestedOrderCode !== '' && isDuplicateOrderCodeError($e)) {
+            $existingOrder = findExistingPosOrder($requestedOrderCode, (int) $user['user_id'], $sessionId, $branchId);
+            if ($existingOrder) {
+                $ticketIds = array_map(
+                    'intval',
+                    array_column(
+                        Database::fetchAll(
+                            "SELECT reference_id
+                             FROM pos_order_items
+                             WHERE order_id = :order_id AND item_type = 'TICKET'",
+                            ['order_id' => $existingOrder['order_id']]
+                        ),
+                        'reference_id'
+                    )
+                );
+                echo json_encode([
+                    'success'          => true,
+                    'already_processed' => true,
+                    'message'          => 'Order already processed.',
+                    'transaction_code' => $existingOrder['order_code'],
+                    'order_id'         => (int) $existingOrder['order_id'],
+                    'ticket_ids'       => $ticketIds,
+                    'total'            => (float) $existingOrder['grand_total'],
+                    'paid'             => (float) $existingOrder['amount_paid'],
+                    'change'           => (float) $existingOrder['change_amount'],
+                ]);
+                exit;
+            }
         }
 
         if (strpos($e->getMessage(), 'Duplicate entry') !== false) {

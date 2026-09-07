@@ -66,6 +66,22 @@ try {
     $useOrdersTable = false;
 }
 
+$walletDeductAllSelect = '0';
+$walletDeductBaseOnlySelect = '1';
+try {
+    $hasAllChargesSetting = (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'wallet_deduct_all_charges'");
+    $hasBaseOnlySetting = (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'wallet_deduct_base_only'");
+    if ($hasAllChargesSetting && $hasBaseOnlySetting) {
+        $walletDeductAllSelect = 'tp_wallet.wallet_deduct_all_charges';
+        $walletDeductBaseOnlySelect = 'tp_wallet.wallet_deduct_base_only';
+    } elseif (Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'void_fee_wallet_enabled'")) {
+        $walletDeductAllSelect = 'tp_wallet.void_fee_wallet_enabled';
+    }
+} catch (Throwable $e) {
+    $walletDeductAllSelect = '0';
+    $walletDeductBaseOnlySelect = '1';
+}
+
 $allTransactions = [];
 $totalCount = 0;
 
@@ -101,11 +117,16 @@ if ($useOrdersTable) {
                       OR EXISTS (SELECT 1 FROM pos_order_items oi_search_passenger
                                  LEFT JOIN ticket_transactions tt_search ON oi_search_passenger.reference_id = tt_search.transaction_id AND oi_search_passenger.item_type = \'TICKET\'
                                  LEFT JOIN passenger_accounts pa_search ON tt_search.passenger_id = pa_search.passenger_id
-                                 WHERE oi_search_passenger.order_id = o.order_id AND pa_search.fullname LIKE :search_passenger))';
+                                 WHERE oi_search_passenger.order_id = o.order_id AND pa_search.fullname LIKE :search_passenger)
+                      OR EXISTS (SELECT 1 FROM pos_order_items oi_search_notes
+                                 LEFT JOIN ticket_transactions tt_search_notes ON oi_search_notes.reference_id = tt_search_notes.transaction_id AND oi_search_notes.item_type = \'TICKET\'
+                                 WHERE oi_search_notes.order_id = o.order_id
+                                   AND COALESCE(oi_search_notes.ticket_notes, tt_search_notes.ticket_notes) LIKE :search_ticket_notes))';
         $searchValue = '%' . $search . '%';
         $params['search_order'] = $searchValue;
         $params['search_item'] = $searchValue;
         $params['search_passenger'] = $searchValue;
+        $params['search_ticket_notes'] = $searchValue;
     }
 
     if ($status) {
@@ -339,7 +360,25 @@ if ($useOrdersTable) {
             (SELECT COUNT(*)
              FROM pos_order_items oi10
              LEFT JOIN service_transactions st ON oi10.reference_id = st.service_txn_id AND oi10.item_type = 'SERVICE'
-             WHERE oi10.order_id = o.order_id AND st.status IN ('cancelled', 'refunded')) as cancelled_service_count
+             LEFT JOIN service_types st_type ON st_type.service_type_id = oi10.service_type_id
+             WHERE oi10.order_id = o.order_id
+               AND (
+                   st.status IN ('cancelled', 'refunded')
+                   OR EXISTS (
+                       SELECT 1
+                       FROM pos_order_items oi10_ticket
+                       JOIN ticket_transactions tt10_ticket
+                         ON tt10_ticket.transaction_id = oi10_ticket.reference_id
+                       JOIN ticket_cancellations tc10_void
+                         ON tc10_void.transaction_id = tt10_ticket.transaction_id
+                       WHERE oi10_ticket.order_id = oi10.order_id
+                         AND oi10_ticket.item_type = 'TICKET'
+                         AND tt10_ticket.status IN ('cancelled', 'refunded')
+                         AND tc10_void.operation_type = 'VOID'
+                         AND tc10_void.status IN ('approved', 'completed')
+                         AND COALESCE(tc10_void.reason_category, '') NOT IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR')
+                   )
+               )) as cancelled_service_count
          FROM pos_orders o
          LEFT JOIN business_branches b ON o.branch_id = b.branch_id
          LEFT JOIN user_accounts cua ON o.created_by = cua.user_id
@@ -368,17 +407,41 @@ if ($useOrdersTable) {
         $itemRows = Database::fetchAll(
             "SELECT oi.item_id, oi.order_id, oi.item_type, oi.reference_id, oi.transaction_code,
                     COALESCE(oi.ticket_number, tt.ticket_number) as ticket_number,
+                    COALESCE(NULLIF(oi.ticket_notes, ''), NULLIF(tt.ticket_notes, '')) as ticket_notes,
                     oi.total_amount,
                     tt.total_amount as ticket_total_amount,
-                    oi.provider_id, oi.variant_id, oi.wallet_id,
+                    COALESCE(oi.provider_id, tt.provider_id) as provider_id,
+                    COALESCE(oi.variant_id, tt.variant_id) as variant_id,
+                    COALESCE(oi.wallet_id, tt.wallet_id) as wallet_id,
+                    pw.provider_id as wallet_provider_id, pw.status as wallet_status,
                     tt.passenger_id, tt.origin, tt.destination, tt.travel_date, tt.service_fee, tt.status as ticket_status,
-                    st.description as service_name, st_type.name as service_type_name, st.status as service_status,
+                    st.description as service_name, st_type.name as service_type_name,
+                    CASE
+                        WHEN st.status IN ('cancelled', 'refunded') THEN st.status
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM pos_order_items oi_service_ticket
+                            JOIN ticket_transactions tt_service_ticket
+                              ON tt_service_ticket.transaction_id = oi_service_ticket.reference_id
+                            JOIN ticket_cancellations tc_service_ticket
+                              ON tc_service_ticket.transaction_id = tt_service_ticket.transaction_id
+                            WHERE oi_service_ticket.order_id = oi.order_id
+                              AND oi_service_ticket.item_type = 'TICKET'
+                              AND tt_service_ticket.status IN ('cancelled', 'refunded')
+                              AND tc_service_ticket.operation_type = 'VOID'
+                              AND tc_service_ticket.status IN ('approved', 'completed')
+                              AND COALESCE(tc_service_ticket.reason_category, '') NOT IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR')
+                        ) THEN 'cancelled'
+                        ELSE st.status
+                    END as service_status,
                     pa.fullname as passenger_name,
                     tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
                     pt_op.type_label as provider_type_label,
                     tp_parent.provider_name as parent_provider_name,
                     pv.variant_name as variant_name, pv.variant_code as variant_code,
                     tp_wallet.provider_name as wallet_provider_name,
+                    {$walletDeductAllSelect} as wallet_deduct_all_charges,
+                    {$walletDeductBaseOnlySelect} as wallet_deduct_base_only,
                     pv_wallet.variant_name as wallet_variant_name,
                     CASE WHEN pw.variant_id IS NOT NULL THEN 1 ELSE 0 END as wallet_is_variant
              FROM pos_order_items oi
@@ -386,11 +449,11 @@ if ($useOrdersTable) {
              LEFT JOIN service_transactions st ON oi.reference_id = st.service_txn_id AND oi.item_type = 'SERVICE'
              LEFT JOIN service_types st_type ON st.service_type_id = st_type.service_type_id
              LEFT JOIN passenger_accounts pa ON COALESCE(tt.passenger_id, st.passenger_id) = pa.passenger_id
-             LEFT JOIN ticket_providers tp_op ON oi.provider_id = tp_op.provider_id
+             LEFT JOIN ticket_providers tp_op ON COALESCE(oi.provider_id, tt.provider_id) = tp_op.provider_id
              LEFT JOIN provider_types pt_op ON pt_op.type_code = tp_op.provider_type
              LEFT JOIN ticket_providers tp_parent ON tp_op.parent_provider_id = tp_parent.provider_id
-             LEFT JOIN provider_ticket_variants pv ON oi.variant_id = pv.variant_id
-             LEFT JOIN provider_wallets pw ON oi.wallet_id = pw.wallet_id
+             LEFT JOIN provider_ticket_variants pv ON COALESCE(oi.variant_id, tt.variant_id) = pv.variant_id
+             LEFT JOIN provider_wallets pw ON COALESCE(oi.wallet_id, tt.wallet_id) = pw.wallet_id
              LEFT JOIN ticket_providers tp_wallet ON pw.provider_id = tp_wallet.provider_id
              LEFT JOIN provider_ticket_variants pv_wallet ON pw.variant_id = pv_wallet.variant_id
              WHERE oi.order_id IN ($orderIdList)
@@ -481,10 +544,11 @@ if ($useOrdersTable) {
             }
         }
         if ($search) {
-            $where[] = '(tt.transaction_code LIKE :ticket_search_code OR pa.fullname LIKE :ticket_search_passenger)';
+            $where[] = '(tt.transaction_code LIKE :ticket_search_code OR pa.fullname LIKE :ticket_search_passenger OR tt.ticket_notes LIKE :ticket_search_notes)';
             $searchValue = '%' . $search . '%';
             $params['ticket_search_code'] = $searchValue;
             $params['ticket_search_passenger'] = $searchValue;
+            $params['ticket_search_notes'] = $searchValue;
         }
         if ($status) { $where[] = 'tt.status = :status'; $params['status'] = $status; }
         if ($dateStart) { $where[] = 'tt.created_at >= :date_start'; $params['date_start'] = $dateStart; }
@@ -495,7 +559,8 @@ if ($useOrdersTable) {
         $ticketTxns = Database::fetchAll(
             "SELECT tt.transaction_id, tt.transaction_code, tt.base_amount, tt.service_fee, tt.discount_amount,
                     tt.total_amount, tt.status, tt.created_at, tt.travel_date, tt.origin, tt.destination,
-                    tt.remarks, tt.branch_id, tt.wallet_id, tt.created_by, tt.provider_id, tt.variant_id,
+                    tt.remarks, tt.ticket_notes, tt.branch_id, tt.wallet_id, tt.created_by, tt.provider_id, tt.variant_id,
+                    pw.provider_id as wallet_provider_id, pw.status as wallet_status,
                     'TICKET' as transaction_type,
                     pa.fullname as passenger_name, b.branch_name,
                     tp_op.provider_name as provider_name, tp_op.provider_type as provider_type,
@@ -503,6 +568,8 @@ if ($useOrdersTable) {
                     tp_parent.provider_name as parent_provider_name,
                     pv.variant_name as variant_name, pv.variant_code as variant_code,
                     tp_wallet.provider_name as wallet_provider_name,
+                    {$walletDeductAllSelect} as wallet_deduct_all_charges,
+                    {$walletDeductBaseOnlySelect} as wallet_deduct_base_only,
                     pv_wallet.variant_name as wallet_variant_name,
                     CASE WHEN pw.variant_id IS NOT NULL THEN 1 ELSE 0 END as wallet_is_variant,
                     tc.cancellation_id as pending_cancellation_id, tc.status as cancellation_status,

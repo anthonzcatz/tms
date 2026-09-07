@@ -323,6 +323,11 @@ $canCloseSession = $isManagerOrAdmin ? ($posManagerCloseRaw === 1) : ($posCashie
                         <span class="fas fa-times"></span>
                       </button>
                     </div>
+                    <div class="mt-2">
+                      <label class="form-label small text-muted" for="ticketNotes">Notes <span class="fw-normal">(optional)</span></label>
+                      <textarea class="form-control form-control-sm" id="ticketNotes" rows="2" maxlength="500" placeholder="Add an optional note"></textarea>
+                      <div class="form-text">This note is independent of the special action.</div>
+                    </div>
                   </div>
 
                   <div class="col-12">

@@ -22,7 +22,7 @@ final class TicketStockHelper
     private const STATUS_TRANSITIONS = [
         'DRAFT'              => ['SUBMITTED', 'CANCELLED'],
         'SUBMITTED'          => ['APPROVED', 'REJECTED', 'CANCELLED'],
-        'APPROVED'           => ['DISPATCHED', 'CANCELLED'],
+        'APPROVED'           => ['DISPATCHED', 'RECEIVED', 'PARTIALLY_RECEIVED', 'CANCELLED'],
         'DISPATCHED'         => ['RECEIVED', 'PARTIALLY_RECEIVED', 'DISPUTED', 'CANCELLED'],
         'PARTIALLY_RECEIVED' => ['RECEIVED', 'CLOSED', 'CANCELLED', 'DISPUTED'],
         'RECEIVED'           => ['CLOSED', 'CANCELLED'],
@@ -180,6 +180,63 @@ final class TicketStockHelper
         return (int) ($row['available_qty'] ?? 0);
     }
 
+    public static function releaseExpiredReservations(
+        int $branchId,
+        int $providerId,
+        int $variantId
+    ): int {
+        return self::runInTransaction(function (PDO $pdo) use ($branchId, $providerId, $variantId): int {
+            $stock = self::getBranchStock($branchId, $providerId, $variantId, true);
+            if (!$stock) {
+                return 0;
+            }
+
+            $reservations = Database::fetchAll(
+                "SELECT `reservation_id`, `reserved_qty`
+                 FROM `ticket_stock_reservations`
+                 WHERE `branch_id` = :branch_id
+                   AND `provider_id` = :provider_id
+                   AND `variant_id` = :variant_id
+                   AND `expires_at` <= NOW()
+                 FOR UPDATE",
+                [
+                    'branch_id' => $branchId,
+                    'provider_id' => $providerId,
+                    'variant_id' => $variantId,
+                ]
+            );
+            if (!$reservations) {
+                return 0;
+            }
+
+            $expiredQty = array_sum(array_map(
+                static fn (array $reservation): int => max(0, (int) $reservation['reserved_qty']),
+                $reservations
+            ));
+            $reservedBefore = max(0, (int) $stock['reserved_qty']);
+            $releaseQty = min($reservedBefore, $expiredQty);
+            if ($releaseQty > 0) {
+                self::upsertBranchStock(
+                    $pdo,
+                    $branchId,
+                    $providerId,
+                    $variantId,
+                    'reserved_qty',
+                    -$releaseQty
+                );
+            }
+
+            foreach ($reservations as $reservation) {
+                Database::execute(
+                    'DELETE FROM ticket_stock_reservations WHERE reservation_id = :reservation_id',
+                    ['reservation_id' => (int) $reservation['reservation_id']]
+                );
+            }
+
+            return count($reservations);
+        });
+    }
+
     /* ============================================================
        AVAILABILITY VALIDATION
        ============================================================ */
@@ -217,6 +274,7 @@ final class TicketStockHelper
             throw new Exception('Ticket variant is inactive.');
         }
 
+        self::releaseExpiredReservations($branchId, $providerId, $variantId);
         $available = self::availableQty($branchId, $providerId, $variantId);
 
         if ($qty > $available && !self::allowNegativeStock()) {

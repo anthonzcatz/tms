@@ -24,6 +24,24 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
     );
 }
 
+function isDuplicateOrderCodeError(Throwable $e): bool {
+    $message = strtolower($e->getMessage());
+    return strpos($message, 'duplicate entry') !== false && strpos($message, 'order_code') !== false;
+}
+
+function findExistingPosOrder(string $orderCode, int $userId, int $sessionId, int $branchId): ?array {
+    return Database::fetch(
+        "SELECT order_id, order_code, grand_total, amount_paid, change_amount
+         FROM pos_orders
+         WHERE order_code = :code
+           AND created_by = :uid
+           AND cashier_session_id = :session
+           AND branch_id = :branch
+         LIMIT 1",
+        ['code' => $orderCode, 'uid' => $userId, 'session' => $sessionId, 'branch' => $branchId]
+    );
+}
+
 Auth::requireLogin();
 $user = Auth::user();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -40,6 +58,13 @@ $sessionId = $input['session_id'] ?? null;
 $branchId  = $input['branch_id']  ?? null;
 $items     = $input['items']      ?? [];
 $payments  = $input['payments']   ?? [];
+$requestedOrderCode = trim((string) ($input['order_code'] ?? ''));
+
+if ($requestedOrderCode !== '' && !preg_match('/^ORD-\d{8}-\d{6}-[A-F0-9]{16}$/i', $requestedOrderCode)) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'error' => 'Invalid order request code.']);
+    exit;
+}
 
 // Validate
 if (!$sessionId)        { echo json_encode(['success' => false, 'error' => 'Session ID required.']); exit; }
@@ -113,7 +138,7 @@ try {
         Database::connection()->beginTransaction();
 
         // --- Create pos_orders record: ORD-YYYYMMDD-HHMM-### (sequential) ---
-        $orderCode = generateOrderCode();
+        $orderCode = $requestedOrderCode ?: generateOrderCode();
 
         // For service transactions: total_add_ons = order total, total_profit = order total (no costs)
         $totalCost = 0;
@@ -385,6 +410,23 @@ try {
     // Rollback transaction on error
     if (Database::connection()->inTransaction()) {
         Database::connection()->rollBack();
+    }
+
+    if ($requestedOrderCode !== '' && isDuplicateOrderCodeError($e)) {
+        $existingOrder = findExistingPosOrder($requestedOrderCode, (int) $user['user_id'], $sessionId, $branchId);
+        if ($existingOrder) {
+            echo json_encode([
+                'success'          => true,
+                'already_processed' => true,
+                'message'          => 'Transaction already processed.',
+                'transaction_code' => $existingOrder['order_code'],
+                'order_id'         => (int) $existingOrder['order_id'],
+                'total'            => (float) $existingOrder['grand_total'],
+                'paid'             => (float) $existingOrder['amount_paid'],
+                'change'           => (float) $existingOrder['change_amount'],
+            ]);
+            exit;
+        }
     }
 
     error_log('POS Transaction Error: ' . $e->getMessage());

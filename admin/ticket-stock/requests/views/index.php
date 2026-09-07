@@ -28,7 +28,7 @@
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
           <h4 class="mb-1 text-primary">Ticket Stock <span class="text-info">Requests</span></h4>
-          <small class="text-muted">Request, approve, dispatch, receive, and close branch stock transfers.</small>
+          <small class="text-muted">Request, approve, receive, and close ticket stock requests.</small>
         </div>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createStockRequestModal"><span class="fas fa-plus me-1"></span>New Request</button>
       </div>
@@ -36,11 +36,15 @@
   </div>
 </div>
 <?php $activeTicketStockModule = 'requests'; include dirname(dirname(__DIR__)) . '/_partials/ticket_stock_nav.php'; ?>
-<div class="card mb-3">
+<div class="card border-0 shadow-sm mb-3 ticket-stock-filter-card">
+  <div class="card-header bg-body-tertiary">
+    <h6 class="mb-1 fw-bold"><span class="fas fa-filter me-2 text-primary"></span>Request filters</h6>
+    <small class="text-muted">Filter requests by status, branch, provider, reason, today, month, year, or a custom date range.</small>
+  </div>
   <div class="card-body">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-3">
-        <label class="form-label small">Status</label>
+    <form id="requestFilters" class="row g-3 align-items-end" onsubmit="event.preventDefault(); loadTicketStockRequests();">
+      <div class="col-12 col-sm-6 col-lg-2">
+        <label class="form-label small fw-semibold" for="requestStatus">Status</label>
         <select class="form-select" id="requestStatus">
           <option value="">All statuses</option>
           <option>DRAFT</option>
@@ -50,14 +54,72 @@
           <option>PARTIALLY_RECEIVED</option>
           <option>RECEIVED</option>
           <option>REJECTED</option>
+          <option>DISPUTED</option>
           <option>CLOSED</option>
           <option>CANCELLED</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100" onclick="loadTicketStockRequests()"><span class="fas fa-filter me-1"></span>Apply</button>
+      <div class="col-12 col-sm-6 col-lg-2">
+        <label class="form-label small fw-semibold" for="requestBranch">Branch</label>
+        <select class="form-select" id="requestBranch">
+          <option value="">All accessible branches</option>
+          <?php foreach ($branches as $branch): ?>
+            <option value="<?php echo (int) $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php endforeach; ?>
+        </select>
       </div>
-    </div>
+      <div class="col-12 col-sm-6 col-lg-2">
+        <label class="form-label small fw-semibold" for="requestProvider">Provider</label>
+        <select class="form-select" id="requestProvider">
+          <option value="">All providers</option>
+          <?php foreach ($providers as $provider): ?>
+            <option value="<?php echo (int) $provider['provider_id']; ?>"><?php echo htmlspecialchars($provider['provider_code'] . ' - ' . $provider['provider_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-2">
+        <label class="form-label small fw-semibold" for="requestReason">Reason</label>
+        <select class="form-select" id="requestReason">
+          <option value="">All reasons</option>
+          <option value="REPLENISHMENT">Replenishment</option>
+          <option value="OPENING_BALANCE">Opening balance</option>
+          <option value="TRANSFER">Transfer</option>
+          <option value="EMERGENCY">Emergency</option>
+          <option value="RETURN_REPLACEMENT">Return replacement</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-2">
+        <label class="form-label small fw-semibold" for="requestDateMode">Date period</label>
+        <select class="form-select" id="requestDateMode">
+          <option value="today" selected>Today</option>
+          <option value="all">All dates</option>
+          <option value="month">By month</option>
+          <option value="range">Custom date range</option>
+          <option value="year">By year (annual)</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary flex-grow-1"><span class="fas fa-filter me-1"></span>Apply</button>
+        <button type="button" class="btn btn-falcon-default" title="Reset filters" aria-label="Reset filters" onclick="resetTicketStockRequestFilters()"><span class="fas fa-undo"></span></button>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3 d-none" id="requestMonthFilter">
+        <label class="form-label small fw-semibold" for="requestFilterMonth">Month</label>
+        <input type="month" class="form-control" id="requestFilterMonth">
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3 d-none" id="requestDateFromFilter">
+        <label class="form-label small fw-semibold" for="requestFilterDateFrom">Start date</label>
+        <input type="date" class="form-control" id="requestFilterDateFrom">
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3 d-none" id="requestDateToFilter">
+        <label class="form-label small fw-semibold" for="requestFilterDateTo">End date</label>
+        <input type="date" class="form-control" id="requestFilterDateTo">
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3 d-none" id="requestYearFilter">
+        <label class="form-label small fw-semibold" for="requestFilterYear">Year / annual</label>
+        <input type="number" class="form-control" id="requestFilterYear" min="1000" max="9998" step="1" placeholder="YYYY">
+      </div>
+    </form>
   </div>
 </div>
 <div class="card">
@@ -67,8 +129,7 @@
         <thead class="table-light">
           <tr>
             <th>Request</th>
-            <th>Source Wallet</th>
-            <th>Source</th>
+            <th>Request date</th>
             <th>Destination</th>
             <th>Provider</th>
             <th>Reason</th>
@@ -78,7 +139,7 @@
             <th class="text-end">Action</th>
           </tr>
         </thead>
-        <tbody><tr><td colspan="10" class="text-center py-4">Loading...</td></tr></tbody>
+        <tbody><tr><td colspan="9" class="text-center py-4">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -97,41 +158,7 @@
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="card border-0 shadow-sm mb-3">
-          <div class="card-header bg-light border-0 py-2">
-            <h6 class="mb-0 fw-bold"><span class="fas fa-wallet text-primary me-2"></span>Source Wallet</h6>
-          </div>
-          <div class="card-body">
-            <label class="form-label fw-bold" for="createSourceWallet">Wallet <span class="text-muted fw-normal">(optional)</span></label>
-            <select class="form-select" id="createSourceWallet">
-              <option value="">No wallet / external provider source</option>
-              <?php foreach ($wallets as $wallet): ?>
-              <option value="<?php echo (int) $wallet['wallet_id']; ?>" data-provider-id="<?php echo (int) $wallet['provider_id']; ?>" data-branch-id="<?php echo (int) $wallet['branch_id']; ?>" data-variant-id="<?php echo $wallet['variant_id'] ? (int) $wallet['variant_id'] : ''; ?>" data-balance="<?php echo htmlspecialchars((string) $wallet['current_balance']); ?>" data-on-hand-qty="<?php echo (int) ($wallet['on_hand_qty'] ?? 0); ?>" data-available-qty="<?php echo (int) ($wallet['available_qty'] ?? 0); ?>" data-name="<?php echo htmlspecialchars($wallet['wallet_name']); ?>"><?php echo htmlspecialchars($wallet['wallet_name']); ?></option>
-              <?php endforeach; ?>
-            </select>
-            <div class="alert alert-info py-2 mt-3 mb-0 d-none" id="sourceWalletInfo">
-              <div class="d-flex align-items-center justify-content-between">
-                <div>
-                  <strong id="sourceWalletBalanceLabel">Current Balance:</strong> <span id="sourceWalletBalance">₱0.00</span>
-                  <small class="d-block text-muted" id="sourceWalletName">-</small>
-                </div>
-                <span class="fas fa-wallet fs-4"></span>
-              </div>
-            </div>
-            <small class="text-muted d-block mt-2">If no wallet is selected, the request will use an external provider source. The destination branch will receive stock directly.</small>
-          </div>
-        </div>
-
         <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label">Source Branch</label>
-            <select class="form-select" id="createSourceBranch">
-              <option value="">External/provider source</option>
-              <?php foreach ($branches as $branch): ?>
-              <option value="<?php echo (int) $branch['branch_id']; ?>"><?php echo htmlspecialchars($branch['branch_name']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
           <div class="col-md-6">
             <label class="form-label">Destination Branch <span class="text-danger">*</span></label>
             <select class="form-select" id="createDestinationBranch">
@@ -155,7 +182,6 @@
             <select class="form-select" id="createReason">
               <option>REPLENISHMENT</option>
               <option>OPENING_BALANCE</option>
-              <option>TRANSFER</option>
               <option>EMERGENCY</option>
               <option>RETURN_REPLACEMENT</option>
               <option>OTHER</option>
@@ -174,7 +200,6 @@
                   <option value="<?php echo (int) $variant['variant_id']; ?>" data-provider-id="<?php echo (int) $variant['provider_id']; ?>"><?php echo htmlspecialchars($variant['variant_code'] . ' - ' . $variant['variant_name']); ?></option>
                   <?php endforeach; ?>
                 </select>
-                <span class="form-control-plaintext request-item-wallet-label d-none small fw-bold text-primary py-2"></span>
               </div>
               <div class="col-3">
                 <input type="number" class="form-control request-item-qty" min="1" placeholder="Qty">
@@ -226,9 +251,9 @@
 <script>
   window.TICKET_STOCK_PAGE = 'requests';
   window.DEFAULT_DESTINATION_BRANCH_ID = <?php echo $defaultDestinationBranchId ? (int) $defaultDestinationBranchId : 'null'; ?>;
-  window.DESTINATION_BRANCH_IDS = <?php echo ($userRoleCode ?? ($user['role_code'] ?? '')) === 'SUPER_ADMIN' ? 'null' : json_encode($userBranchIds); ?>;
+  window.DESTINATION_BRANCH_IDS = <?php echo $canViewAllTicketStock ? 'null' : json_encode($userBranchIds); ?>;
 </script>
-<script src="<?php echo BASE_URL; ?>/admin/ticket-stock/assets/js/ticket-stock.js"></script>
+<script src="<?php echo BASE_URL; ?>/admin/ticket-stock/assets/js/ticket-stock.js?v=<?php echo filemtime(dirname(dirname(__DIR__)) . '/assets/js/ticket-stock.js'); ?>"></script>
 <script>
 function addRequestItemRow() {
   const container = document.getElementById('createRequestItems');
@@ -245,19 +270,10 @@ function addRequestItemRow() {
   const variantSelect = clone.querySelector('.request-item-variant');
   variantSelect.value = '';
   variantSelect.disabled = false;
-  const label = clone.querySelector('.request-item-wallet-label');
-  if (label) {
-    label.textContent = '';
-    label.classList.add('d-none');
-  }
   const qtyInput = clone.querySelector('.request-item-qty');
   if (qtyInput) qtyInput.value = '';
   container.appendChild(clone);
-  const walletSelect = document.getElementById('createSourceWallet');
-  const walletOption = walletSelect.options[walletSelect.selectedIndex];
-  const walletProviderId = walletSelect.value ? walletOption.dataset.providerId : providerId;
-  const walletVariantId = walletSelect.value ? (walletOption.dataset.variantId || '') : '';
-  updateRequestVariantOptions(walletProviderId || '', walletVariantId);
+  updateRequestVariantOptions(providerId || '');
 }
 
 function removeRequestItemRow(btn) {
@@ -269,11 +285,6 @@ function removeRequestItemRow(btn) {
     if (qtyInput) qtyInput.value = '';
     const sel = row.querySelector('.request-item-variant');
     if (sel) sel.value = '';
-    const lbl = row.querySelector('.request-item-wallet-label');
-    if (lbl) {
-      lbl.textContent = '';
-      lbl.classList.add('d-none');
-    }
     return;
   }
   row.remove();
@@ -281,12 +292,15 @@ function removeRequestItemRow(btn) {
 
 async function submitStockRequest(submit) {
   const destinationBranchId = document.getElementById('createDestinationBranch').value;
+  const providerId = document.getElementById('createProvider').value;
   if (!destinationBranchId) {
     ticketStockToast('error', 'Please select a destination branch.');
     return;
   }
-  const walletSelect = document.getElementById('createSourceWallet');
-  const walletOption = walletSelect.options[walletSelect.selectedIndex];
+  if (!providerId) {
+    ticketStockToast('error', 'Please select a provider.');
+    return;
+  }
   const rawItems = [...document.querySelectorAll('.request-item-row')].map(row => ({
     variant_id: row.querySelector('.request-item-variant').value,
     requested_qty: row.querySelector('.request-item-qty').value
@@ -304,17 +318,11 @@ async function submitStockRequest(submit) {
     ticketStockToast('error', 'Requested quantity must be greater than 0.');
     return;
   }
-  if (!walletSelect.value && !document.getElementById('createProvider').value) {
-    ticketStockToast('error', 'Please select a provider or source wallet.');
-    return;
-  }
   try {
     await ticketStockMutate({
       action: 'request_create',
-      wallet_id: walletSelect.value || null,
-      source_branch_id: document.getElementById('createSourceBranch').value || null,
       destination_branch_id: destinationBranchId,
-      provider_id: document.getElementById('createProvider').value,
+      provider_id: providerId,
       request_reason: document.getElementById('createReason').value,
       remarks: document.getElementById('createRequestRemarks').value.trim(),
       items: items.map(item => ({ ...item, requested_qty: String(item.requested_qty) })),

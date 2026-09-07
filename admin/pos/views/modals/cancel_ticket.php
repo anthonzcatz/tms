@@ -143,7 +143,7 @@
               <div id="cancelVoidFeeRow" style="display:none;">
                 <label class="form-label fw-semibold" for="cancelVoidFee">Void Fee (₱)</label>
                 <input type="number" class="form-control" id="cancelVoidFee" placeholder="0.00" min="0" step="0.01" value="0.00" oninput="toggleTicketAdjustmentFields()">
-                <small class="text-muted">Optional fee recorded as Void income. This field is not used for refunds.</small>
+                <small class="text-muted" id="cancelVoidFeeHelp">Optional fee recorded as Void income. This field is not used for refunds.</small>
               </div>
             </div>
 
@@ -155,7 +155,7 @@
               <div id="cancelVoidServiceFeeRow" style="display:none;">
                 <label class="form-label fw-semibold" for="cancelVoidServiceFee">Service Fee (₱)</label>
                 <input type="number" class="form-control" id="cancelVoidServiceFee" placeholder="0.00" min="0" step="0.01" value="0.00" oninput="toggleTicketAdjustmentFields()">
-                <small class="text-muted">Optional service fee recorded as income for this Void. It is not returned to the customer.</small>
+                <small class="text-muted" id="cancelVoidServiceFeeHelp">Optional service fee recorded as income for this Void. It is not returned to the customer.</small>
               </div>
             </div>
 
@@ -163,6 +163,7 @@
               <label class="form-label fw-semibold" for="cancelReasonCategory">Reason Category <span class="text-danger">*</span></label>
               <select class="form-select" id="cancelReasonCategory" onchange="syncTicketResponsibilityFromReason(); toggleTicketAdjustmentFields()">
                 <option value="CUSTOMER_REQUEST">Customer requested</option>
+                <option value="CANCEL">Cancel</option>
                 <option value="CUSTOMER_ERROR">Customer error</option>
                 <option value="CASHIER_ERROR">Cashier error</option>
                 <option value="OTHER">Other</option>

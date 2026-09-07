@@ -77,6 +77,38 @@ function requireWalletBranchAccess(?int $branchId): void
     }
 }
 
+function providerWalletPolicySelect(string $providerAlias = 'tp'): string
+{
+    static $hasNewSettings;
+    static $hasLegacySetting;
+
+    if ($hasNewSettings === null) {
+        try {
+            $hasNewSettings = (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'wallet_deduct_all_charges'")
+                && (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'wallet_deduct_base_only'");
+        } catch (Throwable $e) {
+            $hasNewSettings = false;
+        }
+    }
+
+    if ($hasNewSettings) {
+        return "{$providerAlias}.wallet_deduct_all_charges AS wallet_deduct_all_charges, "
+            . "{$providerAlias}.wallet_deduct_base_only AS wallet_deduct_base_only";
+    }
+
+    if ($hasLegacySetting === null) {
+        try {
+            $hasLegacySetting = (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'void_fee_wallet_enabled'");
+        } catch (Throwable $e) {
+            $hasLegacySetting = false;
+        }
+    }
+
+    return $hasLegacySetting
+        ? "{$providerAlias}.void_fee_wallet_enabled AS wallet_deduct_all_charges, 1 AS wallet_deduct_base_only"
+        : '0 AS wallet_deduct_all_charges, 1 AS wallet_deduct_base_only';
+}
+
 // Get request method
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -157,7 +189,9 @@ function handleGet() {
 
     // Get single wallet
     if ($walletId) {
+        $policySelect = providerWalletPolicySelect('tp');
         $sql = "SELECT pw.*,
+                       {$policySelect},
                        tp.provider_code,
                        tp.provider_name,
                        tp.provider_type,
@@ -346,8 +380,10 @@ function handleGet() {
             exit;
         }
 
+        $policySelect = providerWalletPolicySelect('tp');
         $walletDetails = Database::fetch(
             "SELECT pw.*,
+                    {$policySelect},
                     tp.provider_name,
                     bb.branch_name,
                     pv.variant_id as variant_id,
@@ -415,7 +451,9 @@ function handleGet() {
         }
     }
 
+    $policySelect = providerWalletPolicySelect('tp');
     $sql = "SELECT pw.*,
+                   {$policySelect},
                    tp.provider_id as ticket_provider_id,
                    tp.provider_name,
                    tp.provider_type,

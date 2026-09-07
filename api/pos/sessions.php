@@ -24,6 +24,19 @@ function logActivity($userId, $action, $module, $ref = null, $old = null, $new =
     );
 }
 
+function getSessionCashAdjustments(int $sessionId): float {
+    return (float) Database::fetch(
+        "SELECT COALESCE(SUM(ta.amount), 0) AS total
+         FROM ticket_adjustments ta
+         LEFT JOIN ticket_cancellations tc ON tc.cancellation_id = ta.cancellation_id
+         WHERE ta.cashier_session_id = :sid
+           AND ta.settlement_status = 'DEDUCTED'
+           AND ta.charged_to = 'cashier'
+           AND COALESCE(tc.reason_category, '') IN ('PRINTER_ERROR', 'SYSTEM_ERROR', 'CASHIER_ERROR')",
+        ['sid' => $sessionId]
+    )['total'];
+}
+
 function getSessionVoidSummary(int $sessionId): array {
     return Database::fetch(
         "SELECT
@@ -127,6 +140,47 @@ function getSessionVoidSummary(int $sessionId): array {
             'sid_pending_amount' => $sessionId,
         ]
     ) ?: [];
+}
+
+function getSessionPrinterFeeAddOnAmount(int $sessionId): float
+{
+    $row = Database::fetch(
+        "SELECT COALESCE(SUM(st.total_amount), 0) AS amount
+         FROM service_transactions st
+         JOIN service_types st_type
+           ON st_type.service_type_id = st.service_type_id
+         WHERE st.cashier_session_id = :session_id
+           AND st.status = 'completed'
+           AND (st_type.code = 'PRINT_FEE'
+                OR TRIM(UPPER(st_type.name)) = 'PRINT FEE')
+           AND NOT EXISTS (
+               SELECT 1
+               FROM transaction_payments tp_service
+               WHERE tp_service.source_type = 'SERVICE_TRANSACTION'
+                 AND tp_service.source_id = st.service_txn_id
+           )
+           AND NOT EXISTS (
+               SELECT 1
+               FROM pos_order_items oi_service
+               JOIN pos_order_items oi_ticket
+                 ON oi_ticket.order_id = oi_service.order_id
+                AND oi_ticket.item_type = 'TICKET'
+               JOIN ticket_transactions tt_void
+                 ON tt_void.transaction_id = oi_ticket.reference_id
+               JOIN ticket_cancellations tc_void
+                 ON tc_void.transaction_id = tt_void.transaction_id
+               WHERE oi_service.item_type = 'SERVICE'
+                 AND oi_service.reference_id = st.service_txn_id
+                 AND tt_void.status IN ('cancelled', 'refunded')
+                 AND tc_void.operation_type = 'VOID'
+                 AND tc_void.status IN ('approved', 'completed')
+                 AND COALESCE(tc_void.reason_category, 'OTHER')
+                     NOT IN ('CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR')
+           )",
+        ['session_id' => $sessionId]
+    );
+
+    return round((float) ($row['amount'] ?? 0), 2);
 }
 
 function getSessionRefundSummary(int $sessionId): array {
@@ -264,6 +318,22 @@ function handleGet() {
             $session['lost_sales_void_fee'] + $session['lost_sales_service_fee'],
             2
         );
+        $session['printer_fee_add_on_amount'] = getSessionPrinterFeeAddOnAmount((int) $session['session_id']);
+        $printerFeeAddOnAmount = (float) $session['printer_fee_add_on_amount'];
+        if ($printerFeeAddOnAmount > 0) {
+            $payments[] = [
+                'method_name' => 'Printer Fee (Add-on)',
+                'method_type' => 'ADD_ON',
+                'include_in_expected_cash' => 1,
+                'is_active' => 1,
+                'sort_order' => PHP_INT_MAX,
+                'gross_amount' => $printerFeeAddOnAmount,
+                'refunded_amount' => 0.0,
+                'active_amount' => $printerFeeAddOnAmount,
+                'total_amount' => $printerFeeAddOnAmount,
+                'is_add_on' => true,
+            ];
+        }
         $refundSummary = getSessionRefundSummary((int) $session['session_id']);
         $session['refunded_sales_amount'] = (float) ($refundSummary['refunded_sales_amount'] ?? 0);
         $session['refunded_cash_amount'] = (float) ($session['total_refunds'] ?? 0);
@@ -332,7 +402,7 @@ function handleGet() {
         // Recalculate expected cash based on payment method settings
         // Expected cash = starting cash + cash payments - cash change - refunds - responsibility deductions
         $pendingRefundsCash = $showPendingRefunds ? floatval($session['pending_refunds_cash'] ?? 0) : 0.0;
-        $totalCashAdjustments = floatval($session['total_cash_adjustments'] ?? 0);
+        $totalCashAdjustments = getSessionCashAdjustments((int) $session['session_id']);
         $voidedCashAmount = floatval($session['voided_cash_amount'] ?? 0);
         $session['expected_cash'] = $session['starting_cash'] + $expectedCashPayments
             + $session['void_income'] - $session['technical_lost_sales_amount']
@@ -587,7 +657,7 @@ function handlePut() {
         // If configured, also reserve pending refund cash so the cashier accounts for it.
         $showPendingRefunds = ($settings['show_pending_refunds_in_close_session'] ?? 0) == 1;
         $pendingRefundsCash = $showPendingRefunds ? floatval($session['pending_refunds_cash'] ?? 0) : 0.0;
-        $totalCashAdjustments = floatval($session['total_cash_adjustments'] ?? 0);
+        $totalCashAdjustments = getSessionCashAdjustments((int) $session['session_id']);
         $voidSummary = getSessionVoidSummary((int) $session['session_id']);
         $voidIncome = round(
             (float) ($voidSummary['void_fee'] ?? 0) + (float) ($voidSummary['void_service_fee'] ?? 0),
@@ -597,8 +667,9 @@ function handlePut() {
             (float) ($voidSummary['lost_sales_void_fee'] ?? 0) + (float) ($voidSummary['lost_sales_service_fee'] ?? 0),
             2
         );
+        $printerFeeAddOnAmount = getSessionPrinterFeeAddOnAmount((int) $session['session_id']);
         $expectedCash = $session['starting_cash'] + $expectedCashPayments
-            + $voidIncome - $voidLostSalesAmount
+            + $printerFeeAddOnAmount + $voidIncome - $voidLostSalesAmount
             - $totalCashChange - $completedRefundsAmount - $pendingRefundsCash - $totalCashAdjustments;
         $variance = $closingCash - $expectedCash;
 
@@ -620,13 +691,15 @@ function handlePut() {
                     ended_at = :ended_at, actual_cash = :close, expected_cash = :expected,
                     cash_variance = :variance, status = 'CLOSED', notes = :notes,
                     cash_deposit_bank_id = :bank_id, deposit_status = :deposit_status,
-                    deposited_at = :deposited_at, deposited_by = :deposited_by
+                    deposited_at = :deposited_at, deposited_by = :deposited_by,
+                    total_cash_adjustments = :total_cash_adjustments
                  WHERE session_id = :id AND status = 'OPEN'",
                 [
                     'ended_at' => date('Y-m-d H:i:s'),
                     'close' => $closingCash, 'expected' => $expectedCash, 'variance' => $variance,
                     'notes' => $notes, 'bank_id' => $cashDepositBankId, 'deposit_status' => $depositStatus,
                     'deposited_at' => $depositNow ? date('Y-m-d H:i:s') : null, 'deposited_by' => $depositNow ? $user['user_id'] : null,
+                    'total_cash_adjustments' => $totalCashAdjustments,
                     'id' => $sessionId
                 ]
             );

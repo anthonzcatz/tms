@@ -40,18 +40,33 @@ const isTechnicalIssueReason = reasonCategory => ['PRINTER_ERROR', 'SYSTEM_ERROR
     .includes(String(reasonCategory || '').toUpperCase());
 const isApprovedVoid = txn => txn.adjustment_type === 'VOID' && txn.adjustment_approval_status === 'APPROVED';
 const isTechnicalIssueVoid = txn => isApprovedVoid(txn) && isTechnicalIssueReason(txn.adjustment_reason_category);
-const getTechnicalLostSalesAmount = txn => Number(txn.technical_void_amount || txn.lost_sales_void_fee) || 0;
+const getTechnicalLostSalesAmount = txn => Number(txn.lost_sales_void_fee) || 0;
 const isCashierResponsibilityVoid = txn => txn.adjustment_type === 'VOID'
     && String(txn.adjustment_responsibility || '').toUpperCase() === 'CASHIER';
+const isNoChargeVoid = txn => isApprovedVoid(txn)
+    && (Number(txn.void_fee) || 0) <= 0
+    && (Number(txn.void_service_fee) || 0) <= 0
+    && (Number(txn.lost_sales_void_fee) || 0) <= 0
+    && (Number(txn.lost_sales_service_fee) || 0) <= 0;
+const getActiveAddOnSalesAmount = txn => {
+    const addOnsAmount = Number(txn.total_add_ons) || 0;
+    const serviceCount = Number(txn.service_count) || 0;
+    const isCancelOnlyVoid = Number(txn.cancel_void_only) === 1;
+    if (isNoChargeVoid(txn)) return 0;
+    return addOnsAmount > 0 && serviceCount > 0 && !isCancelOnlyVoid ? addOnsAmount : 0;
+};
 const getTransactionDisplayAmount = txn => {
+    const activeAddOnSales = getActiveAddOnSalesAmount(txn);
     if (isTechnicalIssueVoid(txn)) {
-        return -getTechnicalLostSalesAmount(txn);
+        return activeAddOnSales;
     }
     if (isCashierResponsibilityVoid(txn)) {
-        return Number(txn.adjustment_amount) || 0;
+        return activeAddOnSales + (Number(txn.adjustment_amount) || 0);
     }
     if (isApprovedVoid(txn)) {
-        return (Number(txn.void_fee) || 0) + (Number(txn.void_service_fee) || 0);
+        return activeAddOnSales
+            + (Number(txn.void_fee) || 0)
+            + (Number(txn.void_service_fee) || 0);
     }
     const total = Number(txn.total_amount) || 0;
     const refunded = Number(txn.total_refunded_amount) || 0;
@@ -251,9 +266,20 @@ async function loadTransactions(page, options = {}) {
     const url = window.POS_TXN_CONFIG.apiUrl + '?' + new URLSearchParams(params).toString();
 
     try {
-        const res    = await fetch(url, { cache: 'no-store' });
-        const result = await res.json();
-        if (!result.success) throw new Error(result.error || 'Failed to load');
+        const res = await fetch(url, { cache: 'no-store' });
+        const responseText = await res.text();
+        let result = null;
+        try {
+            result = responseText ? JSON.parse(responseText) : null;
+        } catch {
+            result = null;
+        }
+        if (!res.ok) {
+            throw new Error(result?.error || `Transaction API returned HTTP ${res.status}.`);
+        }
+        if (!result || !result.success) {
+            throw new Error(result?.error || 'Transaction API returned invalid JSON.');
+        }
 
         if (result.marker) txnRealtimeMarker = result.marker;
         renderTable(result.data);
@@ -494,9 +520,66 @@ function populateDropdowns(filters) {
 const statusColors = { completed:'success', pending:'warning', cancelled:'danger', refunded:'secondary' };
 const statusIcons  = { completed:'fa-check-circle', pending:'fa-clock', cancelled:'fa-times-circle', refunded:'fa-undo' };
 
+function setAddOnsColumnVisibility(isVisible) {
+    const header = document.getElementById('transactionsAddOnsHeader');
+    if (header) header.classList.toggle('d-none', !isVisible);
+    document.querySelectorAll('#transactionsTableBody .transaction-add-ons-cell').forEach(cell => {
+        cell.classList.toggle('d-none', !isVisible);
+    });
+}
+
+function transactionProviderGroup(value) {
+    const firstValue = String(value || '').split(',')[0].trim();
+    return firstValue.split(/\s+-\s+/)[0].trim().toLocaleLowerCase();
+}
+
+function transactionTicketValue(value) {
+    return String(value || '').split(',')[0].trim();
+}
+
+function sortTransactionRows(rows) {
+    if (!Array.isArray(rows) || rows.length < 2) return rows || [];
+
+    const groupOrder = new Map();
+    rows.forEach(txn => {
+        const group = transactionProviderGroup(txn.wallet_provider_names);
+        if (group && !groupOrder.has(group)) groupOrder.set(group, groupOrder.size);
+    });
+
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    return rows.slice().sort((left, right) => {
+        const leftGroup = transactionProviderGroup(left.wallet_provider_names);
+        const rightGroup = transactionProviderGroup(right.wallet_provider_names);
+        if (leftGroup !== rightGroup) {
+            if (!leftGroup) return 1;
+            if (!rightGroup) return -1;
+            const groupOrderDifference = (groupOrder.get(leftGroup) ?? Number.MAX_SAFE_INTEGER)
+                - (groupOrder.get(rightGroup) ?? Number.MAX_SAFE_INTEGER);
+            if (groupOrderDifference !== 0) return groupOrderDifference;
+        }
+
+        const leftTicket = transactionTicketValue(left.ticket_numbers);
+        const rightTicket = transactionTicketValue(right.ticket_numbers);
+        if (leftTicket || rightTicket) {
+            if (!leftTicket) return 1;
+            if (!rightTicket) return -1;
+            const ticketOrder = collator.compare(leftTicket, rightTicket);
+            if (ticketOrder !== 0) return ticketOrder;
+        }
+
+        const leftDate = String(left.created_at || '');
+        const rightDate = String(right.created_at || '');
+        return rightDate.localeCompare(leftDate) || (Number(right.order_id) || 0) - (Number(left.order_id) || 0);
+    });
+}
+
 function renderTable(rows) {
     const tbody = document.getElementById('transactionsTableBody');
+    const orderedRows = sortTransactionRows(rows);
+    const hasAddOns = Array.isArray(orderedRows)
+        && orderedRows.some(txn => getActiveAddOnSalesAmount(txn) > 0);
     if (!rows || rows.length === 0) {
+        setAddOnsColumnVisibility(false);
         tbody.innerHTML = `<tr><td colspan="14"><div class="text-center py-5 text-muted d-flex flex-column align-items-center justify-content-center">
             <span class="fas fa-receipt fs-2 d-block mb-2 opacity-25"></span>
             <div>No transactions found</div>
@@ -505,7 +588,7 @@ function renderTable(rows) {
         return;
     }
 
-    tbody.innerHTML = rows.map(txn => {
+    tbody.innerHTML = orderedRows.map(txn => {
         const isTicket  = txn.ticket_count > 0;
         const isService = txn.service_count > 0;
 
@@ -520,6 +603,9 @@ function renderTable(rows) {
         const hasPending = txn.adjustment_approval_status === 'PENDING' ||
             (txn.has_cancellation && (txn.cancellation_status || '').toLowerCase() === 'pending');
         const isVoid = isApprovedVoid(txn);
+        const isCancelReason = String(txn.adjustment_reason_category || '').trim().toUpperCase() === 'CANCEL';
+        const isCancelOnlyVoid = Number(txn.cancel_void_only) === 1
+            || (!txn.order_id && isVoid && isCancelReason);
         const isRefund = hasRefund || txn.status === 'refunded';
 
         let finalStatus = txn.status || 'completed';
@@ -561,6 +647,9 @@ function renderTable(rows) {
         const passengerLine = txn.passenger_names
             ? `<div class="small text-truncate" style="max-width:160px" title="${esc(txn.passenger_names)}">${esc(txn.passenger_names)}</div>`
             : '';
+        const ticketNotesLine = txn.ticket_notes
+            ? `<div class="transaction-note text-muted mt-1" style="max-width:190px;max-height:2.8rem;overflow:hidden;white-space:pre-line;font-size:.7rem;" title="${esc(txn.ticket_notes)}"><span class="fas fa-sticky-note me-1"></span><span class="fw-semibold">Note:</span> ${esc(txn.ticket_notes)}</div>`
+            : '';
         const accommodationLine = txn.accommodation_names
             ? `<div class="text-muted" style="font-size:.7rem"><span class="fas fa-bed me-1"></span>${esc(txn.accommodation_names)}</div>`
             : '';
@@ -591,14 +680,15 @@ function renderTable(rows) {
         const costHtml = isVoid
             ? '<span class="text-muted">—</span>'
             : `<span class="fw-semibold">₱${fmt(txn.total_cost)}</span>`;
+        const voidFee = Number(txn.void_fee) || 0;
         const voidServiceFee = Number(txn.void_service_fee) || 0;
         const serviceFeeAmount = isVoid ? voidServiceFee : (Number(txn.total_service_fees) || 0);
+        const activeAddOnSales = getActiveAddOnSalesAmount(txn);
         const serviceFeeHtml = serviceFeeAmount > 0
             ? `<span class="fw-semibold">₱${fmt(serviceFeeAmount)}</span>`
             : '<span class="text-muted">—</span>';
-        const addOnsAmount = Number(txn.total_add_ons) || 0;
-        const addOnsHtml = (!isVoid && addOnsAmount > 0)
-            ? `<span class="fw-semibold">₱${fmt(addOnsAmount)}</span>`
+        const addOnsHtml = activeAddOnSales > 0
+            ? `<span class="fw-semibold">₱${fmt(activeAddOnSales)}</span>`
             : '<span class="text-muted">—</span>';
         const technicalVoidAmount = getTechnicalLostSalesAmount(txn);
         const displayAmount = getTransactionDisplayAmount(txn);
@@ -609,7 +699,6 @@ function renderTable(rows) {
             amountHtml += `<div class="text-danger transaction-lost-sales" style="font-size:.72rem">Lost Sales -₱${fmt(technicalVoidAmount)}</div>`;
         }
         if (isVoid && !isTechnicalIssueVoid(txn)) {
-            const voidFee = Number(txn.void_fee) || 0;
             const voidParts = [];
             if (voidFee > 0) voidParts.push(`Void Fee ₱${fmt(voidFee)}`);
             if (voidServiceFee > 0) voidParts.push(`service fee ₱${fmt(voidServiceFee)}`);
@@ -644,7 +733,7 @@ function renderTable(rows) {
               </div>`
             : '';
 
-        return `<tr class="txn-row" data-passenger-number="${esc(txn.passenger_numbers || '')}" data-ticket-number="${esc(txn.ticket_numbers || '')}" onclick="viewTxnDetail('${esc(txn.order_id)}')" title="Click to view details">
+        return `<tr class="txn-row" data-cancel-void="${isCancelOnlyVoid ? '1' : '0'}" data-passenger-number="${esc(txn.passenger_numbers || '')}" data-ticket-number="${esc(txn.ticket_numbers || '')}" onclick="viewTxnDetail('${esc(txn.order_id)}')" title="Click to view details">
             <td class="ps-3 py-2">
                 <div class="fw-semibold small">${esc(txn.ticket_numbers || '—')}</div>
                 <div class="d-none">${cancelBadge}</div>
@@ -654,6 +743,7 @@ function renderTable(rows) {
             </td>
             <td class="py-2">
                 ${passengerLine}
+                ${ticketNotesLine}
                 ${accommodationLine}
                 ${discountLine}
                 ${routeLine}
@@ -669,7 +759,7 @@ function renderTable(rows) {
             <td class="py-2">${payDisplay}</td>
             <td class="py-2 text-end">${costHtml}</td>
             <td class="py-2 text-end">${serviceFeeHtml}</td>
-            <td class="py-2 text-end">${addOnsHtml}</td>
+            <td class="py-2 text-end transaction-add-ons-cell${hasAddOns ? '' : ' d-none'}">${addOnsHtml}</td>
             <td class="py-2 text-end">${amountHtml}</td>
             <td class="py-2">
                 <span class="badge bg-soft-${statusInfo.color} text-${statusInfo.color}">
@@ -683,6 +773,7 @@ function renderTable(rows) {
             </td>
         </tr>`;
     }).join('');
+    setAddOnsColumnVisibility(hasAddOns);
 }
 
 function renderPagination(pg) {
@@ -827,6 +918,12 @@ function renderFinancialReport() {
     if (periodEl) periodEl.textContent = `Period: ${periodLabel}`;
 
     const providerSales = Array.isArray(data.provider_sales) ? data.provider_sales : [];
+    const technicalVoidCount = Number(data.technical_void_count || 0);
+    const technicalLostSalesAmount = Number(data.technical_lost_sales_amount ?? data.total_lost_sales ?? 0);
+    const hasTechnicalVoids = technicalVoidCount > 0;
+    const formatTechnicalVoidCell = (count, amount) => Number(count || 0) > 0
+        ? `<span class="financial-report-void-cell"><span class="financial-report-void-meta">${Number(count).toLocaleString('en-PH')} voided ticket${Number(count) === 1 ? '' : 's'}</span><span class="financial-report-void-separator" aria-hidden="true">/</span><span class="text-danger">${reportMoney(amount)}</span></span>`
+        : '<span class="text-muted">—</span>';
     const reportedAddOnsTotal = Number(data.total_add_ons ?? data.service_amount ?? 0);
     const normalizedProviderSales = providerSales.map(row => {
         const isServiceRow = Boolean(row.is_service);
@@ -849,7 +946,7 @@ function renderFinancialReport() {
     );
     const totalAddOns = Math.max(reportedAddOnsTotal, calculatedAddOnsTotal);
     const hasAddOns = totalAddOns > 0;
-    const providerColspan = hasAddOns ? 6 : 5;
+    const providerColspan = 5 + (hasAddOns ? 1 : 0) + (hasTechnicalVoids ? 1 : 0);
     const providerRows = providerSalesWithData.length
         ? providerSalesWithData.map(row => `
             <tr class="${row.is_service ? 'financial-report-service-row' : ''}">
@@ -859,6 +956,7 @@ function renderFinancialReport() {
               <td class="text-end">${reportMoneyOrDash(row.service_fee_income)}</td>
               ${hasAddOns ? `<td class="text-end">${reportMoneyOrDash(row.add_ons)}</td>` : ''}
               <td class="text-end">${reportMoney(row.total_amount)}</td>
+              ${hasTechnicalVoids ? `<td class="text-end">${formatTechnicalVoidCell(row.technical_void_count, row.technical_lost_sales_amount)}</td>` : ''}
             </tr>`).join('')
         : `<tr><td colspan="${providerColspan}" class="text-center text-muted">No ticket sales found for the selected filters.</td></tr>`;
 
@@ -900,7 +998,7 @@ function renderFinancialReport() {
 
     const totalSales = Number(data.total_sales || 0);
     const totalSalesRefunds = Number(data.total_sales_refunds || 0);
-    const netDeposit = Number(data.net_amount_for_deposit ?? Math.max(0, totalSales - totalSalesRefunds));
+    const netDeposit = Number(data.net_amount_for_deposit ?? Math.max(0, totalSales - totalSalesRefunds - technicalLostSalesAmount));
     const reportInput = (id, label, type, key, placeholder = '') => `
       <label class="financial-report-field" for="${id}">
         <span>${esc(label)}</span>
@@ -993,6 +1091,7 @@ function renderFinancialReport() {
                   <th class="text-end">Service Fee</th>
                   ${hasAddOns ? '<th class="text-end">Add-ons</th>' : ''}
                   <th class="text-end">Total Amount</th>
+                  ${hasTechnicalVoids ? '<th class="text-end">Voided – Technical Issue</th>' : ''}
                 </tr>
               </thead>
               <tbody>${providerRows}</tbody>
@@ -1004,6 +1103,7 @@ function renderFinancialReport() {
                   <th class="text-end">${reportMoney(totalServiceFeeIncome)}</th>
                   ${hasAddOns ? `<th class="text-end">${reportMoney(totalAddOns)}</th>` : ''}
                   <th class="text-end">${reportMoney(data.total_amount)}</th>
+                  ${hasTechnicalVoids ? `<th class="text-end">${formatTechnicalVoidCell(technicalVoidCount, technicalLostSalesAmount)}</th>` : ''}
                 </tr>
               </tfoot>
             </table>
@@ -1037,6 +1137,10 @@ function renderFinancialReport() {
           <div class="financial-report-section-title">DEPOSIT SUMMARY</div>
           <div class="financial-report-total-row"><span>TOTAL CASH SALES</span><strong>${reportMoney(totalSales)}</strong></div>
           <div class="financial-report-total-row financial-report-refund-row"><span>TOTAL SALES RETURN</span><strong>${reportMoney(totalSalesRefunds)}</strong></div>
+          <div class="financial-report-total-row financial-report-lost-sales-row">
+            <span>LOST SALES${hasTechnicalVoids ? `<span class="financial-report-lost-sales-separator" aria-hidden="true">|</span><small class="financial-report-row-note">VOIDED – TECHNICAL ISSUE · ${technicalVoidCount.toLocaleString('en-PH')} ticket${technicalVoidCount === 1 ? '' : 's'}</small>` : ''}</span>
+            <strong>${technicalLostSalesAmount > 0 ? `-₱${fmt(technicalLostSalesAmount)}` : '<span class="text-muted">—</span>'}</strong>
+          </div>
           <div class="financial-report-total-row financial-report-net-row"><span>NET AMOUNT FOR DEPOSIT</span><strong>${reportMoney(netDeposit)}</strong></div>
           <div class="financial-report-input-grid">
             ${reportInput('financialCashSalesForwarded', 'CASH SALES FORWARDED', 'number', 'cash_sales_forwarded')}
@@ -1741,13 +1845,24 @@ function renderDetailModal(txn) {
 
     // Payment methods
     let paymentsHtml = '';
-    const payments = txn.payment_methods_json
+    const paymentsFromJson = txn.payment_methods_json
         ? (typeof txn.payment_methods_json === 'string' ? JSON.parse(txn.payment_methods_json) : txn.payment_methods_json)
-        : (txn.payments || []);
+        : [];
+    const payments = Array.isArray(txn.payments) && txn.payments.length > 0
+        ? txn.payments
+        : paymentsFromJson;
     if (payments && payments.length > 0) {
-        paymentsHtml = payments.map(p =>
-            `<span class="badge bg-light text-dark border me-1 mb-1">${esc(p.method_name || p.method_code || '')} — ₱${fmt(p.amount)}</span>`
-        ).join('');
+        paymentsHtml = payments.map(p => {
+            const isCharge = Number(p.tracks_credit) === 1
+                || String(p.method_type || '').toUpperCase() === 'CHARGE'
+                || String(p.method_code || '').toUpperCase() === 'CHARGE'
+                || /\b(charge|utang)\b/i.test(String(p.method_name || ''));
+            const chargeAccountName = isCharge ? String(p.charged_to_passenger_name || '').trim() : '';
+            const chargeAccountLabel = chargeAccountName
+                ? `<span class="d-block text-muted small mt-1"><span class="fas fa-user-tie me-1"></span>Charge Account: ${esc(chargeAccountName)}</span>`
+                : '';
+            return `<span class="badge bg-light text-dark border me-1 mb-1 text-start" style="white-space:normal;">${esc(p.method_name || p.method_code || '')} — ₱${fmt(p.amount)}${chargeAccountLabel}</span>`;
+        }).join('');
     } else if (txn.payment_method) {
         paymentsHtml = `<span class="badge bg-light text-dark border">${esc(txn.payment_method)}</span>`;
     }
@@ -1760,6 +1875,8 @@ function renderDetailModal(txn) {
     );
     const refunded = Number(txn.total_refunded_amount) || 0;
     const detailTotalAmount = Number(txn.original_grand_total || txn.total_amount || txn.grand_total) || 0;
+    const detailIsTechnicalIssueVoid = isVoided && isTechnicalIssueReason(latestAdjustment.reason_category);
+    const detailDisplayAmount = detailIsTechnicalIssueVoid ? 0 : detailTotalAmount;
     const detailHasRefund = refunded > 0 || adjustments.some(adjustment =>
         String(adjustment.type || '').toUpperCase() === 'REFUND'
         && String(adjustment.approval_status || '').toUpperCase() === 'APPROVED'
@@ -1804,6 +1921,7 @@ function renderDetailModal(txn) {
     items.forEach(item => {
         const isTicket = item.item_type === 'TICKET';
         const ticketAction = isTicket ? getTicketActionLabel(item.ticket_action ?? item.ticketAction) : '';
+        const ticketNotes = isTicket ? String(item.ticket_notes || '').trim() : '';
         itemsHtml += `<div class="card mb-2 border-light shadow-sm">
             <div class="card-body p-2">
                 <div class="d-flex justify-content-between align-items-start">
@@ -1814,6 +1932,7 @@ function renderDetailModal(txn) {
                         </div>
                         ${item.ticket_number ? `<div class="text-primary small mb-1"><span class="fas fa-ticket-alt me-1"></span>${esc(item.ticket_number)}</div>` : ''}
                         ${ticketAction ? `<div class="text-info small mb-1"><span class="fas fa-exchange-alt me-1"></span>Special Action: ${esc(ticketAction)}</div>` : ''}
+                        ${ticketNotes ? `<div class="text-muted small mb-1" style="white-space:pre-line;"><span class="fas fa-sticky-note me-1"></span>Note: ${esc(ticketNotes)}</div>` : ''}
                         ${item.name ? `<div class="text-muted small mb-1"><span class="fas fa-user me-1"></span>${esc(item.name)}</div>` : ''}
                         ${item.origin && item.destination ? `<div class="text-muted small mb-1"><span class="fas fa-route me-1"></span>${esc(item.origin)} → ${esc(item.destination)}</div>` : ''}
                         ${item.travel_date ? `<div class="text-muted small mb-1"><span class="fas fa-calendar me-1"></span>Travel: ${formatDate(item.travel_date)}</div>` : ''}
@@ -1909,7 +2028,7 @@ function renderDetailModal(txn) {
                                 <span>Service Fee</span>
                                 <span>₱${fmt(txn.total_service_fees)}</span>
                             </div>` : ''}
-                            ${isVoided && isTechnicalIssueReason(latestAdjustment.reason_category) && String(latestAdjustment.cancellation_status || '').toLowerCase() === 'completed' && technicalLostSalesAmount > 0 ? `<div class="d-flex justify-content-between mb-2 text-danger">
+                            ${detailIsTechnicalIssueVoid && String(latestAdjustment.cancellation_status || '').toLowerCase() === 'completed' && technicalLostSalesAmount > 0 ? `<div class="d-flex justify-content-between mb-2 text-danger">
                                 <span>Lost Sales</span>
                                 <span>-₱${fmt(technicalLostSalesAmount)}</span>
                             </div>` : ''}
@@ -1919,7 +2038,7 @@ function renderDetailModal(txn) {
                             </div>` : ''}
                             <div class="d-flex justify-content-between fw-bold border-top pt-2">
                                 <span>Total</span>
-                                <span>₱${fmt(txn.total_amount || txn.grand_total)}</span>
+                                <span>₱${fmt(detailDisplayAmount)}</span>
                             </div>
                             ${parseFloat(txn.total_profit || 0) > 0 ? `<div class="d-flex justify-content-between text-success mt-2">
                                 <span>Profit</span>
@@ -2095,14 +2214,18 @@ function printTransactions() {
         { key: 'cashier', header: 'CASHIER', hide: isCashierFiltered },
         { key: 'branch', header: 'BRANCH', hide: isBranchFiltered },
         { key: 'cost', header: 'COST' },
-        { key: 'service_fee', header: 'SERVICE FEE' },
+        { key: 'service_fee', header: 'SERVICE' },
+        { key: 'voided', header: 'VOIDED' },
         { key: 'add_ons', header: 'ADD-ONS' },
         { key: 'amount', header: 'AMOUNT' },
         { key: 'payment', header: 'PAYMENT' },
         { key: 'status', header: 'STATUS' }
     ].filter(c => !c.hide && (c.key !== 'add_ons' || hasAddOns));
 
-    const tableHeaders = columns.map(c => `<th>${c.header}</th>`).join('');
+    const tableHeaders = columns.map(c => {
+        const widthStyle = c.width ? ` style="width:${c.width};"` : '';
+        return `<th${widthStyle}>${c.header}</th>`;
+    }).join('');
 
     let tableHTML = '';
     let totalCost = 0;
@@ -2112,13 +2235,7 @@ function printTransactions() {
     let totalVoidFee = 0;
     let totalTechnicalVoid = 0;
 
-    const sortedRows = visibleRows.slice().sort((a, b) => {
-        const aCell = a.querySelectorAll('td')[4];
-        const bCell = b.querySelectorAll('td')[4];
-        const aName = aCell ? aCell.textContent.trim().toLowerCase() : '';
-        const bName = bCell ? bCell.textContent.trim().toLowerCase() : '';
-        return aName.localeCompare(bName);
-    });
+    const sortedRows = visibleRows.slice();
     let rowNo = 0;
     sortedRows.forEach((row) => {
         const cells = row.querySelectorAll('td');
@@ -2143,6 +2260,7 @@ function printTransactions() {
                 // Passenger from cell 2
                 const detailsCell = cells[2].textContent.trim();
                 const passengerName = detailsCell.split('\n').map(l => l.trim()).filter(l => l)[0] || '';
+                const passengerNote = cells[2].querySelector('.transaction-note')?.textContent.trim() || '';
                 const passengerNumber = row.dataset?.passengerNumber || '';
 
                 // Cashier is cell 5, Branch cell 6, Payment cell 7, Cost cell 8, Service Fee cell 9, Add-ons cell 10, Amount cell 11, Status cell 12
@@ -2196,13 +2314,15 @@ function printTransactions() {
                     </td>`,
                     passenger: `<td>
                         <div style="margin-bottom:2px;">${passengerName}</div>
+                        ${passengerNote ? `<div style="font-size:6.5pt; color:#000; white-space:pre-line;">${esc(passengerNote)}</div>` : ''}
                         ${passengerNumber ? `<div style="font-size:6.5pt; color:#000;">${passengerNumber}</div>` : ''}
                     </td>`,
                     cashier: `<td>${formattedCashier}</td>`,
                     branch: `<td>${branchName}</td>`,
                     payment: `<td>${esc(paymentText)}</td>`,
                     cost: `<td>${costText}</td>`,
-                    service_fee: `<td>${serviceFeeText}</td>`,
+                    service_fee: `<td style="white-space:nowrap;">${serviceFeeText}</td>`,
+                    voided: `<td class="text-end" style="white-space:nowrap;">${voidFee > 0 ? '₱' + fmt(voidFee) : '—'}</td>`,
                     add_ons: `<td>${addOnsText}</td>`,
                     amount: `<td>
                         <div style="margin-bottom:2px;">${amountMain}</div>
@@ -2525,7 +2645,7 @@ async function exportTransactions() {
             rows.push(...(result.data || []));
         }
 
-        const header = ['Order Code','Status','Type','Passengers','Operating Provider','Vessel Name','Cashier','Branch','Payment','Lost Sales','Add-ons','Total Amount','Refunded','Operation','Responsibility','Responsible Cashier','Responsibility Amount','Date'];
+        const header = ['Order Code','Status','Type','Passengers','Notes','Operating Provider','Vessel Name','Cashier','Branch','Payment','Lost Sales','Add-ons','Total Amount','Refunded','Operation','Responsibility','Responsible Cashier','Responsibility Amount','Date'];
         const csvRows = [header];
         rows.forEach(txn => {
             const isTicket = txn.ticket_count > 0;
@@ -2538,6 +2658,7 @@ async function exportTransactions() {
                 txn.status,
                 type,
                 txn.passenger_names || '',
+                txn.ticket_notes || '',
                 txn.provider_names || '',
                 txn.wallet_provider_names || '',
                 txn.cashier_full_name || txn.cashier_name || '',

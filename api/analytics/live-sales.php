@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -59,36 +60,39 @@ try {
         }
     }
 
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionNet = PosTransactionReporting::netExpression();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
+
     // Build query for live sales from POS orders
     if ($today) {
-        $whereClause = "WHERE po.status = 'completed' AND DATE(po.created_at) = CURDATE()" . $branchWhere;
+        $whereClause = "WHERE $transactionStatus AND DATE(po.created_at) = CURDATE()" . $branchWhere;
         $params = $branchParams;
     } else {
-        $whereClause = "WHERE po.status = 'completed' AND po.created_at >= DATE_SUB(NOW(), INTERVAL :hours HOUR)" . $branchWhere;
+        $whereClause = "WHERE $transactionStatus AND po.created_at >= DATE_SUB(NOW(), INTERVAL :hours HOUR)" . $branchWhere;
         $params = array_merge(['hours' => $hours], $branchParams);
     }
 
     // Get total sales amount
     $totalSales = Database::fetch(
-        "SELECT COALESCE(SUM(po.grand_total), 0) as total FROM pos_orders po $whereClause",
+        "SELECT COALESCE(SUM($transactionNet), 0) as total $transactionFrom $whereClause",
         $params
     );
 
     // Get transaction count
     $transactionCount = Database::fetch(
-        "SELECT COUNT(*) as count FROM pos_orders po $whereClause",
+        "SELECT COUNT(DISTINCT po.order_id) as count $transactionFrom $whereClause",
         $params
     );
 
     // Get recent transactions for the list (last 10)
     $recentTransactions = Database::fetchAll(
-        "SELECT po.order_code, po.grand_total, po.created_at,
+        "SELECT po.order_code, ($transactionNet) AS grand_total, po.created_at,
                 bb.branch_name,
                 CONCAT(e.first_name, ' ', COALESCE(CONCAT(LEFT(e.middle_name, 1), '. '), ''), e.last_name) as cashier_name
-         FROM pos_orders po
+         $transactionFrom
          LEFT JOIN business_branches bb ON po.branch_id = bb.branch_id
-         LEFT JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
-         LEFT JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
+         LEFT JOIN user_accounts ua ON po.created_by = ua.user_id
          LEFT JOIN employees e ON ua.emp_id = e.emp_id
          $whereClause
          ORDER BY po.created_at DESC
@@ -110,10 +114,10 @@ try {
             $bucketEnd = date('Y-m-d H:i:s', strtotime(date('Y-m-d') . ' +' . ($hour + 1) . ' hours'));
 
             $bucketSales = Database::fetch(
-                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
-                        COUNT(*) as count
-                 FROM pos_orders po
-                 WHERE po.status = 'completed'
+                "SELECT COALESCE(SUM($transactionNet), 0) as total,
+                        COUNT(DISTINCT po.order_id) as count
+                 $transactionFrom
+                 WHERE $transactionStatus
                  AND DATE(po.created_at) = CURDATE()
                  AND HOUR(po.created_at) = :hour
                  $branchWhere",
@@ -136,10 +140,10 @@ try {
             $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
 
             $bucketSales = Database::fetch(
-                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
-                        COUNT(*) as count
-                 FROM pos_orders po
-                 WHERE po.status = 'completed'
+                "SELECT COALESCE(SUM($transactionNet), 0) as total,
+                        COUNT(DISTINCT po.order_id) as count
+                 $transactionFrom
+                 WHERE $transactionStatus
                  AND po.created_at >= :start AND po.created_at < :end
                  $branchWhere",
                 array_merge(['start' => $bucketStart, 'end' => $bucketEnd], $branchParams)
@@ -161,10 +165,10 @@ try {
             $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
 
             $bucketSales = Database::fetch(
-                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
-                        COUNT(*) as count
-                 FROM pos_orders po
-                 WHERE po.status = 'completed'
+                "SELECT COALESCE(SUM($transactionNet), 0) as total,
+                        COUNT(DISTINCT po.order_id) as count
+                 $transactionFrom
+                 WHERE $transactionStatus
                  AND po.created_at >= :start AND po.created_at < :end
                  $branchWhere",
                 array_merge(['start' => $bucketStart, 'end' => $bucketEnd], $branchParams)
@@ -186,10 +190,10 @@ try {
             $bucketEnd   = date('Y-m-d H:i:s', strtotime('-' . ($i * $bucketMinutes) . ' minutes'));
 
             $bucketSales = Database::fetch(
-                "SELECT COALESCE(SUM(po.grand_total), 0) as total,
-                        COUNT(*) as count
-                 FROM pos_orders po
-                 WHERE po.status = 'completed'
+                "SELECT COALESCE(SUM($transactionNet), 0) as total,
+                        COUNT(DISTINCT po.order_id) as count
+                 $transactionFrom
+                 WHERE $transactionStatus
                  AND po.created_at >= :start AND po.created_at < :end
                  $branchWhere",
                 array_merge(['start' => $bucketStart, 'end' => $bucketEnd], $branchParams)

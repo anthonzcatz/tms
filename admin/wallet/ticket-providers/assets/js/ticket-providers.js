@@ -105,12 +105,20 @@ async function editProvider(providerId) {
             document.getElementById('editProviderName').value = provider.provider_name;
             document.getElementById('editProviderType').value = provider.provider_type;
             document.getElementById('editStatus').checked = provider.status === 'active';
+            const allChargesEnabled = Number(provider.wallet_deduct_all_charges ?? provider.void_fee_wallet_enabled) === 1;
+            const baseOnlyEnabled = provider.wallet_deduct_base_only === undefined
+                ? true
+                : Number(provider.wallet_deduct_base_only) === 1;
+            document.getElementById('editWalletDeductAllCharges').checked = allChargesEnabled;
+            document.getElementById('editWalletDeductBaseOnly').checked = baseOnlyEnabled;
             document.getElementById('editParentProvider').value = provider.parent_provider_id || '';
             // Prevent selecting the provider as its own parent
             document.querySelectorAll('#editParentProvider option').forEach(option => {
                 option.disabled = option.value === String(provider.provider_id);
             });
             updateEditStatusLabel(provider.status === 'active');
+            updateEditWalletDeductAllChargesLabel(allChargesEnabled);
+            updateEditWalletDeductBaseOnlyLabel(baseOnlyEnabled);
             editProviderModal.show();
         } else {
             showToast('error', 'Error', result.message || 'Failed to load provider');
@@ -131,12 +139,44 @@ function updateEditStatusLabel(isActive) {
     }
 }
 
+function updateEditWalletDeductAllChargesLabel(isEnabled) {
+    const label = document.getElementById('editWalletDeductAllChargesLabel');
+    if (label) {
+        label.innerHTML = isEnabled
+            ? '<span class="text-success fw-bold">Enabled</span>'
+            : '<span class="text-muted">Disabled</span>';
+    }
+}
+
+function updateEditWalletDeductBaseOnlyLabel(isEnabled) {
+    const label = document.getElementById('editWalletDeductBaseOnlyLabel');
+    if (label) {
+        label.innerHTML = isEnabled
+            ? '<span class="text-success fw-bold">Enabled</span>'
+            : '<span class="text-muted">Disabled</span>';
+    }
+}
+
 // Handle edit status switch change
 document.addEventListener('DOMContentLoaded', function() {
     const editStatusSwitch = document.getElementById('editStatus');
     if (editStatusSwitch) {
         editStatusSwitch.addEventListener('change', function() {
             updateEditStatusLabel(this.checked);
+        });
+    }
+
+    const editWalletDeductAllChargesSwitch = document.getElementById('editWalletDeductAllCharges');
+    if (editWalletDeductAllChargesSwitch) {
+        editWalletDeductAllChargesSwitch.addEventListener('change', function() {
+            updateEditWalletDeductAllChargesLabel(this.checked);
+        });
+    }
+
+    const editWalletDeductBaseOnlySwitch = document.getElementById('editWalletDeductBaseOnly');
+    if (editWalletDeductBaseOnlySwitch) {
+        editWalletDeductBaseOnlySwitch.addEventListener('change', function() {
+            updateEditWalletDeductBaseOnlyLabel(this.checked);
         });
     }
     
@@ -159,6 +199,10 @@ async function updateProvider() {
     const providerType = document.getElementById('editProviderType').value;
     const statusCheckbox = document.getElementById('editStatus');
     const status = statusCheckbox.checked ? 'active' : 'inactive';
+    const allChargesCheckbox = document.getElementById('editWalletDeductAllCharges');
+    const allChargesEnabled = allChargesCheckbox.checked ? 1 : 0;
+    const baseOnlyCheckbox = document.getElementById('editWalletDeductBaseOnly');
+    const baseOnlyEnabled = baseOnlyCheckbox.checked ? 1 : 0;
     const parentProviderId = document.getElementById('editParentProvider').value || null;
     
     if (!providerCode || !providerName || !providerType) {
@@ -186,6 +230,8 @@ async function updateProvider() {
                 provider_name: providerName,
                 provider_type: providerType,
                 status: status,
+                wallet_deduct_all_charges: allChargesEnabled,
+                wallet_deduct_base_only: baseOnlyEnabled,
                 parent_provider_id: parentProviderId
             })
         });
@@ -200,6 +246,8 @@ async function updateProvider() {
                 provider_name: providerName,
                 provider_type: providerType,
                 status: status,
+                wallet_deduct_all_charges: allChargesEnabled,
+                wallet_deduct_base_only: baseOnlyEnabled,
                 parent_provider_id: parentProviderId
             });
         } else {
@@ -228,6 +276,8 @@ function updateProviderRow(providerId, provider) {
 
     row.dataset.status = provider.status;
     row.dataset.providerType = provider.provider_type;
+    row.dataset.walletDeductAllCharges = Number(provider.wallet_deduct_all_charges) === 1 ? '1' : '0';
+    row.dataset.walletDeductBaseOnly = Number(provider.wallet_deduct_base_only) === 1 ? '1' : '0';
     row.dataset.search = `${provider.provider_code} ${provider.provider_name} ${provider.provider_type}`.toLowerCase();
 
     const codeEl = document.getElementById(`providerCode${providerId}`);

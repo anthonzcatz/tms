@@ -454,40 +454,6 @@ function handleRequestItemVariantChange(select) {
     updateRequestVariantOptions(document.getElementById('createProvider')?.value || '');
 }
 
-function syncSourceWalletSelection() {
-    const walletSelect = document.getElementById('createSourceWallet');
-    const providerSelect = document.getElementById('createProvider');
-    const sourceBranchSelect = document.getElementById('createSourceBranch');
-    const info = document.getElementById('sourceWalletInfo');
-    if (!walletSelect || !providerSelect || !sourceBranchSelect) return;
-
-    const option = walletSelect.options[walletSelect.selectedIndex];
-    const walletId = walletSelect.value;
-    if (!walletId) {
-        providerSelect.disabled = false;
-        sourceBranchSelect.disabled = false;
-        info?.classList.add('d-none');
-        const balanceLabel = document.getElementById('sourceWalletBalanceLabel');
-        if (balanceLabel) balanceLabel.textContent = 'Current Balance:';
-        updateRequestVariantOptions(providerSelect.value || '');
-        return;
-    }
-
-    providerSelect.value = option.dataset.providerId || '';
-    sourceBranchSelect.value = option.dataset.branchId || '';
-    providerSelect.disabled = true;
-    sourceBranchSelect.disabled = true;
-    const isVariantWallet = Boolean(option.dataset.variantId);
-    const balanceLabel = document.getElementById('sourceWalletBalanceLabel');
-    if (balanceLabel) balanceLabel.textContent = isVariantWallet ? 'Current Ticket Stock:' : 'Current Balance:';
-    document.getElementById('sourceWalletBalance').textContent = isVariantWallet
-        ? `${ticketStockQty(option.dataset.onHandQty || 0)} tickets`
-        : ticketStockMoney(option.dataset.balance || 0);
-    document.getElementById('sourceWalletName').textContent = option.dataset.name || '-';
-    info?.classList.remove('d-none');
-    updateRequestVariantOptions(option.dataset.providerId || '', option.dataset.variantId || '');
-}
-
 function limitRequestDestinationBranches() {
     const select = document.getElementById('createDestinationBranch');
     if (!select || !Array.isArray(window.DESTINATION_BRANCH_IDS)) return;
@@ -499,49 +465,113 @@ function limitRequestDestinationBranches() {
 }
 
 function resetNewStockRequestForm() {
-    const walletSelect = document.getElementById('createSourceWallet');
-    if (walletSelect) walletSelect.value = '';
     const providerSelect = document.getElementById('createProvider');
-    const sourceBranchSelect = document.getElementById('createSourceBranch');
     const destinationBranchSelect = document.getElementById('createDestinationBranch');
-    if (providerSelect) {
-        providerSelect.value = '';
-        providerSelect.removeAttribute('disabled');
-    }
-    if (sourceBranchSelect) {
-        sourceBranchSelect.value = '';
-        sourceBranchSelect.removeAttribute('disabled');
-    }
+    if (providerSelect) providerSelect.value = '';
     if (destinationBranchSelect) {
         destinationBranchSelect.value = window.DEFAULT_DESTINATION_BRANCH_ID ? String(window.DEFAULT_DESTINATION_BRANCH_ID) : '';
     }
-    document.getElementById('sourceWalletInfo')?.classList.add('d-none');
     updateRequestVariantOptions('');
+}
+
+function updateTicketStockRequestDateFilters() {
+    const mode = document.getElementById('requestDateMode')?.value || 'today';
+    document.getElementById('requestMonthFilter')?.classList.toggle('d-none', mode !== 'month');
+    document.getElementById('requestDateFromFilter')?.classList.toggle('d-none', mode !== 'range');
+    document.getElementById('requestDateToFilter')?.classList.toggle('d-none', mode !== 'range');
+    document.getElementById('requestYearFilter')?.classList.toggle('d-none', mode !== 'year');
+}
+
+function ticketStockRequestFilterParams() {
+    const mode = document.getElementById('requestDateMode')?.value || 'today';
+    const params = {
+        status: document.getElementById('requestStatus')?.value || '',
+        branch_id: document.getElementById('requestBranch')?.value || '',
+        provider_id: document.getElementById('requestProvider')?.value || '',
+        request_reason: document.getElementById('requestReason')?.value || '',
+        date_mode: mode
+    };
+
+    if (mode === 'month') {
+        params.month = document.getElementById('requestFilterMonth')?.value || '';
+        if (!params.month) {
+            ticketStockToast('error', 'Please select a month.');
+            return null;
+        }
+    } else if (mode === 'range') {
+        params.date_from = document.getElementById('requestFilterDateFrom')?.value || '';
+        params.date_to = document.getElementById('requestFilterDateTo')?.value || '';
+        if (!params.date_from || !params.date_to) {
+            ticketStockToast('error', 'Please select both a start date and an end date.');
+            return null;
+        }
+        if (params.date_from > params.date_to) {
+            ticketStockToast('error', 'The start date cannot be later than the end date.');
+            return null;
+        }
+    } else if (mode === 'year') {
+        params.year = document.getElementById('requestFilterYear')?.value || '';
+        if (!/^\d{4}$/.test(params.year) || Number(params.year) < 1000 || Number(params.year) > 9998) {
+            ticketStockToast('error', 'Please enter a valid year.');
+            return null;
+        }
+    }
+
+    return params;
+}
+
+function resetTicketStockRequestFilters() {
+    ['requestStatus', 'requestBranch', 'requestProvider', 'requestReason'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+    const dateMode = document.getElementById('requestDateMode');
+    if (dateMode) dateMode.value = 'today';
+    ['requestFilterMonth', 'requestFilterDateFrom', 'requestFilterDateTo', 'requestFilterYear'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+    updateTicketStockRequestDateFilters();
+    loadTicketStockRequests();
+}
+
+function bindTicketStockRequestFilters() {
+    document.getElementById('requestDateMode')?.addEventListener('change', updateTicketStockRequestDateFilters);
+    updateTicketStockRequestDateFilters();
 }
 
 async function loadTicketStockRequests() {
     const tbody = document.querySelector('#ticketStockRequests tbody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4">Loading...</td></tr>';
+    const params = ticketStockRequestFilterParams();
+    if (!params) return;
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4">Loading...</td></tr>';
     try {
-        const data = await ticketStockGet('requests', { status: document.getElementById('requestStatus')?.value || '' });
-        tbody.innerHTML = data.length ? data.map(row => `<tr>
+        const data = await ticketStockGet('requests', params);
+        tbody.innerHTML = data.length ? data.map(row => {
+            const requestDate = ticketStockFormatDateTime(row.request_date || row.requested_at || row.created_at);
+            const dateHtml = `<div>${ticketStockEscape(requestDate.date)}</div>${requestDate.time ? `<small class="text-muted">${ticketStockEscape(requestDate.time)}</small>` : ''}`;
+            return `<tr>
             <td><strong>${ticketStockEscape(row.request_code)}</strong></td>
-            <td>${row.wallet_name ? `<span class="fas fa-wallet text-primary me-1"></span>${ticketStockEscape(row.wallet_name)}` : '<span class="text-muted">External</span>'}</td>
-            <td>${ticketStockEscape(row.source_branch_name || 'External')}</td>
+            <td>${dateHtml}</td>
             <td>${ticketStockEscape(row.destination_branch_name)}</td>
             <td>${ticketStockEscape(row.provider_name)}</td>
             <td>${ticketStockEscape(row.request_reason)}</td>
             <td>${ticketStockQty(row.requested_qty)} / ${ticketStockQty(row.received_qty)}</td>
-            <td><span class="badge bg-${requestStatusColor(row.status)}">${ticketStockEscape(row.status)}</span></td>
+            <td><span class="badge bg-${requestStatusColor(row.status)}">${ticketStockEscape(requestStatusLabel(row.status))}</span></td>
             <td>${ticketStockEscape(row.requested_by_username || '')}</td>
             <td class="text-end"><button class="btn btn-sm btn-outline-primary" onclick="viewStockRequest(${row.stock_request_id})"><span class="fas fa-eye"></span></button></td>
-        </tr>`).join('') : '<tr><td colspan="10" class="text-center text-muted py-4">No stock requests found.</td></tr>';
+        </tr>`;
+        }).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">No stock requests found.</td></tr>';
     } catch (error) { ticketStockShowError(error, '#ticketStockRequests'); }
 }
 
 function requestStatusColor(status) {
     return { DRAFT: 'secondary', SUBMITTED: 'warning text-dark', APPROVED: 'info text-dark', DISPATCHED: 'primary', RECEIVED: 'success', PARTIALLY_RECEIVED: 'warning text-dark', REJECTED: 'danger', DISPUTED: 'danger', CLOSED: 'dark', CANCELLED: 'secondary' }[status] || 'secondary';
+}
+
+function requestStatusLabel(status) {
+    return status === 'DISPATCHED' ? 'IN TRANSIT' : status;
 }
 
 async function viewStockRequest(requestId) {
@@ -561,9 +591,8 @@ async function viewStockRequest(requestId) {
 function renderStockRequestDetails(request) {
     const statusColor = requestStatusColor(request.status);
     const infoRows = [
-        { label: 'Source Wallet', value: request.wallet_name ? `<span class="fas fa-wallet text-primary me-1"></span>${ticketStockEscape(request.wallet_name)}` : '<span class="text-muted">External</span>' },
-        { label: 'From', value: ticketStockEscape(request.source_branch_name || 'External') },
-        { label: 'To', value: ticketStockEscape(request.destination_branch_name) },
+        { label: 'Source', value: '<span class="text-muted">External provider</span>' },
+        { label: 'Destination', value: ticketStockEscape(request.destination_branch_name) },
         { label: 'Provider', value: ticketStockEscape(request.provider_name) },
         { label: 'Reason', value: ticketStockEscape(request.request_reason) },
     ];
@@ -576,7 +605,6 @@ function renderStockRequestDetails(request) {
             <td>${ticketStockEscape(item.variant_name)}</td>
             <td class="text-end">${ticketStockQty(item.requested_qty)}</td>
             <td class="text-end">${ticketStockQty(item.approved_qty)}</td>
-            <td class="text-end">${ticketStockQty(item.dispatched_qty)}</td>
             <td class="text-end">${ticketStockQty(item.received_qty)}</td>
         </tr>
     `).join('');
@@ -585,15 +613,15 @@ function renderStockRequestDetails(request) {
             <div class="card-body">
                 <div class="row g-2 mb-3">
                     <div class="col-md-6"><strong class="fs-6">${ticketStockEscape(request.request_code)}</strong></div>
-                    <div class="col-md-6 text-md-end"><span class="badge bg-${statusColor}">${ticketStockEscape(request.status)}</span></div>
+                    <div class="col-md-6 text-md-end"><span class="badge bg-${statusColor}">${ticketStockEscape(requestStatusLabel(request.status))}</span></div>
                 </div>
                 <div class="row g-2 mb-3">${infoHtml}</div>
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
                         <thead class="table-light">
-                            <tr><th>Variant</th><th class="text-end">Requested</th><th class="text-end">Approved</th><th class="text-end">Dispatched</th><th class="text-end">Received</th></tr>
+                            <tr><th>Variant</th><th class="text-end">Requested</th><th class="text-end">Approved</th><th class="text-end">Received</th></tr>
                         </thead>
-                        <tbody>${items || '<tr><td colspan="5" class="text-center text-muted py-3">No items.</td></tr>'}</tbody>
+                        <tbody>${items || '<tr><td colspan="4" class="text-center text-muted py-3">No items.</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
@@ -603,22 +631,24 @@ function renderStockRequestDetails(request) {
 
 function renderStockRequestActionButtons(request) {
     const status = request.status;
+    const canApprove = Boolean(request.capabilities?.can_approve);
+    const canReceive = Boolean(request.capabilities?.can_receive);
     const buttons = [];
     if (status === 'DRAFT') {
         buttons.push({ label: 'Submit', status: 'SUBMITTED', color: 'primary', icon: 'fa-paper-plane' });
         buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'danger', icon: 'fa-ban' });
     }
     if (status === 'SUBMITTED') {
-        buttons.push({ label: 'Approve', mode: 'approve', color: 'success', icon: 'fa-check' });
-        buttons.push({ label: 'Reject', status: 'REJECTED', color: 'danger', icon: 'fa-times' });
+        if (canApprove) {
+            buttons.push({ label: 'Approve', mode: 'approve', color: 'success', icon: 'fa-check' });
+            buttons.push({ label: 'Reject', status: 'REJECTED', color: 'danger', icon: 'fa-times' });
+        }
         buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'secondary', icon: 'fa-ban' });
     }
-    if (status === 'APPROVED') {
-        buttons.push({ label: 'Dispatch', mode: 'dispatch', color: 'primary', icon: 'fa-truck' });
-        buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'danger', icon: 'fa-ban' });
-    }
-    if (['DISPATCHED', 'PARTIALLY_RECEIVED'].includes(status)) {
-        buttons.push({ label: 'Receive', mode: 'receive', color: 'info', icon: 'fa-box-open' });
+    if (['APPROVED', 'DISPATCHED', 'PARTIALLY_RECEIVED'].includes(status)) {
+        if (canReceive) {
+            buttons.push({ label: 'Receive', mode: 'receive', color: 'info', icon: 'fa-box-open' });
+        }
         buttons.push({ label: 'Cancel', status: 'CANCELLED', color: 'danger', icon: 'fa-ban' });
     }
     if (['RECEIVED', 'PARTIALLY_RECEIVED', 'DISPUTED'].includes(status)) {
@@ -653,35 +683,33 @@ function hideStockRequestActionForm() {
 
 function renderStockRequestActionForm(mode) {
     const request = currentStockRequest;
-    const titles = { approve: 'Approve request quantities', dispatch: 'Dispatch quantities to destination', receive: 'Receive quantities at destination' };
-    const labels = { approve: 'Approve', dispatch: 'Dispatch', receive: 'Receive' };
-    const showSeries = mode === 'dispatch' || mode === 'receive';
+    const titles = { approve: 'Approve request quantities', receive: 'Receive quantities at destination' };
+    const labels = { approve: 'Approve', receive: 'Receive' };
+    const showSeries = mode === 'receive';
     const rows = (request.items || []).map(item => {
         let max, current, defaultVal;
         if (mode === 'approve') {
-            max = Math.max(0, Number(item.requested_qty));
+            max = null;
             current = Number(item.approved_qty);
-            defaultVal = max;
-        } else if (mode === 'dispatch') {
-            max = Math.max(0, Number(item.approved_qty) - Number(item.dispatched_qty));
-            current = Number(item.dispatched_qty);
-            defaultVal = max;
+            defaultVal = Math.max(0, Number(item.requested_qty));
         } else {
-            max = Math.max(0, Number(item.dispatched_qty) - Number(item.received_qty));
+            const expectedQty = Number(item.dispatched_qty) > 0 ? Number(item.dispatched_qty) : Number(item.approved_qty);
+            max = Math.max(0, expectedQty - Number(item.received_qty));
             current = Number(item.received_qty);
             defaultVal = max;
         }
+        const quantityLimit = max === null ? '' : ` max="${max}" data-max="${max}"`;
         return `
             <tr data-request-item-id="${item.request_item_id}">
                 <td>${ticketStockEscape(item.variant_name)}</td>
-                <td class="text-end">${ticketStockQty(mode === 'approve' ? item.requested_qty : (mode === 'dispatch' ? item.approved_qty : item.dispatched_qty))}</td>
+                <td class="text-end">${ticketStockQty(mode === 'approve' ? item.requested_qty : (Number(item.dispatched_qty) > 0 ? item.dispatched_qty : item.approved_qty))}</td>
                 <td class="text-end">${ticketStockQty(current)}</td>
-                <td><input type="number" class="form-control form-control-sm request-action-qty" min="0" max="${max}" value="${defaultVal}" data-max="${max}" style="min-width:80px"></td>
+                <td><input type="number" class="form-control form-control-sm request-action-qty" min="0"${quantityLimit} value="${defaultVal}" style="min-width:80px"></td>
                 ${showSeries ? `<td><input type="text" class="form-control form-control-sm request-action-series-from" placeholder="From" style="min-width:90px"></td><td><input type="text" class="form-control form-control-sm request-action-series-to" placeholder="To" style="min-width:90px"></td>` : ''}
             </tr>
         `;
     }).join('');
-    const headers = `<tr><th>Variant</th><th class="text-end">${mode === 'approve' ? 'Requested' : (mode === 'dispatch' ? 'Approved' : 'Dispatched')}</th><th class="text-end">${mode === 'approve' ? 'Current Approved' : (mode === 'dispatch' ? 'Dispatched' : 'Received')}</th><th>${mode === 'approve' ? 'Approve Qty' : (mode === 'dispatch' ? 'Dispatch Qty' : 'Receive Qty')}</th>${showSeries ? '<th>Series From</th><th>Series To</th>' : ''}</tr>`;
+    const headers = `<tr><th>Variant</th><th class="text-end">${mode === 'approve' ? 'Requested' : 'Approved'}</th><th class="text-end">${mode === 'approve' ? 'Current Approved' : 'Received'}</th><th>${mode === 'approve' ? 'Approve Qty' : 'Receive Qty'}</th>${showSeries ? '<th>Series From</th><th>Series To</th>' : ''}</tr>`;
     document.getElementById('stockRequestActionForm').innerHTML = `
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-light border-0 py-2">
@@ -699,7 +727,7 @@ function renderStockRequestActionForm(mode) {
     `;
     document.getElementById('stockRequestActionConfirm').innerHTML = `
         <button class="btn btn-secondary" onclick="hideStockRequestActionForm()">Back</button>
-        <button class="btn btn-${mode === 'approve' ? 'success' : (mode === 'receive' ? 'info' : 'primary')}" onclick="submitStockRequestAction('${mode}')"><span class="fas fa-check me-1"></span>${ticketStockEscape(labels[mode] || 'Confirm')}</button>
+        <button class="btn btn-${mode === 'approve' ? 'success' : 'info'}" onclick="submitStockRequestAction('${mode}')"><span class="fas fa-check me-1"></span>${ticketStockEscape(labels[mode] || 'Confirm')}</button>
     `;
 }
 
@@ -728,8 +756,13 @@ async function submitStockRequestAction(mode) {
     for (const row of rows) {
         const requestItemId = row.dataset.requestItemId;
         const qtyInput = row.querySelector('.request-action-qty');
-        const qty = Math.max(0, Number(qtyInput?.value || 0));
-        const max = Number(qtyInput?.dataset.max || 0);
+        const qty = Number(qtyInput?.value || 0);
+        if (!Number.isInteger(qty) || qty < 0) {
+            ticketStockToast('error', 'Quantity must be a whole number of 0 or greater.');
+            return;
+        }
+        const maxValue = qtyInput?.dataset.max;
+        const max = maxValue === undefined ? Infinity : Number(maxValue);
         if (qty > max) {
             ticketStockToast('error', 'Quantity cannot exceed the remaining amount.');
             return;
@@ -751,12 +784,7 @@ async function submitStockRequestAction(mode) {
                 stock_request_id: requestId,
                 items: items.map(i => ({ request_item_id: i.request_item_id, approved_qty: i.qty }))
             });
-        } else if (mode === 'dispatch') {
-            await ticketStockMutate({
-                action: 'request_dispatch',
-                stock_request_id: requestId,
-                items: items.filter(i => i.qty > 0).map(i => ({ request_item_id: i.request_item_id, dispatch_qty: i.qty, ticket_series_from: i.from, ticket_series_to: i.to }))
-            });
+
         } else if (mode === 'receive') {
             await ticketStockMutate({
                 action: 'request_receive',
@@ -765,7 +793,11 @@ async function submitStockRequestAction(mode) {
             });
         }
         bootstrap.Modal.getInstance(document.getElementById('stockRequestModal'))?.hide();
-        ticketStockToast('success', `Request ${mode}d successfully.`);
+        const successMessages = {
+            approve: 'Request approved successfully.',
+            receive: 'Request received successfully.'
+        };
+        ticketStockToast('success', successMessages[mode] || 'Request updated successfully.');
         loadTicketStockRequests();
     } catch (error) {
         ticketStockToast('error', error.message);
@@ -804,7 +836,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (destinationBranchSelect && window.DEFAULT_DESTINATION_BRANCH_ID) {
         destinationBranchSelect.value = String(window.DEFAULT_DESTINATION_BRANCH_ID);
     }
-    document.getElementById('createSourceWallet')?.addEventListener('change', syncSourceWalletSelection);
     document.getElementById('createProvider')?.addEventListener('change', event => updateRequestVariantOptions(event.target.value));
     document.getElementById('createRequestItems')?.addEventListener('change', event => {
         if (event.target.matches('.request-item-variant')) handleRequestItemVariantChange(event.target);
@@ -820,6 +851,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (movementDate && !movementDate.value) movementDate.value = window.TICKET_STOCK_DEFAULT_DATE || ticketStockLocalDate();
         loadTicketStockMovements();
     }
-    if (ticketStockPage === 'requests') loadTicketStockRequests();
+    if (ticketStockPage === 'requests') {
+        bindTicketStockRequestFilters();
+        loadTicketStockRequests();
+    }
     if (ticketStockPage === 'discrepancies') loadTicketStockDiscrepancies();
 });

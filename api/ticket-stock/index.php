@@ -14,6 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/SecurityHelper.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PosAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/TicketStockHelper.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/TicketStockAccess.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/PusherService.php';
 require_once dirname(dirname(__DIR__)) . '/config/database.php';
 
@@ -138,6 +139,7 @@ function handleMutation(): void
             $receiveBranchId = requirePositiveInt($input, 'branch_id');
             $receiveProviderId = requirePositiveInt($input, 'provider_id');
             $receiveVariantId = requirePositiveInt($input, 'variant_id');
+            TicketStockAccess::assertCanReceive($user, $receiveBranchId);
             $receiveSourceBranchId = nullableInt($input['source_branch_id'] ?? null);
             if ($receiveSourceBranchId) {
                 assertBranchAccess($receiveSourceBranchId);
@@ -198,34 +200,7 @@ function handleMutation(): void
             return;
 
         case 'transfer':
-            requirePermission('DISPATCH_TICKET_STOCK');
-            requirePermission('RECEIVE_TICKET_STOCK');
-            $transferSourceBranchId = requirePositiveInt($input, 'source_branch_id');
-            $transferDestinationBranchId = requirePositiveInt($input, 'destination_branch_id');
-            $transferProviderId = requirePositiveInt($input, 'provider_id');
-            $transferVariantId = requirePositiveInt($input, 'variant_id');
-            $result = TicketStockHelper::transferStock(
-                $transferSourceBranchId,
-                $transferDestinationBranchId,
-                $transferProviderId,
-                $transferVariantId,
-                requirePositiveInt($input, 'qty'),
-                currentUserId(),
-                [
-                    'reference_type' => $input['reference_type'] ?? 'MANUAL_STOCK_TRANSFER',
-                    'reference_id' => nullableInt($input['reference_id'] ?? null),
-                    'ticket_number_from' => $input['ticket_number_from'] ?? null,
-                    'ticket_number_to' => $input['ticket_number_to'] ?? null,
-                    'remarks' => trim((string) ($input['remarks'] ?? 'Stock transfer')),
-                ]
-            );
-            broadcastTicketStockUpdate([$transferSourceBranchId, $transferDestinationBranchId], [
-                'provider_id' => $transferProviderId,
-                'variant_id' => $transferVariantId,
-                'source' => 'transfer',
-            ]);
-            respondMutation('Stock transferred successfully.', $result);
-            return;
+            throw new RuntimeException('Branch-to-branch ticket stock transfers are not supported. Create a provider stock request instead.');
 
         case 'request_create':
             requirePermission('CREATE_TICKET_STOCK_REQUEST');
@@ -235,7 +210,7 @@ function handleMutation(): void
         case 'request_transition':
             $newStatus = strtoupper(trim((string) ($input['status'] ?? '')));
             if (!in_array($newStatus, ['SUBMITTED', 'APPROVED', 'REJECTED', 'CANCELLED', 'CLOSED', 'DISPUTED'], true)) {
-                throw new InvalidArgumentException('Use the dedicated dispatch or receive action for this status.');
+                throw new InvalidArgumentException('Use the dedicated receive action for this status.');
             }
             if ($newStatus === 'APPROVED') {
                 requirePermission('APPROVE_TICKET_STOCK_REQUEST');
@@ -248,7 +223,11 @@ function handleMutation(): void
                 requirePermission('APPROVE_TICKET_STOCK_REQUEST');
             }
             $transitionRequestId = requirePositiveInt($input, 'stock_request_id');
-            getRequest($transitionRequestId);
+            $transitionRequest = getRequest($transitionRequestId);
+            if ($newStatus === 'REJECTED') {
+                global $user;
+                TicketStockAccess::assertCanApprove($user, (int) $transitionRequest['destination_branch_id']);
+            }
             TicketStockHelper::transitionRequestStatus(
                 $transitionRequestId,
                 $newStatus,
@@ -256,22 +235,6 @@ function handleMutation(): void
                 trim((string) ($input['reason'] ?? '')) ?: null
             );
             respondMutation('Stock request status updated.', ['status' => $newStatus]);
-            return;
-
-        case 'request_dispatch':
-            requirePermission('DISPATCH_TICKET_STOCK');
-            $dispatchRequestId = requirePositiveInt($input, 'stock_request_id');
-            $dispatchRequestData = getRequest($dispatchRequestId);
-            $result = dispatchRequest($input);
-            if (!empty($result['items'])
-                && !empty($dispatchRequestData['source_branch_id'])
-                && (int) $dispatchRequestData['source_branch_id'] !== (int) $dispatchRequestData['destination_branch_id']) {
-                broadcastTicketStockUpdate([(int) $dispatchRequestData['source_branch_id']], [
-                    'provider_id' => (int) $dispatchRequestData['provider_id'],
-                    'source' => 'request_dispatch',
-                ]);
-            }
-            respondMutation('Stock request dispatched successfully.', $result);
             return;
 
         case 'request_receive':
@@ -501,7 +464,7 @@ function getVariants(): array
     $branchId = optionalInt($_GET['branch_id'] ?? null);
     global $user;
     $allowedBranchIds = PosAccess::allowedBranchIds($user);
-    if (!$branchId && $allowedBranchIds !== null && !$allowedBranchIds) {
+    if (!$branchId && !canViewAllTicketStock() && $allowedBranchIds !== null && !$allowedBranchIds) {
         return [];
     }
 
@@ -511,7 +474,7 @@ function getVariants(): array
         assertBranchAccess($branchId);
         $stockWhere[] = 's.branch_id = :variant_stock_branch';
         $stockParams['variant_stock_branch'] = $branchId;
-    } else {
+    } elseif (!canViewAllTicketStock()) {
         PosAccess::applyBranchScope($stockWhere, $stockParams, 's.branch_id', $user, 'ticket_stock_variant_branch');
     }
     $stockFilter = $stockWhere ? 'WHERE ' . implode(' AND ', $stockWhere) : '';
@@ -594,8 +557,8 @@ function getRequests(): array
     $where = ['1=1'];
     $params = [];
     global $user;
-    if (PosAccess::allowedBranchIds($user) !== null) {
-        $allowed = allowedBranchIds();
+    if (!canViewAllTicketStock()) {
+        $allowed = requestAccessBranchIds();
         if (!$allowed) {
             $where[] = '1 = 0';
         } else {
@@ -620,10 +583,21 @@ function getRequests(): array
     }
     if (!empty($_GET['branch_id'])) {
         $branchId = optionalInt($_GET['branch_id']);
-        assertBranchAccess($branchId);
-        $where[] = '(r.source_branch_id = :filter_branch OR r.destination_branch_id = :filter_branch)';
-        $params['filter_branch'] = $branchId;
+        assertRequestBranchAccess($branchId);
+        $where[] = '(r.source_branch_id = :filter_branch_source OR r.destination_branch_id = :filter_branch_destination)';
+        $params['filter_branch_source'] = $branchId;
+        $params['filter_branch_destination'] = $branchId;
     }
+    applyOptionalInt($where, $params, 'r.provider_id', 'provider_id');
+    if (!empty($_GET['request_reason'])) {
+        $requestReason = strtoupper(trim((string) $_GET['request_reason']));
+        if (!in_array($requestReason, ['REPLENISHMENT', 'OPENING_BALANCE', 'TRANSFER', 'EMERGENCY', 'RETURN_REPLACEMENT', 'OTHER'], true)) {
+            throw new InvalidArgumentException('Invalid request reason.');
+        }
+        $where[] = 'r.request_reason = :request_reason';
+        $params['request_reason'] = $requestReason;
+    }
+    applyRequestDateFilter($where, $params);
 
     return Database::fetchAll(
         "SELECT r.stock_request_id, r.request_code, r.source_branch_id,
@@ -637,6 +611,7 @@ function getRequests(): array
                 END AS wallet_name,
                 r.status, r.request_reason,
                 r.requested_by, ru.username AS requested_by_username,
+                COALESCE(r.requested_at, r.created_at) AS request_date,
                 r.requested_at, r.approved_at, r.dispatched_at, r.received_at,
                 (SELECT COUNT(*) FROM ticket_stock_request_items ri
                  WHERE ri.stock_request_id = r.stock_request_id) AS item_count,
@@ -657,9 +632,91 @@ function getRequests(): array
          LEFT JOIN business_branches wb ON wb.branch_id = rw.branch_id
          LEFT JOIN user_accounts ru ON ru.user_id = r.requested_by
          WHERE " . implode(' AND ', $where) . "
-         ORDER BY r.created_at DESC",
+         ORDER BY COALESCE(r.requested_at, r.created_at) DESC, r.stock_request_id DESC",
         $params
     );
+}
+
+function applyRequestDateFilter(array &$where, array &$params): void
+{
+    $mode = strtolower(trim((string) ($_GET['date_mode'] ?? 'all')));
+    $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
+    $dateTo = trim((string) ($_GET['date_to'] ?? ''));
+
+    if ($mode === '' && ($dateFrom !== '' || $dateTo !== '')) {
+        $mode = 'range';
+    }
+    if ($mode === '' || $mode === 'all') {
+        return;
+    }
+
+    $dateExpression = 'COALESCE(r.requested_at, r.created_at)';
+    if ($mode === 'today') {
+        $today = new DateTimeImmutable('today');
+        $start = $today->format('Y-m-d');
+        $end = $today->modify('+1 day')->format('Y-m-d');
+        $where[] = "{$dateExpression} >= :request_date_start AND {$dateExpression} < :request_date_end";
+        $params['request_date_start'] = $start;
+        $params['request_date_end'] = $end;
+        return;
+    }
+
+    if ($mode === 'month') {
+        $month = trim((string) ($_GET['month'] ?? ''));
+        $monthDate = DateTimeImmutable::createFromFormat('!Y-m', $month);
+        $errors = DateTimeImmutable::getLastErrors();
+        $hasErrors = is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0);
+        if ($month === '' || !$monthDate || $hasErrors || $monthDate->format('Y-m') !== $month) {
+            throw new InvalidArgumentException('month must use YYYY-MM format.');
+        }
+        $start = $monthDate->format('Y-m-01');
+        $end = $monthDate->modify('+1 month')->format('Y-m-01');
+        $where[] = "{$dateExpression} >= :request_date_start AND {$dateExpression} < :request_date_end";
+        $params['request_date_start'] = $start;
+        $params['request_date_end'] = $end;
+        return;
+    }
+
+    if ($mode === 'year') {
+        $year = trim((string) ($_GET['year'] ?? ''));
+        if (!preg_match('/^\d{4}$/', $year) || (int) $year < 1000 || (int) $year > 9998) {
+            throw new InvalidArgumentException('year must use YYYY format.');
+        }
+        $start = $year . '-01-01';
+        $end = ((int) $year + 1) . '-01-01';
+        $where[] = "{$dateExpression} >= :request_date_start AND {$dateExpression} < :request_date_end";
+        $params['request_date_start'] = $start;
+        $params['request_date_end'] = $end;
+        return;
+    }
+
+    if ($mode !== 'range') {
+        throw new InvalidArgumentException('Invalid request date period.');
+    }
+    if ($dateFrom === '' || $dateTo === '') {
+        throw new InvalidArgumentException('Both date_from and date_to are required for a custom date range.');
+    }
+
+    $from = requestFilterDate($dateFrom, 'date_from');
+    $to = requestFilterDate($dateTo, 'date_to');
+    if ($from > $to) {
+        throw new InvalidArgumentException('date_from must be before or equal to date_to.');
+    }
+
+    $where[] = "{$dateExpression} >= :request_date_start AND {$dateExpression} < :request_date_end";
+    $params['request_date_start'] = $from->format('Y-m-d');
+    $params['request_date_end'] = $to->modify('+1 day')->format('Y-m-d');
+}
+
+function requestFilterDate(string $value, string $field): DateTimeImmutable
+{
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+    $errors = DateTimeImmutable::getLastErrors();
+    $hasErrors = is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0);
+    if (!$date || $hasErrors || $date->format('Y-m-d') !== $value) {
+        throw new InvalidArgumentException("{$field} must use YYYY-MM-DD format.");
+    }
+    return $date;
 }
 
 function getRequest(int $requestId): array
@@ -700,6 +757,8 @@ function getRequest(int $requestId): array
          ORDER BY v.variant_name",
         ['request_id' => $requestId]
     );
+    global $user;
+    $request['capabilities'] = TicketStockAccess::requestCapabilities($user, $request);
     return $request;
 }
 
@@ -736,37 +795,12 @@ function createRequest(array $input): array
 {
     $destinationBranchId = requirePositiveInt($input, 'destination_branch_id');
     assertBranchAccess($destinationBranchId);
-    $sourceBranchId = nullableInt($input['source_branch_id'] ?? null);
     $providerId = optionalInt($input['provider_id'] ?? null);
-    $walletId = nullableInt($input['wallet_id'] ?? null);
-
-    if ($walletId) {
-        $wallet = Database::fetch(
-            "SELECT wallet_id, provider_id, branch_id, variant_id, status
-             FROM provider_wallets
-             WHERE wallet_id = :wallet_id
-             LIMIT 1",
-            ['wallet_id' => $walletId]
-        );
-        if (!$wallet || $wallet['status'] !== 'active') {
-            throw new InvalidArgumentException('The selected source wallet is not active.');
-        }
-        assertBranchAccess((int) $wallet['branch_id']);
-        if ($providerId && $providerId !== (int) $wallet['provider_id']) {
-            throw new InvalidArgumentException('The selected wallet and provider do not match.');
-        }
-        if ($sourceBranchId && $sourceBranchId !== (int) $wallet['branch_id']) {
-            throw new InvalidArgumentException('The selected wallet and source branch do not match.');
-        }
-        $providerId = (int) $wallet['provider_id'];
-        $sourceBranchId = (int) $wallet['branch_id'];
-    }
+    $sourceBranchId = null;
+    $walletId = null;
 
     if (!$providerId) {
-        throw new InvalidArgumentException('A provider or source wallet is required.');
-    }
-    if ($sourceBranchId) {
-        assertBranchAccess($sourceBranchId);
+        throw new InvalidArgumentException('A provider is required for an external ticket stock request.');
     }
     $items = is_array($input['items'] ?? null) ? $input['items'] : [];
     if (!$items) {
@@ -847,6 +881,9 @@ function approveRequest(array $input): array
         throw new RuntimeException('Only submitted stock requests can be approved.');
     }
 
+    global $user;
+    TicketStockAccess::assertCanApprove($user, (int) $request['destination_branch_id']);
+
     $approvedMap = [];
     foreach ((array) ($input['items'] ?? []) as $item) {
         $approvedMap[(int) ($item['request_item_id'] ?? 0)] = max(0, (int) ($item['approved_qty'] ?? 0));
@@ -863,9 +900,6 @@ function approveRequest(array $input): array
             $approvedQty = array_key_exists((int) $item['request_item_id'], $approvedMap)
                 ? $approvedMap[(int) $item['request_item_id']]
                 : (int) $item['requested_qty'];
-            if ($approvedQty > (int) $item['requested_qty']) {
-                throw new InvalidArgumentException('Approved quantity cannot exceed requested quantity.');
-            }
             Database::execute(
                 "UPDATE ticket_stock_request_items
                  SET approved_qty = :approved_qty, updated_at = NOW()
@@ -888,118 +922,16 @@ function approveRequest(array $input): array
     }
 }
 
-function dispatchRequest(array $input): array
-{
-    $requestId = requirePositiveInt($input, 'stock_request_id');
-    $request = getRequest($requestId);
-    if (!in_array($request['status'], ['APPROVED', 'DISPATCHED'], true)) {
-        throw new RuntimeException('Only approved stock requests can be dispatched.');
-    }
-
-    $sourceBranchId = $request['source_branch_id'] ? (int) $request['source_branch_id'] : null;
-    $destinationBranchId = (int) $request['destination_branch_id'];
-    // External (no source branch) and same-branch replenishment requests do not
-    // deduct from an internal source branch; the receiving step adds the stock.
-    $requiresSourceDecrement = $sourceBranchId && $sourceBranchId !== $destinationBranchId;
-
-    $dispatchMap = [];
-    foreach ((array) ($input['items'] ?? []) as $item) {
-        $itemId = (int) ($item['request_item_id'] ?? 0);
-        if ($itemId <= 0) {
-            continue;
-        }
-        $dispatchMap[$itemId] = [
-            'qty' => max(0, (int) ($item['dispatch_qty'] ?? 0)),
-            'ticket_series_from' => !empty($item['ticket_series_from']) ? (string) $item['ticket_series_from'] : null,
-            'ticket_series_to' => !empty($item['ticket_series_to']) ? (string) $item['ticket_series_to'] : null,
-        ];
-    }
-
-    $pdo = Database::connection();
-    $started = !$pdo->inTransaction();
-    if ($started) {
-        $pdo->beginTransaction();
-    }
-    try {
-        $results = [];
-        $anyDispatched = false;
-        foreach ($request['items'] as $item) {
-            $itemId = (int) $item['request_item_id'];
-            $remaining = max(0, (int) $item['approved_qty'] - (int) $item['dispatched_qty']);
-            if ($remaining <= 0) {
-                continue;
-            }
-            $dispatchQty = array_key_exists($itemId, $dispatchMap)
-                ? min($remaining, $dispatchMap[$itemId]['qty'])
-                : $remaining;
-            if ($dispatchQty <= 0) {
-                continue;
-            }
-            $anyDispatched = true;
-
-            $seriesFrom = $item['ticket_series_from'];
-            $seriesTo = $item['ticket_series_to'];
-            if (array_key_exists($itemId, $dispatchMap)) {
-                $seriesFrom = $dispatchMap[$itemId]['ticket_series_from'] ?? $seriesFrom;
-                $seriesTo = $dispatchMap[$itemId]['ticket_series_to'] ?? $seriesTo;
-            }
-
-            if ($requiresSourceDecrement) {
-                $result = TicketStockHelper::dispatchStock(
-                    $sourceBranchId,
-                    (int) $request['provider_id'],
-                    (int) $item['variant_id'],
-                    $dispatchQty,
-                    currentUserId(),
-                    [
-                        'reference_type' => 'STOCK_REQUEST',
-                        'reference_id' => $requestId,
-                        'destination_branch_id' => $destinationBranchId,
-                        'ticket_number_from' => $seriesFrom,
-                        'ticket_number_to' => $seriesTo,
-                        'remarks' => 'Dispatch for ' . $request['request_code'],
-                    ]
-                );
-                $results[] = $result;
-            }
-            Database::execute(
-                "UPDATE ticket_stock_request_items
-                 SET dispatched_qty = dispatched_qty + :qty,
-                     ticket_series_from = COALESCE(:ticket_series_from, ticket_series_from),
-                     ticket_series_to = COALESCE(:ticket_series_to, ticket_series_to),
-                     updated_at = NOW()
-                 WHERE request_item_id = :item_id",
-                [
-                    'qty' => $dispatchQty,
-                    'ticket_series_from' => $seriesFrom,
-                    'ticket_series_to' => $seriesTo,
-                    'item_id' => $itemId,
-                ]
-            );
-        }
-        if (!$anyDispatched) {
-            throw new RuntimeException('No items to dispatch.');
-        }
-        TicketStockHelper::transitionRequestStatus($requestId, 'DISPATCHED', currentUserId());
-        if ($started) {
-            $pdo->commit();
-        }
-        return ['request_id' => $requestId, 'items' => $results];
-    } catch (Throwable $e) {
-        if ($started && $pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $e;
-    }
-}
-
 function receiveRequest(array $input): array
 {
     $requestId = requirePositiveInt($input, 'stock_request_id');
     $request = getRequest($requestId);
-    if (!in_array($request['status'], ['DISPATCHED', 'PARTIALLY_RECEIVED'], true)) {
-        throw new RuntimeException('Only dispatched stock requests can be received.');
+    if (!in_array($request['status'], ['APPROVED', 'DISPATCHED', 'PARTIALLY_RECEIVED'], true)) {
+        throw new RuntimeException('Only approved stock requests can be received.');
     }
+
+    global $user;
+    TicketStockAccess::assertCanReceive($user, (int) $request['destination_branch_id']);
 
     $receivedMap = [];
     foreach ((array) ($input['items'] ?? []) as $item) {
@@ -1025,12 +957,15 @@ function receiveRequest(array $input): array
         $anyReceived = false;
         foreach ($request['items'] as $item) {
             $itemId = (int) $item['request_item_id'];
-            $remaining = max(0, (int) $item['dispatched_qty'] - (int) $item['received_qty']);
+            $expectedQty = (int) $item['dispatched_qty'] > 0
+                ? (int) $item['dispatched_qty']
+                : (int) $item['approved_qty'];
+            $remaining = max(0, $expectedQty - (int) $item['received_qty']);
             $qty = array_key_exists($itemId, $receivedMap)
                 ? min($remaining, $receivedMap[$itemId]['qty'])
                 : $remaining;
             if ($qty <= 0) {
-                if ((int) $item['dispatched_qty'] > (int) $item['received_qty']) {
+                if ($expectedQty > (int) $item['received_qty']) {
                     $allReceived = false;
                 }
                 continue;
@@ -1075,7 +1010,7 @@ function receiveRequest(array $input): array
             );
 
             $after = (int) $item['received_qty'] + $qty;
-            if ($after < (int) $item['dispatched_qty']) {
+            if ($after < $expectedQty) {
                 $allReceived = false;
             }
         }
@@ -1170,7 +1105,6 @@ function reservationExtra(array $input): array
     return [
         'pos_order_id' => nullableInt($input['pos_order_id'] ?? null),
         'session_id' => !empty($input['session_id']) ? (string) $input['session_id'] : null,
-        'expires_at' => $input['expires_at'] ?? null,
     ];
 }
 
@@ -1223,13 +1157,20 @@ function currentUserId(): int
     return (int) ($user['user_id'] ?? 0);
 }
 
-function applyBranchScope(array &$where, array &$params, string $column): void
+function canViewAllTicketStock(): bool
 {
     global $user;
-    $branchIds = PosAccess::allowedBranchIds($user);
-    if ($branchIds === null) {
+    return PosAccess::allowedBranchIds($user) === null || Auth::can('VIEW_ALL_TICKET_STOCK');
+}
+
+function applyBranchScope(array &$where, array &$params, string $column): void
+{
+    if (canViewAllTicketStock()) {
         return;
     }
+
+    global $user;
+    $branchIds = PosAccess::allowedBranchIds($user);
     if (!$branchIds) {
         $where[] = '1 = 0';
         return;
@@ -1266,26 +1207,48 @@ function allowedBranchIds(): array
 
 function assertBranchAccess(?int $branchId): void
 {
-    if (!$branchId) {
+    if (!$branchId || canViewAllTicketStock()) {
         return;
     }
     global $user;
     $allowedBranchIds = PosAccess::allowedBranchIds($user);
-    if ($allowedBranchIds === null) {
-        return;
-    }
     if (!in_array($branchId, $allowedBranchIds, true)) {
         throw new RuntimeException('Access denied for the selected branch.');
     }
 }
 
-function assertRequestAccess(array $request): void
+function requestAccessBranchIds(): array
 {
     global $user;
     $allowedBranchIds = PosAccess::allowedBranchIds($user);
     if ($allowedBranchIds === null) {
+        return [];
+    }
+
+    return array_values(array_unique(array_merge(
+        $allowedBranchIds,
+        TicketStockAccess::assignedBranchIds($user)
+    )));
+}
+
+function assertRequestBranchAccess(?int $branchId): void
+{
+    if (!$branchId || canViewAllTicketStock()) {
         return;
     }
+
+    if (!in_array($branchId, requestAccessBranchIds(), true)) {
+        throw new RuntimeException('Access denied for this request branch.');
+    }
+}
+
+function assertRequestAccess(array $request): void
+{
+    if (canViewAllTicketStock()) {
+        return;
+    }
+
+    $allowedBranchIds = requestAccessBranchIds();
     $sourceBranchId = $request['source_branch_id'] ? (int) $request['source_branch_id'] : null;
     $destinationBranchId = (int) $request['destination_branch_id'];
     $hasSource = $sourceBranchId && in_array($sourceBranchId, $allowedBranchIds, true);

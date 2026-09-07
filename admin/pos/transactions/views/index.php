@@ -241,7 +241,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/head.php';
                     <th>Payment</th>
                     <th class="text-end">Cost</th>
                     <th class="text-end">Service Fee</th>
-                    <th class="text-end">Add-ons</th>
+                    <th class="text-end d-none" id="transactionsAddOnsHeader">Add-ons</th>
                     <th class="text-end">Amount</th>
                     <th>Status</th>
                     <th class="text-end pe-3">Date</th>

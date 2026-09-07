@@ -204,11 +204,14 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
     const fmt = n => parseFloat(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
     const cashAmt = parseFloat(cashAmount || 0);
     const chargeAmt = parseFloat(chargeAmount || 0);
+    const isCancelVoid = operationType === 'VOID' && String(reasonCategory || '').toUpperCase() === 'CANCEL';
+    const effectiveResponsibility = isCancelVoid ? 'NONE' : (responsibility || 'NONE');
+    const effectiveResponsibilityAmount = isCancelVoid ? 0 : parseFloat(responsibilityAmount || 0);
     const isTechnicalIssueVoid = operationType === 'VOID' && isTechnicalIssueReason(reasonCategory);
-    const voidFeeAmt = operationType === 'VOID'
+    const voidFeeAmt = operationType === 'VOID' && !isCancelVoid
         ? parseFloat((isTechnicalIssueVoid ? (lostSalesVoidFee || voidFee) : voidFee) || 0)
         : 0;
-    const voidServiceFeeAmt = operationType === 'VOID' && !isTechnicalIssueVoid
+    const voidServiceFeeAmt = operationType === 'VOID' && !isTechnicalIssueVoid && !isCancelVoid
         ? parseFloat(voidServiceFee || 0)
         : 0;
 
@@ -259,12 +262,12 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
     const responsibilityAmountContainer = document.getElementById('modalResponsibilityAmountContainer');
     const responsibleCashierContainer = document.getElementById('modalResponsibleCashierContainer');
     if (operationEl) operationEl.textContent = operationType === 'VOID' ? 'VOID — No Refund' : 'Refund';
-    if (responsibilityEl) responsibilityEl.textContent = responsibility || 'NONE';
-    if (responsibilityAmountEl) responsibilityAmountEl.textContent = '₱' + fmt(responsibilityAmount);
-    if (responsibilityContainer) responsibilityContainer.style.display = responsibility === 'NONE' ? 'none' : '';
-    if (responsibilityAmountContainer) responsibilityAmountContainer.style.display = responsibility === 'NONE' ? 'none' : '';
-    if (responsibleCashierContainer) responsibleCashierContainer.style.display = responsibility === 'CASHIER' ? '' : 'none';
-    if (responsibility === 'CASHIER') loadReviewCashiers(branchId, responsibleUserId);
+    if (responsibilityEl) responsibilityEl.textContent = effectiveResponsibility;
+    if (responsibilityAmountEl) responsibilityAmountEl.textContent = '₱' + fmt(effectiveResponsibilityAmount);
+    if (responsibilityContainer) responsibilityContainer.style.display = effectiveResponsibility === 'NONE' ? 'none' : '';
+    if (responsibilityAmountContainer) responsibilityAmountContainer.style.display = effectiveResponsibility === 'NONE' ? 'none' : '';
+    if (responsibleCashierContainer) responsibleCashierContainer.style.display = effectiveResponsibility === 'CASHIER' ? '' : 'none';
+    if (effectiveResponsibility === 'CASHIER') loadReviewCashiers(branchId, responsibleUserId);
     document.getElementById('modalPassenger').textContent = passenger;
     document.getElementById('modalRoute').textContent = (origin && destination) ? origin + ' → ' + destination : '-';
     document.getElementById('modalRequestedBy').textContent = requestedBy;
@@ -303,7 +306,10 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
     // Show wallet-to-credit info
     const walletToCreditEl = document.getElementById('modalWalletToCredit');
     if (walletToCreditEl) {
-        if (walletId) {
+        if (isCancelVoid && isVariantWallet) {
+            walletToCreditEl.textContent = 'Not applicable — ticket stock restoration';
+            walletToCreditEl.parentElement.style.display = 'none';
+        } else if (walletId) {
             let walletLabel = providerName || 'Provider wallet';
             if (variantName) walletLabel += ' - ' + variantName;
             if (branchName) walletLabel += ' (' + branchName + ')';
@@ -327,9 +333,15 @@ function openConfirmModal(cancellationId, transactionCode, ticketNumber, refundA
     const variantNoCreditLine = document.getElementById('modalVariantNoCreditLine');
     const walletTxnRecordLine = document.getElementById('modalWalletTxnRecordLine');
     if (walletRestoreLine && variantNoCreditLine && walletTxnRecordLine) {
-        if (isVariantWallet) {
+        if (isCancelVoid && isVariantWallet) {
             walletRestoreLine.classList.add('d-none');
             variantNoCreditLine.classList.remove('d-none');
+            variantNoCreditLine.innerHTML = '<small class="text-warning d-block">The physical ticket stock will be restored. No provider-wallet credit will be created for this variant.</small>';
+            walletTxnRecordLine.classList.add('d-none');
+        } else if (isVariantWallet) {
+            walletRestoreLine.classList.add('d-none');
+            variantNoCreditLine.classList.remove('d-none');
+            variantNoCreditLine.innerHTML = '<small class="text-warning d-block">This ticket uses a consumed variant. Physical availability and provider wallet balance will not be restored.</small>';
             walletTxnRecordLine.classList.add('d-none');
         } else {
             walletRestoreLine.classList.remove('d-none');

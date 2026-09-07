@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -23,21 +24,23 @@ try {
     $dateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'payments_date');
     $branchWhere = 'AND ' . $branchScope['sql'];
     $dateWhere = 'AND ' . $dateScope['sql'];
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionGross = PosTransactionReporting::grossExpression();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
     
-    // Get payment breakdown by revenue using actual payment methods
+    // Read the same payment split stored on each POS transaction.
     $params = array_merge($branchScope['params'], $dateScope['params']);
-    
     $paymentData = Database::fetchAll(
-        "SELECT 
+        "SELECT
+            po.order_id,
+            $transactionGross AS gross_amount,
             po.payment_method,
-            COALESCE(SUM(po.grand_total), 0) as total_amount,
-            COUNT(DISTINCT po.order_id) as transaction_count
-         FROM pos_orders po
-         WHERE po.status = 'completed'
+            po.payment_methods_json
+         $transactionFrom
+         WHERE $transactionStatus
            $dateWhere
            $branchWhere
-         GROUP BY po.payment_method
-         ORDER BY total_amount DESC",
+         ORDER BY po.order_id",
         $params
     );
 
@@ -59,27 +62,46 @@ try {
         ];
     }
 
-    // Sum up actual payment data
+    $paymentOrderIds = [];
     foreach ($paymentData as $payment) {
-        $methodName = $payment['payment_method'] ?? 'Other';
-        $amount = floatval($payment['total_amount']);
-        $count = intval($payment['transaction_count']);
-        $total += $amount;
-
-        if (!isset($breakdown[$methodName])) {
-            $breakdown[$methodName] = [
-                'amount' => 0,
-                'percent' => 0,
-                'transaction_count' => 0
+        $orderId = (string)($payment['order_id'] ?? '');
+        $orderPayments = [];
+        if (!empty($payment['payment_methods_json'])) {
+            $decodedPayments = json_decode($payment['payment_methods_json'], true);
+            if (is_array($decodedPayments)) {
+                $orderPayments = $decodedPayments;
+            }
+        }
+        if (empty($orderPayments) && trim((string)($payment['payment_method'] ?? '')) !== '') {
+            $orderPayments[] = [
+                'method_name' => $payment['payment_method'],
+                'amount' => (float)($payment['gross_amount'] ?? 0)
             ];
         }
 
-        $breakdown[$methodName]['amount'] += $amount;
-        $breakdown[$methodName]['transaction_count'] += $count;
+        foreach ($orderPayments as $orderPayment) {
+            $methodName = trim((string)($orderPayment['method_name']
+                ?? $orderPayment['method_code']
+                ?? '')) ?: 'Other';
+            $amount = max(0, (float)($orderPayment['amount'] ?? 0));
+            if ($amount <= 0) {
+                continue;
+            }
+            if (!isset($breakdown[$methodName])) {
+                $breakdown[$methodName] = [
+                    'amount' => 0,
+                    'percent' => 0,
+                    'transaction_count' => 0
+                ];
+            }
+            $breakdown[$methodName]['amount'] += $amount;
+            $paymentOrderIds[$methodName][$orderId] = true;
+            $total += $amount;
+        }
     }
 
-    // Calculate percentages
     foreach ($breakdown as $methodName => &$data) {
+        $data['transaction_count'] = count($paymentOrderIds[$methodName] ?? []);
         $data['percent'] = $total > 0 ? round(($data['amount'] / $total) * 100, 1) : 0;
     }
 

@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -25,6 +26,8 @@ try {
     $branchParams = $branchScope['params'];
     $dateWhere = 'AND ' . $dateScope['sql'];
     $dateParams = $dateScope['params'];
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
 
     $isHourly = $filter['granularity'] === 'hourly';
     $isAnnual = $filter['granularity'] === 'annual';
@@ -73,8 +76,8 @@ try {
         foreach ($periodKeys as $periodKey) {
             $result = Database::fetch(
                 "SELECT COUNT(DISTINCT po.order_id) as count
-                 FROM pos_orders po
-                 WHERE po.status = 'completed'
+                 $transactionFrom
+                 WHERE $transactionStatus
                    $dateWhere
                    $branchWhere
                    AND HOUR(po.created_at) = :hour",
@@ -89,8 +92,8 @@ try {
         $rows = Database::fetchAll(
             "SELECT $groupExpression as period_key,
                     COUNT(DISTINCT po.order_id) as count
-             FROM pos_orders po
-             WHERE po.status = 'completed'
+             $transactionFrom
+             WHERE $transactionStatus
                $dateWhere
                $branchWhere
              GROUP BY $groupExpression

@@ -74,7 +74,17 @@ function applyTicketAdjustmentSettlement(array $cancellation, int $approverId, ?
     if ($adjustmentId <= 0) return;
 
     $responsibility = strtoupper((string) ($cancellation['responsibility'] ?? 'NONE'));
+    $reasonCategory = strtoupper((string) ($cancellation['reason_category'] ?? 'OTHER'));
+    $isCashierDeductionReason = in_array(
+        $reasonCategory,
+        ['PRINTER_ERROR', 'SYSTEM_ERROR', 'CASHIER_ERROR'],
+        true
+    );
     $amount = max(0, round((float) ($cancellation['responsibility_amount'] ?? 0), 2));
+    if ($reasonCategory === 'CANCEL') {
+        $responsibility = 'NONE';
+        $amount = 0.0;
+    }
     $settlementStatus = 'NOT_APPLICABLE';
     $settledAt = null;
     $settledBy = null;
@@ -99,7 +109,8 @@ function applyTicketAdjustmentSettlement(array $cancellation, int $approverId, ?
         }
 
         $targetSessionId = (int) ($targetCashier['session_id'] ?? 0);
-        if ($targetSessionId > 0) {
+        if ($targetSessionId > 0 && $isCashierDeductionReason) {
+            // Deduct from the cashier's session for technical loss or cashier negligence.
             Database::execute(
                 "UPDATE cashier_sessions
                  SET total_cash_adjustments = COALESCE(total_cash_adjustments, 0) + :amount
@@ -110,7 +121,12 @@ function applyTicketAdjustmentSettlement(array $cancellation, int $approverId, ?
             $settledAt = date('Y-m-d H:i:s');
             $settledBy = $approverId;
         } else {
+            // Recorded for audit when there is no open session to deduct.
             $settlementStatus = 'RECORDED';
+            if ($targetSessionId > 0) {
+                $settledAt = date('Y-m-d H:i:s');
+                $settledBy = $approverId;
+            }
         }
     } elseif ($responsibility === 'CUSTOMER' && $amount > 0) {
         $settlementStatus = 'AUDIT_ONLY';
@@ -282,6 +298,40 @@ try {
         $cancellation['responsibility_cashier_session_id'] = $targetCashier['session_id'] ?? null;
     }
 
+    if ($action === 'approve'
+        && strtoupper((string) ($cancellation['operation_type'] ?? 'REFUND')) === 'VOID'
+        && strtoupper((string) ($cancellation['reason_category'] ?? 'OTHER')) === 'CASHIER_ERROR'
+        && strtoupper((string) ($cancellation['responsibility'] ?? 'NONE')) === 'CASHIER') {
+        $printFeeAmount = CancellationService::printFeeAmountForTicket((int) $cancellation['transaction_id']);
+        $responsibilityAmount = round(
+            (float) ($cancellation['void_fee'] ?? 0)
+                + (float) ($cancellation['void_service_fee'] ?? 0)
+                + $printFeeAmount,
+            2
+        );
+        Database::execute(
+            "UPDATE ticket_cancellations
+             SET responsibility_amount = :responsibility_amount
+             WHERE cancellation_id = :cancellation_id",
+            [
+                'responsibility_amount' => $responsibilityAmount,
+                'cancellation_id' => (int) $cancellationId,
+            ]
+        );
+        if (!empty($cancellation['adjustment_id'])) {
+            Database::execute(
+                "UPDATE ticket_adjustments
+                 SET amount = :amount
+                 WHERE adjustment_id = :adjustment_id",
+                [
+                    'amount' => $responsibilityAmount,
+                    'adjustment_id' => (int) $cancellation['adjustment_id'],
+                ]
+            );
+        }
+        $cancellation['responsibility_amount'] = $responsibilityAmount;
+    }
+
     if ($action === 'approve') {
         // -----------------------------------------------------------------
         // APPROVE PATH
@@ -334,6 +384,7 @@ try {
             ['status' => 'completed', 'cancellation_id' => $cancellationId,
              'ticket_txn_id' => $ticketTxn['transaction_id'],
              'operation_type' => $operationType,
+             'reason_category' => $cancellation['reason_category'] ?? 'OTHER',
              'responsibility' => $cancellation['responsibility'] ?? 'NONE',
              'responsible_user_id' => $cancellation['responsible_user_id'] ?? null,
              'responsibility_amount' => $cancellation['responsibility_amount'] ?? 0,
@@ -344,7 +395,19 @@ try {
              'bank_refund_amount' => $effects['bank_refund_amount'] ?? 0,
              'wallet_balance_before' => $effects['wallet_balance_before'],
              'wallet_balance_after' => $effects['wallet_balance_after'],
-             'wallet_txn_code' => $effects['wallet_txn_code'], 'remarks' => $remarks]);
+             'wallet_txn_code' => $effects['wallet_txn_code'],
+             'void_fee_wallet_debited' => $effects['void_fee_wallet_debited'] ?? false,
+             'void_fee_wallet_debit_amount' => $effects['void_fee_wallet_debit_amount'] ?? 0,
+             'void_fee_wallet_debit_void_fee' => $effects['void_fee_wallet_debit_void_fee'] ?? 0,
+             'void_fee_wallet_debit_service_fee' => $effects['void_fee_wallet_debit_service_fee'] ?? 0,
+             'void_fee_wallet_balance_before' => $effects['void_fee_wallet_balance_before'] ?? null,
+             'void_fee_wallet_balance_after' => $effects['void_fee_wallet_balance_after'] ?? null,
+             'void_fee_wallet_txn_code' => $effects['void_fee_wallet_txn_code'] ?? null,
+             'stock_restored' => $effects['stock_restored'] ?? false,
+             'stock_restoration_already_applied' => $effects['stock_restoration_already_applied'] ?? false,
+             'stock_restoration_movement_id' => $effects['stock_restoration_movement_id'] ?? null,
+             'stock_restoration_quantity' => $effects['stock_restoration_quantity'] ?? 0,
+             'remarks' => $remarks]);
 
         Database::connection()->commit();
 
@@ -370,6 +433,7 @@ try {
             'cancellation_id' => $cancellationId,
             'transaction_code' => $ticketTxn['transaction_code'],
             'operation_type' => $operationType,
+            'reason_category' => $cancellation['reason_category'] ?? 'OTHER',
             'gross_refund_amount' => $grossRefundAmount,
             'refund_amount' => $refundAmount,
             'responsibility' => $cancellation['responsibility'] ?? 'NONE',
@@ -377,6 +441,17 @@ try {
             'charge_amount' => $effects['charge_reversal_amount'],
             'cash_refund_amount' => $effects['cash_refund_amount'],
             'bank_refund_amount' => $effects['bank_refund_amount'] ?? 0,
+            'void_fee_wallet_debited' => $effects['void_fee_wallet_debited'] ?? false,
+            'void_fee_wallet_debit_amount' => $effects['void_fee_wallet_debit_amount'] ?? 0,
+            'void_fee_wallet_debit_void_fee' => $effects['void_fee_wallet_debit_void_fee'] ?? 0,
+            'void_fee_wallet_debit_service_fee' => $effects['void_fee_wallet_debit_service_fee'] ?? 0,
+            'void_fee_wallet_balance_before' => $effects['void_fee_wallet_balance_before'] ?? null,
+            'void_fee_wallet_balance_after' => $effects['void_fee_wallet_balance_after'] ?? null,
+            'void_fee_wallet_txn_code' => $effects['void_fee_wallet_txn_code'] ?? null,
+            'stock_restored' => $effects['stock_restored'] ?? false,
+            'stock_restoration_already_applied' => $effects['stock_restoration_already_applied'] ?? false,
+            'stock_restoration_movement_id' => $effects['stock_restoration_movement_id'] ?? null,
+            'stock_restoration_quantity' => $effects['stock_restoration_quantity'] ?? 0,
             'refund_status' => $effects['refund_status'] ?? null,
             'is_consumed_variant' => !empty($effects['is_consumed_variant']),
         ]);

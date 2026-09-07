@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/config/database.php';
 require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -76,15 +77,16 @@ try {
     $salesStartDate = $startDate;
     $salesEndDate = $endDate;
     
-    // Get actual sales from pos_orders (using net sales: total - refunds)
+    // Get actual sales from the same transaction-level calculation used by POS reports.
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionNet = PosTransactionReporting::netExpression();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
     $actualSalesQuery = "
-        SELECT 
+        SELECT
             DATE(po.created_at) as sale_date,
-            COALESCE(SUM(po.grand_total), 0) as total_sales,
-            COALESCE(SUM(po.total_refunded_amount), 0) as total_refunds,
-            COALESCE(SUM(po.grand_total), 0) - COALESCE(SUM(po.total_refunded_amount), 0) as actual_sales
-        FROM pos_orders po
-        WHERE po.status = 'completed'
+            COALESCE(SUM($transactionNet), 0) as actual_sales
+        $transactionFrom
+        WHERE $transactionStatus
         AND DATE(po.created_at) BETWEEN :start_date AND :end_date
     ";
     

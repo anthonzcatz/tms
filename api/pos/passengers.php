@@ -205,12 +205,14 @@ function handleGet($user) {
                        p.region_code, p.province_code, p.city_municipality_code, p.barangay_code,
                        p.street_address, p.landmark, p.zip_code, p.gender, p.birth_date, p.notes,
                        p.created_at, p.updated_at, p.created_by,
+                       COALESCE(cc.balance, 0.00) AS balance,
                        r.region_name,
                        pr.province_name,
                        c.city_municipality_name,
                        b.barangay_name,
                        CONCAT(e.first_name, ' ', e.last_name) as created_by_name
                 FROM passenger_accounts p
+                LEFT JOIN customer_charges cc ON cc.passenger_id = p.passenger_id
                 LEFT JOIN user_accounts u ON p.created_by = u.user_id
                 LEFT JOIN employees e ON u.emp_id = e.emp_id
                 LEFT JOIN psgc_regions r ON p.region_code = r.region_code

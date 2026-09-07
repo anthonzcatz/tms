@@ -432,6 +432,41 @@
     font-size: 0.86rem;
 }
 
+.financial-report-lost-sales-row {
+    color: #b42318;
+    background: #fff5f5;
+}
+
+.financial-report-lost-sales-row strong {
+    color: #b42318;
+}
+
+.financial-report-row-note,
+.financial-report-void-meta {
+    display: inline;
+    margin-top: 0;
+    color: #6c7a8c;
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+}
+
+.financial-report-lost-sales-separator {
+    display: inline-block;
+    margin: 0 0.35rem;
+    color: #6c7a8c;
+}
+
+.financial-report-void-cell {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.financial-report-void-separator {
+    color: #6c7a8c;
+}
+
 .financial-report-input-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

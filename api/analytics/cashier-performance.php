@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -32,25 +33,27 @@ try {
     $branchParams = $branchScope['params'];
     $dateWhere = 'AND ' . $dateScope['sql'];
     $dateParams = $dateScope['params'];
+    $transactionFrom = PosTransactionReporting::orderFrom();
+    $transactionNet = PosTransactionReporting::netExpression();
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
     $userRoleCode = $user['role_code'] ?? '';
     $userBranchId = $user['branch_id'] ?? null;
 
     $cashierParams = array_merge($branchParams, $dateParams);
     $topCashiers = Database::fetchAll(
         "SELECT
-            cs.cashier_user_id,
-            CONCAT(e.first_name, ' ', COALESCE(e.last_name, '')) as cashier_name,
+            po.created_by AS cashier_user_id,
+            COALESCE(CONCAT_WS(' ', e.first_name, e.last_name), ua.username, po.cashier_name) AS cashier_name,
             COUNT(DISTINCT po.order_id) as transaction_count,
-            COALESCE(SUM(po.grand_total), 0) as total_sales,
-            COALESCE(AVG(po.grand_total), 0) as avg_transaction
-         FROM pos_orders po
-         INNER JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
-         INNER JOIN user_accounts ua ON cs.cashier_user_id = ua.user_id
+            COALESCE(SUM($transactionNet), 0) as total_sales,
+            COALESCE(AVG($transactionNet), 0) as avg_transaction
+         $transactionFrom
+         LEFT JOIN user_accounts ua ON po.created_by = ua.user_id
          LEFT JOIN employees e ON ua.emp_id = e.emp_id
-         WHERE po.status = 'completed'
+         WHERE $transactionStatus
            $dateWhere
            $branchWhere
-         GROUP BY cs.cashier_user_id, e.first_name, e.last_name
+         GROUP BY po.created_by, e.first_name, e.last_name, ua.username, po.cashier_name
          ORDER BY total_sales DESC
          LIMIT 5",
         $cashierParams
@@ -114,15 +117,14 @@ try {
                 : ($isMonthly ? "DATE_FORMAT(po.created_at, '%Y-%m')" : "DATE(po.created_at)"));
 
         $chartRows = Database::fetchAll(
-            "SELECT cs.cashier_user_id, $chartGroup as period_key,
-                    COALESCE(SUM(po.grand_total), 0) as sales
-             FROM pos_orders po
-             INNER JOIN cashier_sessions cs ON po.cashier_session_id = cs.session_id
-             WHERE po.status = 'completed'
+            "SELECT po.created_by AS cashier_user_id, $chartGroup as period_key,
+                    COALESCE(SUM($transactionNet), 0) as sales
+             $transactionFrom
+             WHERE $transactionStatus
                $dateWhere
                $branchWhere
-               AND cs.cashier_user_id IN (" . implode(', ', $cashierPlaceholders) . ")
-             GROUP BY cs.cashier_user_id, $chartGroup
+               AND po.created_by IN (" . implode(', ', $cashierPlaceholders) . ")
+             GROUP BY po.created_by, $chartGroup
              ORDER BY period_key ASC",
             $chartParams
         );
@@ -148,10 +150,9 @@ try {
     }
 
     $activeCashiers = Database::fetch(
-        "SELECT COUNT(DISTINCT cs.cashier_user_id) as count
-         FROM cashier_sessions cs
-         INNER JOIN pos_orders po ON cs.session_id = po.cashier_session_id
-         WHERE po.status = 'completed'
+        "SELECT COUNT(DISTINCT po.created_by) as count
+         $transactionFrom
+         WHERE $transactionStatus
            $dateWhere
            $branchWhere",
         $cashierParams

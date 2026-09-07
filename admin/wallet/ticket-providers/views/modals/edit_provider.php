@@ -45,6 +45,26 @@
               </div>
               <small class="text-muted form-text">Toggle to activate or deactivate this provider</small>
             </div>
+            <div class="col-md-6">
+              <label for="editWalletDeductAllCharges" class="form-label fw-bold">Deduct All Charges from Wallet</label>
+              <div class="form-check form-switch d-flex align-items-center ps-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="editWalletDeductAllCharges" name="wallet_deduct_all_charges" style="width: 3em; height: 1.5em; float: none; margin: 0;">
+                <label class="form-check-label ms-2" for="editWalletDeductAllCharges" id="editWalletDeductAllChargesLabel">
+                  <span class="text-muted">Disabled</span>
+                </label>
+              </div>
+              <small class="text-muted form-text">Deducts base amount, normal service fee, regular Void Fee, and Void Service Fee. Takes priority if both settings are enabled.</small>
+            </div>
+            <div class="col-md-6">
+              <label for="editWalletDeductBaseOnly" class="form-label fw-bold">Deduct Base Amount Only</label>
+              <div class="form-check form-switch d-flex align-items-center ps-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="editWalletDeductBaseOnly" name="wallet_deduct_base_only" style="width: 3em; height: 1.5em; float: none; margin: 0;">
+                <label class="form-check-label ms-2" for="editWalletDeductBaseOnly" id="editWalletDeductBaseOnlyLabel">
+                  <span class="text-muted">Disabled</span>
+                </label>
+              </div>
+              <small class="text-muted form-text">Deducts only the ticket base amount from the provider's monetary wallet.</small>
+            </div>
           </div>
           <div class="row g-3 mt-1">
             <div class="col-md-6">

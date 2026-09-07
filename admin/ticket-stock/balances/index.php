@@ -6,6 +6,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/app/helpers/PusherService.ph
 
 $user = Auth::user();
 $userRoleCode = Auth::userRoleCode() ?? ($user['role_code'] ?? '');
+$canViewAllTicketStock = $userRoleCode === 'SUPER_ADMIN' || Auth::can('VIEW_ALL_TICKET_STOCK');
 if ($userRoleCode !== 'SUPER_ADMIN'
     && !Auth::can('VIEW_TICKET_STOCK_BALANCES')
     && !Auth::canAccessModule('admin/ticket-stock/balances/')) {
@@ -17,7 +18,9 @@ if ($userRoleCode !== 'SUPER_ADMIN'
 $allowedBranchIds = PosAccess::allowedBranchIds($user);
 $branchWhere = ["status = 'active'"];
 $branchParams = [];
-PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'balance_branch');
+if (!$canViewAllTicketStock) {
+    PosAccess::applyBranchScope($branchWhere, $branchParams, 'branch_id', $user, 'balance_branch');
+}
 $branches = Database::fetchAll(
     "SELECT branch_id, branch_name
      FROM business_branches
@@ -28,9 +31,9 @@ $branches = Database::fetchAll(
 $providers = Database::fetchAll("SELECT provider_id, provider_code, provider_name FROM ticket_providers WHERE status = 'active' ORDER BY provider_name");
 $variants = Database::fetchAll("SELECT variant_id, provider_id, variant_code, variant_name FROM provider_ticket_variants WHERE is_active = 1 AND deleted_at IS NULL ORDER BY variant_name");
 
-$realtimeBranchIds = $allowedBranchIds === null
+$realtimeBranchIds = $canViewAllTicketStock
     ? array_map('intval', array_column(Database::fetchAll("SELECT branch_id FROM business_branches WHERE status = 'active'"), 'branch_id'))
-    : $allowedBranchIds;
+    : ($allowedBranchIds ?? []);
 $realtimeBranchIds = array_values(array_unique(array_filter($realtimeBranchIds)));
 $pusherConfigured = PusherService::isConfigured();
 $pusherKey = $pusherConfigured ? env('PUSHER_KEY', '') : '';

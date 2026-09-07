@@ -69,6 +69,7 @@ function createTicketAdjustment(
     int $transactionId,
     int $cancellationId,
     string $operationType,
+    string $reasonCategory,
     string $responsibility,
     float $amount,
     ?int $chargeAccountId,
@@ -82,8 +83,13 @@ function createTicketAdjustment(
     $chargedTo = $responsibility === 'CUSTOMER'
         ? 'customer'
         : ($responsibility === 'CASHIER' ? 'cashier' : 'none');
+    $isCashierDeductionReason = in_array(
+        strtoupper($reasonCategory),
+        ['PRINTER_ERROR', 'SYSTEM_ERROR', 'CASHIER_ERROR'],
+        true
+    );
     if ($approvalStatus === 'APPROVED' && $responsibility === 'CASHIER' && $amount > 0) {
-        $settlementStatus = $cashierSessionId ? 'DEDUCTED' : 'RECORDED';
+        $settlementStatus = ($cashierSessionId && $isCashierDeductionReason) ? 'DEDUCTED' : 'RECORDED';
     } elseif ($approvalStatus === 'APPROVED' && $responsibility === 'CUSTOMER' && $amount > 0) {
         $settlementStatus = 'AUDIT_ONLY';
     } else {
@@ -165,7 +171,7 @@ $lostSalesServiceFee = 0.0;
 $responsibleUserId = !empty($input['responsible_user_id']) ? (int) $input['responsible_user_id'] : null;
 
 $allowedOperations = ['REFUND', 'VOID'];
-$allowedReasonCategories = ['CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR', 'PRINTER_ERROR', 'SYSTEM_ERROR', 'OTHER'];
+$allowedReasonCategories = ['CUSTOMER_REQUEST', 'CUSTOMER_ERROR', 'CASHIER_ERROR', 'PRINTER_ERROR', 'SYSTEM_ERROR', 'CANCEL', 'OTHER'];
 $allowedResponsibilities = ['NONE', 'CUSTOMER', 'CASHIER'];
 
 $requiredResponsibilityByReason = [
@@ -173,6 +179,7 @@ $requiredResponsibilityByReason = [
     'CASHIER_ERROR'  => 'CASHIER',
     'PRINTER_ERROR'  => 'NONE',
     'SYSTEM_ERROR'   => 'NONE',
+    'CANCEL'         => 'NONE',
     'CUSTOMER_REQUEST' => 'NONE',
     'OTHER'          => 'NONE',
 ];
@@ -184,6 +191,15 @@ if ($operationType === 'REFUND') {
     $responsibility = 'NONE';
     $responsibilityAmount = 0.0;
     $responsibleUserId = null;
+}
+if ($operationType === 'VOID' && $reasonCategory === 'CANCEL') {
+    // Cancel is a no-fee, no-responsibility Void category. Enforce this on
+    // the server so crafted requests cannot create charges through this path.
+    $responsibility = 'NONE';
+    $responsibilityAmount = 0.0;
+    $responsibleUserId = null;
+    $enteredVoidFee = 0.0;
+    $enteredVoidServiceFee = 0.0;
 }
 if (!in_array($reasonCategory, $allowedReasonCategories, true)) { echo json_encode(['success' => false, 'error' => 'Invalid reason category.']); exit; }
 if (!in_array($responsibility, $allowedResponsibilities, true)) { echo json_encode(['success' => false, 'error' => 'Invalid responsibility type.']); exit; }
@@ -211,7 +227,10 @@ if (!$reasonAllowsResponsibility
 }
 if ($responsibility === 'CASHIER' && !$responsibleUserId) { echo json_encode(['success' => false, 'error' => 'A responsible cashier is required.']); exit; }
 if ($responsibility !== 'CASHIER') $responsibleUserId = null;
-if ($responsibility === 'CASHIER' && $operationType === 'VOID' && $responsibilityAmount <= 0) {
+if ($responsibility === 'CASHIER'
+    && $operationType === 'VOID'
+    && $responsibilityAmount <= 0
+    && $reasonCategory !== 'CASHIER_ERROR') {
     echo json_encode(['success' => false, 'error' => 'Responsibility amount must be greater than 0 for a VOID assigned to a cashier.']); exit;
 }
 if ($responsibility === 'CUSTOMER' && $operationType === 'REFUND' && $responsibilityAmount >= $grossRefundAmount) {
@@ -278,6 +297,15 @@ if ($grossRefundAmount > $totalAmount) {
 
 $ticketTxnId = (int) $ticketTxn['transaction_id'];
 $passengerId = $ticketTxn['passenger_id'] ?? null;
+$printFeeAmount = $operationType === 'VOID' && $reasonCategory === 'CASHIER_ERROR'
+    ? CancellationService::printFeeAmountForTicket($ticketTxnId)
+    : 0.0;
+if ($operationType === 'VOID' && $responsibility === 'CASHIER') {
+    $responsibilityAmount = round($voidFee + $voidServiceFee + $printFeeAmount, 2);
+}
+if ($responsibility === 'CASHIER' && $operationType === 'VOID' && $responsibilityAmount <= 0) {
+    echo json_encode(['success' => false, 'error' => 'Responsibility amount must be greater than 0 for a VOID assigned to a cashier.']); exit;
+}
 $refundAmount = $operationType === 'REFUND'
     ? round($grossRefundAmount - ($responsibility === 'CUSTOMER' ? $responsibilityAmount : 0), 2)
     : 0.0;
@@ -351,7 +379,12 @@ try {
     }
     $ticketTxn = $lockedTicketTxn;
 
-    $cancellationType = $operationType === 'VOID' || $grossRefundAmount >= $totalAmount ? 'full' : 'partial';
+    $ticketServiceFee = max(0, round((float) ($ticketTxn['service_fee'] ?? 0), 2));
+    $refundableTicketAmount = max(0, $totalAmount - $ticketServiceFee);
+    $cancellationType = $operationType === 'VOID'
+        || $grossRefundAmount >= $refundableTicketAmount
+        ? 'full'
+        : 'partial';
 
     if ($requiresConfirmation) {
         // -----------------------------------------------------------------
@@ -406,6 +439,7 @@ try {
             $ticketTxnId,
             $cancellationId,
             $operationType,
+            $reasonCategory,
             $responsibility,
             $responsibilityAmount,
             $responsibility === 'CUSTOMER' ? $chargeAccountId : null,
@@ -458,6 +492,7 @@ try {
             'transaction_id' => $ticketTxn['transaction_id'],
             'transaction_code' => $ticketTxn['transaction_code'],
             'operation_type' => $operationType,
+            'reason_category' => $reasonCategory,
             'gross_refund_amount' => $grossRefundAmount,
             'refund_amount' => $refundAmount,
             'responsibility' => $responsibility,
@@ -525,6 +560,7 @@ try {
             $ticketTxnId,
             $cancellationId,
             $operationType,
+            $reasonCategory,
             $responsibility,
             $responsibilityAmount,
             $responsibility === 'CUSTOMER' ? $chargeAccountId : null,
@@ -546,7 +582,9 @@ try {
             'cashier_session_id' => $cashierSessionId,
             'requested_at' => date('Y-m-d H:i:s'),
             'reason' => $reason,
+            'reason_category' => $reasonCategory,
             'operation_type' => $operationType,
+            'cancellation_type' => $cancellationType,
             'gross_refund_amount' => $grossRefundAmount,
             'responsibility_amount' => $responsibilityAmount,
             'void_fee' => $voidFee,
@@ -586,7 +624,19 @@ try {
              'charge_amount' => $effects['charge_reversal_amount'],
              'wallet_balance_before' => $effects['wallet_balance_before'],
              'wallet_balance_after' => $effects['wallet_balance_after'],
-             'wallet_txn_code' => $effects['wallet_txn_code'], 'requires_confirmation' => false]);
+             'wallet_txn_code' => $effects['wallet_txn_code'],
+             'void_fee_wallet_debited' => $effects['void_fee_wallet_debited'] ?? false,
+             'void_fee_wallet_debit_amount' => $effects['void_fee_wallet_debit_amount'] ?? 0,
+             'void_fee_wallet_debit_void_fee' => $effects['void_fee_wallet_debit_void_fee'] ?? 0,
+             'void_fee_wallet_debit_service_fee' => $effects['void_fee_wallet_debit_service_fee'] ?? 0,
+             'void_fee_wallet_balance_before' => $effects['void_fee_wallet_balance_before'] ?? null,
+             'void_fee_wallet_balance_after' => $effects['void_fee_wallet_balance_after'] ?? null,
+             'void_fee_wallet_txn_code' => $effects['void_fee_wallet_txn_code'] ?? null,
+             'stock_restored' => $effects['stock_restored'] ?? false,
+             'stock_restoration_already_applied' => $effects['stock_restoration_already_applied'] ?? false,
+             'stock_restoration_movement_id' => $effects['stock_restoration_movement_id'] ?? null,
+             'stock_restoration_quantity' => $effects['stock_restoration_quantity'] ?? 0,
+             'requires_confirmation' => false]);
 
         Database::connection()->commit();
 
@@ -612,6 +662,7 @@ try {
             'transaction_id' => $ticketTxn['transaction_id'],
             'transaction_code' => $ticketTxn['transaction_code'],
             'operation_type' => $operationType,
+            'reason_category' => $reasonCategory,
             'gross_refund_amount' => $grossRefundAmount,
             'refund_amount' => $refundAmount,
             'responsibility' => $responsibility,
@@ -623,6 +674,17 @@ try {
             'charge_amount' => $effects['charge_reversal_amount'],
             'cash_refund_amount' => $effects['cash_refund_amount'],
             'bank_refund_amount' => $effects['bank_refund_amount'] ?? 0,
+            'void_fee_wallet_debited' => $effects['void_fee_wallet_debited'] ?? false,
+            'void_fee_wallet_debit_amount' => $effects['void_fee_wallet_debit_amount'] ?? 0,
+            'void_fee_wallet_debit_void_fee' => $effects['void_fee_wallet_debit_void_fee'] ?? 0,
+            'void_fee_wallet_debit_service_fee' => $effects['void_fee_wallet_debit_service_fee'] ?? 0,
+            'void_fee_wallet_balance_before' => $effects['void_fee_wallet_balance_before'] ?? null,
+            'void_fee_wallet_balance_after' => $effects['void_fee_wallet_balance_after'] ?? null,
+            'void_fee_wallet_txn_code' => $effects['void_fee_wallet_txn_code'] ?? null,
+            'stock_restored' => $effects['stock_restored'] ?? false,
+            'stock_restoration_already_applied' => $effects['stock_restoration_already_applied'] ?? false,
+            'stock_restoration_movement_id' => $effects['stock_restoration_movement_id'] ?? null,
+            'stock_restoration_quantity' => $effects['stock_restoration_quantity'] ?? 0,
             'cancellation_id' => $cancellationId,
             'adjustment_id' => $adjustmentId,
             'refund_status' => $effects['refund_status'] ?? null,

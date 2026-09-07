@@ -2,7 +2,7 @@
 $activeWalletModule = $activeWalletModule ?? '';
 $walletGroup = ['ticket-providers', 'provider-wallets', 'wallet-transactions', 'provider-service-fees'];
 $paymentGroup = ['charges', 'cashier-charges', 'bank-confirmations', 'refund-confirmations', 'refund-history'];
-$settingsGroup = ['service-types', 'payment-methods', 'bank-accounts', 'discount-types'];
+$settingsGroup = ['service-types', 'payment-methods', 'bank-accounts', 'discount-types', 'accommodation-types'];
 $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_array($activeWalletModule, $paymentGroup) ? 'payments' : (in_array($activeWalletModule, $settingsGroup) ? 'settings' : 'wallet'));
 ?>
 <div class="card mb-3">
@@ -29,6 +29,7 @@ $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_arra
       <a href="<?php echo BASE_URL; ?>/admin/settings/payment-methods" class="btn btn-sm btn-<?php echo $activeWalletModule === 'payment-methods' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-credit-card me-1"></span>Methods</a>
       <a href="<?php echo BASE_URL; ?>/admin/settings/bank-accounts" class="btn btn-sm btn-<?php echo $activeWalletModule === 'bank-accounts' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-piggy-bank me-1"></span>Accounts</a>
       <a href="<?php echo BASE_URL; ?>/admin/settings/discount-types" class="btn btn-sm btn-<?php echo $activeWalletModule === 'discount-types' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-tags me-1"></span>Discounts</a>
+      <a href="<?php echo BASE_URL; ?>/admin/settings/accommodation-types" class="btn btn-sm btn-<?php echo $activeWalletModule === 'accommodation-types' ? 'primary' : 'falcon-default'; ?>"><span class="fas fa-bed me-1"></span>Accommodation</a>
       <?php endif; ?>
       
       <!-- Group Switcher -->
@@ -55,6 +56,7 @@ $activeGroup = in_array($activeWalletModule, $walletGroup) ? 'wallet' : (in_arra
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/payment-methods">Methods</a></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/bank-accounts">Accounts</a></li>
           <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/discount-types">Discounts</a></li>
+          <li><a class="dropdown-item" href="<?php echo BASE_URL; ?>/admin/settings/accommodation-types">Accommodation</a></li>
         </ul>
       </div>
     </div>

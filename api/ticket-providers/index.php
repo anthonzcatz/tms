@@ -52,6 +52,39 @@ function isValidProviderType(?string $type): bool
     return in_array($type, array_column(Database::getProviderTypes(), 'type_code'), true);
 }
 
+function normalizeBooleanFlag($value): ?int
+{
+    if (is_bool($value)) {
+        return $value ? 1 : 0;
+    }
+    if (is_int($value)) {
+        return in_array($value, [0, 1], true) ? $value : null;
+    }
+    if (is_float($value)) {
+        return in_array($value, [0.0, 1.0], true) ? (int) $value : null;
+    }
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['1', 'true', 'on'], true)) {
+            return 1;
+        }
+        if (in_array($normalized, ['0', 'false', 'off'], true)) {
+            return 0;
+        }
+    }
+    return null;
+}
+
+function hasProviderWalletDeductionSettings(): bool
+{
+    try {
+        return (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'wallet_deduct_all_charges'")
+            && (bool) Database::fetch("SHOW COLUMNS FROM ticket_providers LIKE 'wallet_deduct_base_only'");
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function logActivity($userId, $action, $moduleName, $referenceCode = null, $oldValue = null, $newValue = null) {
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
     $deviceId = null; // Can be enhanced to track device ID if needed
@@ -91,6 +124,8 @@ function broadcastProviderUpdate(int $providerId, string $action, array $provide
             ? (int) $provider['parent_provider_id']
             : null,
         'status' => $provider['status'] ?? null,
+        'wallet_deduct_all_charges' => (int) ($provider['wallet_deduct_all_charges'] ?? 0),
+        'wallet_deduct_base_only' => (int) ($provider['wallet_deduct_base_only'] ?? 1),
         'updated_at' => date(DATE_ATOM),
     ];
 
@@ -267,6 +302,14 @@ function handlePost() {
     $providerType = $input['provider_type'] ?? null;
     $parentProviderId = $input['parent_provider_id'] ?? null;
     $status = $input['status'] ?? 'active';
+    $walletDeductAllCharges = normalizeBooleanFlag($input['wallet_deduct_all_charges'] ?? 0);
+    $walletDeductBaseOnly = normalizeBooleanFlag($input['wallet_deduct_base_only'] ?? 1);
+
+    if ($walletDeductAllCharges === null || $walletDeductBaseOnly === null) {
+        echo json_encode(['success' => false, 'error' => 'Invalid provider wallet deduction setting']);
+        return;
+    }
+    $hasProviderWalletDeductionSettings = hasProviderWalletDeductionSettings();
 
     // Validate required fields
     if (!$providerCode || !$providerName || !$providerType) {
@@ -303,17 +346,25 @@ function handlePost() {
     }
 
     // Insert new provider
-    $sql = "INSERT INTO ticket_providers (provider_code, provider_name, provider_type, parent_provider_id, status, created_at)
-            VALUES (:provider_code, :provider_name, :provider_type, :parent_provider_id, :status, :created_at)";
-
-    Database::execute($sql, [
+    $insertFields = 'provider_code, provider_name, provider_type, parent_provider_id, status, created_at';
+    $insertValues = ':provider_code, :provider_name, :provider_type, :parent_provider_id, :status, :created_at';
+    $insertParams = [
         'provider_code' => $providerCode,
         'provider_name' => $providerName,
         'provider_type' => $providerType,
         'parent_provider_id' => $parentProviderId ? (int)$parentProviderId : null,
         'status' => $status,
         'created_at' => date('Y-m-d H:i:s')
-    ]);
+    ];
+    if ($hasProviderWalletDeductionSettings) {
+        $insertFields .= ', wallet_deduct_all_charges, wallet_deduct_base_only';
+        $insertValues .= ', :wallet_deduct_all_charges, :wallet_deduct_base_only';
+        $insertParams['wallet_deduct_all_charges'] = $walletDeductAllCharges;
+        $insertParams['wallet_deduct_base_only'] = $walletDeductBaseOnly;
+    }
+
+    $sql = "INSERT INTO ticket_providers ({$insertFields}) VALUES ({$insertValues})";
+    Database::execute($sql, $insertParams);
     
     $providerId = Database::connection()->lastInsertId();
     
@@ -329,7 +380,9 @@ function handlePost() {
             'provider_code' => $providerCode,
             'provider_name' => $providerName,
             'provider_type' => $providerType,
-            'status' => $status
+            'status' => $status,
+            'wallet_deduct_all_charges' => $walletDeductAllCharges,
+            'wallet_deduct_base_only' => $walletDeductBaseOnly
         ]
     );
     broadcastProviderUpdate((int) $providerId, 'created', [
@@ -338,6 +391,8 @@ function handlePost() {
         'provider_type' => $providerType,
         'parent_provider_id' => $parentProviderId,
         'status' => $status,
+        'wallet_deduct_all_charges' => $walletDeductAllCharges,
+        'wallet_deduct_base_only' => $walletDeductBaseOnly,
     ]);
     
     echo json_encode(['success' => true, 'message' => 'Provider created successfully', 'provider_id' => $providerId]);
@@ -368,6 +423,32 @@ function handlePut() {
     $providerType = $input['provider_type'] ?? null;
     $parentProviderId = $input['parent_provider_id'] ?? null;
     $status = $input['status'] ?? null;
+    $walletDeductAllCharges = null;
+    $walletDeductBaseOnly = null;
+    $hasWalletDeductionInput = array_key_exists('wallet_deduct_all_charges', $input)
+        || array_key_exists('wallet_deduct_base_only', $input);
+    if (array_key_exists('wallet_deduct_all_charges', $input)) {
+        $walletDeductAllCharges = normalizeBooleanFlag($input['wallet_deduct_all_charges']);
+        if ($walletDeductAllCharges === null) {
+            echo json_encode(['success' => false, 'error' => 'Invalid all-charges wallet setting']);
+            return;
+        }
+    }
+    if (array_key_exists('wallet_deduct_base_only', $input)) {
+        $walletDeductBaseOnly = normalizeBooleanFlag($input['wallet_deduct_base_only']);
+        if ($walletDeductBaseOnly === null) {
+            echo json_encode(['success' => false, 'error' => 'Invalid base-only wallet setting']);
+            return;
+        }
+    }
+    if ($hasWalletDeductionInput && !hasProviderWalletDeductionSettings()) {
+        http_response_code(503);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Database migration required: add_provider_wallet_deduction_settings.sql'
+        ]);
+        return;
+    }
 
     if ($providerType !== null && !isValidProviderType($providerType)) {
         echo json_encode(['success' => false, 'error' => 'Invalid provider type. Allowed types: ' . implode(', ', array_column(Database::getProviderTypes(), 'type_code'))]);
@@ -434,6 +515,14 @@ function handlePut() {
         $updateFields[] = "status = :status";
         $params['status'] = $status;
     }
+    if ($walletDeductAllCharges !== null) {
+        $updateFields[] = "wallet_deduct_all_charges = :wallet_deduct_all_charges";
+        $params['wallet_deduct_all_charges'] = $walletDeductAllCharges;
+    }
+    if ($walletDeductBaseOnly !== null) {
+        $updateFields[] = "wallet_deduct_base_only = :wallet_deduct_base_only";
+        $params['wallet_deduct_base_only'] = $walletDeductBaseOnly;
+    }
     
     if (empty($updateFields)) {
         echo json_encode(['success' => false, 'error' => 'No fields to update']);
@@ -464,6 +553,14 @@ function handlePut() {
         $oldValues['status'] = $currentProvider['status'];
         $newValues['status'] = $status;
     }
+    if ($walletDeductAllCharges !== null) {
+        $oldValues['wallet_deduct_all_charges'] = (int) ($currentProvider['wallet_deduct_all_charges'] ?? 0);
+        $newValues['wallet_deduct_all_charges'] = $walletDeductAllCharges;
+    }
+    if ($walletDeductBaseOnly !== null) {
+        $oldValues['wallet_deduct_base_only'] = (int) ($currentProvider['wallet_deduct_base_only'] ?? 1);
+        $newValues['wallet_deduct_base_only'] = $walletDeductBaseOnly;
+    }
     
     logActivity(
         $user['user_id'],
@@ -473,14 +570,22 @@ function handlePut() {
         !empty($oldValues) ? $oldValues : null,
         !empty($newValues) ? $newValues : null
     );
+    $updatedProviderFields = 'provider_code, provider_name, provider_type, parent_provider_id, status';
+    if (hasProviderWalletDeductionSettings()) {
+        $updatedProviderFields .= ', wallet_deduct_all_charges, wallet_deduct_base_only';
+    }
     $updatedProvider = Database::fetch(
-        "SELECT provider_code, provider_name, provider_type, parent_provider_id, status
+        "SELECT {$updatedProviderFields}
          FROM ticket_providers WHERE provider_id = :provider_id",
         ['provider_id' => (int) $providerId]
     );
     broadcastProviderUpdate((int) $providerId, 'updated', $updatedProvider ?: $newValues);
     
-    echo json_encode(['success' => true, 'message' => 'Provider updated successfully']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Provider updated successfully',
+        'data' => $updatedProvider ?: []
+    ]);
 }
 
 /**

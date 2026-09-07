@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/config/bootstrap.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/Auth.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/IdEncoder.php';
 require_once dirname(dirname(__DIR__)) . '/app/helpers/AnalyticsFilter.php';
+require_once dirname(dirname(__DIR__)) . '/app/helpers/PosTransactionReporting.php';
 
 header('Content-Type: application/json');
 
@@ -19,56 +20,37 @@ try {
     }
 
     $filter = AnalyticsFilter::parse($_GET, $user);
-    $userRoleCode = $user['role_code'] ?? '';
-    $userBranchId = $user['branch_id'] ?? null;
-    $poBranchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'services_po_branch');
-    $ticketBranchScope = AnalyticsFilter::branchCondition($filter, 'tt.branch_id', 'services_ticket_branch');
-    $poDateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'services_po_date');
-    $ticketDateScope = AnalyticsFilter::dateCondition($filter, 'tt.created_at', 'services_ticket_date');
-    $branchWhere = 'AND ' . $poBranchScope['sql'];
-    $ticketBranchWhere = 'AND ' . $ticketBranchScope['sql'];
-    $posDateWhere = 'AND ' . $poDateScope['sql'];
-    $ticketDateWhere = 'AND ' . $ticketDateScope['sql'];
-    
-    // Get top services by revenue for selected range (combine pos_order_items and ticket_transactions)
-    $params = array_merge($poBranchScope['params'], $poDateScope['params']);
-    $ticketParams = array_merge($ticketBranchScope['params'], $ticketDateScope['params']);
-    
-    // Get services from pos_order_items
-    $posServices = Database::fetchAll(
-        "SELECT 
-            st.name as service_name,
-            st.code as service_code,
-            COUNT(DISTINCT po.order_id) as orders,
-            COALESCE(SUM(poi.unit_price * poi.quantity), 0) as revenue,
-            COALESCE(AVG(poi.unit_price), 0) as avg_price
+    $branchScope = AnalyticsFilter::branchCondition($filter, 'po.branch_id', 'services_branch');
+    $dateScope = AnalyticsFilter::dateCondition($filter, 'po.created_at', 'services_date');
+    $branchWhere = 'AND ' . $branchScope['sql'];
+    $dateWhere = 'AND ' . $dateScope['sql'];
+    $transactionStatus = PosTransactionReporting::saleStatusCondition();
+    $params = array_merge($branchScope['params'], $dateScope['params']);
+
+    $allServices = Database::fetchAll(
+        "SELECT
+            CASE WHEN poi.item_type = 'SERVICE'
+                THEN COALESCE(st.name, NULLIF(poi.description, ''), 'Service')
+                ELSE 'Ticket Sale'
+            END AS service_name,
+            CASE WHEN poi.item_type = 'SERVICE'
+                THEN COALESCE(st.code, 'SERVICE')
+                ELSE 'TICKET_SALE'
+            END AS service_code,
+            COUNT(DISTINCT po.order_id) AS orders,
+            COALESCE(SUM(poi.total_amount), 0) AS revenue,
+            COALESCE(AVG(poi.total_amount), 0) AS avg_price
          FROM pos_order_items poi
          INNER JOIN pos_orders po ON poi.order_id = po.order_id
-         INNER JOIN service_types st ON poi.service_type_id = st.service_type_id
-         WHERE po.status = 'completed'
-           $posDateWhere
+         LEFT JOIN service_types st ON poi.service_type_id = st.service_type_id
+         WHERE $transactionStatus
+           AND COALESCE(poi.total_amount, 0) > 0
+           $dateWhere
            $branchWhere
-         GROUP BY st.service_type_id, st.name, st.code",
+         GROUP BY poi.item_type, st.service_type_id, st.name, st.code, poi.description
+         ORDER BY revenue DESC",
         $params
     );
-
-    // Get ticket transactions
-    $ticketServices = Database::fetchAll(
-        "SELECT 
-            'Ticket Sale' as service_name,
-            'TICKET_SALE' as service_code,
-            COUNT(DISTINCT tt.transaction_id) as orders,
-            COALESCE(SUM(tt.total_amount), 0) as revenue,
-            COALESCE(AVG(tt.total_amount), 0) as avg_price
-         FROM ticket_transactions tt
-         WHERE tt.status = 'booked'
-           $ticketDateWhere
-           $ticketBranchWhere",
-        $ticketParams
-    );
-
-    // Combine results
-    $allServices = array_merge($posServices, $ticketServices);
     
     // Group by service_name and aggregate
     $groupedServices = [];

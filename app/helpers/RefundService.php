@@ -9,7 +9,6 @@
  */
 
 require_once __DIR__ . '/../../config/database.php';
-require_once __DIR__ . '/BalanceLedgerService.php';
 require_once __DIR__ . '/ChargeService.php';
 
 final class RefundService
@@ -92,7 +91,7 @@ final class RefundService
             $isBank = in_array($payment['method_type'], ['BANK_TRANSFER', 'E_WALLET'], true);
             $route = $isCharge
                 ? 'CHARGE_REVERSAL'
-                : ($isBank ? 'BANK_REFUND' : ($payment['method_type'] === 'CASH' ? 'CASH' : 'OTHER'));
+                : (($isBank || $payment['method_type'] === 'CASH') ? 'CASH' : 'OTHER');
 
             $allocations[] = [
                 'source_payment_id' => (int) $payment['payment_id'],
@@ -100,7 +99,9 @@ final class RefundService
                 'payment_method_type' => $payment['method_type'],
                 'payment_method_name' => $payment['method_name'],
                 'confirmation_status' => $payment['confirmation_status'],
-                'bank_account_id' => $payment['bank_account_id'] !== null ? (int) $payment['bank_account_id'] : null,
+                'bank_account_id' => $route === 'BANK_REFUND' && $payment['bank_account_id'] !== null
+                    ? (int) $payment['bank_account_id']
+                    : null,
                 'amount' => $allocatedAmount,
                 'refund_route' => $route,
                 'passenger_id' => $payment['charged_to_passenger_id'] !== null
@@ -239,6 +240,13 @@ final class RefundService
                         break;
 
                     case 'CASH':
+                    case 'BANK_REFUND':
+                        if (in_array($allocation['payment_method_type'], ['BANK_TRANSFER', 'E_WALLET'], true)
+                            && $allocation['confirmation_status'] === 'PENDING') {
+                            throw new RuntimeException(
+                                'A bank/e-wallet payment must be confirmed before it can be refunded.'
+                            );
+                        }
                         if ($cashierSessionId && $amount > 0) {
                             Database::execute(
                                 "UPDATE cashier_sessions
@@ -248,46 +256,6 @@ final class RefundService
                             );
                         }
                         $actual['cash_amount'] += $amount;
-                        break;
-
-                    case 'BANK_REFUND':
-                        if ($allocation['confirmation_status'] === 'PENDING') {
-                            throw new RuntimeException(
-                                'A bank/e-wallet payment must be confirmed before it can be refunded.'
-                            );
-                        }
-                        if (!$allocation['bank_account_id']) {
-                            throw new RuntimeException('The original bank/e-wallet payment has no bank account.');
-                        }
-
-                        $originalBankTxn = Database::fetch(
-                            "SELECT bank_txn_id
-                             FROM bank_transactions
-                             WHERE reference_table = 'transaction_payments'
-                               AND reference_id = :payment_id
-                               AND direction = 'IN'
-                               AND confirmation_status = 'CONFIRMED'
-                             ORDER BY bank_txn_id DESC
-                             LIMIT 1",
-                            ['payment_id' => $allocation['source_payment_id']]
-                        );
-
-                        $bankResult = BalanceLedgerService::bankMovement(
-                            (int) $allocation['bank_account_id'],
-                            'REFUND',
-                            'OUT',
-                            $amount,
-                            'refund_allocations',
-                            $allocationId,
-                            'Refund for ' . $sourceType . ' #' . $sourceId,
-                            $processedBy,
-                            $idempotencyKey,
-                            $originalBankTxn ? (int) $originalBankTxn['bank_txn_id'] : null,
-                            false,
-                            $remarks
-                        );
-                        $actual['bank_amount'] += $amount;
-                        $actual['bank_txn_ids'][] = $bankResult['bank_txn_id'];
                         break;
 
                     case 'OTHER':
